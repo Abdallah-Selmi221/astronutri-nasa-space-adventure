@@ -22,6 +22,17 @@ export default {
           orange: '#ff9f1c',
           red: '#ff3366',
           purple: '#a855f7'
+        },
+        pastel: {
+          cyan: '#8DE8F4',
+          sky: '#A9C9FF',
+          lavender: '#C9B8FF',
+          pink: '#FFC3D8',
+          yellow: '#FFE69A',
+          mint: '#7AE582',
+          white: '#F8FCFF',
+          deep: '#0D1326',
+          mid: '#161F38',
         }
       },
       fontFamily: {

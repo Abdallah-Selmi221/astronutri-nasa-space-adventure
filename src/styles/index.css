@@ -49,6 +49,58 @@
   box-shadow: 0 0 40px rgba(255, 51, 102, 0.4);
 }
 
+/* Pastel Glassmorphism (الزجاج الكرتوني الناعم) */
+.pastel-glass-panel {
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 12px 32px rgba(13, 19, 38, 0.35), inset 0 2px 4px rgba(255, 255, 255, 0.3);
+  border-radius: 24px;
+}
+
+.pastel-glass-panel-interactive {
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 12px 32px rgba(13, 19, 38, 0.35);
+  border-radius: 24px;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.pastel-glass-panel-interactive:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: #8DE8F4;
+  transform: translateY(-2px);
+  box-shadow: 0 16px 36px rgba(141, 232, 244, 0.25);
+}
+
+/* Chunky Cartoon Action Button */
+.btn-chunky-adventure {
+  background: linear-gradient(135deg, #FFD166 0%, #FF9F1C 100%);
+  border: 3.5px solid #FFFDF5;
+  color: #3d1300;
+  font-family: 'Cairo', sans-serif;
+  font-weight: 900;
+  border-radius: 9999px;
+  box-shadow: 0 10px 0 #b36b00, 0 16px 35px rgba(255, 159, 28, 0.45);
+  transition: all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-chunky-adventure:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 0 #b36b00, 0 20px 45px rgba(255, 159, 28, 0.6);
+  background: linear-gradient(135deg, #FFE69A 0%, #FFA826 100%);
+}
+
+.btn-chunky-adventure:active {
+  transform: translateY(6px);
+  box-shadow: 0 4px 0 #b36b00, 0 8px 20px rgba(255, 159, 28, 0.35);
+}
+
 /* Custom Scrollbar for inventory/shelf */
 ::-webkit-scrollbar {
   width: 8px;
