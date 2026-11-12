@@ -258,10 +258,35 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}'],
+          globIgnores: [
+            'assets/scenes/**',
+            'assets/sprites/contact-sheet.png',
+            'assets/images/robo-cropped.png'
+          ],
           navigateFallbackDenylist: [/^\/api\//],
           maximumFileSizeToCacheInBytes: 10 * 1024 * 1024
         }
       })
-    ]
+    ],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules/phaser')) {
+              return 'phaser-engine';
+            }
+            if (
+              id.includes('node_modules/react') ||
+              id.includes('node_modules/framer-motion') ||
+              id.includes('node_modules/lucide-react') ||
+              id.includes('node_modules/canvas-confetti')
+            ) {
+              return 'vendor-ui';
+            }
+            return undefined;
+          }
+        }
+      }
+    }
   };
 });

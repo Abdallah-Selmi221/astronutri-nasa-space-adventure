@@ -1,16 +1,39 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameProvider, useGameState } from './context/GameContext';
 import { HeaderHUD } from './components/common/HeaderHUD';
 import { RoboIntroModal } from './components/common/RoboIntroModal';
 import { StationMap } from './components/map/StationMap';
-import { NutritionLab } from './components/nutrition/NutritionLab';
-import { SpaceScience } from './components/missions/SpaceScience';
-import { HumanHealth } from './components/missions/HumanHealth';
-import { SuitRoom } from './components/suit/SuitRoom';
-import { EngineCore } from './components/rooms/EngineCore';
-import { LaunchPad } from './components/rooms/LaunchPad';
-import { LunarDashboard } from './components/lunar/LunarDashboard';
+
+// Code-Split Mission Screens — Loaded on demand only when the player enters a mission
+const NutritionLab = React.lazy(() =>
+  import('./components/nutrition/NutritionLab').then((m) => ({ default: m.NutritionLab }))
+);
+const SpaceScience = React.lazy(() =>
+  import('./components/missions/SpaceScience').then((m) => ({ default: m.SpaceScience }))
+);
+const HumanHealth = React.lazy(() =>
+  import('./components/missions/HumanHealth').then((m) => ({ default: m.HumanHealth }))
+);
+const SuitRoom = React.lazy(() =>
+  import('./components/suit/SuitRoom').then((m) => ({ default: m.SuitRoom }))
+);
+const EngineCore = React.lazy(() =>
+  import('./components/rooms/EngineCore').then((m) => ({ default: m.EngineCore }))
+);
+const LaunchPad = React.lazy(() =>
+  import('./components/rooms/LaunchPad').then((m) => ({ default: m.LaunchPad }))
+);
+const LunarDashboard = React.lazy(() =>
+  import('./components/lunar/LunarDashboard').then((m) => ({ default: m.LunarDashboard }))
+);
+
+const MissionLoadingFallback: React.FC = () => (
+  <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] gap-3 text-cyan-300 font-hud font-black">
+    <div className="w-12 h-12 rounded-full border-4 border-cyan-400 border-t-transparent animate-spin" />
+    <span className="text-base sm:text-lg">جاري تجهيز المهمة الفضائية... 🚀</span>
+  </div>
+);
 
 const GameRouter: React.FC = () => {
   const { state } = useGameState();
@@ -25,7 +48,8 @@ const GameRouter: React.FC = () => {
 
       {/* Main Location Viewport with Framer Motion transitions */}
       <div className="flex-1 flex flex-col">
-        <AnimatePresence mode="wait">
+        <Suspense fallback={<MissionLoadingFallback />}>
+          <AnimatePresence mode="wait">
           {state.currentLocation === 'Map' && (
             <motion.div
               key="map"
@@ -128,8 +152,9 @@ const GameRouter: React.FC = () => {
             >
               <LunarDashboard />
             </motion.div>
-          )}
-        </AnimatePresence>
+            )}
+          </AnimatePresence>
+        </Suspense>
       </div>
     </div>
   );

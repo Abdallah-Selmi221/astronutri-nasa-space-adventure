@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import Phaser from 'phaser';
-import { NutritionLabScene } from './scenes/NutritionLabScene';
+import type Phaser from 'phaser';
 
 export interface PhaserNutritionCanvasProps {
   className?: string;
@@ -8,7 +7,8 @@ export interface PhaserNutritionCanvasProps {
 
 /**
  * Mounts the Phaser 3 WebGL/Canvas Game Layer for the Nutrition Lab mission.
- * Strictly handles React 18 StrictMode cleanup and touch-action responsiveness.
+ * Dynamically imports Phaser 3 and NutritionLabScene on demand so the 1.5MB game engine
+ * is never downloaded during Main Menu / Station Map navigation.
  */
 export const PhaserNutritionCanvas: React.FC<PhaserNutritionCanvasProps> = ({ className = '' }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -18,36 +18,48 @@ export const PhaserNutritionCanvas: React.FC<PhaserNutritionCanvasProps> = ({ cl
     const parentEl = containerRef.current;
     if (!parentEl) return;
 
-    // Destroy any stale instance before creating a fresh one
-    if (gameRef.current) {
-      gameRef.current.destroy(true);
-      gameRef.current = null;
-    }
+    let cancelled = false;
 
-    const config: Phaser.Types.Core.GameConfig = {
-      type: Phaser.AUTO,
-      parent: parentEl,
-      width: parentEl.clientWidth || 960,
-      height: parentEl.clientHeight || 540,
-      transparent: true,
-      backgroundColor: '#04102c',
-      scale: {
-        mode: Phaser.Scale.RESIZE,
-        autoCenter: Phaser.Scale.CENTER_BOTH
-      },
-      input: {
-        activePointers: 2,
-        touch: {
-          capture: true
-        }
-      },
-      scene: [NutritionLabScene]
-    };
+    void (async () => {
+      const [PhaserModule, { NutritionLabScene }] = await Promise.all([
+        import('phaser'),
+        import('./scenes/NutritionLabScene')
+      ]);
 
-    const game = new Phaser.Game(config);
-    gameRef.current = game;
+      if (cancelled || !containerRef.current) return;
+
+      const PhaserEngine = PhaserModule.default || PhaserModule;
+
+      if (gameRef.current) {
+        gameRef.current.destroy(true);
+        gameRef.current = null;
+      }
+
+      const config: Phaser.Types.Core.GameConfig = {
+        type: PhaserEngine.AUTO,
+        parent: containerRef.current,
+        width: containerRef.current.clientWidth || 960,
+        height: containerRef.current.clientHeight || 540,
+        transparent: true,
+        backgroundColor: '#04102c',
+        scale: {
+          mode: PhaserEngine.Scale.RESIZE,
+          autoCenter: PhaserEngine.Scale.CENTER_BOTH
+        },
+        input: {
+          activePointers: 2,
+          touch: {
+            capture: true
+          }
+        },
+        scene: [NutritionLabScene]
+      };
+
+      gameRef.current = new PhaserEngine.Game(config);
+    })();
 
     return () => {
+      cancelled = true;
       if (gameRef.current) {
         gameRef.current.destroy(true);
         gameRef.current = null;
