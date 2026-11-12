@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useGameState } from '../../context/GameContext';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
-import { RoboCharacter, RoboPose } from '../common/RoboCharacter';
-import { CartoonSpaceship } from '../common/CartoonSpaceship';
+import { EventBus } from '../../game/EventBus';
+import { PhaserHomeIslandCanvas } from '../../game/PhaserHomeIslandCanvas';
 import { SettingsMenu } from '../common/SettingsMenu';
-import { Star, Settings, Volume2, VolumeX } from 'lucide-react';
+import { WorldMapPreviewModal } from './WorldMapPreviewModal';
+import { Star, Settings, Volume2, VolumeX, Map, Sparkles, Navigation } from 'lucide-react';
 
 const WELCOME_DIALOGUE =
   'جاهز للمغامرة يا بطل؟ يلا بينا نطير لحديقة التغذية الفضائية ونستكشف أسرار طعام رواد الفضاء!';
@@ -14,60 +15,83 @@ const WELCOME_DIALOGUE =
 export const HomeWorldScreen: React.FC = () => {
   const { state, setLocation } = useGameState();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [roboPose, setRoboPose] = useState<RoboPose>('WAVE');
+  const [isWorldMapOpen, setIsWorldMapOpen] = useState(false);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
-  const [mouseOffset, setMouseOffset] = useState({ x: 0, y: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [activeSpeech, setActiveSpeech] = useState<string>(
+    'جاهز للمغامرة يا بطل؟ اضغط على الجزيرة للتحرك، أو اضغط على الصاروخ للانطلاق! 🚀'
+  );
+  const [interactionToast, setInteractionToast] = useState<{ name: string; message: string } | null>(null);
 
   // Subscribe to DialogueManager audio playback status
   useEffect(() => {
     const unsub = dialogueManager.subscribeStatus(({ isSpeaking }) => {
       setIsAudioPlaying(isSpeaking);
-      if (isSpeaking) {
-        setRoboPose('TALKING');
-      } else {
-        setRoboPose('WAVE');
-      }
     });
     return () => unsub();
   }, []);
 
-  // Cleanup on unmount
+  // EventBus listeners for Phaser 3 game world interactions
   useEffect(() => {
+    const handleLaunchMission = () => {
+      dialogueManager.stop();
+      soundManager.playFanfare();
+      setLocation('NutritionLab');
+    };
+
+    const handlePropClicked = (payload: { name: string; message: string }) => {
+      setInteractionToast(payload);
+      setActiveSpeech(payload.message);
+      // Auto-dismiss interaction toast after 3.5s
+      const timer = window.setTimeout(() => {
+        setInteractionToast(null);
+      }, 3500);
+      return () => window.clearTimeout(timer);
+    };
+
+    const handleRoboGreet = () => {
+      soundManager.playClick();
+      setActiveSpeech(WELCOME_DIALOGUE);
+      if (state.soundEnabled) {
+        void dialogueManager.speak(WELCOME_DIALOGUE);
+      }
+    };
+
+    const handleOpenMap = () => {
+      soundManager.playClick();
+      setIsWorldMapOpen(true);
+    };
+
+    EventBus.on('home-launch-mission', handleLaunchMission);
+    EventBus.on('home-prop-clicked', handlePropClicked);
+    EventBus.on('home-robo-greet', handleRoboGreet);
+    EventBus.on('home-open-world-map', handleOpenMap);
+
+    // Auto-start ambient space BGM if enabled
+    soundManager.startBGM();
+
     return () => {
+      EventBus.off('home-launch-mission', handleLaunchMission);
+      EventBus.off('home-prop-clicked', handlePropClicked);
+      EventBus.off('home-robo-greet', handleRoboGreet);
+      EventBus.off('home-open-world-map', handleOpenMap);
       dialogueManager.stop();
     };
-  }, []);
-
-  // Subtle 2.5D mouse parallax movement
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    const offsetX = (e.clientX - centerX) / (rect.width / 2);
-    const offsetY = (e.clientY - centerY) / (rect.height / 2);
-    setMouseOffset({ x: offsetX * 12, y: offsetY * 8 });
-  };
+  }, [setLocation, state.soundEnabled]);
 
   const handleSpeakWelcome = () => {
     if (isAudioPlaying) {
       dialogueManager.stop();
     } else {
       soundManager.playClick();
-      void dialogueManager.speak(WELCOME_DIALOGUE);
+      void dialogueManager.speak(activeSpeech);
     }
   };
 
-  const handleStartAdventure = () => {
+  const handleStartAdventureCTA = () => {
     dialogueManager.stop();
-    soundManager.playFanfare();
-    setRoboPose('CELEBRATING');
-
-    // Smooth delay for celebratory reaction before route transition
-    window.setTimeout(() => {
-      setLocation('NutritionLab');
-    }, 450);
+    soundManager.playClick();
+    // Signal Phaser engine: Robo runs to spaceship and blasts off
+    EventBus.emit('home-start-adventure-action');
   };
 
   // Calculate player stars score
@@ -81,134 +105,27 @@ export const HomeWorldScreen: React.FC = () => {
 
   return (
     <div
-      ref={containerRef}
-      onMouseMove={handleMouseMove}
-      className="relative flex-1 min-h-[calc(100vh-1rem)] flex flex-col justify-between overflow-hidden select-none px-4 py-3 sm:px-8 sm:py-6"
+      className="relative flex-1 min-h-[calc(100vh-1rem)] flex flex-col justify-between overflow-hidden select-none"
       style={{
-        background:
-          'radial-gradient(ellipse at 50% 25%, #222d4f 0%, #131a31 50%, #0d1326 100%)'
+        background: 'radial-gradient(ellipse at 50% 30%, #1a3254 0%, #162744 50%, #0d1a2f 100%)'
       }}
     >
       {/* =====================================================================
-          LAYER 1: CELESTIAL BACKGROUND & DISTANT ARCHIPELAGO PARALLAX
+          LAYER 1: PHASER 3 2.5D INTERACTIVE GAME ENGINE WORLD
           ===================================================================== */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-        {/* Pastel Drifting Nebulae */}
-        <motion.div
-          animate={{
-            x: [0, 25, 0],
-            y: [0, -18, 0],
-            scale: [1, 1.06, 1]
-          }}
-          transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute -top-16 -right-20 w-[550px] h-[480px] rounded-full blur-[65px] opacity-25"
-          style={{
-            background:
-              'radial-gradient(circle, #C9B8FF 0%, #8DE8F4 50%, transparent 75%)'
-          }}
-        />
-
-        <motion.div
-          animate={{
-            x: [0, -30, 0],
-            y: [0, 22, 0],
-            scale: [1, 1.08, 1]
-          }}
-          transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute -bottom-24 -left-20 w-[600px] h-[450px] rounded-full blur-[70px] opacity-20"
-          style={{
-            background:
-              'radial-gradient(circle, #FFC3D8 0%, #A9C9FF 60%, transparent 80%)'
-          }}
-        />
-
-        {/* Twinkling Cartoon Stars */}
-        <div className="absolute inset-0">
-          {[
-            { top: '12%', left: '15%', size: 'w-2 h-2', delay: 0 },
-            { top: '22%', left: '82%', size: 'w-3 h-3', delay: 1.2 },
-            { top: '35%', left: '28%', size: 'w-2.5 h-2.5', delay: 0.6 },
-            { top: '48%', left: '74%', size: 'w-2 h-2', delay: 2.1 },
-            { top: '65%', left: '12%', size: 'w-3 h-3', delay: 1.5 },
-            { top: '18%', left: '48%', size: 'w-2 h-2', delay: 0.9 },
-            { top: '55%', left: '88%', size: 'w-2.5 h-2.5', delay: 2.7 }
-          ].map((star, idx) => (
-            <motion.div
-              key={idx}
-              animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.25, 0.8] }}
-              transition={{
-                duration: 2.8 + (idx % 3),
-                repeat: Infinity,
-                delay: star.delay,
-                ease: 'easeInOut'
-              }}
-              className={`absolute ${star.size} rounded-full bg-pastel-yellow shadow-[0_0_8px_#FFE69A]`}
-              style={{ top: star.top, left: star.left }}
-            />
-          ))}
-        </div>
-
-        {/* Distant Islands Silhouettes (Observatory & Launch Gantry) */}
-        <motion.svg
-          animate={{
-            x: mouseOffset.x * 0.4,
-            y: mouseOffset.y * 0.4
-          }}
-          transition={{ type: 'spring', damping: 25, stiffness: 120 }}
-          className="absolute top-12 inset-x-0 mx-auto w-full max-w-5xl opacity-45 drop-shadow-[0_12px_24px_rgba(0,0,0,0.4)]"
-          viewBox="0 0 1000 260"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          {/* Distant Island: Cosmic Observatory (Left) */}
-          <g transform="translate(110, 45) scale(0.65)">
-            <ellipse cx="100" cy="80" rx="90" ry="34" fill="#29355A" />
-            <path d="M40 80 Q100 135 160 80 Z" fill="#1C2541" />
-            <circle
-              cx="100"
-              cy="48"
-              r="30"
-              fill="#8DE8F4"
-              fillOpacity="0.45"
-              stroke="#A9C9FF"
-              strokeWidth="3"
-            />
-            <line
-              x1="85"
-              y1="34"
-              x2="135"
-              y2="14"
-              stroke="#FFE69A"
-              strokeWidth="5"
-              strokeLinecap="round"
-            />
-          </g>
-
-          {/* Distant Island: Launch Pad Gantry (Right) */}
-          <g transform="translate(770, 30) scale(0.6)">
-            <ellipse cx="100" cy="80" rx="95" ry="38" fill="#29355A" />
-            <rect
-              x="90"
-              y="20"
-              width="20"
-              height="60"
-              fill="#C9B8FF"
-              fillOpacity="0.5"
-            />
-            <polygon points="100,6 85,26 115,26" fill="#FFC3D8" />
-          </g>
-        </motion.svg>
+      <div className="absolute inset-0 w-full h-full z-0">
+        <PhaserHomeIslandCanvas className="w-full h-full" />
       </div>
 
       {/* =====================================================================
-          LAYER 2: TOP HUD BAR (Player Profile & Stars & Settings)
+          LAYER 2: TOP HUD (Player Profile, Stars, Map Preview, Settings)
           ===================================================================== */}
-      <header className="relative z-30 w-full max-w-6xl mx-auto flex items-center justify-between gap-3">
+      <header className="relative z-30 w-full max-w-6xl mx-auto flex items-center justify-between gap-3 px-4 py-3 sm:px-8 sm:py-5 pointer-events-none">
         {/* Player Cadet Profile Pill */}
         <motion.div
           initial={{ opacity: 0, y: -15 }}
           animate={{ opacity: 1, y: 0 }}
-          className="pastel-glass-panel flex items-center gap-2.5 sm:gap-3.5 px-3 py-1.5 sm:px-4 sm:py-2"
+          className="pastel-glass-panel pointer-events-auto flex items-center gap-2.5 sm:gap-3.5 px-3 py-1.5 sm:px-4 sm:py-2"
           dir="rtl"
         >
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-tr from-pastel-yellow via-pastel-pink to-pastel-sky border-2 border-white flex items-center justify-center text-lg sm:text-xl shadow-sm">
@@ -228,23 +145,42 @@ export const HomeWorldScreen: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Score & Settings Actions */}
-        <div className="flex items-center gap-2.5 sm:gap-4">
+        {/* Top Right Control Pills */}
+        <div className="pointer-events-auto flex items-center gap-2 sm:gap-3">
           {/* Star Counter Pill */}
           <motion.div
             initial={{ opacity: 0, y: -15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="pastel-glass-panel flex items-center gap-2 px-3.5 py-1.5 sm:px-5 sm:py-2 text-pastel-yellow font-hud font-black text-sm sm:text-lg"
+            className="pastel-glass-panel flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-pastel-yellow font-hud font-black text-xs sm:text-base"
           >
-            <Star className="w-5 h-5 sm:w-6 sm:h-6 fill-pastel-yellow drop-shadow-[0_0_8px_#FFE69A]" />
+            <Star className="w-4 h-4 sm:w-5 sm:h-5 fill-pastel-yellow drop-shadow-[0_0_8px_#FFE69A]" />
             <span className="tracking-wide">{totalStarsScore}</span>
             <span className="hidden sm:inline text-xs text-pastel-white/80 font-bold">
               نجمة
             </span>
           </motion.div>
 
-          {/* Child-Friendly Settings Button */}
+          {/* Proposed World Map Button */}
+          <motion.button
+            type="button"
+            initial={{ opacity: 0, y: -15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
+            onClick={() => {
+              soundManager.playClick();
+              setIsWorldMapOpen(true);
+            }}
+            className="pastel-glass-panel-interactive flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 text-pastel-sky font-hud font-bold text-xs sm:text-sm"
+            aria-label="عرض خريطة الأرخبيل الكوني"
+          >
+            <Map className="w-4 h-4 sm:w-5 sm:h-5 text-pastel-cyan" />
+            <span className="hidden sm:inline">خريطة الجزر</span>
+          </motion.button>
+
+          {/* Settings Button */}
           <motion.button
             type="button"
             initial={{ opacity: 0, y: -15 }}
@@ -256,227 +192,110 @@ export const HomeWorldScreen: React.FC = () => {
               soundManager.playClick();
               setIsSettingsOpen(true);
             }}
-            className="pastel-glass-panel-interactive w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center text-pastel-cyan"
+            className="pastel-glass-panel-interactive w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center text-pastel-cyan"
             aria-label="إعدادات اللعبة والصوت"
           >
-            <Settings className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
+            <Settings className="w-5 h-5 sm:w-5 sm:h-5 stroke-[2.5]" />
           </motion.button>
         </div>
       </header>
 
+      {/* Spacer to push center view completely open for Phaser 3 World */}
+      <div className="flex-1 pointer-events-none" />
+
       {/* =====================================================================
-          LAYER 3: CENTERPIECE 2.5D FLOATING ISLAND WITH GROUNDED ROBO & SPACESHIP
+          LAYER 3 & 4: BOTTOM HUD (Speech Bubble, Chunky Adventure CTA, Controls Hint)
           ===================================================================== */}
-      <main className="relative z-20 flex-1 flex flex-col items-center justify-center my-auto w-full max-w-5xl mx-auto py-2">
-        <div className="relative w-full max-w-[620px] aspect-[16/11] flex items-center justify-center">
-          {/* Main Floating Launchpad Island SVG */}
-          <motion.div
-            animate={{
-              y: [0, -10, 0],
-              x: mouseOffset.x * 0.6
-            }}
-            transition={{
-              y: { duration: 5.5, repeat: Infinity, ease: 'easeInOut' },
-              x: { type: 'spring', damping: 30, stiffness: 100 }
-            }}
-            className="absolute inset-0 flex items-center justify-center"
-          >
-            <svg
-              className="w-full h-full filter drop-shadow-[0_24px_45px_rgba(0,0,0,0.65)]"
-              viewBox="0 0 600 280"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
+      <footer className="relative z-30 w-full max-w-2xl mx-auto flex flex-col items-center gap-2.5 px-4 pb-3 sm:pb-6 pointer-events-none">
+        {/* Interaction Toast */}
+        <AnimatePresence>
+          {interactionToast && (
+            <motion.div
+              initial={{ opacity: 0, y: 15, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 15, scale: 0.9 }}
+              dir="rtl"
+              className="pointer-events-auto px-4 py-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-hud font-black text-xs sm:text-sm shadow-xl flex items-center gap-2 border border-emerald-200"
             >
-              <defs>
-                <linearGradient
-                  id="islandRockGrad"
-                  x1="300"
-                  y1="105"
-                  x2="300"
-                  y2="265"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <stop offset="0%" stopColor="#3C4B75" />
-                  <stop offset="55%" stopColor="#253150" />
-                  <stop offset="100%" stopColor="#12192E" />
-                </linearGradient>
+              <Sparkles className="w-4 h-4" />
+              <span>{interactionToast.message}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-                <linearGradient
-                  id="mossGrassGrad"
-                  x1="60"
-                  y1="85"
-                  x2="540"
-                  y2="135"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <stop offset="0%" stopColor="#7AE582" />
-                  <stop offset="48%" stopColor="#8DE8F4" />
-                  <stop offset="100%" stopColor="#A9C9FF" />
-                </linearGradient>
-              </defs>
-
-              {/* Rocky Base Underneath */}
-              <path
-                d="M70,105 Q125,250 300,262 Q475,250 530,105 Q400,122 300,122 Q200,122 70,105 Z"
-                fill="url(#islandRockGrad)"
-                stroke="#1E293B"
-                strokeWidth="4"
-                strokeLinejoin="round"
-              />
-
-              {/* Island Surface / Moss Grass Top */}
-              <ellipse
-                cx="300"
-                cy="105"
-                rx="230"
-                ry="36"
-                fill="url(#mossGrassGrad)"
-                stroke="#1E293B"
-                strokeWidth="4"
-              />
-
-              {/* Tech Launch Pad Platform Rings */}
-              <ellipse
-                cx="300"
-                cy="105"
-                rx="160"
-                ry="22"
-                fill="rgba(255, 255, 255, 0.22)"
-                stroke="#FFFFFF"
-                strokeWidth="2.5"
-                strokeDasharray="9 7"
-              />
-              <ellipse
-                cx="300"
-                cy="105"
-                rx="105"
-                ry="14"
-                fill="rgba(141, 232, 244, 0.35)"
-              />
-
-              {/* Soft Runway Beacon Lights */}
-              <circle
-                cx="155"
-                cy="98"
-                r="4.5"
-                fill="#FFE69A"
-                className="animate-pulse"
-              />
-              <circle
-                cx="445"
-                cy="98"
-                r="4.5"
-                fill="#FFE69A"
-                className="animate-pulse"
-              />
-            </svg>
-
-            {/* DOCKED CARTOON SPACESHIP (Grounded on left side of platform) */}
-            <div className="absolute left-[14%] bottom-[34%] z-10 w-[24%] max-w-[135px]">
-              <CartoonSpaceship
-                size="100%"
-                animated={true}
-                interactive={true}
-                showShadow={true}
-                onClick={() => {
-                  soundManager.playClick();
-                }}
-              />
-            </div>
-
-            {/* GROUNDED CANONICAL ROBO (Grounded on right side of platform) */}
-            <div className="absolute right-[18%] bottom-[32%] z-20 w-[27%] max-w-[155px]">
-              {/* Welcoming Speech Bubble */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{
-                  type: 'spring',
-                  damping: 18,
-                  stiffness: 240,
-                  delay: 0.3
-                }}
-                onClick={handleSpeakWelcome}
-                dir="rtl"
-                className="absolute -top-16 sm:-top-20 -right-4 sm:-right-8 cursor-pointer z-30 bg-white/95 backdrop-blur-md text-slate-900 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-2xl rounded-br-sm border-2 sm:border-3 border-pastel-cyan shadow-[0_10px_25px_rgba(0,0,0,0.35)] flex items-center gap-2 sm:gap-2.5 min-w-[210px] sm:min-w-[270px] hover:scale-105 active:scale-95 transition-transform"
-                title="اضغط للاستماع إلى روبو"
-              >
-                <div
-                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
-                    isAudioPlaying
-                      ? 'bg-pastel-cyan text-slate-950 animate-pulse'
-                      : 'bg-pastel-sky/30 text-sky-800'
-                  }`}
-                >
-                  {isAudioPlaying ? (
-                    <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                  ) : (
-                    <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" />
-                  )}
-                </div>
-                <div className="flex-1 text-right">
-                  <span className="block text-[10px] sm:text-xs font-hud font-black text-sky-700">
-                    روبو • مرشد الفضاء 🤖
-                  </span>
-                  <p className="font-hud font-bold text-xs sm:text-sm text-slate-900 leading-snug">
-                    جاهز للمغامرة يا بطل؟ يلا بينا! 🚀
-                  </p>
-                </div>
-              </motion.div>
-
-              {/* The Canonical Vector Robo Component */}
-              <RoboCharacter
-                pose={roboPose}
-                size="100%"
-                animated={true}
-                interactive={true}
-                showShadow={true}
-                onClick={handleSpeakWelcome}
-              />
-            </div>
-          </motion.div>
-        </div>
-
-        {/* ===================================================================
-            LAYER 4: THE ONE OBVIOUS ACTION BUTTON (CTA)
-            =================================================================== */}
-        <div className="relative z-30 flex flex-col items-center gap-2 sm:gap-3 mt-1 sm:mt-4">
-          <motion.button
-            type="button"
-            onHoverStart={() => {
-              setRoboPose('CELEBRATING');
-            }}
-            onHoverEnd={() => {
-              if (!isAudioPlaying) setRoboPose('WAVE');
-            }}
-            onClick={handleStartAdventure}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="btn-chunky-adventure px-8 py-3.5 sm:px-14 sm:py-5 text-xl sm:text-3xl flex items-center gap-3 sm:gap-4 shadow-[0_12px_36px_rgba(255,159,28,0.55)] cursor-pointer"
-            dir="rtl"
-            aria-label="ابدأ المغامرة الفضائية"
+        {/* Dynamic Robo Speech Bubble */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.85, y: -10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 220 }}
+          onClick={handleSpeakWelcome}
+          dir="rtl"
+          className="pointer-events-auto cursor-pointer bg-white/95 backdrop-blur-md text-slate-900 px-4 py-2 sm:px-5 sm:py-2.5 rounded-3xl border-2 sm:border-3 border-pastel-cyan shadow-[0_12px_32px_rgba(0,0,0,0.35)] flex items-center gap-3 max-w-md hover:scale-105 active:scale-95 transition-transform"
+          title="اضغط للاستماع إلى روبو"
+        >
+          <div
+            className={`w-8 h-8 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+              isAudioPlaying
+                ? 'bg-pastel-cyan text-slate-950 animate-pulse'
+                : 'bg-pastel-sky/30 text-sky-800'
+            }`}
           >
-            <span>ابدأ المغامرة الفضائية</span>
-            <span className="text-2xl sm:text-4xl filter drop-shadow">🚀</span>
-          </motion.button>
+            {isAudioPlaying ? (
+              <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />
+            ) : (
+              <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" />
+            )}
+          </div>
+          <div className="flex-1 text-right">
+            <span className="block text-[10px] sm:text-xs font-hud font-black text-sky-700">
+              روبو • رفيق المغامرة 🤖
+            </span>
+            <p className="font-hud font-bold text-xs sm:text-sm text-slate-900 leading-snug">
+              {activeSpeech}
+            </p>
+          </div>
+        </motion.div>
 
-          <p
-            dir="rtl"
-            className="text-center font-hud font-bold text-xs sm:text-sm text-pastel-sky/90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
-          >
-            المحطة الأولى:{' '}
-            <span className="text-pastel-cyan font-black">
-              حديقة التغذية الفضائية
-            </span>{' '}
-            (مفتوحة وجاهزة للاستكشاف) 🍏
-          </p>
+        {/* Chunky Action Button: "ابدأ المغامرة الفضائية" */}
+        <motion.button
+          type="button"
+          onClick={handleStartAdventureCTA}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="pointer-events-auto btn-chunky-adventure px-8 py-3.5 sm:px-14 sm:py-4 text-xl sm:text-3xl flex items-center gap-3 sm:gap-4 shadow-[0_14px_40px_rgba(255,159,28,0.6)] cursor-pointer"
+          dir="rtl"
+          aria-label="ابدأ المغامرة الفضائية"
+        >
+          <span>ابدأ المغامرة الفضائية</span>
+          <span className="text-2xl sm:text-4xl filter drop-shadow">🚀</span>
+        </motion.button>
+
+        {/* Exploration controls subtitle */}
+        <div
+          dir="rtl"
+          className="flex items-center gap-2 text-center font-hud font-bold text-[11px] sm:text-xs text-pastel-sky/95 drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)]"
+        >
+          <Navigation className="w-3.5 h-3.5 text-pastel-cyan inline" />
+          <span>
+            المس أو اضغط على أي مكان بالجزيرة لتحريك روبو 🕹️ أو استكشف البلورات والفطر والصاروخ!
+          </span>
         </div>
-      </main>
+      </footer>
+
+      {/* Proposed World Map Modal */}
+      <WorldMapPreviewModal
+        isOpen={isWorldMapOpen}
+        onClose={() => setIsWorldMapOpen(false)}
+        onSelectMission={() => {
+          setLocation('NutritionLab');
+        }}
+      />
 
       {/* Settings Modal (Self-contained) */}
       <SettingsMenu
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        onReplayIntro={handleSpeakWelcome}
       />
     </div>
   );

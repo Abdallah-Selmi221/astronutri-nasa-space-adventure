@@ -12,18 +12,23 @@ import {
   RotateCcw,
   Sliders,
   CheckCircle2,
-  UserCheck
+  UserCheck,
+  Music,
+  PlayCircle
 } from 'lucide-react';
 
 interface SettingsMenuProps {
   isOpen: boolean;
   onClose: () => void;
+  onReplayIntro?: () => void;
 }
 
-export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose }) => {
+export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onReplayIntro }) => {
   const { state, toggleSound, resetGameFull, dispatch } = useGameState();
 
   const [volume, setVolume] = useState<number>(() => soundManager.getVolume());
+  const [bgmVolume, setBgmVolume] = useState<number>(() => soundManager.getBgmVolume());
+  const [bgmEnabled, setBgmEnabled] = useState<boolean>(() => soundManager.isBgmEnabled());
   const [roboVoiceEnabled, setRoboVoiceEnabled] = useState<boolean>(() => geminiTTS.isVoiceEnabled());
   const [language, setLanguage] = useState<'ar' | 'en'>(() => {
     try {
@@ -46,6 +51,18 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose }) =
     if (newVol > 0 && !state.soundEnabled) {
       toggleSound();
     }
+  };
+
+  const handleBgmVolumeChange = (newVol: number) => {
+    setBgmVolume(newVol);
+    soundManager.setBgmVolume(newVol);
+  };
+
+  const handleToggleBgm = () => {
+    const nextState = !bgmEnabled;
+    setBgmEnabled(nextState);
+    soundManager.setBgmEnabled(nextState);
+    soundManager.playClick();
   };
 
   const handleToggleRoboVoice = () => {
@@ -77,6 +94,16 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose }) =
     dispatch({ type: 'SET_CADET_NAME', payload: trimmed });
   };
 
+  const handleReplayIntroduction = () => {
+    soundManager.playClick();
+    if (onReplayIntro) {
+      onReplayIntro();
+      onClose();
+    } else {
+      geminiTTS.speak('جاهز للمغامرة يا بطل؟ يلا بينا نستكشف أسرار فضاء أكاديمية ناسا للتغذية!');
+    }
+  };
+
   const handleFullReset = () => {
     soundManager.playAlertSiren();
     geminiTTS.stop();
@@ -88,8 +115,12 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose }) =
     // Restore defaults
     soundManager.setVolume(85);
     soundManager.setEnabled(true);
+    soundManager.setBgmVolume(35);
+    soundManager.setBgmEnabled(true);
     geminiTTS.setVoiceEnabled(true);
     setVolume(85);
+    setBgmVolume(35);
+    setBgmEnabled(true);
     setRoboVoiceEnabled(true);
     setLanguage('ar');
     document.documentElement.lang = 'ar';
@@ -213,6 +244,84 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose }) =
                     {state.soundEnabled ? `${volume}%` : '0%'}
                   </span>
                 </div>
+              </div>
+
+              {/* 1B. BACKGROUND MUSIC (BGM) */}
+              <div className="p-4 rounded-3xl bg-space-950/90 border-2 border-emerald-500/40 shadow-inner">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`p-2.5 rounded-2xl border ${
+                      bgmEnabled && bgmVolume > 0
+                        ? 'bg-emerald-950 border-emerald-400 text-emerald-300'
+                        : 'bg-rose-950 border-rose-500 text-rose-300'
+                    }`}>
+                      <Music className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-hud font-black text-sm sm:text-base text-white">
+                        موسيقى الفضاء الحالمة (Background Music)
+                      </h3>
+                      <p className="text-[11px] text-slate-300 font-bold">
+                        ألحان هادئة ومريحة تساعد على التركيز والاستكشاف
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleToggleBgm}
+                    className={`px-4 py-2 rounded-2xl text-xs font-black border-2 transition-all active:scale-95 ${
+                      bgmEnabled
+                        ? 'bg-emerald-500 text-space-950 border-emerald-200 shadow-lg shadow-emerald-500/30'
+                        : 'bg-rose-900/90 text-rose-200 border-rose-400'
+                    }`}
+                  >
+                    {bgmEnabled ? 'الموسيقى مفعلة 🎵' : 'مكتومة 🔇'}
+                  </button>
+                </div>
+
+                {/* BGM Slider */}
+                <div className="flex items-center gap-3 pt-1">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={bgmEnabled ? bgmVolume : 0}
+                    onChange={(e) => handleBgmVolumeChange(Number(e.target.value))}
+                    onMouseUp={() => soundManager.playClick()}
+                    onTouchEnd={() => soundManager.playClick()}
+                    className="w-full h-3 bg-space-800 rounded-xl appearance-none cursor-pointer accent-emerald-400"
+                  />
+                  <span className="min-w-[48px] text-center font-hud font-black text-xs px-2 py-1 rounded-xl bg-emerald-950 border border-emerald-500/40 text-emerald-300">
+                    {bgmEnabled ? `${bgmVolume}%` : '0%'}
+                  </span>
+                </div>
+              </div>
+
+              {/* 1C. REPLAY INTRODUCTION TUTORIAL */}
+              <div className="p-3.5 rounded-3xl bg-space-950/90 border-2 border-sky-400/30 shadow-inner flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-sky-950 border border-sky-400 text-sky-300">
+                    <PlayCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-hud font-bold text-xs sm:text-sm text-white">
+                      إعادة سماع الترحيب والتعليمات
+                    </h4>
+                    <p className="text-[10px] text-slate-300 font-bold">
+                      استمع إلى روبو يشرح لك خطوات المغامرة من جديد
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleReplayIntroduction}
+                  className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-black text-xs border border-sky-300 shadow-md active:scale-95 transition-all shrink-0"
+                >
+                  استمع الآن 🔊
+                </button>
               </div>
 
               {/* 2. ROBO VOICE TOGGLE (GEMINI TTS) */}

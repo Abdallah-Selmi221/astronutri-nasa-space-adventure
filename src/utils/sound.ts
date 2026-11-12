@@ -1,9 +1,16 @@
-// Web Audio API Synthesizer for instant, zero-latency space sound effects
+// Web Audio API Synthesizer for instant, zero-latency space sound effects & ambient music
 
 class SpaceSoundManager {
   private ctx: AudioContext | null = null;
   private enabled: boolean = true;
   private volume: number = 85; // 0 to 100
+
+  // Background Music State
+  private bgmEnabled: boolean = true;
+  private bgmVolume: number = 35; // 0 to 100
+  private bgmGainNode: GainNode | null = null;
+  private bgmInterval: number | null = null;
+  private isBgmPlaying: boolean = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -17,6 +24,17 @@ class SpaceSoundManager {
           const parsed = Number(savedVol);
           if (!Number.isNaN(parsed)) {
             this.volume = Math.max(0, Math.min(100, parsed));
+          }
+        }
+        const savedBgmEnabled = localStorage.getItem('astronutri_bgm_enabled');
+        if (savedBgmEnabled !== null) {
+          this.bgmEnabled = savedBgmEnabled === 'true';
+        }
+        const savedBgmVol = localStorage.getItem('astronutri_bgm_volume');
+        if (savedBgmVol !== null) {
+          const parsedBgm = Number(savedBgmVol);
+          if (!Number.isNaN(parsedBgm)) {
+            this.bgmVolume = Math.max(0, Math.min(100, parsedBgm));
           }
         }
       } catch {
@@ -34,7 +52,7 @@ class SpaceSoundManager {
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      void this.ctx.resume();
     }
     return this.ctx;
   }
@@ -66,8 +84,112 @@ class SpaceSoundManager {
     return this.volume;
   }
 
+  // --- Background Music (BGM) Controls ---
+  public setBgmEnabled(val: boolean) {
+    this.bgmEnabled = val;
+    try {
+      localStorage.setItem('astronutri_bgm_enabled', String(val));
+    } catch {
+      // ignore
+    }
+    if (!val) {
+      this.stopBGM();
+    } else {
+      this.startBGM();
+    }
+  }
+
+  public isBgmEnabled(): boolean {
+    return this.bgmEnabled && this.bgmVolume > 0;
+  }
+
+  public setBgmVolume(percent: number) {
+    const clamped = Math.max(0, Math.min(100, Math.round(percent)));
+    this.bgmVolume = clamped;
+    try {
+      localStorage.setItem('astronutri_bgm_volume', String(clamped));
+    } catch {
+      // ignore
+    }
+    if (this.bgmGainNode && this.ctx) {
+      this.bgmGainNode.gain.setValueAtTime(this.scaleBgmGain(0.08), this.ctx.currentTime);
+    }
+  }
+
+  public getBgmVolume(): number {
+    return this.bgmVolume;
+  }
+
   private scaleGain(baseGain: number): number {
+    if (!this.enabled || this.volume <= 0) return 0.0001;
     return Math.max(0.001, baseGain * (this.volume / 100));
+  }
+
+  private scaleBgmGain(baseGain: number): number {
+    if (!this.bgmEnabled || this.bgmVolume <= 0) return 0.0001;
+    return Math.max(0.001, baseGain * (this.bgmVolume / 100));
+  }
+
+  // Start gentle, magical ambient space chords
+  public startBGM() {
+    if (!this.isBgmEnabled() || this.isBgmPlaying) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    this.isBgmPlaying = true;
+    this.bgmGainNode = ctx.createGain();
+    this.bgmGainNode.gain.setValueAtTime(this.scaleBgmGain(0.08), ctx.currentTime);
+    this.bgmGainNode.connect(ctx.destination);
+
+    // Warm, dreamlike pentatonic arpeggio sequence for space exploration
+    const chordNotes = [
+      [261.63, 329.63, 392.00, 493.88], // Cmaj7
+      [220.00, 261.63, 329.63, 392.00], // Am7
+      [174.61, 220.00, 261.63, 329.63], // Fmaj7
+      [196.00, 246.94, 293.66, 392.00]  // G
+    ];
+
+    let chordIdx = 0;
+    const playNextBar = () => {
+      if (!this.isBgmPlaying || !this.ctx || !this.bgmGainNode) return;
+      const barTime = this.ctx.currentTime;
+      const chord = chordNotes[chordIdx % chordNotes.length];
+      chordIdx++;
+
+      chord.forEach((freq, noteIdx) => {
+        if (!this.ctx || !this.bgmGainNode) return;
+        const osc = this.ctx.createOscillator();
+        const noteGain = this.ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, barTime + noteIdx * 0.45);
+
+        noteGain.gain.setValueAtTime(0.001, barTime + noteIdx * 0.45);
+        noteGain.gain.linearRampToValueAtTime(0.3, barTime + noteIdx * 0.45 + 0.15);
+        noteGain.gain.exponentialRampToValueAtTime(0.001, barTime + noteIdx * 0.45 + 1.2);
+
+        osc.connect(noteGain);
+        noteGain.connect(this.bgmGainNode);
+
+        osc.start(barTime + noteIdx * 0.45);
+        osc.stop(barTime + noteIdx * 0.45 + 1.25);
+      });
+    };
+
+    playNextBar();
+    this.bgmInterval = window.setInterval(playNextBar, 2200);
+  }
+
+  public stopBGM() {
+    this.isBgmPlaying = false;
+    if (this.bgmInterval) {
+      window.clearInterval(this.bgmInterval);
+      this.bgmInterval = null;
+    }
+    if (this.bgmGainNode && this.ctx) {
+      this.bgmGainNode.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+      this.bgmGainNode = null;
+    }
   }
 
   // UI button click
@@ -118,9 +240,59 @@ class SpaceSoundManager {
     osc.stop(now + 0.26);
   }
 
+  // Crystal sparkle chime
+  public playCrystalSparkle() {
+    if (!this.isEnabled()) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    [880, 1174.66, 1318.51, 1760].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+
+      gain.gain.setValueAtTime(this.scaleGain(0.15), now + idx * 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.05 + 0.35);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now + idx * 0.05);
+      osc.stop(now + idx * 0.05 + 0.36);
+    });
+  }
+
+  // Mushroom bouncy pop
+  public playBoing() {
+    if (!this.isEnabled()) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(660, now + 0.12);
+    osc.frequency.exponentialRampToValueAtTime(440, now + 0.25);
+
+    gain.gain.setValueAtTime(this.scaleGain(0.25), now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.27);
+  }
+
   // Banned item / Crumbs Alert siren / 1-Hour EVA Alert
   public playAlertSiren() {
-    if (!this.enabled) return;
+    if (!this.isEnabled()) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -134,9 +306,9 @@ class SpaceSoundManager {
     osc.frequency.linearRampToValueAtTime(800, now + 0.3);
     osc.frequency.linearRampToValueAtTime(300, now + 0.45);
 
-    gain.gain.setValueAtTime(0.3, now);
-    gain.gain.linearRampToValueAtTime(0.25, now + 0.4);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.55);
+    gain.gain.setValueAtTime(this.scaleGain(0.3), now);
+    gain.gain.linearRampToValueAtTime(this.scaleGain(0.25), now + 0.4);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -147,7 +319,7 @@ class SpaceSoundManager {
 
   // Caution warning chime (2 Hours EVA warning)
   public playCautionBeep() {
-    if (!this.enabled) return;
+    if (!this.isEnabled()) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -159,8 +331,8 @@ class SpaceSoundManager {
     osc.frequency.setValueAtTime(580, now);
     osc.frequency.setValueAtTime(440, now + 0.12);
 
-    gain.gain.setValueAtTime(0.22, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
+    gain.gain.setValueAtTime(this.scaleGain(0.22), now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -171,7 +343,7 @@ class SpaceSoundManager {
 
   // Spacesuit airlock pressurization / O2 hiss
   public playPressurizeHiss() {
-    if (!this.enabled) return;
+    if (!this.isEnabled()) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -192,8 +364,8 @@ class SpaceSoundManager {
     filter.Q.setValueAtTime(2.5, now);
 
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.01, now);
-    gain.gain.linearRampToValueAtTime(0.2, now + 0.04);
+    gain.gain.setValueAtTime(this.scaleGain(0.01), now);
+    gain.gain.linearRampToValueAtTime(this.scaleGain(0.2), now + 0.04);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.34);
 
     noise.connect(filter);
@@ -206,7 +378,7 @@ class SpaceSoundManager {
 
   // Visor latch / Mechanical lock
   public playLockerSnap() {
-    if (!this.enabled) return;
+    if (!this.isEnabled()) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -218,8 +390,8 @@ class SpaceSoundManager {
     osc.frequency.setValueAtTime(140, now);
     osc.frequency.setValueAtTime(260, now + 0.04);
 
-    gain.gain.setValueAtTime(0.25, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+    gain.gain.setValueAtTime(this.scaleGain(0.25), now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -230,7 +402,7 @@ class SpaceSoundManager {
 
   // Tactile O2 Scrubber Pump Sound
   public playScrubberPump() {
-    if (!this.enabled) return;
+    if (!this.isEnabled()) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -243,8 +415,8 @@ class SpaceSoundManager {
     osc.frequency.linearRampToValueAtTime(320, now + 0.1);
     osc.frequency.exponentialRampToValueAtTime(80, now + 0.22);
 
-    gain.gain.setValueAtTime(0.3, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.22);
+    gain.gain.setValueAtTime(this.scaleGain(0.3), now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -255,7 +427,7 @@ class SpaceSoundManager {
 
   // Fuel Flow Pulse
   public playFuelCharge() {
-    if (!this.enabled) return;
+    if (!this.isEnabled()) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -267,7 +439,7 @@ class SpaceSoundManager {
     osc.frequency.setValueAtTime(220 + Math.random() * 80, now);
     osc.frequency.linearRampToValueAtTime(440, now + 0.08);
 
-    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.setValueAtTime(this.scaleGain(0.08), now);
     gain.gain.exponentialRampToValueAtTime(0.005, now + 0.08);
 
     osc.connect(gain);
@@ -279,7 +451,7 @@ class SpaceSoundManager {
 
   // ECLSS Water Recovery & Filtration Bubble Sound
   public playWaterRecycle() {
-    if (!this.enabled) return;
+    if (!this.isEnabled()) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -292,8 +464,8 @@ class SpaceSoundManager {
       osc.frequency.setValueAtTime(freq, now + idx * 0.06);
       osc.frequency.exponentialRampToValueAtTime(freq * 1.3, now + idx * 0.06 + 0.08);
 
-      gain.gain.setValueAtTime(0.18, now + idx * 0.06);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.06 + 0.09);
+      gain.gain.setValueAtTime(this.scaleGain(0.18), now + idx * 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.09);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
@@ -305,7 +477,7 @@ class SpaceSoundManager {
 
   // Saline Medical Injector Chime (Orthostatic Intolerance Treatment)
   public playSalineInject() {
-    if (!this.enabled) return;
+    if (!this.isEnabled()) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -314,12 +486,12 @@ class SpaceSoundManager {
     const gain = ctx.createGain();
 
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(523.25, now); // C5
-    osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
-    osc.frequency.setValueAtTime(1046.5, now + 0.16); // C6
+    osc.frequency.setValueAtTime(523.25, now);
+    osc.frequency.setValueAtTime(659.25, now + 0.08);
+    osc.frequency.setValueAtTime(1046.5, now + 0.16);
 
-    gain.gain.setValueAtTime(0.2, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+    gain.gain.setValueAtTime(this.scaleGain(0.2), now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -328,34 +500,9 @@ class SpaceSoundManager {
     osc.stop(now + 0.36);
   }
 
-  // Quick-Time Event Juice Sip Sound (Success)
-  public playJuiceSip() {
-    if (!this.enabled) return;
-    const ctx = this.getContext();
-    if (!ctx) return;
-
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(600, now);
-    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
-    osc.frequency.setValueAtTime(950, now + 0.2);
-
-    gain.gain.setValueAtTime(0.2, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.start(now);
-    osc.stop(now + 0.26);
-  }
-
   // Quick-Time Event Juice Spill Sound (Fail)
   public playJuiceSpill() {
-    if (!this.enabled) return;
+    if (!this.isEnabled()) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -367,8 +514,8 @@ class SpaceSoundManager {
     osc.frequency.setValueAtTime(320, now);
     osc.frequency.linearRampToValueAtTime(140, now + 0.25);
 
-    gain.gain.setValueAtTime(0.25, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+    gain.gain.setValueAtTime(this.scaleGain(0.25), now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -379,7 +526,7 @@ class SpaceSoundManager {
 
   // Rocket Blast Off Roar
   public playBlastOff(duration = 4.0) {
-    if (!this.enabled) return;
+    if (!this.isEnabled()) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -401,9 +548,9 @@ class SpaceSoundManager {
     filter.frequency.exponentialRampToValueAtTime(180, now + duration);
 
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.05, now);
-    gain.gain.linearRampToValueAtTime(0.45, now + 0.8);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + duration);
+    gain.gain.setValueAtTime(this.scaleGain(0.05), now);
+    gain.gain.linearRampToValueAtTime(this.scaleGain(0.45), now + 0.8);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
     noise.connect(filter);
     filter.connect(gain);
@@ -415,7 +562,7 @@ class SpaceSoundManager {
 
   // Radiation Shield Energize Sound
   public playShieldEnergize() {
-    if (!this.enabled) return;
+    if (!this.isEnabled()) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -427,8 +574,8 @@ class SpaceSoundManager {
     osc.frequency.setValueAtTime(110, now);
     osc.frequency.exponentialRampToValueAtTime(880, now + 0.4);
 
-    gain.gain.setValueAtTime(0.2, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+    gain.gain.setValueAtTime(this.scaleGain(0.2), now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -437,9 +584,34 @@ class SpaceSoundManager {
     osc.stop(now + 0.51);
   }
 
+  // Quick-Time Event Juice Sip Sound (Success)
+  public playJuiceSip() {
+    if (!this.isEnabled()) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
+    osc.frequency.setValueAtTime(950, now + 0.2);
+
+    gain.gain.setValueAtTime(this.scaleGain(0.2), now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.26);
+  }
+
   // Celebratory Fanfare
   public playFanfare() {
-    if (!this.enabled) return;
+    if (!this.isEnabled()) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
@@ -453,7 +625,7 @@ class SpaceSoundManager {
       osc.type = 'square';
       osc.frequency.setValueAtTime(freq, now + idx * 0.12);
 
-      gain.gain.setValueAtTime(0.12, now + idx * 0.12);
+      gain.gain.setValueAtTime(this.scaleGain(0.12), now + idx * 0.12);
       gain.gain.exponentialRampToValueAtTime(0.005, now + idx * 0.12 + 0.35);
 
       osc.connect(gain);
