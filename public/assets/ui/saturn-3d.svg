@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 160">
+  <defs>
+    
+  <filter id="drop3d" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="8" stdDeviation="5" flood-color="#020617" flood-opacity="0.65" />
+    <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#38bdf8" flood-opacity="0.2" />
+  </filter>
+  <filter id="glow3d" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="4" result="blur" />
+    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+  </filter>
+  <linearGradient id="glassDome" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55" />
+    <stop offset="35%" stop-color="#38bdf8" stop-opacity="0.15" />
+    <stop offset="70%" stop-color="#0284c7" stop-opacity="0.05" />
+    <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.4" />
+  </linearGradient>
+
+    <radialGradient id="saturnBody" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#fde68a" />
+      <stop offset="45%" stop-color="#f59e0b" />
+      <stop offset="80%" stop-color="#b45309" />
+      <stop offset="100%" stop-color="#451a03" />
+    </radialGradient>
+    <linearGradient id="saturnRing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef3c7" stop-opacity="0.85" />
+      <stop offset="50%" stop-color="#fbbf24" stop-opacity="0.45" />
+      <stop offset="100%" stop-color="#fde68a" stop-opacity="0.9" />
+    </linearGradient>
+  </defs>
+  <g filter="url(#drop3d)" transform="rotate(-16 110 80)">
+    <!-- Back Ring Arc -->
+    <path d="M 18 80 A 92 26 0 0 1 202 80" fill="none" stroke="url(#saturnRing)" stroke-width="14" opacity="0.7" />
+    <!-- Planet Sphere -->
+    <circle cx="110" cy="80" r="44" fill="url(#saturnBody)" />
+    <!-- Atmospheric Bands -->
+    <path d="M 68 68 Q 110 76 152 68" stroke="#fef3c7" stroke-width="4" fill="none" opacity="0.45" />
+    <path d="M 66 84 Q 110 92 154 84" stroke="#92400e" stroke-width="5" fill="none" opacity="0.45" />
+    <!-- Front Ring Arc -->
+    <path d="M 202 80 A 92 26 0 0 1 18 80" fill="none" stroke="url(#saturnRing)" stroke-width="16" />
+    <path d="M 190 80 A 80 20 0 0 1 30 80" fill="none" stroke="#ffffff" stroke-width="2.5" opacity="0.65" />
+  </g>
+</svg>

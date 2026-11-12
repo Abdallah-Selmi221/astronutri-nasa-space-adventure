@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
+  <defs>
+    
+  <filter id="drop3d" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="8" stdDeviation="5" flood-color="#020617" flood-opacity="0.65" />
+    <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#38bdf8" flood-opacity="0.2" />
+  </filter>
+  <filter id="glow3d" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="4" result="blur" />
+    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+  </filter>
+  <linearGradient id="glassDome" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55" />
+    <stop offset="35%" stop-color="#38bdf8" stop-opacity="0.15" />
+    <stop offset="70%" stop-color="#0284c7" stop-opacity="0.05" />
+    <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.4" />
+  </linearGradient>
+
+    <linearGradient id="icingPink" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbcfe8" />
+      <stop offset="50%" stop-color="#f472b6" />
+      <stop offset="100%" stop-color="#db2777" />
+    </linearGradient>
+    <linearGradient id="spongeCake" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="100%" stop-color="#f59e0b" />
+    </linearGradient>
+  </defs>
+  <g filter="url(#drop3d)">
+    <!-- Cake Sponge Body -->
+    <path d="M 34 70 L 126 56 L 126 116 L 34 128 Z" fill="url(#spongeCake)" stroke="#fde68a" stroke-width="2" stroke-linejoin="round" />
+    <!-- Strawberry Cream Middle Stripe -->
+    <path d="M 34 98 L 126 84 L 126 94 L 34 108 Z" fill="#f43f5e" />
+    <!-- Glossy Pink Icing Top & Drips -->
+    <path d="M 32 70 L 84 34 L 128 56 C 120 72, 110 72, 104 64 C 96 76, 84 76, 78 66 C 68 80, 54 80, 48 70 C 40 80, 32 78, 32 70 Z" fill="url(#icingPink)" stroke="#fce7f3" stroke-width="2" />
+    <!-- 3D Glossy Red Cherry on Top -->
+    <circle cx="82" cy="40" r="13" fill="#e11d48" stroke="#fecdd3" stroke-width="1.5" />
+    <circle cx="78" cy="36" r="4" fill="#ffffff" opacity="0.8" />
+    <path d="M 84 28 Q 92 14 104 18" stroke="#15803d" stroke-width="3.5" stroke-linecap="round" fill="none" />
+    <!-- Floating Cake Crumbs -->
+    <circle cx="136" cy="76" r="4" fill="#fbbf24" />
+    <circle cx="24" cy="92" r="4.5" fill="#f472b6" />
+  </g>
+</svg>

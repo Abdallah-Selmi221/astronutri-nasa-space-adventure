@@ -1,0 +1,111 @@
+{
+  "name": "AstroNutri 3D-Rendered Kids Space Assets",
+  "version": "3.0.0",
+  "assets": [
+    {
+      "id": "meat",
+      "file": "/assets/food/meat.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "fruits",
+      "file": "/assets/food/fruits.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "cheese",
+      "file": "/assets/food/cheese.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "sauce",
+      "file": "/assets/food/sauce.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "banned_cookie",
+      "file": "/assets/food/banned_cookie.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "banned_chips",
+      "file": "/assets/food/banned_chips.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "banned_bread",
+      "file": "/assets/food/banned_bread.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "broccoli",
+      "file": "/assets/food/broccoli.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "banned_burger",
+      "file": "/assets/food/banned_burger.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "banned_cake",
+      "file": "/assets/food/banned_cake.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "banned_soda",
+      "file": "/assets/food/banned_soda.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "apple-3d",
+      "file": "/assets/ui/apple-3d.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "helmet-3d",
+      "file": "/assets/ui/helmet-3d.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "engine-3d",
+      "file": "/assets/ui/engine-3d.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "rocket-3d",
+      "file": "/assets/ui/rocket-3d.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "trophy-3d",
+      "file": "/assets/ui/trophy-3d.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "moon-3d",
+      "file": "/assets/ui/moon-3d.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "cadet-avatar",
+      "file": "/assets/ui/cadet-avatar.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "saturn-3d",
+      "file": "/assets/ui/saturn-3d.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "hub_bg",
+      "file": "/assets/images/space-station-hub.jpg",
+      "style": "3d-illustrated-backdrop"
+    },
+    {
+      "id": "intro_bg",
+      "file": "/assets/images/astronutri-intro.jpg",
+      "style": "3d-illustrated-backdrop"
+    }
+  ]
+}

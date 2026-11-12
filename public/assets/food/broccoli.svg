@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
+  <defs>
+    
+  <filter id="drop3d" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="8" stdDeviation="5" flood-color="#020617" flood-opacity="0.65" />
+    <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#38bdf8" flood-opacity="0.2" />
+  </filter>
+  <filter id="glow3d" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="4" result="blur" />
+    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+  </filter>
+  <linearGradient id="glassDome" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55" />
+    <stop offset="35%" stop-color="#38bdf8" stop-opacity="0.15" />
+    <stop offset="70%" stop-color="#0284c7" stop-opacity="0.05" />
+    <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.4" />
+  </linearGradient>
+
+    <radialGradient id="brocFloret1" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#86efac" />
+      <stop offset="45%" stop-color="#22c55e" />
+      <stop offset="85%" stop-color="#15803d" />
+      <stop offset="100%" stop-color="#14532d" />
+    </radialGradient>
+    <linearGradient id="brocStem" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d9f99d" />
+      <stop offset="55%" stop-color="#84cc16" />
+      <stop offset="100%" stop-color="#3f6212" />
+    </linearGradient>
+  </defs>
+  <g filter="url(#drop3d)">
+    <!-- 3D Stalk / Stem -->
+    <path d="M 64 86 L 96 86 L 90 132 C 90 138, 70 138, 70 132 Z" fill="url(#brocStem)" stroke="#bef264" stroke-width="2" />
+    <path d="M 56 76 L 74 96" stroke="url(#brocStem)" stroke-width="10" stroke-linecap="round" />
+    <path d="M 104 76 L 86 96" stroke="url(#brocStem)" stroke-width="10" stroke-linecap="round" />
+    <!-- 3D Fluffy Green Florets -->
+    <circle cx="52" cy="68" r="26" fill="url(#brocFloret1)" />
+    <circle cx="108" cy="68" r="26" fill="url(#brocFloret1)" />
+    <circle cx="80" cy="48" r="30" fill="url(#brocFloret1)" />
+    <circle cx="68" cy="74" r="24" fill="url(#brocFloret1)" />
+    <circle cx="94" cy="74" r="24" fill="url(#brocFloret1)" />
+    <!-- Glossy 3D Highlights -->
+    <ellipse cx="70" cy="36" rx="10" ry="5" transform="rotate(-20 70 36)" fill="#ffffff" opacity="0.6" />
+    <ellipse cx="42" cy="58" rx="7" ry="3.5" transform="rotate(-30 42 58)" fill="#ffffff" opacity="0.55" />
+    <ellipse cx="102" cy="56" rx="7" ry="3.5" transform="rotate(20 102 56)" fill="#ffffff" opacity="0.5" />
+  </g>
+</svg>
