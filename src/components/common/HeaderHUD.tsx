@@ -26,6 +26,11 @@ export const HeaderHUD: React.FC = () => {
     setLocation('Map');
   };
 
+  // On the Home World screen, HomeWorldScreen renders its own integrated pastel HUD
+  if (state.currentLocation === 'Map') {
+    return null;
+  }
+
   return (
     <>
       <header className="fixed top-3 inset-x-0 z-40 px-4 sm:px-8 pointer-events-none select-none">

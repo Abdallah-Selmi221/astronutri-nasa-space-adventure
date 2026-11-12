@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { dialogueManager } from '../../utils/geminiTTS';
+import { RoboCharacter } from './RoboCharacter';
 import { Volume2, VolumeX, Loader2, AlertCircle, X } from 'lucide-react';
 
 export type RoboState =
@@ -246,15 +247,26 @@ export const AnimatedRobo: React.FC<AnimatedRoboProps> = ({
           }}
           className={`relative cursor-pointer flex items-center justify-center ${sizeClasses[size]}`}
         >
-          <img
-            src={
-              activeVisualState === 'CELEBRATING' || activeVisualState === 'HAPPY'
-                ? '/assets/sprites/robo/robo-celebrating.png'
-                : '/assets/sprites/robo/robo-idle.png'
+          {/* Canonical Mathematical Vector Robo Character (No Cropped PNGs) */}
+          <RoboCharacter
+            pose={
+              activeVisualState === 'CELEBRATING'
+                ? 'CELEBRATING'
+                : activeVisualState === 'HAPPY'
+                ? 'HAPPY'
+                : activeVisualState === 'TALKING'
+                ? 'TALKING'
+                : activeVisualState === 'THINKING'
+                ? 'THINKING'
+                : activeVisualState === 'WARNING'
+                ? 'WARNING'
+                : 'IDLE'
             }
-            alt="روبو مساعد الفضاء"
-            draggable={false}
-            className="w-full h-full object-contain pointer-events-none drop-shadow-[0_14px_24px_rgba(2,6,23,0.65)]"
+            size="100%"
+            animated={false}
+            interactive={false}
+            showShadow={false}
+            className="w-full h-full pointer-events-none drop-shadow-[0_12px_24px_rgba(2,6,23,0.55)]"
           />
 
           {/* Visual Speaking Wave Ring strictly when audio buffer is playing */}

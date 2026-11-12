@@ -2,8 +2,7 @@ import React, { Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameProvider, useGameState } from './context/GameContext';
 import { HeaderHUD } from './components/common/HeaderHUD';
-import { RoboIntroModal } from './components/common/RoboIntroModal';
-import { StationMap } from './components/map/StationMap';
+import { HomeWorldScreen } from './components/home/HomeWorldScreen';
 
 // Code-Split Mission Screens — Loaded on demand only when the player enters a mission
 const NutritionLab = React.lazy(() =>
@@ -40,10 +39,7 @@ const GameRouter: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-space-950 text-white flex flex-col relative space-stars">
-      {/* Cinematic Full-screen Robo Intro Modal */}
-      <RoboIntroModal />
-
-      {/* Top Simplified HUD (Star Score, Settings Gear, Home Icon) */}
+      {/* Top Simplified HUD (Visible during missions) */}
       <HeaderHUD />
 
       {/* Main Location Viewport with Framer Motion transitions */}
@@ -52,14 +48,14 @@ const GameRouter: React.FC = () => {
           <AnimatePresence mode="wait">
           {state.currentLocation === 'Map' && (
             <motion.div
-              key="map"
+              key="home-world"
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.25 }}
               className="flex-1 flex"
             >
-              <StationMap />
+              <HomeWorldScreen />
             </motion.div>
           )}
 

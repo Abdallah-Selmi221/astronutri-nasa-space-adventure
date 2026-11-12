@@ -63,7 +63,7 @@ const initialLevel2State: Level2State = {
 };
 
 const initialState: GameState = {
-  showIntroModal: true, // Auto-plays full-screen cinematic intro on start
+  showIntroModal: false, // Default to false: direct entry to 2.5D Home World Screen
   currentLocation: 'Map',
   cargoWeight: 0,
   cargoItems: [],
