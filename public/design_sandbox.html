@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AstroNutri — منصة اختبار وتصميم الهوية البصرية الكرتونية (Phase 3.3 Visual Sandbox)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Canonical Pastel Glassmorphism Palette */
+      --pastel-cyan: #8DE8F4;
+      --pastel-sky: #A9C9FF;
+      --pastel-lavender: #C9B8FF;
+      --pastel-pink: #FFC3D8;
+      --pastel-yellow: #FFE69A;
+      --pastel-mint: #7AE582;
+      --pastel-white: #F8FCFF;
+      --deep-twilight: #0D1326;
+      --mid-twilight: #161F38;
+      --soft-shadow: rgba(13, 19, 38, 0.4);
+      --glass-bg: rgba(255, 255, 255, 0.12);
+      --glass-border: rgba(255, 255, 255, 0.45);
+      --cartoon-stroke: #1E293B;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      font-family: 'Cairo', 'Fredoka', sans-serif;
+      background: var(--deep-twilight);
+      color: var(--pastel-white);
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Sandbox Control Header */
+    .sandbox-topbar {
+      background: rgba(13, 19, 38, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 2px solid rgba(141, 232, 244, 0.3);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .sandbox-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .sandbox-brand-badge {
+      background: linear-gradient(135deg, var(--pastel-cyan), var(--pastel-lavender));
+      color: #0b1120;
+      font-weight: 900;
+      font-size: 0.75rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 9999px;
+      letter-spacing: 0.05em;
+    }
+
+    .sandbox-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--pastel-white);
+    }
+
+    .sandbox-nav {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .nav-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: var(--pastel-sky);
+      font-family: 'Cairo', sans-serif;
+      font-weight: 700;
+      font-size: 0.85rem;
+      padding: 0.45rem 1rem;
+      border-radius: 9999px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .nav-btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+      color: var(--pastel-white);
+      border-color: var(--pastel-cyan);
+      transform: translateY(-1px);
+    }
+
+    .nav-btn.active {
+      background: linear-gradient(135deg, var(--pastel-cyan), var(--pastel-sky));
+      color: #0d1326;
+      border-color: transparent;
+      box-shadow: 0 4px 15px rgba(141, 232, 244, 0.4);
+    }
+
+    /* Main Sandbox Stage */
+    .sandbox-stage {
+      flex: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tab-content {
+      display: none;
+      flex: 1;
+      position: relative;
+      animation: fadeIn 0.3s ease forwards;
+    }
+
+    .tab-content.active {
+      display: flex;
+      flex-direction: column;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.99); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    /* =========================================================================
+       TAB 1: HOME WORLD SCREEN (2.5D Cartoon Environment)
+       ========================================================================= */
+    .home-viewport {
+      flex: 1;
+      min-height: calc(100vh - 65px);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 2rem 1.5rem 3rem 1.5rem;
+      background: radial-gradient(circle at 50% 30%, #202b4d 0%, #12182c 50%, var(--deep-twilight) 100%);
+    }
+
+    /* Celestial Parallax Layers */
+    .celestial-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .nebula-cloud-1 {
+      position: absolute;
+      top: 5%;
+      right: -10%;
+      width: 550px;
+      height: 450px;
+      background: radial-gradient(circle, rgba(201, 184, 255, 0.22) 0%, rgba(141, 232, 244, 0.08) 50%, transparent 70%);
+      filter: blur(40px);
+      border-radius: 50%;
+      animation: driftSlow 18s ease-in-out infinite alternate;
+    }
+
+    .nebula-cloud-2 {
+      position: absolute;
+      bottom: 10%;
+      left: -8%;
+      width: 600px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(255, 195, 216, 0.18) 0%, rgba(169, 201, 255, 0.08) 60%, transparent 75%);
+      filter: blur(50px);
+      border-radius: 50%;
+      animation: driftSlow 22s ease-in-out infinite alternate-reverse;
+    }
+
+    @keyframes driftSlow {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(40px, -25px) scale(1.08); }
+    }
+
+    /* Floating Island Silhouettes in Far Distance */
+    .distant-islands-svg {
+      position: absolute;
+      top: 15%;
+      width: 100%;
+      max-width: 1100px;
+      opacity: 0.65;
+      filter: drop-shadow(0 10px 20px rgba(0,0,0,0.3));
+    }
+
+    /* Home World Header HUD */
+    .home-header {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 1050px;
+    }
+
+    .player-profile-pill {
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 2px solid var(--glass-border);
+      border-radius: 9999px;
+      padding: 0.4rem 1.25rem 0.4rem 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      box-shadow: 0 8px 24px var(--soft-shadow);
+    }
+
+    .player-avatar {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, var(--pastel-yellow), var(--pastel-pink));
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+    }
+
+    .player-info-text {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .player-name {
+      font-weight: 800;
+      font-size: 0.95rem;
+      color: var(--pastel-white);
+    }
+
+    .player-title {
+      font-size: 0.75rem;
+      color: var(--pastel-cyan);
+      font-weight: 600;
+    }
+
+    .star-counter-pill {
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 2px solid var(--glass-border);
+      border-radius: 9999px;
+      padding: 0.45rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      box-shadow: 0 8px 24px var(--soft-shadow);
+      font-size: 1.1rem;
+      font-weight: 900;
+      color: var(--pastel-yellow);
+    }
+
+    .star-sparkle {
+      animation: spinStar 8s linear infinite;
+    }
+
+    @keyframes spinStar {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Central Floating Island Composition */
+    .home-centerpiece {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: auto 0;
+    }
+
+    .floating-hangar-stage {
+      position: relative;
+      width: 580px;
+      height: 380px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .hangar-island-svg {
+      position: absolute;
+      bottom: 20px;
+      width: 520px;
+      filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.5));
+      animation: islandBob 6s ease-in-out infinite alternate;
+    }
+
+    @keyframes islandBob {
+      0% { transform: translateY(0px); }
+      100% { transform: translateY(-12px); }
+    }
+
+    /* Robo Standing in Home Center */
+    .home-robo-wrapper {
+      position: absolute;
+      bottom: 120px;
+      right: 170px;
+      z-index: 20;
+      animation: roboBob 4s ease-in-out infinite alternate;
+    }
+
+    @keyframes roboBob {
+      0% { transform: translateY(0px) rotate(-1deg); }
+      100% { transform: translateY(-8px) rotate(1deg); }
+    }
+
+    /* Cartoon Rocket Docked */
+    .home-rocket-wrapper {
+      position: absolute;
+      bottom: 135px;
+      left: 140px;
+      z-index: 15;
+      animation: rocketGentleFloat 5s ease-in-out infinite alternate;
+    }
+
+    @keyframes rocketGentleFloat {
+      0% { transform: translateY(0px) rotate(1deg); }
+      100% { transform: translateY(-6px) rotate(-1deg); }
+    }
+
+    /* Welcoming Dialogue Speech Bubble */
+    .speech-bubble-welcome {
+      position: absolute;
+      top: -30px;
+      right: 50px;
+      background: rgba(255, 255, 255, 0.95);
+      color: #0f172a;
+      padding: 0.85rem 1.4rem;
+      border-radius: 20px;
+      border-bottom-right-radius: 4px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+      border: 3px solid var(--pastel-cyan);
+      font-weight: 800;
+      font-size: 1.05rem;
+      white-space: nowrap;
+      animation: bubblePop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      z-index: 30;
+    }
+
+    @keyframes bubblePop {
+      0% { transform: scale(0.6) translateY(20px); opacity: 0; }
+      100% { transform: scale(1) translateY(0px); opacity: 1; }
+    }
+
+    /* Massive Start Adventure Button */
+    .cta-container {
+      position: relative;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .btn-start-adventure {
+      background: linear-gradient(135deg, #FFD166 0%, #FF9F1C 100%);
+      border: 3px solid #FFFDF5;
+      color: #3d1300;
+      font-family: 'Cairo', sans-serif;
+      font-size: 1.75rem;
+      font-weight: 900;
+      padding: 1.1rem 3.5rem;
+      border-radius: 9999px;
+      cursor: pointer;
+      box-shadow: 0 10px 0 #b36b00, 0 15px 35px rgba(255, 159, 28, 0.5);
+      transition: all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-start-adventure::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 60%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+      transform: skewX(-25deg);
+      animation: shineLoop 3.5s infinite;
+    }
+
+    @keyframes shineLoop {
+      0%, 70% { left: -100%; }
+      100% { left: 160%; }
+    }
+
+    .btn-start-adventure:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 14px 0 #b36b00, 0 20px 45px rgba(255, 159, 28, 0.65);
+      background: linear-gradient(135deg, #FFE69A 0%, #FFA826 100%);
+    }
+
+    .btn-start-adventure:active {
+      transform: translateY(6px);
+      box-shadow: 0 4px 0 #b36b00, 0 8px 20px rgba(255, 159, 28, 0.4);
+    }
+
+    .adventure-subtext {
+      color: var(--pastel-sky);
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+    }
+
+    /* =========================================================================
+       TAB 2: SAMPLE ISLAND ENVIRONMENT (Nutrition Garden 2.5D Environment)
+       ========================================================================= */
+    .island-viewport {
+      flex: 1;
+      min-height: calc(100vh - 65px);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.5rem;
+      background: radial-gradient(ellipse at 50% 40%, #1e284a 0%, #11182c 60%, var(--deep-twilight) 100%);
+      cursor: grab;
+    }
+
+    .island-viewport:active {
+      cursor: grabbing;
+    }
+
+    .parallax-canvas-container {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    /* Layer 1: Background Nebulae & Distant Moons */
+    .layer-bg {
+      position: absolute;
+      inset: 0;
+      transition: transform 0.1s ease-out;
+    }
+
+    /* Layer 2: Midground - The Geodesic Greenhouse Island */
+    .layer-mid {
+      position: absolute;
+      width: 1000px;
+      height: 650px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: transform 0.15s ease-out;
+    }
+
+    /* Layer 3: Foreground - Interactive Glass Cargo & Pantry */
+    .layer-fg {
+      position: relative;
+      z-index: 40;
+      width: 100%;
+      max-width: 950px;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-top: auto;
+      transition: transform 0.2s ease-out;
+    }
+
+    .garden-hud-header {
+      position: relative;
+      z-index: 50;
+      width: 100%;
+      max-width: 950px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .island-badge-pill {
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 2px solid var(--glass-border);
+      border-radius: 9999px;
+      padding: 0.5rem 1.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 800;
+      color: var(--pastel-mint);
+      box-shadow: 0 8px 24px var(--soft-shadow);
+    }
+
+    .pantry-glass-shelf {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-radius: 24px;
+      padding: 1.1rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .pantry-slots-group {
+      display: flex;
+      gap: 0.85rem;
+      align-items: center;
+    }
+
+    .food-card-slot {
+      width: 76px;
+      height: 90px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 2px solid rgba(255, 255, 255, 0.25);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.25rem;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .food-card-slot:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: var(--pastel-cyan);
+      transform: translateY(-6px) scale(1.05);
+      box-shadow: 0 10px 20px rgba(141, 232, 244, 0.3);
+    }
+
+    .food-icon-preview {
+      font-size: 2rem;
+    }
+
+    .food-slot-name {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--pastel-white);
+    }
+
+    .cargo-bay-dropzone {
+      background: rgba(141, 232, 244, 0.12);
+      border: 3px dashed var(--pastel-cyan);
+      border-radius: 20px;
+      padding: 0.85rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .cargo-capacity-counter {
+      font-size: 1.4rem;
+      font-weight: 900;
+      color: var(--pastel-cyan);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .cargo-slot-dots {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .cargo-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid var(--pastel-cyan);
+      background: transparent;
+      transition: all 0.25s ease;
+    }
+
+    .cargo-dot.filled {
+      background: var(--pastel-mint);
+      border-color: #ffffff;
+      box-shadow: 0 0 10px var(--pastel-mint);
+    }
+
+    /* =========================================================================
+       TAB 3: ROBO VECTOR CHARACTER SHEET
+       ========================================================================= */
+    .sheet-viewport {
+      flex: 1;
+      padding: 2.5rem 1.5rem;
+      max-width: 1100px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .sheet-header-title {
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: var(--pastel-cyan);
+      margin-bottom: 0.5rem;
+      text-align: center;
+    }
+
+    .sheet-subtitle {
+      text-align: center;
+      color: var(--pastel-sky);
+      font-size: 1rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .poses-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 1.75rem;
+    }
+
+    .pose-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 2px solid var(--glass-border);
+      border-radius: 24px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 12px 32px var(--soft-shadow);
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .pose-card:hover {
+      border-color: var(--pastel-cyan);
+      transform: translateY(-4px);
+    }
+
+    .pose-canvas-box {
+      width: 220px;
+      height: 220px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+
+    .pose-title {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--pastel-white);
+      margin-bottom: 0.35rem;
+    }
+
+    .pose-desc {
+      font-size: 0.85rem;
+      color: var(--pastel-sky);
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    /* =========================================================================
+       TAB 4: CHILD-FRIENDLY SETTINGS SYSTEM
+       ========================================================================= */
+    .settings-viewport {
+      flex: 1;
+      padding: 2.5rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      max-width: 750px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .settings-modal-box {
+      background: rgba(22, 31, 56, 0.75);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 3px solid rgba(255, 255, 255, 0.45);
+      border-radius: 36px;
+      padding: 2.25rem 2.5rem;
+      width: 100%;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5), inset 0 2px 6px rgba(255, 255, 255, 0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
+    }
+
+    .settings-title {
+      text-align: center;
+      font-size: 1.6rem;
+      font-weight: 900;
+      color: var(--pastel-yellow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+    }
+
+    .settings-toggles-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 600px) {
+      .settings-toggles-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .toggle-card {
+      background: rgba(255, 255, 255, 0.07);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 24px;
+      padding: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .toggle-card:hover {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: var(--pastel-cyan);
+      transform: translateY(-2px);
+    }
+
+    .toggle-info {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .toggle-icon-wrap {
+      width: 52px;
+      height: 52px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+    }
+
+    .toggle-labels h4 {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--pastel-white);
+    }
+
+    .toggle-labels span {
+      font-size: 0.75rem;
+      color: var(--pastel-sky);
+      font-weight: 600;
+    }
+
+    .switch-pill {
+      width: 58px;
+      height: 32px;
+      background: #475569;
+      border-radius: 9999px;
+      position: relative;
+      transition: background 0.25s ease;
+    }
+
+    .switch-pill.on {
+      background: var(--pastel-mint);
+      box-shadow: 0 0 12px rgba(122, 229, 130, 0.5);
+    }
+
+    .switch-thumb {
+      width: 26px;
+      height: 26px;
+      background: #ffffff;
+      border-radius: 50%;
+      position: absolute;
+      top: 3px;
+      left: 4px;
+      transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .switch-pill.on .switch-thumb {
+      transform: translateX(24px);
+    }
+
+    .btn-reset-adventure {
+      background: rgba(239, 71, 111, 0.15);
+      border: 2px dashed rgba(239, 71, 111, 0.5);
+      color: var(--pastel-pink);
+      font-family: 'Cairo', sans-serif;
+      font-size: 1rem;
+      font-weight: 800;
+      padding: 0.9rem;
+      border-radius: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.65rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn-reset-adventure:hover {
+      background: rgba(239, 71, 111, 0.25);
+      border-color: #ef476f;
+      transform: translateY(-2px);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Sandbox Control Header -->
+  <header class="sandbox-topbar">
+    <div class="sandbox-brand">
+      <span class="sandbox-brand-badge">PHASE 3.3 ART BIBLE</span>
+      <h1 class="sandbox-title">AstroNutri — لوحة التصميم الكرتوني التفاعلي</h1>
+    </div>
+
+    <nav class="sandbox-nav">
+      <button class="nav-btn active" onclick="switchTab('tab-home')">
+        <span>🏡</span> شاشة البداية (Home World)
+      </button>
+      <button class="nav-btn" onclick="switchTab('tab-island')">
+        <span>🏝️</span> حديقة التغذية (Island 2.5D)
+      </button>
+      <button class="nav-btn" onclick="switchTab('tab-sheet')">
+        <span>🤖</span> ورقة تعبيرات روبو (Character Rig)
+      </button>
+      <button class="nav-btn" onclick="switchTab('tab-settings')">
+        <span>⚙️</span> إعدادات الأطفال (Tactile Settings)
+      </button>
+    </nav>
+  </header>
+
+  <!-- Main Sandbox Stage -->
+  <main class="sandbox-stage">
+
+    <!-- =======================================================================
+         TAB 1: HOME WORLD SCREEN (2.5D Animated Environment)
+         ======================================================================= -->
+    <div id="tab-home" class="tab-content active">
+      <div class="home-viewport">
+        <!-- Parallax Nebula Layers -->
+        <div class="celestial-layer">
+          <div class="nebula-cloud-1"></div>
+          <div class="nebula-cloud-2"></div>
+
+          <!-- Distant Archipelago Islands SVG -->
+          <svg class="distant-islands-svg" viewBox="0 0 1000 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Distant Island 2 (Observatory) -->
+            <g transform="translate(150, 60) scale(0.65)">
+              <ellipse cx="100" cy="80" rx="90" ry="35" fill="#2A355A" />
+              <path d="M40 80 Q100 130 160 80 Z" fill="#1C2541" />
+              <!-- Observatory Dome -->
+              <circle cx="100" cy="50" r="30" fill="#8DE8F4" fill-opacity="0.5" stroke="#A9C9FF" stroke-width="3" />
+              <line x1="85" y1="35" x2="135" y2="15" stroke="#FFE69A" stroke-width="5" stroke-linecap="round" />
+            </g>
+            <!-- Distant Island 4 (Launch Pad Gantry) -->
+            <g transform="translate(750, 40) scale(0.6)">
+              <ellipse cx="100" cy="80" rx="100" ry="40" fill="#2A355A" />
+              <rect x="90" y="20" width="20" height="60" fill="#C9B8FF" fill-opacity="0.6" />
+              <polygon points="100,5 85,25 115,25" fill="#FFC3D8" />
+            </g>
+          </svg>
+        </div>
+
+        <!-- Top HUD -->
+        <div class="home-header">
+          <div class="player-profile-pill">
+            <div class="player-avatar">👨‍🚀</div>
+            <div class="player-info-text">
+              <span class="player-name">البطل الصغير عمر</span>
+              <span class="player-title">رائد فضاء مبتدئ • المستوى 1</span>
+            </div>
+          </div>
+
+          <div class="star-counter-pill">
+            <span class="star-sparkle">⭐</span>
+            <span>12 / 12 نجمة ذهبية</span>
+          </div>
+        </div>
+
+        <!-- Centerpiece Floating Island with Grounded Robo & Spaceship -->
+        <div class="home-centerpiece">
+          <div class="floating-hangar-stage">
+            <!-- SVG Main Floating Island -->
+            <svg class="hangar-island-svg" viewBox="0 0 600 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="islandRockGrad" x1="300" y1="90" x2="300" y2="240" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#3A4870" />
+                  <stop offset="60%" stop-color="#242F4D" />
+                  <stop offset="100%" stop-color="#141C33" />
+                </linearGradient>
+                <linearGradient id="mossGrassGrad" x1="0" y1="70" x2="600" y2="110" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#7AE582" />
+                  <stop offset="50%" stop-color="#8DE8F4" />
+                  <stop offset="100%" stop-color="#A9C9FF" />
+                </linearGradient>
+              </defs>
+              <!-- Rocky Base Underneath -->
+              <path d="M70,90 Q120,220 300,230 Q480,220 530,90 Q400,105 300,105 Q200,105 70,90 Z" fill="url(#islandRockGrad)" stroke="#1E293B" stroke-width="4" stroke-linejoin="round"/>
+              <!-- Island Surface / Moss Grass Top -->
+              <ellipse cx="300" cy="90" rx="230" ry="32" fill="url(#mossGrassGrad)" stroke="#1E293B" stroke-width="4"/>
+              <!-- Tech Launch Pad Platform Rings -->
+              <ellipse cx="300" cy="90" rx="160" ry="20" fill="rgba(255,255,255,0.25)" stroke="#FFFFFF" stroke-width="2" stroke-dasharray="8 6"/>
+              <ellipse cx="300" cy="90" rx="100" ry="12" fill="rgba(141, 232, 244, 0.3)"/>
+              <!-- Soft Glow Point Lights -->
+              <circle cx="160" cy="85" r="4" fill="#FFE69A" filter="drop-shadow(0 0 6px #FFE69A)"/>
+              <circle cx="440" cy="85" r="4" fill="#FFE69A" filter="drop-shadow(0 0 6px #FFE69A)"/>
+            </svg>
+
+            <!-- Grounded Robo Vector Instance -->
+            <div class="home-robo-wrapper">
+              <!-- Speech Bubble -->
+              <div class="speech-bubble-welcome">
+                جاهز للمغامرة يا بطل؟ يلا بينا نستكشف الفضاء! 🚀
+              </div>
+              <svg width="150" height="190" viewBox="0 0 160 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Ground Dynamic Shadow -->
+                <ellipse cx="80" cy="188" rx="42" ry="9" fill="rgba(13, 19, 38, 0.45)"/>
+                <!-- Thruster Ring Glow -->
+                <ellipse cx="80" cy="155" rx="16" ry="6" fill="#8DE8F4" fill-opacity="0.8"/>
+                <path d="M72,156 Q80,175 88,156 Z" fill="#FFE69A"/>
+                <!-- Torso Pill Chassis -->
+                <rect x="52" y="98" width="56" height="58" rx="26" fill="#F8FCFF" stroke="#1E293B" stroke-width="3.5"/>
+                <!-- Chest Accent Plate -->
+                <rect x="62" y="112" width="36" height="28" rx="12" fill="#8DE8F4" stroke="#1E293B" stroke-width="2.5"/>
+                <circle cx="80" cy="126" r="6" fill="#FFC3D8"/>
+                <!-- Left Hand Wave -->
+                <g transform="rotate(-25 36 110)">
+                  <ellipse cx="32" cy="110" rx="10" ry="12" fill="#F8FCFF" stroke="#1E293B" stroke-width="3"/>
+                </g>
+                <!-- Right Hand Wave (Up in air) -->
+                <g transform="rotate(25 125 85)">
+                  <ellipse cx="128" cy="85" rx="10" ry="12" fill="#F8FCFF" stroke="#1E293B" stroke-width="3"/>
+                  <path d="M124,78 Q132,74 136,82" stroke="#1E293B" stroke-width="2.5" stroke-linecap="round"/>
+                </g>
+                <!-- Spherical Head -->
+                <circle cx="80" cy="62" r="38" fill="#F8FCFF" stroke="#1E293B" stroke-width="3.5"/>
+                <ellipse cx="80" cy="30" rx="18" ry="6" fill="#FFFFFF" fill-opacity="0.8"/>
+                <!-- Curved Visor Screen -->
+                <rect x="54" y="46" width="52" height="34" rx="16" fill="#161F38" stroke="#1E293B" stroke-width="2.5"/>
+                <!-- Visor LED Smiling Face -->
+                <circle cx="68" cy="60" r="4.5" fill="#8DE8F4"/>
+                <circle cx="92" cy="60" r="4.5" fill="#8DE8F4"/>
+                <path d="M72,69 Q80,75 88,69" stroke="#8DE8F4" stroke-width="2.5" stroke-linecap="round"/>
+                <!-- Antenna -->
+                <line x1="80" y1="24" x2="80" y2="12" stroke="#1E293B" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="80" cy="10" r="5" fill="#FFD166" stroke="#1E293B" stroke-width="2.5"/>
+              </svg>
+            </div>
+
+            <!-- Docked Cartoon Spaceship Vector -->
+            <div class="home-rocket-wrapper">
+              <svg width="140" height="180" viewBox="0 0 140 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Shadow -->
+                <ellipse cx="70" cy="172" rx="35" ry="8" fill="rgba(13, 19, 38, 0.45)"/>
+                <!-- Rocket Body -->
+                <path d="M70,15 C95,45 105,105 100,145 L40,145 C35,105 45,45 70,15 Z" fill="#F8FCFF" stroke="#1E293B" stroke-width="3.5"/>
+                <!-- Nose Cone -->
+                <path d="M70,15 C82,32 87,50 87,50 L53,50 C53,50 58,32 70,15 Z" fill="#FFC3D8" stroke="#1E293B" stroke-width="3"/>
+                <!-- Curved Window -->
+                <circle cx="70" cy="75" r="16" fill="#8DE8F4" stroke="#1E293B" stroke-width="3"/>
+                <circle cx="67" cy="71" r="5" fill="#FFFFFF"/>
+                <!-- Left & Right Cartoon Fins -->
+                <path d="M41,115 C20,120 18,155 39,150 Z" fill="#A9C9FF" stroke="#1E293B" stroke-width="3"/>
+                <path d="M99,115 C120,120 122,155 101,150 Z" fill="#A9C9FF" stroke="#1E293B" stroke-width="3"/>
+                <!-- Thruster Nozzle -->
+                <rect x="58" y="145" width="24" height="8" rx="4" fill="#C9B8FF" stroke="#1E293B" stroke-width="2.5"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- The ONE Obvious Action Button -->
+          <div class="cta-container">
+            <button class="btn-start-adventure" onclick="switchTab('tab-island')">
+              <span>ابدأ المغامرة الفضائية</span>
+              <span style="font-size: 2rem;">🚀</span>
+            </button>
+            <p class="adventure-subtext">المحطة الأولى: حديقة التغذية الفضائية (مفتوحة وجاهزة)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =======================================================================
+         TAB 2: SAMPLE ISLAND ENVIRONMENT (Nutrition Garden 2.5D)
+         ======================================================================= -->
+    <div id="tab-island" class="tab-content">
+      <div class="island-viewport" id="islandParallaxBox">
+        <!-- Parallax Background Layer -->
+        <div class="layer-bg" id="pLayerBg">
+          <svg width="100%" height="100%" viewBox="0 0 1440 800" fill="none" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="1250" cy="180" r="60" fill="#FFE69A" fill-opacity="0.8" filter="drop-shadow(0 0 30px rgba(255, 230, 154, 0.4))"/>
+            <circle cx="1230" cy="170" r="12" fill="#EAD17E" fill-opacity="0.5"/>
+            <circle cx="1265" cy="205" r="8" fill="#EAD17E" fill-opacity="0.5"/>
+          </svg>
+        </div>
+
+        <!-- Parallax Midground Layer: The Geodesic Greenhouse Island -->
+        <div class="layer-mid" id="pLayerMid">
+          <svg width="860" height="520" viewBox="0 0 860 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Floating Rock Base -->
+            <path d="M120,320 Q220,490 430,500 Q640,490 740,320 Q580,340 430,340 Q280,340 120,320 Z" fill="#2E3A5F" stroke="#1E293B" stroke-width="4"/>
+            <!-- Island Surface Grass -->
+            <ellipse cx="430" cy="320" rx="310" ry="40" fill="#7AE582" stroke="#1E293B" stroke-width="4"/>
+            <!-- Geodesic Glass Dome (Translucent Glassmorphism) -->
+            <path d="M220,310 C220,160 310,90 430,90 C550,90 640,160 640,310 Z" fill="rgba(141, 232, 244, 0.22)" stroke="#8DE8F4" stroke-width="3.5"/>
+            <!-- Geodesic Hexagonal Facet Lines -->
+            <path d="M430,90 L430,310 M310,130 L550,130 M245,210 L615,210 M340,130 L270,310 M520,130 L590,310 M430,90 L310,210 L430,310 L550,210 Z" stroke="rgba(255,255,255,0.45)" stroke-width="2"/>
+            <!-- Interior Hydroponic Garden Plants Inside Dome -->
+            <ellipse cx="370" cy="285" rx="35" ry="12" fill="#4ADE80"/>
+            <ellipse cx="490" cy="285" rx="40" ry="14" fill="#22C55E"/>
+            <circle cx="430" cy="265" r="18" fill="#FFC3D8"/>
+            <!-- Exterior Space Tree with Glowing Fruit -->
+            <g transform="translate(620, 210)">
+              <path d="M40,110 Q45,60 30,30 Q60,50 65,110 Z" fill="#A9C9FF" stroke="#1E293B" stroke-width="3"/>
+              <circle cx="35" cy="30" r="30" fill="#8DE8F4" stroke="#1E293B" stroke-width="3"/>
+              <circle cx="35" cy="25" r="7" fill="#FFE69A"/>
+            </g>
+          </svg>
+        </div>
+
+        <!-- Top Island HUD -->
+        <div class="garden-hud-header">
+          <div class="island-badge-pill">
+            <span style="font-size: 1.4rem;">🌱</span>
+            <span>الجزيرة 1: حديقة التغذية الفضائية (Greenhouse Dome)</span>
+          </div>
+
+          <button class="nav-btn" onclick="switchTab('tab-home')">
+            <span>🔙</span> العودة لخريطة الجزر
+          </button>
+        </div>
+
+        <!-- Foreground Interactive Layer: Cargo DropZone & Food Pantry -->
+        <div class="layer-fg" id="pLayerFg">
+          <div class="pantry-glass-shelf">
+            <!-- Left: Cargo Bay Drop Zone (Exact 4-Item Logic Visualized) -->
+            <div class="cargo-bay-dropzone">
+              <div class="cargo-capacity-counter">
+                <span>📦</span>
+                <span>الحمولة: 3 / 4</span>
+              </div>
+              <div class="cargo-slot-dots">
+                <div class="cargo-dot filled"></div>
+                <div class="cargo-dot filled"></div>
+                <div class="cargo-dot filled"></div>
+                <div class="cargo-dot"></div>
+              </div>
+            </div>
+
+            <!-- Right: Approved Food Items Carousel (Mathematical Cartoon SVG) -->
+            <div class="pantry-slots-group">
+              <div class="food-card-slot" title="تورتيلا فضاء معتمدة">
+                <span class="food-icon-preview">🫓</span>
+                <span class="food-slot-name">تورتيلا</span>
+              </div>
+              <div class="food-card-slot" title="تفاح مجفف صحي">
+                <span class="food-icon-preview">🍎</span>
+                <span class="food-slot-name">تفاح فضاء</span>
+              </div>
+              <div class="food-card-slot" title="مغلف بروكلي مدعم">
+                <span class="food-icon-preview">🥦</span>
+                <span class="food-slot-name">بروكلي</span>
+              </div>
+              <div class="food-card-slot" title="كيس مشروب فواكه مغلق">
+                <span class="food-icon-preview">🧃</span>
+                <span class="food-slot-name">مشروب</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =======================================================================
+         TAB 3: ROBO VECTOR CHARACTER RIG (6 Canonical Poses)
+         ======================================================================= -->
+    <div id="tab-sheet" class="tab-content">
+      <div class="sheet-viewport">
+        <h2 class="sheet-header-title">ورقة تعبيرات شخصية "روبو" الموحدة (Vector Character Rig)</h2>
+        <p class="sheet-subtitle">نفس الخطوط والألوان والظلال والنسب الدقيقة عبر جميع الوضعيات بدون أي قص أو دمج صور مشتتة.</p>
+
+        <div class="poses-grid">
+          <!-- Pose 1: Idle -->
+          <div class="pose-card">
+            <div class="pose-canvas-box">
+              <svg width="140" height="170" viewBox="0 0 160 200" fill="none">
+                <ellipse cx="80" cy="188" rx="40" ry="8" fill="rgba(13, 19, 38, 0.45)"/>
+                <ellipse cx="80" cy="155" rx="15" ry="5" fill="#8DE8F4" fill-opacity="0.8"/>
+                <rect x="52" y="98" width="56" height="58" rx="26" fill="#F8FCFF" stroke="#1E293B" stroke-width="3.5"/>
+                <rect x="62" y="112" width="36" height="28" rx="12" fill="#8DE8F4" stroke="#1E293B" stroke-width="2.5"/>
+                <circle cx="80" cy="126" r="6" fill="#FFC3D8"/>
+                <ellipse cx="34" cy="125" rx="10" ry="12" fill="#F8FCFF" stroke="#1E293B" stroke-width="3"/>
+                <ellipse cx="126" cy="125" rx="10" ry="12" fill="#F8FCFF" stroke="#1E293B" stroke-width="3"/>
+                <circle cx="80" cy="62" r="38" fill="#F8FCFF" stroke="#1E293B" stroke-width="3.5"/>
+                <rect x="54" y="46" width="52" height="34" rx="16" fill="#161F38" stroke="#1E293B" stroke-width="2.5"/>
+                <circle cx="68" cy="60" r="4.5" fill="#8DE8F4"/>
+                <circle cx="92" cy="60" r="4.5" fill="#8DE8F4"/>
+                <line x1="80" y1="24" x2="80" y2="12" stroke="#1E293B" stroke-width="3"/>
+                <circle cx="80" cy="10" r="5" fill="#FFD166" stroke="#1E293B" stroke-width="2.5"/>
+              </svg>
+            </div>
+            <h3 class="pose-title">1. الوضع الهادئ (Idle Hover)</h3>
+            <p class="pose-desc">طفو سلس ومستمر مع وميض تلقائي لعينين الروبوت وتنفس طبيعي.</p>
+          </div>
+
+          <!-- Pose 2: Wave / Greeting -->
+          <div class="pose-card">
+            <div class="pose-canvas-box">
+              <svg width="140" height="170" viewBox="0 0 160 200" fill="none">
+                <ellipse cx="80" cy="188" rx="40" ry="8" fill="rgba(13, 19, 38, 0.45)"/>
+                <ellipse cx="80" cy="155" rx="15" ry="5" fill="#8DE8F4" fill-opacity="0.8"/>
+                <rect x="52" y="98" width="56" height="58" rx="26" fill="#F8FCFF" stroke="#1E293B" stroke-width="3.5"/>
+                <rect x="62" y="112" width="36" height="28" rx="12" fill="#8DE8F4" stroke="#1E293B" stroke-width="2.5"/>
+                <circle cx="80" cy="126" r="6" fill="#FFC3D8"/>
+                <ellipse cx="34" cy="125" rx="10" ry="12" fill="#F8FCFF" stroke="#1E293B" stroke-width="3"/>
+                <!-- Waving Arm -->
+                <ellipse cx="128" cy="85" rx="10" ry="12" fill="#F8FCFF" stroke="#1E293B" stroke-width="3" transform="rotate(20 128 85)"/>
+                <circle cx="80" cy="62" r="38" fill="#F8FCFF" stroke="#1E293B" stroke-width="3.5"/>
+                <rect x="54" y="46" width="52" height="34" rx="16" fill="#161F38" stroke="#1E293B" stroke-width="2.5"/>
+                <!-- Smiling Eyes -->
+                <path d="M64,62 Q68,54 72,62" stroke="#8DE8F4" stroke-width="3" stroke-linecap="round"/>
+                <path d="M88,62 Q92,54 96,62" stroke="#8DE8F4" stroke-width="3" stroke-linecap="round"/>
+                <path d="M74,70 Q80,75 86,70" stroke="#8DE8F4" stroke-width="2.5" stroke-linecap="round"/>
+                <line x1="80" y1="24" x2="80" y2="12" stroke="#1E293B" stroke-width="3"/>
+                <circle cx="80" cy="10" r="5" fill="#FFD166" stroke="#1E293B" stroke-width="2.5"/>
+              </svg>
+            </div>
+            <h3 class="pose-title">2. الترحيب والتلويح (Happy Wave)</h3>
+            <p class="pose-desc">ابتسامة كرتونية واضحة وتلويح باليد اليمنى لاستقبال الطفل بحماس.</p>
+          </div>
+
+          <!-- Pose 3: Talking / Lip-Sync -->
+          <div class="pose-card">
+            <div class="pose-canvas-box">
+              <svg width="140" height="170" viewBox="0 0 160 200" fill="none">
+                <ellipse cx="80" cy="188" rx="40" ry="8" fill="rgba(13, 19, 38, 0.45)"/>
+                <ellipse cx="80" cy="155" rx="15" ry="5" fill="#8DE8F4" fill-opacity="0.8"/>
+                <rect x="52" y="98" width="56" height="58" rx="26" fill="#F8FCFF" stroke="#1E293B" stroke-width="3.5"/>
+                <rect x="62" y="112" width="36" height="28" rx="12" fill="#8DE8F4" stroke="#1E293B" stroke-width="2.5"/>
+                <circle cx="80" cy="126" r="6" fill="#FFC3D8"/>
+                <!-- Open gesture palms -->
+                <ellipse cx="30" cy="115" rx="11" ry="11" fill="#F8FCFF" stroke="#1E293B" stroke-width="3"/>
+                <ellipse cx="130" cy="115" rx="11" ry="11" fill="#F8FCFF" stroke="#1E293B" stroke-width="3"/>
+                <circle cx="80" cy="62" r="38" fill="#F8FCFF" stroke="#1E293B" stroke-width="3.5"/>
+                <rect x="54" y="46" width="52" height="34" rx="16" fill="#161F38" stroke="#1E293B" stroke-width="2.5"/>
+                <!-- Animated Voice Wave on Visor -->
+                <rect x="62" y="58" width="4" height="10" rx="2" fill="#8DE8F4"/>
+                <rect x="71" y="52" width="4" height="22" rx="2" fill="#FFE69A"/>
+                <rect x="80" y="49" width="4" height="28" rx="2" fill="#8DE8F4"/>
+                <rect x="89" y="54" width="4" height="18" rx="2" fill="#FFE69A"/>
+                <rect x="98" y="60" width="4" height="8" rx="2" fill="#8DE8F4"/>
+                <line x1="80" y1="24" x2="80" y2="12" stroke="#1E293B" stroke-width="3"/>
+                <circle cx="80" cy="10" r="5" fill="#FFD166" stroke="#1E293B" stroke-width="2.5"/>
+              </svg>
+            </div>
+            <h3 class="pose-title">3. التحدث والشرح (Talking Waveform)</h3>
+            <p class="pose-desc">أمواج صوتية مضيئة على الشاشة تتفاعل مع قوة نبرة الصوت المسجلة.</p>
+          </div>
+
+          <!-- Pose 4: Warning / Alert -->
+          <div class="pose-card">
+            <div class="pose-canvas-box">
+              <svg width="140" height="170" viewBox="0 0 160 200" fill="none">
+                <ellipse cx="80" cy="188" rx="40" ry="8" fill="rgba(13, 19, 38, 0.45)"/>
+                <ellipse cx="80" cy="155" rx="15" ry="5" fill="#FFC3D8" fill-opacity="0.8"/>
+                <rect x="52" y="98" width="56" height="58" rx="26" fill="#F8FCFF" stroke="#1E293B" stroke-width="3.5"/>
+                <rect x="62" y="112" width="36" height="28" rx="12" fill="#FFC3D8" stroke="#1E293B" stroke-width="2.5"/>
+                <circle cx="80" cy="126" r="6" fill="#EF476F"/>
+                <!-- Stop Palm Gesture Forward -->
+                <ellipse cx="28" cy="105" rx="13" ry="13" fill="#F8FCFF" stroke="#1E293B" stroke-width="3"/>
+                <ellipse cx="128" cy="125" rx="10" ry="12" fill="#F8FCFF" stroke="#1E293B" stroke-width="3"/>
+                <circle cx="80" cy="62" r="38" fill="#F8FCFF" stroke="#1E293B" stroke-width="3.5"/>
+                <rect x="54" y="46" width="52" height="34" rx="16" fill="#161F38" stroke="#1E293B" stroke-width="2.5"/>
+                <!-- Amber Exclamation Warning on Visor -->
+                <polygon points="80,50 84,65 76,65" fill="#FFD166"/>
+                <circle cx="80" cy="71" r="2.5" fill="#FFD166"/>
+                <line x1="80" y1="24" x2="80" y2="12" stroke="#1E293B" stroke-width="3"/>
+                <circle cx="80" cy="10" r="5" fill="#EF476F" stroke="#1E293B" stroke-width="2.5"/>
+              </svg>
+            </div>
+            <h3 class="pose-title">4. التنبيه والتحذير (Friendly Warning)</h3>
+            <p class="pose-desc">يد ممدودة برفق وتنبيه برتقالي بدون تخويف الطفل عند اختيار طعام ممنوع.</p>
+          </div>
+
+          <!-- Pose 5: Thinking / Curious -->
+          <div class="pose-card">
+            <div class="pose-canvas-box">
+              <svg width="140" height="170" viewBox="0 0 160 200" fill="none">
+                <ellipse cx="80" cy="188" rx="40" ry="8" fill="rgba(13, 19, 38, 0.45)"/>
+                <ellipse cx="80" cy="155" rx="15" ry="5" fill="#8DE8F4" fill-opacity="0.8"/>
+                <rect x="52" y="98" width="56" height="58" rx="26" fill="#F8FCFF" stroke="#1E293B" stroke-width="3.5"/>
+                <rect x="62" y="112" width="36" height="28" rx="12" fill="#8DE8F4" stroke="#1E293B" stroke-width="2.5"/>
+                <circle cx="80" cy="126" r="6" fill="#FFC3D8"/>
+                <!-- Hand to chin thinking -->
+                <ellipse cx="70" cy="85" rx="9" ry="11" fill="#F8FCFF" stroke="#1E293B" stroke-width="3"/>
+                <ellipse cx="126" cy="125" rx="10" ry="12" fill="#F8FCFF" stroke="#1E293B" stroke-width="3"/>
+                <!-- Tilted Head -->
+                <g transform="rotate(8 80 62)">
+                  <circle cx="80" cy="62" r="38" fill="#F8FCFF" stroke="#1E293B" stroke-width="3.5"/>
+                  <rect x="54" y="46" width="52" height="34" rx="16" fill="#161F38" stroke="#1E293B" stroke-width="2.5"/>
+                  <!-- Question Mark on Visor -->
+                  <path d="M76,54 Q80,50 84,54 Q86,58 80,62 L80,65" stroke="#FFE69A" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+                  <circle cx="80" cy="71" r="1.5" fill="#FFE69A"/>
+                </g>
+                <line x1="80" y1="24" x2="80" y2="12" stroke="#1E293B" stroke-width="3"/>
+                <circle cx="80" cy="10" r="5" fill="#FFD166" stroke="#1E293B" stroke-width="2.5"/>
+              </svg>
+            </div>
+            <h3 class="pose-title">5. التفكير والتساؤل (Thinking)</h3>
+            <p class="pose-desc">إمالة الرأس ولمس الذقن مع علامة استفهام صفراء أثناء الأسئلة العلمية.</p>
+          </div>
+
+          <!-- Pose 6: Celebrate / Victory -->
+          <div class="pose-card">
+            <div class="pose-canvas-box">
+              <svg width="140" height="170" viewBox="0 0 160 200" fill="none">
+                <ellipse cx="80" cy="188" rx="40" ry="8" fill="rgba(13, 19, 38, 0.45)"/>
+                <ellipse cx="80" cy="155" rx="15" ry="5" fill="#FFE69A" fill-opacity="0.8"/>
+                <!-- Star Burst Halo -->
+                <path d="M80,5 L84,18 L97,18 L87,26 L91,38 L80,30 L69,38 L73,26 L63,18 L76,18 Z" fill="#FFE69A" filter="drop-shadow(0 0 8px #FFE69A)"/>
+                <rect x="52" y="98" width="56" height="58" rx="26" fill="#F8FCFF" stroke="#1E293B" stroke-width="3.5"/>
+                <rect x="62" y="112" width="36" height="28" rx="12" fill="#FFE69A" stroke="#1E293B" stroke-width="2.5"/>
+                <circle cx="80" cy="126" r="6" fill="#06D6A0"/>
+                <!-- Both arms pumped up -->
+                <ellipse cx="32" cy="78" rx="11" ry="13" fill="#F8FCFF" stroke="#1E293B" stroke-width="3" transform="rotate(-30 32 78)"/>
+                <ellipse cx="128" cy="78" rx="11" ry="13" fill="#F8FCFF" stroke="#1E293B" stroke-width="3" transform="rotate(30 128 78)"/>
+                <circle cx="80" cy="62" r="38" fill="#F8FCFF" stroke="#1E293B" stroke-width="3.5"/>
+                <rect x="54" y="46" width="52" height="34" rx="16" fill="#161F38" stroke="#1E293B" stroke-width="2.5"/>
+                <!-- Star Eyes Win -->
+                <text x="63" y="66" font-size="14" fill="#FFE69A">★</text>
+                <text x="87" y="66" font-size="14" fill="#FFE69A">★</text>
+                <path d="M72,70 Q80,77 88,70" stroke="#FFE69A" stroke-width="2.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <h3 class="pose-title">6. الاحتفال والانتصار (Victory Win)</h3>
+            <p class="pose-desc">رفع كلتا اليدين ونجوم ذهبية على العيون عند إتمام المهمة بنجاح.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =======================================================================
+         TAB 4: CHILD-FRIENDLY SETTINGS SYSTEM
+         ======================================================================= -->
+    <div id="tab-settings" class="tab-content">
+      <div class="settings-viewport">
+        <div class="settings-modal-box">
+          <h2 class="settings-title">
+            <span>⚙️</span>
+            <span>لوحة خيارات البطل الصغير</span>
+          </h2>
+
+          <div class="settings-toggles-grid">
+            <!-- Toggle 1: Background Music -->
+            <div class="toggle-card" onclick="toggleSwitch(this)">
+              <div class="toggle-info">
+                <div class="toggle-icon-wrap" style="color: var(--pastel-yellow);">🎵</div>
+                <div class="toggle-labels">
+                  <h4>موسيقى الفضاء</h4>
+                  <span>ألحان كرتونية هادئة</span>
+                </div>
+              </div>
+              <div class="switch-pill on">
+                <div class="switch-thumb"></div>
+              </div>
+            </div>
+
+            <!-- Toggle 2: Sound Effects -->
+            <div class="toggle-card" onclick="toggleSwitch(this)">
+              <div class="toggle-info">
+                <div class="toggle-icon-wrap" style="color: var(--pastel-cyan);">🔊</div>
+                <div class="toggle-labels">
+                  <h4>المؤثرات الصوتية</h4>
+                  <span>أصوات القفز والأزرار</span>
+                </div>
+              </div>
+              <div class="switch-pill on">
+                <div class="switch-thumb"></div>
+              </div>
+            </div>
+
+            <!-- Toggle 3: Robo Voice -->
+            <div class="toggle-card" onclick="toggleSwitch(this)">
+              <div class="toggle-info">
+                <div class="toggle-icon-wrap" style="color: var(--pastel-pink);">🤖</div>
+                <div class="toggle-labels">
+                  <h4>صوت روبو المصري</h4>
+                  <span>توجيهات صوتية حية</span>
+                </div>
+              </div>
+              <div class="switch-pill on">
+                <div class="switch-thumb"></div>
+              </div>
+            </div>
+
+            <!-- Toggle 4: Star Particle Effects -->
+            <div class="toggle-card" onclick="toggleSwitch(this)">
+              <div class="toggle-info">
+                <div class="toggle-icon-wrap" style="color: var(--pastel-mint);">✨</div>
+                <div class="toggle-labels">
+                  <h4>بريق النجوم</h4>
+                  <span>مؤثرات بصرية لامعة</span>
+                </div>
+              </div>
+              <div class="switch-pill on">
+                <div class="switch-thumb"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reset Button -->
+          <button class="btn-reset-adventure" onclick="alert('سيتم إرجاع تقدمك للبداية بأمان!')">
+            <span>🔄</span>
+            <span>إعادة المغامرة من البداية (Start Over)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+
+      const target = document.getElementById(tabId);
+      if (target) target.classList.add('active');
+
+      const btn = Array.from(document.querySelectorAll('.nav-btn')).find(b => b.getAttribute('onclick').includes(tabId));
+      if (btn) btn.classList.add('active');
+    }
+
+    function toggleSwitch(card) {
+      const pill = card.querySelector('.switch-pill');
+      pill.classList.toggle('on');
+    }
+
+    // Interactive 2.5D Parallax Mouse Tracking on Island Viewport
+    const islandBox = document.getElementById('islandParallaxBox');
+    const pLayerBg = document.getElementById('pLayerBg');
+    const pLayerMid = document.getElementById('pLayerMid');
+    const pLayerFg = document.getElementById('pLayerFg');
+
+    if (islandBox) {
+      islandBox.addEventListener('mousemove', (e) => {
+        const rect = islandBox.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width - 0.5;
+        const y = (e.clientY - rect.top) / rect.height - 0.5;
+
+        // Background moves slightly (factor: 15px)
+        pLayerBg.style.transform = `translate(${x * -15}px, ${y * -10}px)`;
+        // Midground moves moderately (factor: 35px)
+        pLayerMid.style.transform = `translate(${x * -35}px, ${y * -20}px)`;
+        // Foreground moves with highest parallax depth (factor: 60px)
+        pLayerFg.style.transform = `translate(${x * 25}px, ${y * 15}px)`;
+      });
+
+      islandBox.addEventListener('mouseleave', () => {
+        pLayerBg.style.transform = 'translate(0px, 0px)';
+        pLayerMid.style.transform = 'translate(0px, 0px)';
+        pLayerFg.style.transform = 'translate(0px, 0px)';
+      });
+    }
+  </script>
+</body>
+</html>

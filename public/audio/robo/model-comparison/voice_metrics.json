@@ -1,0 +1,47 @@
+[
+  {
+    "id": "sample_greeting",
+    "name": "Greeting (ترحيب)",
+    "durationSec": 4.465958,
+    "sampleRateHz": 24000,
+    "channels": 1,
+    "words": 11,
+    "wordsPerMinute": 148,
+    "integratedLoudnessLufs": -16.45,
+    "truePeakDbfs": -1.66,
+    "loudnessRangeLu": 0.5,
+    "thresholdDb": -27.1,
+    "rmsLevelDb": -67.237533,
+    "peakLevelDb": -58.902362
+  },
+  {
+    "id": "sample_success",
+    "name": "Success (احتفال ونجاح)",
+    "durationSec": 5.077417,
+    "sampleRateHz": 24000,
+    "channels": 1,
+    "words": 11,
+    "wordsPerMinute": 130,
+    "integratedLoudnessLufs": -16.45,
+    "truePeakDbfs": -1.24,
+    "loudnessRangeLu": 2.7,
+    "thresholdDb": -27.67,
+    "rmsLevelDb": -9.179638,
+    "peakLevelDb": -5.430984
+  },
+  {
+    "id": "sample_warning",
+    "name": "Warning (تحذير وتنبيه)",
+    "durationSec": 5.597417,
+    "sampleRateHz": 24000,
+    "channels": 1,
+    "words": 11,
+    "wordsPerMinute": 118,
+    "integratedLoudnessLufs": -17.02,
+    "truePeakDbfs": -1.31,
+    "loudnessRangeLu": 1,
+    "thresholdDb": -27.02,
+    "rmsLevelDb": -7.45899,
+    "peakLevelDb": -5.428703
+  }
+]

@@ -1,0 +1,55 @@
+{
+  "version": 3,
+  "generatedAt": "2026-11-12T11:29:57.599Z",
+  "mode": "sample",
+  "model": "gemini-3.8-flash-lite-tts",
+  "voice": "Puck",
+  "totalFiles": 3,
+  "items": {
+    "sample_greeting": {
+      "path": "/audio/robo/sample/sample_greeting.mp3",
+      "text": "يا مرحب يا بطل! أنا روبو.. جاهز للمغامرة في الفضاء؟ يلا بينا!",
+      "rawDuration": 5.53,
+      "duration": 4.54,
+      "fileSizeBytes": 37101,
+      "category": "sample",
+      "island": "GLOBAL",
+      "status": "SAMPLE",
+      "trigger": "SAMPLE_GREETING",
+      "priority": "HIGH",
+      "model": "gemini-3.8-flash-lite-tts",
+      "voice": "Puck",
+      "trimThresholdDb": -48
+    },
+    "sample_success": {
+      "path": "/audio/robo/sample/sample_success.mp3",
+      "text": "الله عليك يا كابتن! اختياراتك مناسبة وجاهزة للرحلة.. عاش يا بطل!",
+      "rawDuration": 5.09,
+      "duration": 5.08,
+      "fileSizeBytes": 41325,
+      "category": "sample",
+      "island": "ISLAND_1_NUTRITION",
+      "status": "SAMPLE",
+      "trigger": "SAMPLE_SUCCESS",
+      "priority": "CRITICAL",
+      "model": "gemini-3.8-flash-lite-tts",
+      "voice": "Puck",
+      "trimThresholdDb": -48
+    },
+    "sample_warning": {
+      "path": "/audio/robo/sample/sample_warning.mp3",
+      "text": "احترس! خبز البرجر بيتفتت، والفتات بيطير في الكابينة ويسد فلاتر الهواء!",
+      "rawDuration": 5.72,
+      "duration": 5.71,
+      "fileSizeBytes": 46317,
+      "category": "sample",
+      "island": "ISLAND_1_NUTRITION",
+      "status": "SAMPLE",
+      "trigger": "SAMPLE_WARNING",
+      "priority": "HIGH",
+      "model": "gemini-3.8-flash-lite-tts",
+      "voice": "Puck",
+      "trimThresholdDb": -48
+    }
+  }
+}

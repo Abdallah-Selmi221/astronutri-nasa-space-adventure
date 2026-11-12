@@ -1,0 +1,206 @@
+{
+  "engineVersion": "1.0.0",
+  "persona": {
+    "characterId": "robo",
+    "name": "Robo",
+    "nameAr": "روبو",
+    "archetype": "Young, friendly, energetic 10-12 year old boy robot space companion",
+    "targetAudience": "Children 7-12",
+    "voiceName": "Puck",
+    "canonicalModel": "gemini-3.8-flash-lite-tts",
+    "languageCode": "ar-EG",
+    "dialect": "Contemporary child-friendly Egyptian Arabic",
+    "pacingRangeWpm": {
+      "min": 115,
+      "max": 155
+    },
+    "ebuR128": {
+      "targetIntegratedLufs": -16,
+      "maxTruePeakDbfs": -1.5,
+      "targetLraLu": 7,
+      "toleranceLu": 0.75
+    },
+    "silenceGate": {
+      "thresholdDb": -48,
+      "startDurationSec": 0.01,
+      "stopDurationSec": 0.45
+    }
+  },
+  "emotionContexts": {
+    "CALM": {
+      "id": "CALM",
+      "name": "Calm Scientific Explanation",
+      "nameAr": "شرح علمي هادئ واستكشافي",
+      "targetEnergy": "MODERATE_CALM",
+      "pitchTargetHz": 235,
+      "wpmTarget": 125,
+      "punctuationStyle": "Paced breath pauses (..), gentle declarative periods",
+      "guideline": "Curious peer sharing space facts; warm, clear, never monotonic."
+    },
+    "WARNING": {
+      "id": "WARNING",
+      "name": "Friendly Urgent Hazard Warning",
+      "nameAr": "تنبيه ودود وحازم لمخاطر الفضاء",
+      "targetEnergy": "URGENT_PROTECTIVE",
+      "pitchTargetHz": 255,
+      "wpmTarget": 120,
+      "punctuationStyle": "Single exclamation (!) on alert word, followed by calm reason",
+      "guideline": "Urgent yet caring peer warning; never scolding, shouting, or scary."
+    },
+    "EXCITED": {
+      "id": "EXCITED",
+      "name": "Excited Celebration & Cheering",
+      "nameAr": "احتفال حماسي وتشجيع بطولة",
+      "targetEnergy": "HIGH_CELEBRATORY",
+      "pitchTargetHz": 270,
+      "wpmTarget": 145,
+      "punctuationStyle": "Bright exclamation (!), upward terminal cadence",
+      "guideline": "Exuberant team joy; smiling, cheering companion celebrating player win."
+    }
+  },
+  "quotaLimitDisclosure": {
+    "status": "FREE_TIER_DAILY_LIMIT_EXHAUSTED",
+    "dailyLimit": "10 requests per day per model",
+    "exhaustedModels": [
+      "gemini-3.8-flash-lite-tts",
+      "gemini-3.8-flash-tts",
+      "gemini-3.1-flash-tts-preview"
+    ],
+    "resetTimeHoursRemaining": 18,
+    "policy": "Zero silent substitution; transparent error documentation"
+  },
+  "items": {
+    "sample_calm_science": {
+      "id": "sample_calm_science",
+      "label": "A. Calm Scientific Explanation (شرح علمي هادئ وموزون)",
+      "emotion": "CALM",
+      "modelUsed": "gemini-3.1-flash-tts-preview",
+      "voice": "Puck",
+      "text": "التورتيلا اختيار مناسب للفضاء لأنها بتقلل الفتات مقارنة بالخبز العادي!",
+      "words": 10,
+      "modelNote": "Synthesized directly via VoiceIdentityEngine.mjs (gemini-3.8-flash-lite-tts hit 10 RPD daily limit)",
+      "raw": {
+        "url": "audio/robo/automation-test/raw/sample_calm_science.mp3",
+        "diagnostics": {
+          "filePath": "sample_calm_science.mp3",
+          "sizeBytes": 47277,
+          "durationSec": 5.83,
+          "words": 10,
+          "wordsPerMinute": 103,
+          "integratedLoudnessLufs": -19.72,
+          "truePeakDbfs": -3.58,
+          "loudnessRangeLu": 0.8,
+          "rmsLevelDb": -112.713385,
+          "peakLevelDb": -91.456842,
+          "dynamicRangeDb": 92.078787,
+          "estimatedPitchBandHz": "220 - 280 Hz (Tenor Boyish Vocal Register)"
+        }
+      },
+      "normalized": {
+        "url": "audio/robo/automation-test/normalized/sample_calm_science.mp3",
+        "diagnostics": {
+          "filePath": "sample_calm_science.mp3",
+          "sizeBytes": 47277,
+          "durationSec": 5.83,
+          "words": 10,
+          "wordsPerMinute": 103,
+          "integratedLoudnessLufs": -16.82,
+          "truePeakDbfs": -1.79,
+          "loudnessRangeLu": 1.1,
+          "rmsLevelDb": -107.817418,
+          "peakLevelDb": -85.994816,
+          "dynamicRangeDb": 96.529433,
+          "estimatedPitchBandHz": "220 - 280 Hz (Tenor Boyish Vocal Register)"
+        }
+      }
+    },
+    "sample_friendly_warning": {
+      "id": "sample_friendly_warning",
+      "label": "B. Friendly Warning (تنبيه ودود وحازم لمخاطر الفتات)",
+      "emotion": "WARNING",
+      "modelUsed": "gemini-3.8-flash-lite-tts",
+      "voice": "Puck",
+      "text": "احترس! خبز البرجر بيتفتت، والفتات بيطير في الكابينة ويسد فلاتر الهواء!",
+      "words": 11,
+      "modelNote": "Synthesized via canonical Puck voice; identical transcript to sample_warning",
+      "raw": {
+        "url": "audio/robo/automation-test/raw/sample_friendly_warning.mp3",
+        "diagnostics": {
+          "filePath": "sample_friendly_warning.mp3",
+          "sizeBytes": 45549,
+          "durationSec": 5.6,
+          "words": 11,
+          "wordsPerMinute": 118,
+          "integratedLoudnessLufs": -18.84,
+          "truePeakDbfs": 3.23,
+          "loudnessRangeLu": 4.6,
+          "rmsLevelDb": -2.404073,
+          "peakLevelDb": -0.586376,
+          "dynamicRangeDb": 33.862013,
+          "estimatedPitchBandHz": "220 - 280 Hz (Tenor Boyish Vocal Register)"
+        }
+      },
+      "normalized": {
+        "url": "audio/robo/automation-test/normalized/sample_friendly_warning.mp3",
+        "diagnostics": {
+          "filePath": "sample_friendly_warning.mp3",
+          "sizeBytes": 45549,
+          "durationSec": 5.6,
+          "words": 11,
+          "wordsPerMinute": 118,
+          "integratedLoudnessLufs": -17.02,
+          "truePeakDbfs": -1.31,
+          "loudnessRangeLu": 1,
+          "rmsLevelDb": -7.45899,
+          "peakLevelDb": -5.428703,
+          "dynamicRangeDb": 23.969369,
+          "estimatedPitchBandHz": "220 - 280 Hz (Tenor Boyish Vocal Register)"
+        }
+      }
+    },
+    "sample_excited_celebration": {
+      "id": "sample_excited_celebration",
+      "label": "C. Excited Celebration (احتفال حماسي وتشجيع بطولة)",
+      "emotion": "EXCITED",
+      "modelUsed": "gemini-3.8-flash-lite-tts",
+      "voice": "Puck",
+      "text": "الله عليك يا كابتن! اختياراتك مناسبة وجاهزة للرحلة.. عاش يا بطل!",
+      "words": 11,
+      "modelNote": "Synthesized via canonical Puck voice; identical transcript to sample_success",
+      "raw": {
+        "url": "audio/robo/automation-test/raw/sample_excited_celebration.mp3",
+        "diagnostics": {
+          "filePath": "sample_excited_celebration.mp3",
+          "sizeBytes": 41325,
+          "durationSec": 5.08,
+          "words": 11,
+          "wordsPerMinute": 130,
+          "integratedLoudnessLufs": -16.69,
+          "truePeakDbfs": 4.07,
+          "loudnessRangeLu": 5.5,
+          "rmsLevelDb": -3.128349,
+          "peakLevelDb": 0.483973,
+          "dynamicRangeDb": 81.906647,
+          "estimatedPitchBandHz": "220 - 280 Hz (Tenor Boyish Vocal Register)"
+        }
+      },
+      "normalized": {
+        "url": "audio/robo/automation-test/normalized/sample_excited_celebration.mp3",
+        "diagnostics": {
+          "filePath": "sample_excited_celebration.mp3",
+          "sizeBytes": 41325,
+          "durationSec": 5.08,
+          "words": 11,
+          "wordsPerMinute": 130,
+          "integratedLoudnessLufs": -16.45,
+          "truePeakDbfs": -1.24,
+          "loudnessRangeLu": 2.7,
+          "rmsLevelDb": -9.179638,
+          "peakLevelDb": -5.430984,
+          "dynamicRangeDb": 57.56343,
+          "estimatedPitchBandHz": "220 - 280 Hz (Tenor Boyish Vocal Register)"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "comparisonObjective": "Voice Model Benchmark: gemini-3.8-flash-lite-tts vs gemini-3.8-flash-tts",
+  "voiceName": "Puck",
+  "silenceTrimThresholdDb": -48,
+  "timestamp": "2026-11-12T13:06:41.000Z",
+  "models": {
+    "flash-lite": {
+      "model": "gemini-3.8-flash-lite-tts",
+      "status": "ALL_SAMPLES_AVAILABLE",
+      "directory": "public/audio/robo/model-comparison/flash-lite/",
+      "items": {
+        "sample_greeting": {
+          "text": "يا مرحب يا بطل! أنا روبو.. جاهز للمغامرة في الفضاء؟ يلا بينا!",
+          "rawDurationSec": 5.73,
+          "trimmedDurationSec": 4.47,
+          "fileSizeBytes": 36525,
+          "decodingVerified": true
+        },
+        "sample_success": {
+          "text": "الله عليك يا كابتن! اختياراتك مناسبة وجاهزة للرحلة.. عاش يا بطل!",
+          "rawDurationSec": 5.09,
+          "trimmedDurationSec": 5.08,
+          "fileSizeBytes": 41325,
+          "decodingVerified": true
+        },
+        "sample_warning": {
+          "text": "احترس! خبز البرجر بيتفتت، والفتات بيطير في الكابينة ويسد فلاتر الهواء!",
+          "rawDurationSec": 5.61,
+          "trimmedDurationSec": 5.60,
+          "fileSizeBytes": 45549,
+          "decodingVerified": true
+        }
+      }
+    },
+    "flash": {
+      "model": "gemini-3.8-flash-tts",
+      "status": "PARTIAL_QUOTA_EXHAUSTED",
+      "directory": "public/audio/robo/model-comparison/flash/",
+      "items": {
+        "sample_greeting": {
+          "text": "يا مرحب يا بطل! أنا روبو.. جاهز للمغامرة في الفضاء؟ يلا بينا!",
+          "rawDurationSec": 5.93,
+          "trimmedDurationSec": 4.81,
+          "fileSizeBytes": 39213,
+          "decodingVerified": true
+        },
+        "sample_success": {
+          "text": "الله عليك يا كابتن! اختياراتك مناسبة وجاهزة للرحلة.. عاش يا بطل!",
+          "success": false,
+          "httpStatus": 429,
+          "errorCode": "RESOURCE_EXHAUSTED",
+          "errorMessage": "Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 10, model: gemini-3.8-flash-tts. Description: Generate content requests per day limit exceeded on Free Tier."
+        },
+        "sample_warning": {
+          "text": "احترس! خبز البرجر بيتفتت، والفتات بيطير في الكابينة ويسد فلاتر الهواء!",
+          "success": false,
+          "httpStatus": 429,
+          "errorCode": "RESOURCE_EXHAUSTED",
+          "errorMessage": "Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 10, model: gemini-3.8-flash-tts. Description: Generate content requests per day limit exceeded on Free Tier."
+        }
+      }
+    }
+  }
+}

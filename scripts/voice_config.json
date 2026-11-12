@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AstroNutri Robo Voice Identity & Loudness Specification",
+  "version": "1.0.0",
+  "character": {
+    "name": "Robo",
+    "nameAr": "روبو",
+    "role": "Energetic, young, friendly space robot companion for children 7-12",
+    "archetype": "Curious peer explorer & mission copilot (not an adult lecturer)",
+    "dialect": "Contemporary child-friendly Egyptian Arabic"
+  },
+  "ttsModel": {
+    "modelId": "gemini-3.8-flash-lite-tts",
+    "voiceName": "Puck",
+    "languageCode": "ar-EG",
+    "payloadMode": "BARE_TEXT_ONLY",
+    "description": "Raw text input with zero meta-prompts to ensure zero hallucination or persona drift"
+  },
+  "audioEngineering": {
+    "standard": "EBU R128 / ITU-R BS.1770-4",
+    "targetIntegratedLoudnessLufs": -16.0,
+    "loudnessToleranceLu": 0.75,
+    "maxTruePeakDbfs": -1.5,
+    "targetLraLu": 7.0,
+    "silenceTrimThresholdDb": -48.0,
+    "silenceStartMinSec": 0.01,
+    "silenceStopMinSec": 0.45,
+    "sampleRateHz": 24000,
+    "bitrateKbps": "64k",
+    "channels": 1,
+    "codec": "libmp3lame"
+  },
+  "pacingAndStyle": {
+    "targetWpmMin": 120,
+    "targetWpmMax": 155,
+    "maxDurationSec": 6.5,
+    "minDurationSec": 1.2,
+    "vocatives": ["يا بطل!", "يا كابتن!"],
+    "punctuationRules": [
+      "Use single exclamation mark (!) for excitement",
+      "Use double dot (..) for natural breath pauses",
+      "Avoid multiple exclamation marks (!!!) which cause vocal strain/pitch shift in TTS models"
+    ]
+  }
+}

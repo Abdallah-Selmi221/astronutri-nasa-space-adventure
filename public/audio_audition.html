@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AstroNutri — جلسة الاستماع الشاملة ومقارنة هوية الصوت (A/B Voice Identity & Automation Engine Audition)</title>
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #090d1a 0%, #11172e 50%, #0a1120 100%);
+      --card-bg: rgba(255, 255, 255, 0.06);
+      --card-border: rgba(141, 232, 244, 0.22);
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --accent-cyan: #8de8f4;
+      --accent-gold: #ffd166;
+      --accent-green: #06d6a0;
+      --accent-coral: #ef476f;
+      --accent-purple: #c084fc;
+      --accent-blue: #38bdf8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--bg-gradient);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 2.5rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      max-width: 960px;
+      width: 100%;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid rgba(141, 232, 244, 0.2);
+    }
+
+    .badge-bar {
+      display: flex;
+      justify-content: center;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .badge-engine {
+      background: rgba(6, 214, 160, 0.15);
+      color: var(--accent-green);
+      border: 1px solid rgba(6, 214, 160, 0.4);
+    }
+
+    .badge-voice {
+      background: rgba(255, 209, 102, 0.15);
+      color: var(--accent-gold);
+      border: 1px solid rgba(255, 209, 102, 0.4);
+    }
+
+    .badge-lufs {
+      background: rgba(192, 132, 252, 0.15);
+      color: var(--accent-purple);
+      border: 1px solid rgba(192, 132, 252, 0.4);
+    }
+
+    .badge-ab {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-blue);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+    }
+
+    h1 {
+      font-size: 1.85rem;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+      text-shadow: 0 0 20px rgba(141, 232, 244, 0.3);
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+
+    .engine-spec-box {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(141, 232, 244, 0.25);
+      border-radius: 14px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .engine-spec-box h3 {
+      font-size: 1.05rem;
+      color: var(--accent-cyan);
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .engine-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.85rem;
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+    }
+
+    .engine-item {
+      background: rgba(255, 255, 255, 0.04);
+      padding: 0.65rem 0.85rem;
+      border-radius: 8px;
+      border-right: 3px solid var(--accent-cyan);
+    }
+
+    .engine-item strong {
+      color: var(--accent-gold);
+      display: block;
+      margin-bottom: 0.2rem;
+      font-size: 0.78rem;
+    }
+
+    .section-title-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 2.2rem 0 1.2rem 0;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .section-tag {
+      font-size: 0.8rem;
+      padding: 0.2rem 0.65rem;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--accent-cyan);
+    }
+
+    .samples-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 1.35rem 1.5rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .card:hover {
+      border-color: rgba(141, 232, 244, 0.45);
+      transform: translateY(-2px);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.85rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .card-title-group {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    .card-icon {
+      font-size: 1.4rem;
+      line-height: 1;
+    }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+    }
+
+    .card-meta {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      direction: ltr;
+      display: inline-block;
+    }
+
+    .transcript-box {
+      background: rgba(15, 23, 42, 0.6);
+      border-right: 4px solid var(--accent-gold);
+      border-radius: 8px;
+      padding: 0.85rem 1.15rem;
+      margin-bottom: 1rem;
+    }
+
+    .transcript-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: var(--accent-gold);
+      margin-bottom: 0.3rem;
+      letter-spacing: 0.05em;
+    }
+
+    .transcript-text {
+      font-size: 1.1rem;
+      line-height: 1.6;
+      color: #ffffff;
+      font-weight: 500;
+    }
+
+    .audio-ab-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 0.5rem;
+    }
+
+    @media (max-width: 680px) {
+      .audio-ab-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .audio-player-box {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .audio-player-box.normalized {
+      border-color: rgba(192, 132, 252, 0.35);
+      background: rgba(192, 132, 252, 0.05);
+    }
+
+    .audio-player-box.raw {
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .player-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .player-label.normalized {
+      color: var(--accent-purple);
+    }
+
+    .player-label.raw {
+      color: #94a3b8;
+    }
+
+    audio {
+      width: 100%;
+      height: 38px;
+      outline: none;
+    }
+
+    .metrics-pills {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.35rem;
+      font-size: 0.75rem;
+    }
+
+    .pill {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      color: #cbd5e1;
+    }
+
+    .pill strong {
+      color: var(--text-primary);
+    }
+
+    .pill-clipping {
+      color: var(--accent-coral);
+      border: 1px solid rgba(239, 71, 111, 0.4);
+    }
+
+    .footer-note {
+      text-align: center;
+      margin-top: 3rem;
+      font-size: 0.85rem;
+      color: #64748b;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge-bar">
+        <span class="badge badge-engine">⚡ VoiceIdentityEngine.mjs</span>
+        <span class="badge badge-voice">Voice: Puck</span>
+        <span class="badge badge-ab">6-Track A/B Audition</span>
+        <span class="badge badge-lufs">EBU R128 (-16 LUFS)</span>
+      </div>
+      <h1>AstroNutri — جلسة استماع ومقارنة هوية صوت روبو (A/B Listening Test)</h1>
+      <p class="subtitle">
+        مقارنة العينات الـ 6 عبر الحالات الشعورية (هادئ علمي، تنبيه ودود، احتفال حماسي) مع فصل النسخ الخام (Raw) والمعايرة (EBU R128) للتأكد من ثبات شخصية روبو ونبرته بدون أي انحراف.
+      </p>
+    </header>
+
+    <!-- Engine Architecture & Persona Box -->
+    <section class="engine-spec-box">
+      <h3>🤖 محرك هوية الصوت المؤتمت (Voice Identity Engine Specification)</h3>
+      <div class="engine-grid">
+        <div class="engine-item">
+          <strong>نموذج الشخصية (Persona Lock)</strong>
+          روبو: طفل آلي فضائي مرح ومتحمس (10-12 سنة). صوت Puck، لهجة مصرية معاصرة محببة.
+        </div>
+        <div class="engine-item">
+          <strong>قالب الحمولة الثابت (Payload Template)</strong>
+          تمرير نص نقي منسق بدون تعليمات مشتتة، لمنع النموذج من قراءة التعليمات بالخطأ.
+        </div>
+        <div class="engine-item">
+          <strong>تردد النبرة الأساسي (Estimated F₀)</strong>
+          منطقة التينور الكرتونية المشرقة: 220 إلى 280 Hz (ثابتة عبر مختلف المشاعر).
+        </div>
+        <div class="engine-item">
+          <strong>معايرة ديناميكية الصوت (EBU R128)</strong>
+          هدف -16 LUFS وقمة -1.5 dBFS بدون ضغط زائد يحافظ على نبرة الاحتفال أعلى من التنبيه.
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 1: AUTOMATION ENGINE TEST SAMPLES (3 SAMPLES) -->
+    <div class="section-title-bar">
+      <div class="section-title">
+        <span>🧪 المجموعة الأولى: عينات محرك هوية الصوت المؤتمت (Automation Engine Test)</span>
+      </div>
+      <span class="section-tag">VoiceIdentityEngine.mjs</span>
+    </div>
+
+    <main class="samples-grid">
+      <!-- Item A: Calm Science -->
+      <section class="card" id="card-calm-science">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-icon">🔬</span>
+            <h2 class="card-title">A. شرح علمي هادئ وموزون (Calm Scientific Explanation)</h2>
+          </div>
+          <span class="card-meta">ID: sample_calm_science • Model: gemini-3.1-flash-tts-preview</span>
+        </div>
+
+        <div class="transcript-box">
+          <div class="transcript-label">النص المعتمد (Transcript):</div>
+          <p class="transcript-text">"التورتيلا اختيار مناسب للفضاء لأنها بتقلل الفتات مقارنة بالخبز العادي!"</p>
+        </div>
+
+        <div class="audio-ab-container">
+          <!-- Normalized Player -->
+          <div class="audio-player-box normalized">
+            <div class="player-label normalized">
+              <span>🎚️ المعاير (EBU R128 Calibrated)</span>
+              <span>-16.82 LUFS</span>
+            </div>
+            <audio controls preload="auto">
+              <source src="audio/robo/automation-test/normalized/sample_calm_science.mp3" type="audio/mpeg">
+            </audio>
+            <div class="metrics-pills">
+              <span class="pill">المدة: <strong>5.83s</strong></span>
+              <span class="pill">السرعة: <strong>103 WPM</strong></span>
+              <span class="pill">البيك: <strong>-1.79 dBFS</strong></span>
+              <span class="pill">LRA: <strong>1.1 LU</strong></span>
+            </div>
+          </div>
+
+          <!-- Raw Player -->
+          <div class="audio-player-box raw">
+            <div class="player-label raw">
+              <span>🎧 الخام (Raw Before Loudnorm)</span>
+              <span>-19.72 LUFS</span>
+            </div>
+            <audio controls preload="none">
+              <source src="audio/robo/automation-test/raw/sample_calm_science.mp3" type="audio/mpeg">
+            </audio>
+            <div class="metrics-pills">
+              <span class="pill">المدة: <strong>5.83s</strong></span>
+              <span class="pill">البيك: <strong>-3.58 dBFS</strong></span>
+              <span class="pill">حالة الإشارة: <strong>نظيفة وهادئة</strong></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Item B: Friendly Warning -->
+      <section class="card" id="card-friendly-warning">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-icon">⚠️</span>
+            <h2 class="card-title">B. تنبيه ودود وحازم لمخاطر الفتات (Friendly Urgent Warning)</h2>
+          </div>
+          <span class="card-meta">ID: sample_friendly_warning • Model: gemini-3.8-flash-lite-tts</span>
+        </div>
+
+        <div class="transcript-box">
+          <div class="transcript-label">النص المعتمد (Transcript):</div>
+          <p class="transcript-text">"احترس! خبز البرجر بيتفتت، والفتات بيطير في الكابينة ويسد فلاتر الهواء!"</p>
+        </div>
+
+        <div class="audio-ab-container">
+          <!-- Normalized Player -->
+          <div class="audio-player-box normalized">
+            <div class="player-label normalized">
+              <span>🎚️ المعاير (EBU R128 Calibrated)</span>
+              <span>-17.02 LUFS</span>
+            </div>
+            <audio controls preload="auto">
+              <source src="audio/robo/automation-test/normalized/sample_friendly_warning.mp3" type="audio/mpeg">
+            </audio>
+            <div class="metrics-pills">
+              <span class="pill">المدة: <strong>5.60s</strong></span>
+              <span class="pill">السرعة: <strong>118 WPM</strong></span>
+              <span class="pill">البيك: <strong>-1.31 dBFS</strong></span>
+              <span class="pill">LRA: <strong>1.0 LU</strong></span>
+            </div>
+          </div>
+
+          <!-- Raw Player -->
+          <div class="audio-player-box raw">
+            <div class="player-label raw">
+              <span>🎧 الخام (Raw Before Loudnorm)</span>
+              <span>-18.84 LUFS</span>
+            </div>
+            <audio controls preload="none">
+              <source src="audio/robo/automation-test/raw/sample_friendly_warning.mp3" type="audio/mpeg">
+            </audio>
+            <div class="metrics-pills">
+              <span class="pill">المدة: <strong>5.60s</strong></span>
+              <span class="pill pill-clipping">البيك: <strong>+3.23 dBFS (تشبع)</strong></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Item C: Excited Celebration -->
+      <section class="card" id="card-excited-celebration">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-icon">🏆</span>
+            <h2 class="card-title">C. احتفال حماسي وتشجيع بطولة (Excited Celebration Cheering)</h2>
+          </div>
+          <span class="card-meta">ID: sample_excited_celebration • Model: gemini-3.8-flash-lite-tts</span>
+        </div>
+
+        <div class="transcript-box">
+          <div class="transcript-label">النص المعتمد (Transcript):</div>
+          <p class="transcript-text">"الله عليك يا كابتن! اختياراتك مناسبة وجاهزة للرحلة.. عاش يا بطل!"</p>
+        </div>
+
+        <div class="audio-ab-container">
+          <!-- Normalized Player -->
+          <div class="audio-player-box normalized">
+            <div class="player-label normalized">
+              <span>🎚️ المعاير (EBU R128 Calibrated)</span>
+              <span>-16.45 LUFS</span>
+            </div>
+            <audio controls preload="auto">
+              <source src="audio/robo/automation-test/normalized/sample_excited_celebration.mp3" type="audio/mpeg">
+            </audio>
+            <div class="metrics-pills">
+              <span class="pill">المدة: <strong>5.08s</strong></span>
+              <span class="pill">السرعة: <strong>130 WPM</strong></span>
+              <span class="pill">البيك: <strong>-1.24 dBFS</strong></span>
+              <span class="pill">LRA: <strong>2.7 LU (ديناميكية احتفال)</strong></span>
+            </div>
+          </div>
+
+          <!-- Raw Player -->
+          <div class="audio-player-box raw">
+            <div class="player-label raw">
+              <span>🎧 الخام (Raw Before Loudnorm)</span>
+              <span>-16.69 LUFS</span>
+            </div>
+            <audio controls preload="none">
+              <source src="audio/robo/automation-test/raw/sample_excited_celebration.mp3" type="audio/mpeg">
+            </audio>
+            <div class="metrics-pills">
+              <span class="pill">المدة: <strong>5.08s</strong></span>
+              <span class="pill pill-clipping">البيك: <strong>+4.07 dBFS (تشبع)</strong></span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- SECTION 2: ORIGINAL AUDITION BENCHMARK SAMPLES (3 SAMPLES) -->
+    <div class="section-title-bar">
+      <div class="section-title">
+        <span>📻 المجموعة الثانية: عينات المعايرة المرجعية السابقة (Original Benchmark Samples)</span>
+      </div>
+      <span class="section-tag">gemini-3.8-flash-lite-tts</span>
+    </div>
+
+    <div class="samples-grid">
+      <!-- Original Greeting -->
+      <section class="card" id="card-orig-greeting">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-icon">🚀</span>
+            <h2 class="card-title">1. ترحيب بداية المغامرة (Original Greeting)</h2>
+          </div>
+          <span class="card-meta">ID: sample_greeting</span>
+        </div>
+
+        <div class="transcript-box">
+          <div class="transcript-label">النص المعتمد:</div>
+          <p class="transcript-text">"يا مرحب يا بطل! أنا روبو.. جاهز للمغامرة في الفضاء؟ يلا بينا!"</p>
+        </div>
+
+        <div class="audio-ab-container">
+          <div class="audio-player-box normalized">
+            <div class="player-label normalized">
+              <span>🎚️ المعاير (-16.45 LUFS)</span>
+            </div>
+            <audio controls preload="none">
+              <source src="audio/robo/model-comparison/flash-lite/sample_greeting.mp3" type="audio/mpeg">
+            </audio>
+          </div>
+          <div class="audio-player-box raw">
+            <div class="player-label raw">
+              <span>🎧 الخام (-19.83 LUFS)</span>
+            </div>
+            <audio controls preload="none">
+              <source src="audio/robo/model-comparison/flash-lite/raw/sample_greeting.mp3" type="audio/mpeg">
+            </audio>
+          </div>
+        </div>
+      </section>
+
+      <!-- Original Success -->
+      <section class="card" id="card-orig-success">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-icon">🏆</span>
+            <h2 class="card-title">2. نجاح المهمة (Original Success)</h2>
+          </div>
+          <span class="card-meta">ID: sample_success</span>
+        </div>
+
+        <div class="transcript-box">
+          <div class="transcript-label">النص المعتمد:</div>
+          <p class="transcript-text">"الله عليك يا كابتن! اختياراتك مناسبة وجاهزة للرحلة.. عاش يا بطل!"</p>
+        </div>
+
+        <div class="audio-ab-container">
+          <div class="audio-player-box normalized">
+            <div class="player-label normalized">
+              <span>🎚️ المعاير (-16.45 LUFS)</span>
+            </div>
+            <audio controls preload="none">
+              <source src="audio/robo/model-comparison/flash-lite/sample_success.mp3" type="audio/mpeg">
+            </audio>
+          </div>
+          <div class="audio-player-box raw">
+            <div class="player-label raw">
+              <span>🎧 الخام (Peak +4.07 dBFS)</span>
+            </div>
+            <audio controls preload="none">
+              <source src="audio/robo/model-comparison/flash-lite/raw/sample_success.mp3" type="audio/mpeg">
+            </audio>
+          </div>
+        </div>
+      </section>
+
+      <!-- Original Warning -->
+      <section class="card" id="card-orig-warning">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-icon">⚠️</span>
+            <h2 class="card-title">3. تنبيه الفتات (Original Warning)</h2>
+          </div>
+          <span class="card-meta">ID: sample_warning</span>
+        </div>
+
+        <div class="transcript-box">
+          <div class="transcript-label">النص المعتمد:</div>
+          <p class="transcript-text">"احترس! خبز البرجر بيتفتت، والفتات بيطير في الكابينة ويسد فلاتر الهواء!"</p>
+        </div>
+
+        <div class="audio-ab-container">
+          <div class="audio-player-box normalized">
+            <div class="player-label normalized">
+              <span>🎚️ المعاير (-17.02 LUFS)</span>
+            </div>
+            <audio controls preload="none">
+              <source src="audio/robo/model-comparison/flash-lite/sample_warning.mp3" type="audio/mpeg">
+            </audio>
+          </div>
+          <div class="audio-player-box raw">
+            <div class="player-label raw">
+              <span>🎧 الخام (Peak +3.23 dBFS)</span>
+            </div>
+            <audio controls preload="none">
+              <source src="audio/robo/model-comparison/flash-lite/raw/sample_warning.mp3" type="audio/mpeg">
+            </audio>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="footer-note">
+      AstroNutri Production Audio Pipeline • VoiceIdentityEngine.mjs Architecture • True Voice Identity & Non-Destructive Loudnorm
+    </footer>
+  </div>
+</body>
+</html>
