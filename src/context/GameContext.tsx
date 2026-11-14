@@ -13,7 +13,8 @@ import {
   CampaignProgressState,
   CampaignLevelId,
   CampaignViewMode,
-  MiniGameId
+  MiniGameId,
+  SpaceFitXState
 } from '../types/game';
 import { SolarStormData } from '../utils/nasaApi';
 import { TARGET_NUTRITION_REQUIREMENTS } from '../data/foodItems';
@@ -74,6 +75,31 @@ const initialLevel2State: Level2State = {
   isGameVictoryModalOpen: false
 };
 
+export const initialSpaceFitXState: SpaceFitXState = {
+  compressionLevel: 'medium',
+  resistanceMode: 'level2',
+  jointLoads: {
+    shoulders: 55,
+    elbows: 45,
+    hips: 65,
+    knees: 70,
+    ankles: 50
+  },
+  impactProtectionActive: true,
+  emergencyReleased: false,
+  medicalPouchReady: true,
+  heartRateBpm: 76,
+  skinTempC: 36.6,
+  muscleLoadPct: 58,
+  jointAngleDeg: 14,
+  dosimeterCurrentMsv: 0.14,
+  dosimeterCumulativeMsv: 1.8,
+  batteryAttached: true,
+  batteryPercent: 94,
+  powerDrawWatts: 6.4,
+  harvestedWh: 0
+};
+
 export const initialCampaignState: CampaignProgressState = {
   viewMode: 'world_map',
   activeLevel: 1,
@@ -100,7 +126,8 @@ export const initialCampaignState: CampaignProgressState = {
   l4NavigationAligned: false,
   l4EmergencyRepaired: false,
   l4ReentrySafe: false,
-  l4MissionAccomplished: false
+  l4MissionAccomplished: false,
+  spaceFitX: initialSpaceFitXState
 };
 
 export const initialState: GameState = {

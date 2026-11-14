@@ -27,7 +27,7 @@ const FLOATING_ITEMS = [
 
 const MEAL_GROUPS = [
   { id: 'protein', labelAr: '🧀 المش المصري بالملح الصخري أو الدجاج (بروتين وكالسيوم)', color: 'indigo' },
-  { id: 'carbs', labelAr: '🌴 العجوة السيناوية المضغوطة + تورتيلا (طاقة وكربوهيدرات)', color: 'amber' },
+  { id: 'carbs', labelAr: '🍯 العسل الجبلي السيناوي + 🌴 العجوة المضغوطة (طاقة وكربوهيدرات بدون فتات)', color: 'amber' },
   { id: 'fats', labelAr: '🫒 زيت الزيتون السيناوي + طحينة السمسم (دهون صحية وأوميغا)', color: 'emerald' },
   { id: 'vitamins', labelAr: '🥬 الكابوتشا والجرجير واللفت المائي + توابل سيناوية (فيتامينات وألياف)', color: 'pink' }
 ];

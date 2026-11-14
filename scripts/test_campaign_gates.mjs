@@ -166,21 +166,25 @@ function summarizeFoods(foods) {
         protein,
         carbs,
         weight,
-        hasTortilla: acc.hasTortilla || item.id === TARGET_NUTRITION_REQUIREMENTS.requiredSpecialItem,
+        hasHoney: acc.hasHoney || item.id === TARGET_NUTRITION_REQUIREMENTS.requiredSpecialItem,
         hasBanned: acc.hasBanned || Boolean(item.isBanned)
       };
     },
-    { protein: 0, carbs: 0, weight: 0, hasTortilla: false, hasBanned: false }
+    { protein: 0, carbs: 0, weight: 0, hasHoney: false, hasBanned: false }
   );
 }
 
 const allowedFoods = FOOD_DATABASE.filter((f) => !f.isBanned);
-const tortilla = allowedFoods.find((f) => f.id === 'space_tortilla');
+assert(
+  !FOOD_DATABASE.some((f) => f.id.includes('tortilla') || (f.nameAr || '').includes('التورتيلا')),
+  'FOOD_DATABASE contains zero Tortilla entries (completely removed)'
+);
+const sinaiHoney = allowedFoods.find((f) => f.id === 'sinai_honey');
 const proteinRich = allowedFoods.filter((f) => f.proteinGrams >= 15);
-const carbOrFiber = allowedFoods.filter((f) => f.id !== 'space_tortilla' && f.carbsGrams >= 10 && f.proteinGrams < 15);
-const highCarbNoBalanced = allowedFoods.filter((f) => f.id !== 'space_tortilla' && f.proteinGrams < 12);
+const carbOrFiber = allowedFoods.filter((f) => f.id !== 'sinai_honey' && f.carbsGrams >= 10 && f.proteinGrams < 15);
+const highCarbNoBalanced = allowedFoods.filter((f) => f.id !== 'sinai_honey' && f.proteinGrams < 12);
 
-const balancedSet = [tortilla, proteinRich[0], proteinRich[1] || proteinRich[0], carbOrFiber[0]].filter(Boolean);
+const balancedSet = [sinaiHoney, proteinRich[0], proteinRich[1] || proteinRich[0], carbOrFiber[0]].filter(Boolean);
 const unbalancedSet = highCarbNoBalanced.slice(0, 4);
 
 const balancedTotals = summarizeFoods(balancedSet);
@@ -196,18 +200,18 @@ const unbalancedRatio = unbalancedTotals.protein + unbalancedTotals.carbs > 0
 assert(
   balancedSet.length === 4 &&
     !balancedTotals.hasBanned &&
-    balancedTotals.hasTortilla &&
+    balancedTotals.hasHoney &&
     balancedTotals.weight >= TARGET_NUTRITION_REQUIREMENTS.minCargoWeight &&
     balancedTotals.weight <= TARGET_NUTRITION_REQUIREMENTS.maxCargoWeight &&
     balancedRatio >= TARGET_NUTRITION_REQUIREMENTS.optimalRatioMin &&
     balancedRatio <= TARGET_NUTRITION_REQUIREMENTS.optimalRatioMax,
-  `A 4-item balanced ration satisfies NASA target thresholds (weight=${balancedTotals.weight}%, ratio=${balancedRatio.toFixed(2)})`
+  `A 4-item balanced ration with Sinai Honey satisfies NASA target thresholds (weight=${balancedTotals.weight}%, ratio=${balancedRatio.toFixed(2)})`
 );
 
 assert(
   unbalancedSet.length >= 2 &&
-    (unbalancedRatio < TARGET_NUTRITION_REQUIREMENTS.optimalRatioMin || !unbalancedTotals.hasTortilla),
-  `An unbalanced low-protein / missing-tortilla selection fails balanced criteria (ratio=${unbalancedRatio.toFixed(2)}, hasTortilla=${unbalancedTotals.hasTortilla})`
+    (unbalancedRatio < TARGET_NUTRITION_REQUIREMENTS.optimalRatioMin || !unbalancedTotals.hasHoney),
+  `An unbalanced low-protein / missing-honey selection fails balanced criteria (ratio=${unbalancedRatio.toFixed(2)}, hasHoney=${unbalancedTotals.hasHoney})`
 );
 
 // 3. NASA Snapshot Sanitization

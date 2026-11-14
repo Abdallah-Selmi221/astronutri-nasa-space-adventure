@@ -107,7 +107,7 @@ export const CrumbsAlertModal: React.FC<CrumbsAlertModalProps> = ({
           </p>
           <div className="pt-1.5 border-t border-space-800 text-[11px] text-cyan-300 font-bold flex items-center gap-1">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>حل ناسا الذكي: رواد الفضاء يستبدلون الخبز بخبز التورتيلا المكسيكي لأنه بلا فتات!</span>
+            <span>حل ناسا الذكي: رواد الفضاء يستبدلون الخبز المفتت بعبوات محكمة ومكعبات متماسكة وعسل سيناوي بلا فتات!</span>
           </div>
         </div>
 

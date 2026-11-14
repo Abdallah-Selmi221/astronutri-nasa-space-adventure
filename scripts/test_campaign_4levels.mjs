@@ -140,7 +140,7 @@ const sampleCampaign = {
     'l1_spaceship_inspect',
     'l1_mission_launch'
   ],
-  l1SelectedFoodIds: ['chicken_pouch', 'space_tortilla'],
+  l1SelectedFoodIds: ['chicken_pouch', 'sinai_honey'],
   l1FoodWeightKg: 10,
   l1EquipmentPacked: ['med_kit'],
   l1MedicalCleared: true,
@@ -266,14 +266,19 @@ assert(
   'ISS_WATER_MILESTONE reports 98% June 2023 recovery with explicit experimental caveat'
 );
 assert(
-  EGYPTIAN_SINAI_SPACE_FOODS.length === 8,
-  `EGYPTIAN_SINAI_SPACE_FOODS contains 8 authentic Egyptian/Sinai & Hydroponic items (got ${EGYPTIAN_SINAI_SPACE_FOODS.length})`
+  EGYPTIAN_SINAI_SPACE_FOODS.length === 9 && EGYPTIAN_SINAI_SPACE_FOODS.some((f) => f.id === 'sinai_honey'),
+  `EGYPTIAN_SINAI_SPACE_FOODS contains 9 authentic Egyptian/Sinai & Hydroponic items including Sinai Honey (got ${EGYPTIAN_SINAI_SPACE_FOODS.length})`
 );
 const allFoodSvgsExist = EGYPTIAN_SINAI_SPACE_FOODS.every((item) => {
   const rel = (item.svgAsset || '').replace(/^\//, '');
   return rel.length > 0 && fs.existsSync(path.resolve('public', rel));
 });
-assert(allFoodSvgsExist, 'All 8 Egyptian/Sinai space food SVG files exist on disk in public/assets/food/');
+assert(allFoodSvgsExist, 'All 9 Egyptian/Sinai space food SVG files exist on disk in public/assets/food/');
+assert(
+  fs.existsSync(path.resolve('public/assets/suit/space_fit_x_front_rear.jpg')) &&
+    fs.existsSync(path.resolve('public/assets/suit/space_fit_x_hardware.jpg')),
+  'SPACE-FIT X (AstroNutri) suit showcase assets exist in public/assets/suit/'
+);
 
 console.log('---------------------------------------------------------------');
 console.log(`  RESULT: ${passCount} passed, ${failCount} failed`);

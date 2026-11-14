@@ -390,8 +390,8 @@ export class DialogueManager {
     }
 
     // 4. Nutrition Lab Coaching (L1 Food Prep & L2 Balanced Meal)
-    if (text.includes('خبز التورتيلا')) {
-      return '/audio/robo/campaign/nutrition_tortilla.mp3';
+    if (text.includes('عسل النحل') || text.includes('السيناوي') && text.includes('عسل')) {
+      return '/audio/robo/campaign/nutrition_balance_tip.mp3';
     }
     if (text.includes('نوازن') || text.includes('البروتين والطاقة') || text.includes('غير متوازن') || text.includes('وجبة فضائية متوازنة')) {
       return '/audio/robo/campaign/nutrition_balance_tip.mp3';

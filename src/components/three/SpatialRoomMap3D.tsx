@@ -1,40 +1,113 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { CAMPAIGN_LEVELS, SpatialRoomNode } from '../../data/campaignLevels';
-import { CampaignLevelId, CampaignProgressState } from '../../types/game';
+import { CampaignLevelId, CampaignProgressState, SpaceFitXState } from '../../types/game';
 import { soundManager } from '../../utils/sound';
-import { CheckCircle2, DoorOpen, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
+import { CheckCircle2, DoorOpen } from 'lucide-react';
+import { buildSpaceFitXCharacter } from './buildSpaceFitXCharacter';
+import {
+  createCosmicSkyBackdrop,
+  createFloatingIslandMesh,
+  createStationBuildingMesh
+} from './archipelagoPrimitives';
+import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
 
 interface SpatialRoomMap3DProps {
   levelId: CampaignLevelId;
   campaign: CampaignProgressState;
   onEnterRoom: (room: SpatialRoomNode) => void;
+  suitState?: SpaceFitXState;
 }
 
-interface RoomScreenBadge {
-  roomId: string;
-  x: number;
-  y: number;
+interface PositionedRoom {
+  room: SpatialRoomNode;
+  pos: THREE.Vector3;
+  yawToCenter: number;
+}
+
+function getBiomeTheme(levelId: CampaignLevelId) {
+  switch (levelId) {
+    case 1:
+      return {
+        topColor: 0x15803d,
+        rimColor: 0x38bdf8,
+        rockColor: 0x78350f,
+        crystalColor: 0x22d3ee,
+        gravity: 21,
+        jumpVel: 8.4,
+        gravityLabelAr: 'جاذبية الأرض 1G',
+        isZeroG: false,
+        accentCraters: false
+      };
+    case 2:
+      return {
+        topColor: 0x1e293b,
+        rimColor: 0x818cf8,
+        rockColor: 0x334155,
+        crystalColor: 0x60a5fa,
+        gravity: 5.8,
+        jumpVel: 5.8,
+        gravityLabelAr: 'انعدام الوزن 0G — طفو حر',
+        isZeroG: true,
+        accentCraters: false
+      };
+    case 3:
+      return {
+        topColor: 0x64748b,
+        rimColor: 0xf59e0b,
+        rockColor: 0x334155,
+        crystalColor: 0xfbbf24,
+        gravity: 7.4,
+        jumpVel: 7.6,
+        gravityLabelAr: 'جاذبية القمر 0.16G — قفزة عالية',
+        isZeroG: false,
+        accentCraters: true
+      };
+    case 4:
+    default:
+      return {
+        topColor: 0x0369a1,
+        rimColor: 0x34d399,
+        rockColor: 0x0f766e,
+        crystalColor: 0x10b981,
+        gravity: 21,
+        jumpVel: 8.4,
+        gravityLabelAr: 'جاذبية العودة للأرض 1G',
+        isZeroG: false,
+        accentCraters: false
+      };
+  }
 }
 
 export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
   levelId,
   campaign,
-  onEnterRoom
+  onEnterRoom,
+  suitState
 }) => {
   const levelSpec = CAMPAIGN_LEVELS[levelId];
+  const theme = getBiomeTheme(levelId);
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
-  const [nearbyRoom, setNearbyRoom] = useState<SpatialRoomNode | null>(levelSpec.rooms[0] || null);
-  const [screenBadges, setScreenBadges] = useState<RoomScreenBadge[]>([]);
 
-  // Robo 3D target & continuous keyboard/D-pad state
-  const roboPosRef = useRef(new THREE.Vector3(0, 0, 0.2));
+  const [nearbyRoom, setNearbyRoom] = useState<SpatialRoomNode | null>(levelSpec.rooms[0] || null);
+  const nearbyRoomRef = useRef<SpatialRoomNode | null>(nearbyRoom);
+
+  const playerPosRef = useRef(new THREE.Vector3(0, 0, 0));
+  const playerVelYRef = useRef(0);
+  const isGroundedRef = useRef(true);
   const walkTargetRef = useRef<THREE.Vector3 | null>(null);
   const pendingRoomRef = useRef<SpatialRoomNode | null>(null);
-  const inputVecRef = useRef({ x: 0, z: 0 });
-  const nearbyRoomRef = useRef<SpatialRoomNode | null>(nearbyRoom);
-  nearbyRoomRef.current = nearbyRoom;
+  const joystickVecRef = useRef({ x: 0, z: 0 });
+  const isSprintingRef = useRef(false);
+  const cameraOrbitYawRef = useRef(0);
+  const cameraOrbitPitchRef = useRef(0.38);
+
+  const suitStateRef = useRef(suitState);
+  suitStateRef.current = suitState;
+
+  const onEnterRoomRef = useRef(onEnterRoom);
+  onEnterRoomRef.current = onEnterRoom;
 
   const isRoomCompleted = (room: SpatialRoomNode): boolean => {
     if (room.consoleAction === 'l3_return_auth') return campaign.l3ReturnAuthorized;
@@ -42,521 +115,512 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     return campaign.completedMiniGames.includes(room.miniGameId);
   };
 
-  useEffect(() => {
-    // Reset Robo start position near central corridor/first room on level switch
-    const startRoom = levelSpec.rooms[0];
-    if (startRoom) {
-      roboPosRef.current.set(0, 0, 0);
-      walkTargetRef.current = null;
-      pendingRoomRef.current = null;
-      setNearbyRoom(startRoom);
+  const triggerJump = () => {
+    if (isGroundedRef.current || theme.isZeroG) {
+      playerVelYRef.current = theme.jumpVel;
+      isGroundedRef.current = false;
+      soundManager.playClick();
     }
-  }, [levelId, levelSpec.rooms]);
-
-  // Keyboard WASD / Arrow Controls + Enter to open nearby door
-  useEffect(() => {
-    const keysDown = new Set<string>();
-    const recomputeInput = () => {
-      let x = 0;
-      let z = 0;
-      if (keysDown.has('ArrowLeft') || keysDown.has('KeyA')) x -= 1;
-      if (keysDown.has('ArrowRight') || keysDown.has('KeyD')) x += 1;
-      if (keysDown.has('ArrowUp') || keysDown.has('KeyW')) z -= 1;
-      if (keysDown.has('ArrowDown') || keysDown.has('KeyS')) z += 1;
-      inputVecRef.current = { x, z };
-      if (x !== 0 || z !== 0) {
-        walkTargetRef.current = null;
-        pendingRoomRef.current = null;
-      }
-    };
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) {
-        keysDown.add(e.code);
-        recomputeInput();
-      } else if (e.code === 'Enter' || e.code === 'Space') {
-        if (nearbyRoomRef.current) {
-          soundManager.playClick();
-          onEnterRoom(nearbyRoomRef.current);
-        }
-      }
-    };
-    const onKeyUp = (e: KeyboardEvent) => {
-      keysDown.delete(e.code);
-      recomputeInput();
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-    };
-  }, [onEnterRoom]);
-
-  useEffect(() => {
-    const container = mountRef.current;
-    if (!container) return;
-
-    let renderer: THREE.WebGLRenderer | null = null;
-    let rafId = 0;
-
-    try {
-      const width = Math.max(container.clientWidth || 960, 320);
-      const height = Math.max(container.clientHeight || 480, 320);
-
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(44, width / height, 0.1, 120);
-      camera.position.set(0, 15.5, 13.5);
-      camera.lookAt(0, 0, 0.2);
-
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-      renderer.setSize(width, height);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-      container.innerHTML = '';
-      container.appendChild(renderer.domElement);
-
-      // Lighting
-      scene.add(new THREE.AmbientLight(0xe0f2fe, 0.9));
-      const keyLight = new THREE.DirectionalLight(0xffffff, 1.45);
-      keyLight.position.set(8, 18, 10);
-      scene.add(keyLight);
-
-      // Main Station / Base Floor Deck + Level-Specific 3D Environment
-      const deckColor = levelId === 3 ? 0x334155 : levelId === 2 ? 0x091224 : 0x0f1d3a;
-      const floor = new THREE.Mesh(
-        new THREE.BoxGeometry(25, 0.4, 15),
-        new THREE.MeshStandardMaterial({ color: deckColor, roughness: 0.72, metalness: 0.25 })
-      );
-      floor.position.y = -0.25;
-      scene.add(floor);
-
-      // Level 2 Spacecraft Fuselage Ribs / Handrails & Level 3 Lunar Craters
-      const floatingZeroGProps: THREE.Mesh[] = [];
-      if (levelId === 2) {
-        for (let hx = -9; hx <= 9; hx += 6) {
-          const rib = new THREE.Mesh(
-            new THREE.TorusGeometry(6.8, 0.08, 8, 28, Math.PI),
-            new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.28 })
-          );
-          rib.rotation.y = Math.PI / 2;
-          rib.position.set(hx, 0.05, 0);
-          scene.add(rib);
-        }
-        // Corridor Zero-G yellow handrails + drifting 3D objects
-        [-0.75, 0.75].forEach((rzRail) => {
-          const rail = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.06, 0.06, 19, 10),
-            new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xca8a04, emissiveIntensity: 0.35 })
-          );
-          rail.rotation.z = Math.PI / 2;
-          rail.position.set(0, 0.38, rzRail);
-          scene.add(rail);
-        });
-        for (let i = 0; i < 4; i++) {
-          const cube = new THREE.Mesh(
-            new THREE.BoxGeometry(0.32, 0.24, 0.24),
-            new THREE.MeshStandardMaterial({ color: i % 2 === 0 ? 0x38bdf8 : 0xfbbf24 })
-          );
-          cube.position.set(-6 + i * 4, 0.9, i % 2 === 0 ? -0.3 : 0.35);
-          scene.add(cube);
-          floatingZeroGProps.push(cube);
-        }
-      } else if (levelId === 3) {
-        // 3D Lunar Craters across Moon outpost perimeter
-        [
-          [-10.5, -6.2, 1.4],
-          [10.2, 5.8, 1.7],
-          [-9.8, 6.0, 1.15],
-          [0, -6.4, 1.3]
-        ].forEach(([cx, cz, cr]) => {
-          const crater = new THREE.Mesh(
-            new THREE.TorusGeometry(cr, 0.22, 8, 22),
-            new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9 })
-          );
-          crater.rotation.x = Math.PI / 2;
-          crater.position.set(cx, 0.04, cz);
-          scene.add(crater);
-        });
-      }
-
-      const grid = new THREE.GridHelper(24, 24, 0x38bdf8, 0x1e3a8a);
-      grid.position.y = -0.02;
-      scene.add(grid);
-
-      // Central illuminated corridor spine connecting rooms
-      const corridorStrip = new THREE.Mesh(
-        new THREE.BoxGeometry(20, 0.05, 1.4),
-        new THREE.MeshBasicMaterial({ color: levelId === 3 ? 0xfbbf24 : 0x0284c7, transparent: true, opacity: 0.35 })
-      );
-      corridorStrip.position.y = 0.01;
-      scene.add(corridorStrip);
-
-      // Build 3D Cutaway Rooms + Interior Props + Door Frames
-      const doorGlowMeshes: THREE.Mesh[] = [];
-      for (const room of levelSpec.rooms) {
-        const [rx, rz] = room.pos;
-        const [rw, rd] = room.size;
-        const accentColor = new THREE.Color(room.accentHex);
-        const completed = isRoomCompleted(room);
-
-        // Room base pad
-        const roomPod = new THREE.Mesh(
-          new THREE.BoxGeometry(rw, 0.5, rd),
-          new THREE.MeshStandardMaterial({
-            color: completed ? 0x064e3b : 0x172554,
-            roughness: 0.45,
-            metalness: 0.35
-          })
-        );
-        roomPod.position.set(rx, 0.22, rz);
-        scene.add(roomPod);
-
-        // Isometric 2.5D/3D Cutaway Back Wall
-        const backWallZ = rz < 0 ? rz - rd / 2 + 0.08 : rz + rd / 2 - 0.08;
-        const backWall = new THREE.Mesh(
-          new THREE.BoxGeometry(rw, 0.95, 0.14),
-          new THREE.MeshStandardMaterial({
-            color: 0x1e293b,
-            roughness: 0.4,
-            metalness: 0.45
-          })
-        );
-        backWall.position.set(rx, 0.75, backWallZ);
-        scene.add(backWall);
-
-        // Special Room 3D Interior Props
-        if (room.id === 'launch_area') {
-          const rocketBody = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.28, 0.36, 1.65, 12),
-            new THREE.MeshStandardMaterial({ color: 0xf8fafc, metalness: 0.35 })
-          );
-          rocketBody.position.set(rx, 1.25, rz);
-          const nose = new THREE.Mesh(
-            new THREE.ConeGeometry(0.28, 0.55, 12),
-            new THREE.MeshStandardMaterial({ color: 0xf97316 })
-          );
-          nose.position.set(rx, 2.35, rz);
-          scene.add(rocketBody, nose);
-        } else if (room.id === 'solar_panel_field') {
-          const panel = new THREE.Mesh(
-            new THREE.BoxGeometry(2.4, 0.08, 1.2),
-            new THREE.MeshStandardMaterial({ color: 0x0284c7, emissive: 0x0369a1, emissiveIntensity: 0.45 })
-          );
-          panel.rotation.x = 0.25;
-          panel.position.set(rx, 1.05, rz);
-          scene.add(panel);
-        } else if (room.id.includes('food') || room.id.includes('nutrition')) {
-          const growRack = new THREE.Mesh(
-            new THREE.BoxGeometry(1.5, 0.45, 0.75),
-            new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0xa21caf, emissiveIntensity: 0.35 })
-          );
-          growRack.position.set(rx, 0.85, rz);
-          scene.add(growRack);
-        }
-
-        // Glowing top perimeter frame
-        const rim = new THREE.Mesh(
-          new THREE.BoxGeometry(rw + 0.14, 0.12, rd + 0.14),
-          new THREE.MeshStandardMaterial({
-            color: completed ? 0x10b981 : accentColor,
-            emissive: completed ? 0x059669 : accentColor,
-            emissiveIntensity: 0.55
-          })
-        );
-        rim.position.set(rx, 0.52, rz);
-        scene.add(rim);
-
-        // Glowing door portal facing corridor
-        const doorDirZ = rz < -1 ? rd / 2 + 0.08 : rz > 1 ? -rd / 2 - 0.08 : 0;
-        const doorPortal = new THREE.Mesh(
-          new THREE.BoxGeometry(1.1, 0.85, 0.22),
-          new THREE.MeshBasicMaterial({ color: completed ? 0x34d399 : accentColor })
-        );
-        doorPortal.position.set(rx, 0.5, rz + doorDirZ);
-        scene.add(doorPortal);
-        doorGlowMeshes.push(doorPortal);
-      }
-
-      // Articulated 3D Robo Avatar
-      const roboGroup = new THREE.Group();
-      const torso = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.45, 0.38, 0.9, 16),
-        new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3, metalness: 0.25 })
-      );
-      torso.position.y = 0.7;
-      const head = new THREE.Mesh(
-        new THREE.SphereGeometry(0.46, 20, 16),
-        new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25, metalness: 0.2 })
-      );
-      head.position.y = 1.45;
-      const visor = new THREE.Mesh(
-        new THREE.BoxGeometry(0.62, 0.26, 0.28),
-        new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x38bdf8, emissiveIntensity: 0.75 })
-      );
-      visor.position.set(0, 1.48, 0.35);
-      const core = new THREE.Mesh(
-        new THREE.SphereGeometry(0.14, 12, 12),
-        new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
-      );
-      core.position.set(0, 0.75, 0.4);
-      const shadowDisc = new THREE.Mesh(
-        new THREE.CircleGeometry(0.55, 20),
-        new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 })
-      );
-      shadowDisc.rotation.x = -Math.PI / 2;
-      shadowDisc.position.y = 0.03;
-      roboGroup.add(shadowDisc, torso, head, visor, core);
-      roboGroup.position.copy(roboPosRef.current);
-      scene.add(roboGroup);
-
-      const handleResize = () => {
-        if (!container || !renderer) return;
-        const w = Math.max(container.clientWidth || 960, 320);
-        const h = Math.max(container.clientHeight || 480, 320);
-        camera.aspect = w / h;
-        camera.updateProjectionMatrix();
-        renderer.setSize(w, h);
-      };
-      window.addEventListener('resize', handleResize);
-
-      const clock = new THREE.Clock();
-      const tempVec = new THREE.Vector3();
-      let frame = 0;
-
-      const animate = () => {
-        rafId = requestAnimationFrame(animate);
-        const dt = Math.min(clock.getDelta(), 0.05);
-        const t = clock.elapsedTime;
-
-        // Manual WASD/D-pad velocity
-        const { x: ix, z: iz } = inputVecRef.current;
-        if (ix !== 0 || iz !== 0) {
-          const speed = 7.5 * dt;
-          const len = Math.hypot(ix, iz) || 1;
-          roboPosRef.current.x = THREE.MathUtils.clamp(roboPosRef.current.x + (ix / len) * speed, -10.8, 10.8);
-          roboPosRef.current.z = THREE.MathUtils.clamp(roboPosRef.current.z + (iz / len) * speed, -6.2, 6.2);
-          roboGroup.rotation.y = Math.atan2(ix, iz);
-        } else if (walkTargetRef.current) {
-          const dist = roboPosRef.current.distanceTo(walkTargetRef.current);
-          if (dist < 0.3) {
-            walkTargetRef.current = null;
-            const targetRoom = pendingRoomRef.current;
-            pendingRoomRef.current = null;
-            if (targetRoom) {
-              onEnterRoom(targetRoom);
-            }
-          } else {
-            const dir = tempVec.copy(walkTargetRef.current).sub(roboPosRef.current).normalize();
-            roboPosRef.current.addScaledVector(dir, 9.5 * dt);
-            roboGroup.rotation.y = Math.atan2(dir.x, dir.z);
-          }
-        }
-
-        // Hover / 0G float / Lunar 0.16G hop animation
-        const hoverY =
-          levelId === 2
-            ? 0.24 + Math.sin(t * 2.1) * 0.14
-            : levelId === 3
-            ? Math.abs(Math.sin(t * 2.4)) * 0.2
-            : Math.sin(t * 4) * 0.08;
-        roboGroup.position.set(roboPosRef.current.x, hoverY, roboPosRef.current.z);
-
-        floatingZeroGProps.forEach((p, idx) => {
-          p.position.y = 0.95 + Math.sin(t * 1.8 + idx) * 0.18;
-          p.rotation.x += dt * 0.6;
-          p.rotation.y += dt * 0.8;
-        });
-
-        // Pulse doors
-        for (let i = 0; i < doorGlowMeshes.length; i++) {
-          doorGlowMeshes[i].scale.y = 0.92 + Math.sin(t * 3 + i) * 0.08;
-        }
-
-        // Nearest room detection
-        let bestRoom: SpatialRoomNode | null = null;
-        let bestDist = Infinity;
-        for (const room of levelSpec.rooms) {
-          const d = Math.hypot(roboPosRef.current.x - room.pos[0], roboPosRef.current.z - room.pos[1]);
-          if (d < bestDist) {
-            bestDist = d;
-            bestRoom = room;
-          }
-        }
-        if (bestRoom && bestRoom.id !== nearbyRoomRef.current?.id) {
-          setNearbyRoom(bestRoom);
-        }
-
-        renderer?.render(scene, camera);
-
-        frame++;
-        if (frame % 3 === 0 || frame === 1) {
-          const badges: RoomScreenBadge[] = levelSpec.rooms.map((r) => {
-            tempVec.set(r.pos[0], 1.15, r.pos[1]);
-            tempVec.project(camera);
-            return {
-              roomId: r.id,
-              x: (tempVec.x * 0.5 + 0.5) * 100,
-              y: (-tempVec.y * 0.5 + 0.5) * 100
-            };
-          });
-          setScreenBadges(badges);
-        }
-      };
-      animate();
-
-      return () => {
-        cancelAnimationFrame(rafId);
-        window.removeEventListener('resize', handleResize);
-        scene.traverse((obj) => {
-          if (obj instanceof THREE.Mesh) {
-            obj.geometry?.dispose();
-            if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose());
-            else obj.material?.dispose();
-          }
-        });
-        renderer?.dispose();
-      };
-    } catch {
-      setWebglFailed(true);
-    }
-  }, [levelId, levelSpec, campaign.completedMiniGames, campaign.l3ReturnAuthorized, onEnterRoom]);
-
-  const handleWalkAndOpenRoom = (room: SpatialRoomNode) => {
-    soundManager.playClick();
-    setNearbyRoom(room);
-    if (webglFailed) {
-      onEnterRoom(room);
-      return;
-    }
-    const doorOffsetZ = room.pos[1] < -1 ? 1.8 : room.pos[1] > 1 ? -1.8 : 0.8;
-    walkTargetRef.current = new THREE.Vector3(room.pos[0], 0, room.pos[1] + doorOffsetZ);
-    pendingRoomRef.current = room;
   };
 
-  const nudgeRobo = (dx: number, dz: number) => {
+  const enterCurrentRoom = () => {
+    const target = nearbyRoomRef.current || levelSpec.rooms[0];
+    if (target) {
+      soundManager.playClick();
+      onEnterRoomRef.current(target);
+    }
+  };
+
+  useEffect(() => {
+    // Reset astronaut to central courtyard plaza when switching level islands
+    playerPosRef.current.set(0, 0, 0);
+    playerVelYRef.current = 0;
+    isGroundedRef.current = true;
     walkTargetRef.current = null;
     pendingRoomRef.current = null;
-    roboPosRef.current.x = THREE.MathUtils.clamp(roboPosRef.current.x + dx, -10.8, 10.8);
-    roboPosRef.current.z = THREE.MathUtils.clamp(roboPosRef.current.z + dz, -6.2, 6.2);
-  };
+    setNearbyRoom(levelSpec.rooms[0] || null);
+    nearbyRoomRef.current = levelSpec.rooms[0] || null;
+  }, [levelId]);
+
+  useEffect(() => {
+    const mount = mountRef.current;
+    if (!mount) return;
+
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+    } catch {
+      setWebglFailed(true);
+      return;
+    }
+
+    const getDims = () => ({
+      w: Math.max(mount.clientWidth || window.innerWidth, 320),
+      h: Math.max(mount.clientHeight || window.innerHeight, 320)
+    });
+
+    const dims = getDims();
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(dims.w, dims.h);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    mount.innerHTML = '';
+    mount.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, dims.w / dims.h, 0.1, 200);
+    camera.position.set(0, 5.8, 10.2);
+
+    const skyHandle = createCosmicSkyBackdrop(scene);
+
+    // Biome Lighting
+    const hemi = new THREE.HemisphereLight(0xe0f2fe, 0x0f172a, 1.35);
+    scene.add(hemi);
+    const dir = new THREE.DirectionalLight(0xffffff, 1.8);
+    dir.position.set(16, 26, 18);
+    scene.add(dir);
+    const fill = new THREE.DirectionalLight(theme.rimColor, 0.75);
+    fill.position.set(-16, 8, -14);
+    scene.add(fill);
+
+    // Compute Spacious Radial Courtyard Ring Layout (ZERO collisions even at 12 rooms)
+    const rooms = levelSpec.rooms;
+    const roomCount = Math.max(1, rooms.length);
+    const ringRadius = Math.max(9.8, roomCount * 1.48);
+    const islandRadius = ringRadius + 5.8;
+
+    // Floating Island Terrain Platform
+    const island = createFloatingIslandMesh({
+      radius: islandRadius,
+      depth: 7.4,
+      topColor: theme.topColor,
+      rimColor: theme.rimColor,
+      rockColor: theme.rockColor,
+      crystalColor: theme.crystalColor,
+      accentCraters: theme.accentCraters
+    });
+    scene.add(island);
+
+    // Central Emblem Landing Beacon in Courtyard Center
+    const centerBeacon = new THREE.Mesh(
+      new THREE.TorusGeometry(2.2, 0.1, 10, 40),
+      new THREE.MeshBasicMaterial({ color: theme.rimColor })
+    );
+    centerBeacon.rotation.x = Math.PI / 2;
+    centerBeacon.position.y = 0.06;
+    scene.add(centerBeacon);
+
+    // Microgravity floating orbital props around perimeter in Level 2
+    const orbitSatellites: THREE.Object3D[] = [];
+    if (theme.isZeroG) {
+      for (let k = 0; k < 4; k++) {
+        const pod = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(0.65, 0),
+          new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.4, roughness: 0.35 })
+        );
+        const ang = (k / 4) * Math.PI * 2;
+        pod.position.set(Math.cos(ang) * (islandRadius + 2.8), 2.5 + k * 0.4, Math.sin(ang) * (islandRadius + 2.8));
+        scene.add(pod);
+        orbitSatellites.push(pod);
+      }
+    }
+
+    // Build Sculpted Station Buildings & Walkways Along Courtyard Ring
+    const disposableTextures: THREE.Texture[] = [];
+    const portalRings: THREE.Mesh[] = [];
+    const curtains: THREE.Mesh[] = [];
+    const clickTargets: { group: THREE.Group; room: SpatialRoomNode; entrySpot: THREE.Vector3; pos: THREE.Vector3 }[] = [];
+
+    const positionedRooms: PositionedRoom[] = rooms.map((room, idx) => {
+      const theta = (idx / roomCount) * Math.PI * 2 - Math.PI / 2;
+      const rx = Math.cos(theta) * ringRadius;
+      const rz = Math.sin(theta) * ringRadius;
+      const yawToCenter = Math.atan2(-rx, -rz);
+      return {
+        room,
+        pos: new THREE.Vector3(rx, 0, rz),
+        yawToCenter
+      };
+    });
+
+    positionedRooms.forEach(({ room, pos, yawToCenter }) => {
+      const completed = isRoomCompleted(room);
+      const bld = createStationBuildingMesh(room, completed);
+      bld.group.position.copy(pos);
+      bld.group.rotation.y = yawToCenter;
+      scene.add(bld.group);
+
+      disposableTextures.push(...bld.disposeTextures);
+      portalRings.push(bld.portalRing);
+      curtains.push(bld.curtain);
+
+      // Glowing Promenade Walkway from Center Plaza toward Building Entrance
+      const dirToRoom = pos.clone().normalize();
+      const pathLen = Math.max(2, ringRadius - 3.6);
+      const pathMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1.1, 0.05, pathLen),
+        new THREE.MeshBasicMaterial({
+          color: completed ? 0x10b981 : theme.rimColor,
+          transparent: true,
+          opacity: 0.38
+        })
+      );
+      pathMesh.position.copy(dirToRoom.clone().multiplyScalar(2.1 + pathLen / 2));
+      pathMesh.position.y = 0.03;
+      pathMesh.rotation.y = yawToCenter;
+      scene.add(pathMesh);
+
+      const entrySpot = pos.clone().sub(dirToRoom.clone().multiplyScalar(2.5));
+      clickTargets.push({ group: bld.group, room, entrySpot, pos });
+    });
+
+    // Articulated Robo Character wearing SPACE-FIT X IVA Suit (No EVA Helmet inside station)
+    const hero = buildSpaceFitXCharacter();
+    hero.group.scale.setScalar(1.06);
+    hero.group.position.copy(playerPosRef.current);
+    scene.add(hero.group);
+
+    // Keyboard & Pointer Controls
+    const keysDown = new Set<string>();
+    const onKeyDown = (e: KeyboardEvent) => {
+      const k = e.key.toLowerCase();
+      if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) {
+        if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+          if (k === ' ' || k.startsWith('arrow')) e.preventDefault();
+        }
+      }
+      keysDown.add(k);
+      if (k === ' ' || e.code === 'Space') triggerJump();
+      if (k === 'e' || k === 'enter') enterCurrentRoom();
+      if (k === 'shift') isSprintingRef.current = true;
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      const k = e.key.toLowerCase();
+      keysDown.delete(k);
+      if (k === 'shift') isSprintingRef.current = false;
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+
+    let dragOrbiting = false;
+    let pointerDownPos = { x: 0, y: 0 };
+    let prevPointerPos = { x: 0, y: 0 };
+    const raycaster = new THREE.Raycaster();
+    const pointerNdc = new THREE.Vector2();
+    const domEl = renderer.domElement;
+
+    const onPointerDown = (e: PointerEvent) => {
+      dragOrbiting = true;
+      pointerDownPos = { x: e.clientX, y: e.clientY };
+      prevPointerPos = { x: e.clientX, y: e.clientY };
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (!dragOrbiting) return;
+      const dx = e.clientX - prevPointerPos.x;
+      const dy = e.clientY - prevPointerPos.y;
+      prevPointerPos = { x: e.clientX, y: e.clientY };
+      cameraOrbitYawRef.current -= dx * 0.0065;
+      cameraOrbitPitchRef.current = Math.max(0.18, Math.min(0.92, cameraOrbitPitchRef.current + dy * 0.004));
+    };
+    const onPointerUp = (e: PointerEvent) => {
+      if (!dragOrbiting) return;
+      dragOrbiting = false;
+      if (Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y) > 7) return;
+
+      const rect = domEl.getBoundingClientRect();
+      pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointerNdc, camera);
+
+      const hits = raycaster.intersectObjects(
+        clickTargets.map((ct) => ct.group),
+        true
+      );
+      if (hits.length > 0) {
+        const hitObj = hits[0].object;
+        const found = clickTargets.find((ct) => {
+          let p: THREE.Object3D | null = hitObj;
+          while (p) {
+            if (p === ct.group) return true;
+            p = p.parent;
+          }
+          return false;
+        });
+        if (found) {
+          soundManager.playClick();
+          // If already standing right near that room, enter directly; otherwise walk straight up to it
+          const d = playerPosRef.current.distanceTo(found.pos);
+          if (d < 4.5) {
+            onEnterRoomRef.current(found.room);
+          } else {
+            walkTargetRef.current = found.entrySpot.clone();
+            pendingRoomRef.current = found.room;
+          }
+        }
+      }
+    };
+
+    domEl.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+
+    const handleResize = () => {
+      if (!mountRef.current) return;
+      const d = getDims();
+      camera.aspect = d.w / d.h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(d.w, d.h);
+    };
+    window.addEventListener('resize', handleResize);
+    const resizeObs = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(handleResize) : null;
+    if (resizeObs) resizeObs.observe(mount);
+
+    let rafId = 0;
+    let lastTime = performance.now();
+    const startTime = lastTime;
+
+    const animate = (now: number) => {
+      rafId = requestAnimationFrame(animate);
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+      const elapsed = (now - startTime) / 1000;
+
+      skyHandle.update(elapsed);
+
+      portalRings.forEach((p, idx) => {
+        p.rotation.z = Math.sin(elapsed * 1.4 + idx) * 0.09;
+      });
+      curtains.forEach((c, idx) => {
+        const mat = c.material as THREE.MeshBasicMaterial;
+        mat.opacity = 0.22 + Math.sin(elapsed * 2.4 + idx) * 0.1;
+      });
+      orbitSatellites.forEach((sat, idx) => {
+        sat.rotation.x = elapsed * 0.4 + idx;
+        sat.rotation.y = elapsed * 0.55;
+        sat.position.y = 2.5 + idx * 0.35 + Math.sin(elapsed * 1.1 + idx) * 0.45;
+      });
+
+      // Third-person movement relative to camera orbit yaw
+      let ix = joystickVecRef.current.x;
+      let iz = joystickVecRef.current.z;
+      if (keysDown.has('a') || keysDown.has('arrowleft')) ix -= 1;
+      if (keysDown.has('d') || keysDown.has('arrowright')) ix += 1;
+      if (keysDown.has('w') || keysDown.has('arrowup')) iz -= 1;
+      if (keysDown.has('s') || keysDown.has('arrowdown')) iz += 1;
+
+      const yaw = cameraOrbitYawRef.current;
+      const forwardX = -Math.sin(yaw);
+      const forwardZ = -Math.cos(yaw);
+      const rightX = Math.cos(yaw);
+      const rightZ = -Math.sin(yaw);
+
+      const pos = playerPosRef.current;
+      const sprint = isSprintingRef.current || keysDown.has('shift');
+      let moveSpeed = 0;
+      const maxWalkRadius = islandRadius - 1.4;
+
+      if (Math.abs(ix) > 0.08 || Math.abs(iz) > 0.08) {
+        walkTargetRef.current = null;
+        pendingRoomRef.current = null;
+        const len = Math.hypot(ix, iz);
+        const nx = ix / len;
+        const nz = iz / len;
+        const worldDirX = rightX * nx + forwardX * (-nz);
+        const worldDirZ = rightZ * nx + forwardZ * (-nz);
+        const spd = sprint ? 11.4 : 7.4;
+
+        pos.x += worldDirX * spd * dt;
+        pos.z += worldDirZ * spd * dt;
+        moveSpeed = spd;
+        hero.group.rotation.y = Math.atan2(worldDirX, worldDirZ);
+      } else if (walkTargetRef.current) {
+        const dx = walkTargetRef.current.x - pos.x;
+        const dz = walkTargetRef.current.z - pos.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist > 0.45) {
+          const spd = 9.2;
+          const step = Math.min(dist, spd * dt);
+          pos.x += (dx / dist) * step;
+          pos.z += (dz / dist) * step;
+          moveSpeed = spd;
+          hero.group.rotation.y = Math.atan2(dx, dz);
+        } else {
+          walkTargetRef.current = null;
+          const enterRoom = pendingRoomRef.current;
+          pendingRoomRef.current = null;
+          if (enterRoom) onEnterRoomRef.current(enterRoom);
+        }
+      }
+
+      // Soft Circular Island Perimeter Containment
+      const rFromCenter = Math.hypot(pos.x, pos.z);
+      if (rFromCenter > maxWalkRadius) {
+        const scale = maxWalkRadius / rFromCenter;
+        pos.x *= scale;
+        pos.z *= scale;
+      }
+
+      // Level-Specific Gravity Physics (1G / 0G / 0.16G)
+      if (!isGroundedRef.current || pos.y > 0.02) {
+        playerVelYRef.current -= theme.gravity * dt;
+        pos.y += playerVelYRef.current * dt;
+        if (pos.y <= 0) {
+          pos.y = 0;
+          playerVelYRef.current = 0;
+          isGroundedRef.current = true;
+        }
+      }
+
+      // Find Nearest Station Building Portal
+      let closestRoom: SpatialRoomNode | null = null;
+      let closestDist = Infinity;
+      positionedRooms.forEach((pr) => {
+        const d = Math.hypot(pos.x - pr.pos.x, pos.z - pr.pos.z);
+        if (d < closestDist) {
+          closestDist = d;
+          closestRoom = pr.room;
+        }
+      });
+
+      if (closestRoom && (closestRoom as SpatialRoomNode).id !== nearbyRoomRef.current?.id) {
+        nearbyRoomRef.current = closestRoom;
+        setNearbyRoom(closestRoom);
+      }
+
+      hero.group.position.copy(pos);
+      hero.update({
+        t: elapsed,
+        moveSpeed,
+        isRunning: sprint && moveSpeed > 0.1,
+        isJumping: !isGroundedRef.current,
+        isZeroG: theme.isZeroG,
+        suitState: suitStateRef.current
+      });
+
+      // Third-Person Follow Camera
+      const camDist = 10.6;
+      const horizDist = camDist * Math.cos(cameraOrbitPitchRef.current);
+      const camHeight = 2.3 + camDist * Math.sin(cameraOrbitPitchRef.current);
+      const desiredCamX = pos.x + Math.sin(yaw) * horizDist;
+      const desiredCamZ = pos.z + Math.cos(yaw) * horizDist;
+      const desiredCamY = pos.y + camHeight;
+
+      camera.position.x += (desiredCamX - camera.position.x) * 0.14;
+      camera.position.y += (desiredCamY - camera.position.y) * 0.14;
+      camera.position.z += (desiredCamZ - camera.position.z) * 0.14;
+      camera.lookAt(pos.x, pos.y + 1.45, pos.z);
+
+      renderer.render(scene, camera);
+    };
+
+    rafId = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      domEl.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('resize', handleResize);
+      if (resizeObs) resizeObs.disconnect();
+
+      skyHandle.dispose();
+      hero.dispose();
+      disposableTextures.forEach((tex) => tex.dispose());
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          obj.geometry?.dispose();
+          const m = obj.material;
+          if (Array.isArray(m)) m.forEach((x) => x.dispose());
+          else m?.dispose();
+        } else if (obj instanceof THREE.Sprite) {
+          obj.material.dispose();
+        }
+      });
+      renderer.dispose();
+    };
+  }, [levelId, campaign.completedMiniGames, campaign.l3ReturnAuthorized]);
+
+  if (webglFailed) {
+    return (
+      <div
+        data-testid={`spatial-room-map-3d-l${levelId}`}
+        className="w-full h-full flex items-center justify-center bg-slate-950 p-6 overflow-y-auto"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl w-full" dir="rtl">
+          {levelSpec.rooms.map((room) => {
+            const done = isRoomCompleted(room);
+            return (
+              <button
+                key={room.id}
+                type="button"
+                onClick={() => {
+                  soundManager.playClick();
+                  onEnterRoom(room);
+                }}
+                className="p-4 rounded-2xl bg-slate-900 border border-slate-700 hover:border-cyan-400 text-right cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-2xl">{room.icon}</span>
+                  {done && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                </div>
+                <div className="font-bold text-white text-sm">{room.nameAr}</div>
+                <div className="text-xs text-slate-400 mt-1">{room.shortObjectiveAr}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  const nearbyCompleted = nearbyRoom ? isRoomCompleted(nearbyRoom) : false;
 
   return (
-    <div className="relative w-full h-[460px] sm:h-[520px] rounded-[2rem] border-4 border-cyan-400/75 bg-gradient-to-b from-slate-950 via-[#081330] to-slate-950 overflow-hidden shadow-2xl select-none">
-      {/* Three.js 3D Floorplan Canvas */}
-      <div
-        ref={mountRef}
-        data-testid={`spatial-room-map-3d-l${levelId}`}
-        className="absolute inset-0 w-full h-full"
-      />
+    <div
+      data-testid={`spatial-room-map-3d-l${levelId}`}
+      className="relative w-full h-full overflow-hidden select-none"
+    >
+      {/* Full-Viewport 3D Island Courtyard Canvas */}
+      <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
-      {/* Labeled 3D-Projected Door Buttons */}
-      <div className="absolute inset-0 pointer-events-none">
-        {levelSpec.rooms.map((room, idx) => {
-          const badge = screenBadges.find((b) => b.roomId === room.id);
-          const fallbackCols = levelSpec.rooms.length > 8 ? 4 : 3;
-          const fallbackX = 16 + (idx % fallbackCols) * (68 / Math.max(fallbackCols - 1, 1));
-          const fallbackY = 22 + Math.floor(idx / fallbackCols) * 26;
-          const left = Math.max(8, Math.min(92, badge?.x ?? fallbackX));
-          const top = Math.max(15, Math.min(86, badge?.y ?? fallbackY));
-          const completed = isRoomCompleted(room);
-          const isNear = nearbyRoom?.id === room.id;
-
-          return (
-            <button
-              key={room.id}
-              type="button"
-              data-testid={`room-door-${room.id}`}
-              onClick={() => handleWalkAndOpenRoom(room)}
-              style={{
-                left: `${left}%`,
-                top: `${top}%`,
-                transform: 'translate(-50%, -50%)'
-              }}
-              className={`pointer-events-auto absolute px-2 sm:px-3 py-1.5 rounded-xl border-2 text-right transition-all cursor-pointer backdrop-blur-md shadow-lg max-w-[140px] sm:max-w-[175px] ${
-                completed
-                  ? 'bg-emerald-950/90 border-emerald-400 text-emerald-100 hover:scale-105'
-                  : isNear
-                  ? 'bg-sky-900/95 border-amber-300 text-white scale-105 ring-2 ring-amber-300/60'
-                  : 'bg-slate-900/90 border-cyan-400/80 text-white hover:border-amber-300 hover:scale-105'
-              }`}
-            >
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm sm:text-base">{room.icon}</span>
-                <span className="font-hud font-black text-[10px] sm:text-xs truncate">
-                  {room.nameAr}
-                </span>
-                {completed && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 shrink-0" />}
-              </div>
-              <span className="block font-mono text-[9px] text-cyan-200/90 truncate">
-                {room.nameEn}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Top Objective Hint Bar */}
-      <div className="absolute top-3 right-3 left-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        <div className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-950/90 border-2 border-cyan-400/70 text-xs font-hud font-black text-cyan-100 backdrop-blur-md">
-          <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
-          <span>
-            اضغط على أي باب أو حرّك روبو بالأسهم / WASD • {levelSpec.rooms.length} غرف في الخريطة ثلاثية الأبعاد
-          </span>
-        </div>
-
-        {nearbyRoom && (
-          <button
-            type="button"
-            onClick={() => {
-              soundManager.playClick();
-              onEnterRoom(nearbyRoom);
-            }}
-            className="pointer-events-auto px-3.5 py-1.5 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-hud font-black text-xs sm:text-sm border-2 border-white shadow-lg flex items-center gap-1.5 hover:scale-105 transition-transform cursor-pointer"
-          >
-            <DoorOpen className="w-4 h-4" />
-            <span>ادخل: {nearbyRoom.nameAr}</span>
-          </button>
-        )}
-      </div>
-
-      {/* Bottom-Left Compact Touch Robo D-Pad */}
-      <div className="absolute bottom-3 left-3 flex flex-col items-center gap-1 bg-slate-950/85 border border-cyan-400/60 rounded-2xl p-2 backdrop-blur-md">
-        <button
-          type="button"
-          aria-label="تحريك روبو للأعلى"
-          onClick={() => nudgeRobo(0, -1.6)}
-          className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-cyan-600 text-white flex items-center justify-center cursor-pointer"
+      {/* Compact Non-Overlapping Top-Center Target Indicator */}
+      {nearbyRoom && (
+        <div
+          dir="rtl"
+          className="pointer-events-none fixed top-20 inset-x-0 z-20 flex justify-center px-3"
         >
-          <ArrowUp className="w-4 h-4" />
-        </button>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            aria-label="تحريك روبو لليسار"
-            onClick={() => nudgeRobo(-1.6, 0)}
-            className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-cyan-600 text-white flex items-center justify-center cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            aria-label="تحريك روبو للأسفل"
-            onClick={() => nudgeRobo(0, 1.6)}
-            className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-cyan-600 text-white flex items-center justify-center cursor-pointer"
-          >
-            <ArrowDown className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            aria-label="تحريك روبو لليمين"
-            onClick={() => nudgeRobo(1.6, 0)}
-            className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-cyan-600 text-white flex items-center justify-center cursor-pointer"
-          >
-            <ArrowRight className="w-4 h-4" />
-          </button>
+          <div className="pointer-events-auto inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-2xl bg-slate-950/80 border border-cyan-400/40 backdrop-blur-md shadow-xl">
+            <span className="text-lg">{nearbyRoom.icon}</span>
+            <span className="text-xs font-bold text-white">{nearbyRoom.nameAr}</span>
+            {nearbyCompleted && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+            <button
+              type="button"
+              onClick={enterCurrentRoom}
+              className="px-2.5 py-1 rounded-lg bg-cyan-500/25 hover:bg-cyan-500/40 border border-cyan-400/60 text-[11px] font-bold text-cyan-100 flex items-center gap-1 cursor-pointer"
+            >
+              <DoorOpen className="w-3.5 h-3.5" />
+              <span>دخول</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Bottom Edge Third-Person Controls */}
+      <ThirdPersonControlsOverlay
+        promptLabelAr={nearbyRoom ? `دخول ${nearbyRoom.icon} ${nearbyRoom.nameAr}` : null}
+        promptSubAr={nearbyRoom?.shortObjectiveAr}
+        onInteract={enterCurrentRoom}
+        onJoystickMove={(vec) => {
+          joystickVecRef.current = vec;
+        }}
+        onJump={triggerJump}
+        onSprintChange={(s) => {
+          isSprintingRef.current = s;
+        }}
+        gravityLabelAr={theme.gravityLabelAr}
+        hintAr="WASD / الأسهم للمشي • Space للقفز • اضغط أي بوابة ثلاثية الأبعاد للدخول"
+      />
     </div>
   );
 };

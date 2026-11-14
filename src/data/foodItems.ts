@@ -16,7 +16,7 @@ export const NASA_OFFICIAL_REFERENCES: readonly NasaScientificReference[] = [
     titleAr: 'مختبر أنظمة غذاء الفضاء التابع لناسا',
     url: 'https://www.nasa.gov/directorates/esdmd/hhp/space-food-systems/',
     verifiedFactAr:
-      'في الجاذبية الصغرى (Zero-G)، يتطاير الفتات والسوائل الحرة في الكابينة، لذلك يُستخدم خبز التورتيلا والعبوات المغلقة بالصمامات.',
+      'في الجاذبية الصغرى (Zero-G)، يتطاير الفتات والسوائل الحرة في الكابينة، لذلك تُستخدم العبوات المحكمة بالصمامات وأكياس العسل والمعاجين المتماسكة.',
     gameplayMechanicAr:
       'تبسيط اللعبة: سحب الأطعمة الآمنة داخل صندوق الشحن الفضائي واستبعاد الأطعمة المتفتتة أو الفوارة.'
   },
@@ -38,7 +38,7 @@ export const NASA_OFFICIAL_REFERENCES: readonly NasaScientificReference[] = [
     verifiedFactAr:
       'تمد الفواكه والخضروات الطازجة الرواد بالفيتامينات والألياف والدعم النفسي، بينما تتطلب الحماية من الإشعاع الفضائي دروعاً مادية للمركبة وملاجئ عواصف (وليس مجرد تناول مضادات الأكسدة).',
     gameplayMechanicAr:
-      'تبسيط اللعبة: منح نقاط الصحة والفيتامينات عند اختيار التفاح والبروكلي ضمن الوجبة المتوازنة.'
+      'تبسيط اللعبة: منح نقاط الصحة والفيتامينات عند اختيار التفاح والبروكلي والجرجير ضمن الوجبة المتوازنة.'
   },
   {
     id: 'artemis-ii-menu',
@@ -46,32 +46,41 @@ export const NASA_OFFICIAL_REFERENCES: readonly NasaScientificReference[] = [
     titleAr: 'قائمة طعام مهمة أرتميس 2 القمرية (NASA)',
     url: 'https://www.nasa.gov/missions/artemis/artemis-2/artemis-ii-whats-on-the-menu/',
     verifiedFactAr:
-      'تعتمد بعثات أرتميس على أطعمة مجففة بالتجميد (Rehydratable) وأطعمة معالجة حرارياً طويلة الصلاحية مع خبز التورتيلا وأكياس الشرب المغلقة.',
+      'تعتمد بعثات أرتميس على أطعمة مجففة بالتجميد (Rehydratable) وأطعمة معالجة حرارياً طويلة الصلاحية مثل أكياس العسل الجبلي والعبوات المغلقة بالصمامات.',
     gameplayMechanicAr:
       'تبسيط اللعبة: تجهيز صندوق إمدادات المهمة بـ 4 وجبات فضائية معتمدة للإقلاع.'
   }
 ];
 
 export const FOOD_DATABASE: FoodItem[] = [
-  // 1. Space Tortilla Wrap — APPROVED [✓] (Zero-G Packaging Prop)
+  // 1. Sinai Mountain Honey Squeeze Pouch — APPROVED [✓] (Egyptian/Sinai Zero-Crumb Space Energy)
   {
-    id: 'space_tortilla',
-    name: 'Space Tortilla Wrap',
-    nameAr: 'خبز التورتيلا الفضائي',
-    svgAsset: '/assets/sprites/food/food-tortilla.png',
+    id: 'sinai_honey',
+    name: 'Sinai Mountain Honey Pouch',
+    nameAr: 'عسل النحل الجبلي السيناوي — عبوة ضغط محكمة',
+    svgAsset: '/assets/food/sinai_honey.svg',
     category: 'carbs',
     weightPercentage: 25,
-    proteinGrams: 12,
-    carbsGrams: 28,
+    proteinGrams: 1,
+    carbsGrams: 52,
+    kcal: 195,
+    fatsGrams: 0,
+    fiberGrams: 0.5,
+    massGrams: 65,
+    shelfLifeMonths: 48,
+    originTag: 'egypt_sinai',
+    badgeType: 'ISS_PROVEN',
+    micronutrientsAr: ['مضادات الأكسدة الطبيعية', 'كربوهيدرات سريعة', 'خصائص طبيعية مضادة للميكروبات'],
+    crumbRating: 'zero_crumbs',
     isBanned: false,
-    funFact: 'NASA astronauts prefer specially formulated tortillas over ordinary sliced bread because tortillas drastically reduce floating crumbs in microgravity!',
-    funFactAr: 'يفضل رواد ناسا خبز التورتيلا المخصص للفضاء بدلاً من الخبز العادي لأنه يقلل الفتات المتطاير بشكل كبير جداً في الجاذبية الصغرى!',
-    nasaVerifiedFactAr: 'حقيقة علمية (ناسا): منذ عام 1985 يعتمد الرواد على التورتيلا لتقليل تطاير الفتات مقارنة بالخبز العادي وحماية أعين الطاقم وفلاتر الهواء.',
-    gameplaySimplificationAr: 'تبسيط اللعبة: يمنح طاقة كربوهيدرات آمنة بنسبة 25% من سعة الصندوق.',
+    funFact: 'Pure Sinai Mountain honey sealed in a zero-crumb squeeze pouch provides natural antioxidants, antimicrobial stability (48+ months), and fast energy in 0G!',
+    funFactAr: 'عسل النحل الجبلي السيناوي في عبوة ضغط محكمة خالٍ تماماً من الفتات، غني بمضادات الأكسدة والطاقة السريعة، ويدوم طويلاً بخصائصه الطبيعية المضادة للميكروبات!',
+    nasaVerifiedFactAr: '✅ مثبتة على ISS: العبوات اللينة المحكمة بصمام ضغط تمنع تطاير السوائل والفتات في 0G وتحفظ العسل مستقراً آمناً لسنوات دون تبريد.',
+    gameplaySimplificationAr: '🎮 قاعدة لعبة مبسطة: يمنح طاقة كربوهيدرات سريعة وآمنة 100% بنسبة 25% من سعة الصندوق.',
     nasaSourceTitle: 'NASA Space Food Systems',
     nasaSourceUrl: 'https://www.nasa.gov/directorates/esdmd/hhp/space-food-systems/',
-    icon: '🌯',
-    color: 'from-amber-400 to-orange-600'
+    icon: '🍯',
+    color: 'from-amber-400 to-yellow-600'
   },
 
   // 2. Rehydratable Space Pouch — APPROVED [✓] (Zero-G Packaging Prop)
@@ -192,8 +201,8 @@ export const FOOD_DATABASE: FoodItem[] = [
     isBanned: true,
     bannedReason: 'The No-Crumbs Rule! Crumbly burger buns and loose sesame seeds float in Zero-G into astronaut eyes and air filters!',
     bannedReasonAr: 'ممنوع في الجاذبية الصغرى! خبز البرجر وحبوب السمسم تتفتت وتطفو في الهواء فتدخل في أعين الرواد وفلاتر التهوية!',
-    funFact: 'Astronauts wrap burger patties or meats inside tortillas instead of crumbly buns to minimize crumbs!',
-    funFactAr: 'يستخدم الرواد خبز التورتيلا بدلاً من خبز البرجر لأنه يقلل الفتات المتطاير بشكل كبير جداً!',
+    funFact: 'Open sliced bread and sesame buns shed crumbs in 0G, so astronauts use sealed squeeze pouches and cohesive bars instead!',
+    funFactAr: 'الخبز المنفوش وحبوب السمسم السائبة تتفتت وتطفو في 0G، لذلك يعتمد الرواد على العبوات المحكمة والعصارات المتماسكة كبديل آمن!',
     nasaVerifiedFactAr: 'حقيقة علمية (ناسا): الفتات الحر لا يسقط على الأرض في انعدام الجاذبية بل يطفو في الكابينة ويشكل خطراً على التنفس والأجهزة.',
     gameplaySimplificationAr: 'تبسيط اللعبة: يرفض الصندوق هذا العنصر وينبهك روبو فوراً.',
     nasaSourceTitle: 'NASA Space Food Systems',
@@ -629,8 +638,8 @@ export const TARGET_NUTRITION_REQUIREMENTS = {
   maxCargoWeight: 100,
   optimalRatioMin: 0.2,
   optimalRatioMax: 0.85,
-  requiredSpecialItem: 'space_tortilla',
+  requiredSpecialItem: 'sinai_honey',
   idealProteinRatioMin: 0.2,
   idealProteinRatioMax: 0.85,
-  requiresSpecialItem: 'space_tortilla'
+  requiresSpecialItem: 'sinai_honey'
 };

@@ -6,6 +6,7 @@ import { dialogueManager } from '../../utils/geminiTTS';
 import { NASA_ENGINEERING_TRADEOFFS } from '../../services/nasa/nasaOSDR';
 import { EGYPTIAN_SINAI_SPACE_FOODS, FOOD_DATABASE } from '../../data/foodItems';
 import { DAILY_REFERENCE_ASSUMPTIONS, SCIENCE_BADGES } from '../../data/science';
+import { SpaceFitXControlsHUD } from '../suit/SpaceFitXControlsHUD';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -20,6 +21,7 @@ interface Level1Props {
   miniGameId: MiniGameId;
   campaign: CampaignProgressState;
   onCompleteMiniGame: (id: MiniGameId, patch?: Partial<CampaignProgressState>) => void;
+  onUpdateCampaign?: (patch: Partial<CampaignProgressState>) => void;
   onNextLevel: () => void;
   onBackToLevel: () => void;
 }
@@ -66,7 +68,7 @@ const buildPantryEntries = (): PantryEntry[] => {
   };
 
   const candidates = [
-    fromFoodDb('space_tortilla', 3, 15, 'ناسا المعتمدة'),
+    fromFoodDb('sinai_honey', 2, 18, 'سيناوي 🍯'),
     fromFoodDb('egy_mish_pouch', 3, 20, 'مصري 🇪🇬'),
     fromFoodDb('sinai_date_bars', 3, 20, 'سيناوي 🌴'),
     fromFoodDb('egy_tahini_pouch', 2, 18, 'مصري 🥣'),
@@ -476,8 +478,9 @@ const FoodPackingScene: React.FC<{
 // ---------------------------------------------------------------------------
 const EquipmentInspectionScene: React.FC<{
   campaign: CampaignProgressState;
+  onUpdateCampaign?: (patch: Partial<CampaignProgressState>) => void;
   onComplete: (packedIds: string[]) => void;
-}> = ({ campaign, onComplete }) => {
+}> = ({ campaign, onUpdateCampaign, onComplete }) => {
   const [decisions, setDecisions] = useState<Record<string, 'packed' | 'rejected'>>(() => {
     const init: Record<string, 'packed' | 'rejected'> = {};
     campaign.l1EquipmentPacked.forEach((id) => {
@@ -575,6 +578,20 @@ const EquipmentInspectionScene: React.FC<{
           );
         })}
       </div>
+
+      {/* Interactive SPACE-FIT X Suit Pre-Flight Calibration */}
+      {onUpdateCampaign && (
+        <div className="pt-2 border-t border-slate-800 space-y-2">
+          <p className="font-hud font-black text-xs sm:text-sm text-cyan-200">
+            🦺 معايرة بدلة SPACE-FIT X الداخلية (Prototype 1.0 — AstroNutri):
+          </p>
+          <SpaceFitXControlsHUD
+            compact
+            suitState={campaign.spaceFitX}
+            onChange={(next) => onUpdateCampaign({ spaceFitX: next })}
+          />
+        </div>
+      )}
 
       <button
         type="button"
@@ -762,6 +779,7 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
   miniGameId,
   campaign,
   onCompleteMiniGame,
+  onUpdateCampaign,
   onNextLevel,
   onBackToLevel
 }) => {
@@ -786,6 +804,7 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
     return (
       <EquipmentInspectionScene
         campaign={campaign}
+        onUpdateCampaign={onUpdateCampaign}
         onComplete={(packedIds) =>
           onCompleteMiniGame('l1_equipment_prep', { l1EquipmentPacked: packedIds })
         }
@@ -856,6 +875,14 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
             {SCIENCE_BADGES.ISS_PROVEN.labelAr}
           </span>
         </div>
+
+        {onUpdateCampaign && (
+          <SpaceFitXControlsHUD
+            compact
+            suitState={campaign.spaceFitX}
+            onChange={(next) => onUpdateCampaign({ spaceFitX: next })}
+          />
+        )}
 
         <button
           type="button"

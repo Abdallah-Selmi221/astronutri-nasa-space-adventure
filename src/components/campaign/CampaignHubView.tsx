@@ -5,6 +5,7 @@ import { CAMPAIGN_LEVELS, MINI_GAME_SPECS, SpatialRoomNode } from '../../data/ca
 import { CampaignLevelId, CampaignProgressState, MiniGameId } from '../../types/game';
 import { WorldNavigator3D } from '../three/WorldNavigator3D';
 import { SpatialRoomMap3D } from '../three/SpatialRoomMap3D';
+import { SpaceFitXShowcase } from '../suit/SpaceFitXShowcase';
 import { MiniGameShell } from './MiniGameShell';
 import { Level1MiniGames } from './Level1MiniGames';
 import { Level2MiniGames } from './Level2MiniGames';
@@ -22,18 +23,28 @@ import {
   BookOpen,
   CheckCircle2,
   Compass,
+  DoorOpen,
   HelpCircle,
+  Layers,
   Lock,
   Play,
   Rocket,
   Satellite,
   Settings,
+  Shield,
   ShieldCheck,
   Sprout,
   Star,
   Volume2,
   X
 } from 'lucide-react';
+
+const LEVEL_UI_META: Record<CampaignLevelId, { badge: string; shortTitleAr: string }> = {
+  1: { badge: '🌍', shortTitleAr: 'الأرض والانطلاق' },
+  2: { badge: '🛸', shortTitleAr: 'المدار 0G' },
+  3: { badge: '🌙', shortTitleAr: 'مستعمرة القمر' },
+  4: { badge: '🪂', shortTitleAr: 'العودة للأرض' }
+};
 
 export const CampaignHubView: React.FC = () => {
   const {
@@ -55,10 +66,15 @@ export const CampaignHubView: React.FC = () => {
   const [isSourcesOpen, setIsSourcesOpen] = useState(false);
   const [isEcoCabinOpen, setIsEcoCabinOpen] = useState(false);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
+  const [isSuitShowcaseOpen, setIsSuitShowcaseOpen] = useState(false);
+  const [isLevelsDrawerOpen, setIsLevelsDrawerOpen] = useState(false);
+  const [isRoomsDrawerOpen, setIsRoomsDrawerOpen] = useState(false);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
 
   useEffect(() => {
     setIsEcoCabinOpen(false);
+    setIsRoomsDrawerOpen(false);
+    setIsLevelsDrawerOpen(false);
   }, [campaign.viewMode, activeLevelId]);
 
   useEffect(() => {
@@ -170,6 +186,7 @@ export const CampaignHubView: React.FC = () => {
               miniGameId={mgId}
               campaign={campaign}
               onCompleteMiniGame={handleCompleteMiniGame}
+              onUpdateCampaign={updateCampaignState}
               onNextLevel={() => setCampaignView('level_hub', 2, null, null)}
               onBackToLevel={handleBackToLevel}
             />
@@ -209,7 +226,7 @@ export const CampaignHubView: React.FC = () => {
     }
   }
 
-  // ==================== VIEW 2: LEVEL SPATIAL 3D ROOM MAP ====================
+  // ==================== VIEW 2: FULL-VIEWPORT 3D ISLAND & ROOM PORTALS ====================
   if (campaign.viewMode === 'level_hub') {
     const levelDoneCount = activeLevelSpec.miniGames.filter((id) =>
       campaign.completedMiniGames.includes(id)
@@ -221,109 +238,139 @@ export const CampaignHubView: React.FC = () => {
 
     return (
       <div
-        className="min-h-screen w-full flex flex-col justify-between bg-gradient-to-b from-slate-950 via-[#09152b] to-slate-950 text-white px-4 sm:px-8 py-4 sm:py-6 gap-4"
+        className="relative w-full h-[100dvh] overflow-hidden bg-[#07122b] text-white"
         dir="rtl"
       >
-        {/* Level Header */}
-        <header className="max-w-7xl w-full mx-auto flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 border-2 border-cyan-400/50 rounded-3xl p-4 shadow-xl">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleBackToWorldMap}
-              className="px-4 py-2 rounded-2xl bg-slate-800 hover:bg-cyan-700 text-white font-hud font-black text-xs sm:text-sm border border-cyan-400/50 flex items-center gap-1.5 cursor-pointer"
-            >
-              <ArrowRight className="w-4 h-4" />
-              <span>خريطة العالم الـ 3D</span>
-            </button>
-            <div>
-              <h1 className="font-hud font-black text-base sm:text-xl text-white">
-                {activeLevelSpec.titleAr}
-              </h1>
-              <p className="text-xs text-cyan-200/90 font-bold">{activeLevelSpec.subtitleAr}</p>
-            </div>
-          </div>
+        {/* Full-Viewport 3D Island & Third-Person Character Scene */}
+        <div className="absolute inset-0 w-full h-full z-0">
+          <SpatialRoomMap3D
+            levelId={activeLevelId}
+            campaign={campaign}
+            suitState={campaign.spaceFitX}
+            onEnterRoom={handleEnterRoom}
+          />
+        </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {activeLevelId <= 3 && (
+        {/* Sleek Single-Row Edge HUD Bar at Top */}
+        <header className="pointer-events-none fixed top-2 inset-x-2 sm:inset-x-4 z-30">
+          <div className="pointer-events-auto max-w-7xl mx-auto flex items-center justify-between gap-2 bg-slate-950/80 border border-cyan-400/40 backdrop-blur-md rounded-2xl px-2.5 sm:px-4 py-1.5 shadow-xl overflow-x-auto">
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleBackToWorldMap}
+                className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-cyan-700 text-white font-hud font-black text-xs border border-cyan-400/50 flex items-center gap-1 cursor-pointer shrink-0"
+              >
+                <ArrowRight className="w-3.5 h-3.5" />
+                <span>الأرخبيل</span>
+              </button>
+              <div className="leading-tight">
+                <div className="font-hud font-black text-xs sm:text-sm text-white whitespace-nowrap">
+                  {LEVEL_UI_META[activeLevelId].badge} {LEVEL_UI_META[activeLevelId].shortTitleAr}
+                </div>
+                <div className="text-[10px] text-emerald-300 font-bold whitespace-nowrap">
+                  ✅ {levelDoneCount}/{activeLevelSpec.miniGames.length} مهام
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <button
+                type="button"
+                data-testid="toggle-rooms-drawer-btn"
+                onClick={() => {
+                  soundManager.playClick();
+                  setIsRoomsDrawerOpen((v) => !v);
+                }}
+                className="px-2.5 py-1.5 rounded-xl bg-sky-700/90 hover:bg-sky-600 text-white font-black text-xs border border-sky-300/60 flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              >
+                <DoorOpen className="w-3.5 h-3.5" />
+                <span>الغرف ({activeLevelSpec.rooms.length})</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="open-spacefitx-showcase"
+                onClick={() => {
+                  soundManager.playClick();
+                  setIsSuitShowcaseOpen(true);
+                }}
+                className="px-2.5 py-1.5 rounded-xl bg-cyan-600/90 hover:bg-cyan-500 text-slate-950 font-black text-xs border border-cyan-200 flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              >
+                <Shield className="w-3.5 h-3.5" />
+                <span>SPACE-FIT X</span>
+              </button>
+
+              {activeLevelId <= 3 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundManager.playClick();
+                    setIsEcoCabinOpen((v) => !v);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs border border-emerald-300 flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                >
+                  <Sprout className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">الزراعة المائية</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
                   soundManager.playClick();
-                  setIsEcoCabinOpen((v) => !v);
+                  setIsSourcesOpen(true);
                 }}
-                className="px-3.5 py-1.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs border border-emerald-300 shadow cursor-pointer flex items-center gap-1.5"
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-200 font-black text-xs border border-sky-400/40 flex items-center gap-1 cursor-pointer whitespace-nowrap"
               >
-                <Sprout className="w-4 h-4" />
-                <span>{isEcoCabinOpen ? 'العودة للخريطة الـ 3D' : '🌱 كابينة الزراعة الذاتية'}</span>
+                <BookOpen className="w-3.5 h-3.5 text-sky-300" />
+                <span className="hidden md:inline">مصادر (13)</span>
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                soundManager.playClick();
-                setIsSourcesOpen(true);
-              }}
-              className="px-3 py-1.5 rounded-2xl bg-sky-900 hover:bg-sky-800 text-sky-100 font-black text-xs border border-sky-400/50 cursor-pointer flex items-center gap-1.5"
-            >
-              <BookOpen className="w-4 h-4 text-sky-300" />
-              <span>مصادر علمية (13)</span>
-            </button>
-            <span className="px-3 py-1.5 rounded-2xl bg-slate-950 border border-slate-700 text-xs font-black text-emerald-300">
-              ✅ التحديات: {levelDoneCount} / {activeLevelSpec.miniGames.length}
-            </span>
-            <span className="px-3 py-1.5 rounded-2xl bg-slate-950 border border-slate-700 text-xs font-black text-sky-300">
-              🚪 الغرف: {activeLevelSpec.rooms.length} غرفة
-            </span>
 
-            {activeLevelId === 3 && allLevelGamesDone && !campaign.l3ReturnAuthorized && (
-              <button
-                type="button"
-                onClick={() => setCampaignView('minigame', 3, 'mission_control', null)}
-                className="px-4 py-2 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs shadow-lg animate-pulse cursor-pointer"
-              >
-                🛸 افتح إذن العودة للأرض (Mission Control)
-              </button>
-            )}
+              {activeLevelId === 3 && allLevelGamesDone && !campaign.l3ReturnAuthorized && (
+                <button
+                  type="button"
+                  onClick={() => setCampaignView('minigame', 3, 'mission_control', null)}
+                  className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs animate-pulse cursor-pointer whitespace-nowrap"
+                >
+                  🛸 إذن العودة
+                </button>
+              )}
 
-            {canEnterNextLevel && (
-              <button
-                type="button"
-                onClick={() => setCampaignView('level_hub', nextLevelId, null, null)}
-                className="px-4 py-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-xs shadow-lg flex items-center gap-1.5 cursor-pointer"
-              >
-                <Rocket className="w-4 h-4" />
-                <span>الانتقال للمستوى {nextLevelId} ←</span>
-              </button>
-            )}
+              {canEnterNextLevel && (
+                <button
+                  type="button"
+                  onClick={() => setCampaignView('level_hub', nextLevelId, null, null)}
+                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-xs flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                >
+                  <Rocket className="w-3.5 h-3.5" />
+                  <span>المستوى {nextLevelId}</span>
+                </button>
+              )}
+            </div>
           </div>
         </header>
 
-        {/* Main 3D Walkable Spatial Room Map OR Self-Sustaining Eco-Bio Cabin */}
-        <main className="max-w-7xl w-full mx-auto flex-1 flex flex-col gap-4">
-          {isEcoCabinOpen && activeLevelId <= 3 ? (
-            <EcoBioCabin
-              levelId={activeLevelId}
-              campaign={campaign}
-              onUpdateCampaign={updateCampaignState}
-              onClose={() => setIsEcoCabinOpen(false)}
-            />
-          ) : (
-            <div className="h-[430px] sm:h-[500px] w-full">
-              <SpatialRoomMap3D
-                levelId={activeLevelId}
-                campaign={campaign}
-                onEnterRoom={handleEnterRoom}
-              />
-            </div>
-          )}
-
-          {/* Direct Mini-Game / Sequential Checklist Strip */}
-          <section className="rounded-3xl bg-slate-900/85 border border-slate-700/80 p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="font-hud font-black text-sm text-cyan-200 flex items-center gap-2">
-                <Compass className="w-4 h-4 text-cyan-400" />
-                <span>مهام المستوى {activeLevelId} المتسلسلة (أو ادخل من أبواب الخريطة الـ 3D أعلاه):</span>
+        {/* Expandable Rooms & Sequential Missions Drawer */}
+        {isRoomsDrawerOpen && (
+          <div className="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+            <div className="w-full max-w-5xl rounded-3xl bg-slate-900 border-2 border-cyan-400/60 p-4 sm:p-6 space-y-4 shadow-2xl my-auto">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="font-hud font-black text-lg text-cyan-200 flex items-center gap-2">
+                    <Compass className="w-5 h-5 text-cyan-400" />
+                    <span>مهام وغرف {activeLevelSpec.titleAr}</span>
+                  </h2>
+                  <p className="text-xs text-slate-400">{activeLevelSpec.subtitleAr}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsRoomsDrawerOpen(false)}
+                  className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
+
               <div className="flex flex-wrap gap-1.5">
                 {activeLevelSpec.nasaDatasets.map((ds) => (
                   <span
@@ -334,171 +381,140 @@ export const CampaignHubView: React.FC = () => {
                   </span>
                 ))}
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-              {activeLevelSpec.miniGames.map((mgId) => {
-                const spec = MINI_GAME_SPECS[mgId];
-                const done = campaign.completedMiniGames.includes(mgId);
-                return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-[60vh] overflow-y-auto pr-1">
+                {activeLevelSpec.miniGames.map((mgId) => {
+                  const spec = MINI_GAME_SPECS[mgId];
+                  const done = campaign.completedMiniGames.includes(mgId);
+                  return (
+                    <button
+                      key={mgId}
+                      type="button"
+                      onClick={() => {
+                        soundManager.playClick();
+                        setIsRoomsDrawerOpen(false);
+                        setCampaignView('minigame', activeLevelId, spec.roomId, mgId);
+                      }}
+                      className={`p-3 rounded-2xl border-2 text-right flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                        done
+                          ? 'bg-emerald-950/50 border-emerald-400/70 text-white'
+                          : 'bg-slate-950/75 border-slate-700 hover:border-cyan-400 text-slate-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-2xl shrink-0">{spec.icon}</span>
+                        <div className="min-w-0">
+                          <div className="font-black text-xs truncate">
+                            {spec.orderInLevel}. {spec.titleAr}
+                          </div>
+                          <div className="text-[10px] text-slate-400 truncate">{spec.nasaBadge}</div>
+                        </div>
+                      </div>
+                      {done ? (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                      ) : (
+                        <span className="text-[11px] font-black text-cyan-300 shrink-0">ابدأ ←</span>
+                      )}
+                    </button>
+                  );
+                })}
+
+                {activeLevelId === 3 && (
                   <button
-                    key={mgId}
                     type="button"
                     onClick={() => {
-                      soundManager.playClick();
-                      setCampaignView('minigame', activeLevelId, spec.roomId, mgId);
+                      setIsRoomsDrawerOpen(false);
+                      setCampaignView('minigame', 3, 'mission_control', null);
                     }}
                     className={`p-3 rounded-2xl border-2 text-right flex items-center justify-between gap-2 transition-all cursor-pointer ${
-                      done
-                        ? 'bg-emerald-950/50 border-emerald-400/70 text-white'
-                        : 'bg-slate-950/75 border-slate-700 hover:border-cyan-400 text-slate-100'
+                      campaign.l3ReturnAuthorized
+                        ? 'bg-purple-950/60 border-purple-400 text-white'
+                        : 'bg-slate-950/75 border-purple-500/45 hover:border-purple-400 text-purple-100'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="text-2xl shrink-0">{spec.icon}</span>
+                      <span className="text-2xl shrink-0">🛸</span>
                       <div className="min-w-0">
                         <div className="font-black text-xs truncate">
-                          {spec.orderInLevel}. {spec.titleAr}
+                          مركز قيادة القمر (Mission Control)
                         </div>
-                        <div className="text-[10px] text-slate-400 truncate">{spec.nasaBadge}</div>
+                        <div className="text-[10px] text-purple-300 truncate">
+                          تفويض العودة إلى الأرض (المستوى 4)
+                        </div>
                       </div>
                     </div>
-                    {done ? (
+                    {campaign.l3ReturnAuthorized ? (
                       <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
                     ) : (
-                      <span className="text-[11px] font-black text-cyan-300 shrink-0">ابدأ ←</span>
+                      <span className="text-[11px] font-black text-purple-300 shrink-0">افحص ←</span>
                     )}
                   </button>
-                );
-              })}
-
-              {activeLevelId === 3 && (
-                <button
-                  type="button"
-                  onClick={() => setCampaignView('minigame', 3, 'mission_control', null)}
-                  className={`p-3 rounded-2xl border-2 text-right flex items-center justify-between gap-2 transition-all cursor-pointer ${
-                    campaign.l3ReturnAuthorized
-                      ? 'bg-purple-950/60 border-purple-400 text-white'
-                      : 'bg-slate-950/75 border-purple-500/45 hover:border-purple-400 text-purple-100'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="text-2xl shrink-0">🛸</span>
-                    <div className="min-w-0">
-                      <div className="font-black text-xs truncate">
-                        مركز قيادة القمر (Mission Control)
-                      </div>
-                      <div className="text-[10px] text-purple-300 truncate">
-                        تفويض العودة إلى الأرض (المستوى 4)
-                      </div>
-                    </div>
-                  </div>
-                  {campaign.l3ReturnAuthorized ? (
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                  ) : (
-                    <span className="text-[11px] font-black text-purple-300 shrink-0">افحص ←</span>
-                  )}
-                </button>
-              )}
+                )}
+              </div>
             </div>
-          </section>
-        </main>
+          </div>
+        )}
 
+        {/* Self-Sustaining Eco-Bio Cabin Modal Overlay */}
+        {isEcoCabinOpen && activeLevelId <= 3 && (
+          <div className="fixed inset-0 z-40 bg-slate-950/85 backdrop-blur-md p-3 sm:p-6 overflow-y-auto flex items-start sm:items-center justify-center">
+            <div className="w-full max-w-6xl my-auto">
+              <EcoBioCabin
+                levelId={activeLevelId}
+                campaign={campaign}
+                onUpdateCampaign={updateCampaignState}
+                onClose={() => setIsEcoCabinOpen(false)}
+              />
+            </div>
+          </div>
+        )}
+
+        <SpaceFitXShowcase
+          isOpen={isSuitShowcaseOpen}
+          suitState={campaign.spaceFitX}
+          onChangeSuitState={(next) => updateCampaignState({ spaceFitX: next })}
+          onClose={() => setIsSuitShowcaseOpen(false)}
+        />
         <ScientificSourcesModal isOpen={isSourcesOpen} onClose={() => setIsSourcesOpen(false)} />
       </div>
     );
   }
 
-  // ==================== VIEW 1: 3D WORLD PROGRESSION MAP (4 LEVELS) ====================
+  // ==================== VIEW 1: FULL-VIEWPORT 3D ARCHIPELAGO WORLD MAP ====================
   return (
     <div
-      className="min-h-screen w-full flex flex-col justify-between bg-gradient-to-b from-slate-950 via-[#0b1730] to-slate-950 text-white px-4 sm:px-8 py-4 sm:py-6 gap-5"
+      className="relative w-full h-[100dvh] overflow-hidden bg-[#07122b] text-white"
       dir="rtl"
     >
-      {/* Top Bar */}
-      <header className="max-w-7xl w-full mx-auto flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3 bg-slate-900/90 border border-cyan-400/40 rounded-2xl px-4 py-2 shadow-lg">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-300 via-pink-400 to-sky-400 border-2 border-white flex items-center justify-center text-xl">
-            👨‍🚀
-          </div>
-          <div>
-            <div className="font-hud font-black text-sm text-white">
-              {state.cadetName ? `البطل ${state.cadetName}` : 'رائد الفضاء الصغير'}
+      {/* Full-Viewport 3D Floating Islands Archipelago */}
+      <div className="absolute inset-0 w-full h-full z-0">
+        <WorldNavigator3D
+          campaign={campaign}
+          suitState={campaign.spaceFitX}
+          onSelectLevel={handleSelectLevel}
+        />
+      </div>
+
+      {/* Compact Single-Row Top Edge HUD Bar (Zero Overlap) */}
+      <header className="pointer-events-none fixed top-2 inset-x-2 sm:inset-x-4 z-30">
+        <div className="pointer-events-auto max-w-7xl mx-auto flex items-center justify-between gap-2 bg-slate-950/80 border border-cyan-400/40 backdrop-blur-md rounded-2xl px-2.5 sm:px-4 py-1.5 shadow-xl overflow-x-auto">
+          {/* Identity & Stars */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-300 via-pink-400 to-sky-400 border border-white flex items-center justify-center text-base shrink-0">
+              👨‍🚀
             </div>
-            <div className="text-[11px] text-cyan-300 font-bold">
-              التقدم الكامل: {campaign.completedMiniGames.length} / 21 مهمة فضائية
+            <div className="leading-tight">
+              <div className="font-hud font-black text-xs text-white whitespace-nowrap">
+                {state.cadetName ? state.cadetName : 'رائد الفضاء'}
+              </div>
+              <div className="text-[10px] text-cyan-300 font-bold whitespace-nowrap">
+                {campaign.completedMiniGames.length}/21 • ⭐ {totalStarsScore}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="px-3.5 py-2 rounded-2xl bg-amber-950/50 border border-amber-400/50 flex items-center gap-1.5 font-hud font-black text-sm text-amber-200">
-            <Star className="w-4 h-4 text-amber-300 fill-amber-300" />
-            <span>{totalStarsScore}</span>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              soundManager.playClick();
-              setIsSourcesOpen(true);
-            }}
-            className="px-3.5 py-2 rounded-2xl bg-emerald-700 hover:bg-emerald-600 text-white font-hud font-black text-xs sm:text-sm border border-emerald-300/60 shadow cursor-pointer flex items-center gap-1.5"
-          >
-            <BookOpen className="w-4 h-4 text-emerald-200" />
-            <span>مصادر علمية (13)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              soundManager.playClick();
-              setLocation('SpaceScience');
-            }}
-            className="px-3.5 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-hud font-black text-xs sm:text-sm border border-indigo-300/60 shadow cursor-pointer flex items-center gap-1.5"
-          >
-            <span>🪐</span>
-            <span>الكواكب والـ 42 سؤال</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              soundManager.playClick();
-              setIsNasaOpen(true);
-            }}
-            className="px-3.5 py-2 rounded-2xl bg-cyan-900/80 hover:bg-cyan-800 text-cyan-100 font-hud font-black text-xs sm:text-sm border border-cyan-400/50 cursor-pointer flex items-center gap-1.5"
-          >
-            <Satellite className="w-4 h-4 text-cyan-300" />
-            <span>بيانات ناسا الحية</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              soundManager.playClick();
-              setIsSettingsOpen(true);
-            }}
-            className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 cursor-pointer"
-            aria-label="الإعدادات"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
-        </div>
-      </header>
-
-      {/* Main Content: 3D World Navigator + 4 Sequential Level Cards */}
-      <main className="max-w-7xl w-full mx-auto flex-1 flex flex-col gap-5">
-        <div className="text-center space-y-2.5">
-          <h1 className="font-hud font-black text-2xl sm:text-3xl bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-white to-amber-300">
-            🚀 خريطة رحلة أسترونوتري الثلاثية الأبعاد (4 مستويات • 21 مهمة)
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-300 max-w-3xl mx-auto">
-            ابدأ من <strong>الأرض</strong>، ثم انطلق في <strong>انعدام الجاذبية</strong>، واستكشف <strong>المستعمرة القمرية</strong>، ثم عُد بأمان إلى <strong>كوكب الأرض</strong>!
-          </p>
-
-          {/* Bold Tactile 2.5D Action Strip (PLAY, LEVELS, HOW TO PLAY, ECO-CABIN, SOURCES) */}
-          <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+          {/* Primary Action Ribbon */}
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={() => {
@@ -506,34 +522,36 @@ export const CampaignHubView: React.FC = () => {
                   [...campaign.unlockedLevels].sort((a, b) => b - a)[0] || 1;
                 handleSelectLevel(highestUnlocked);
               }}
-              className="px-5 py-2.5 rounded-2xl bg-gradient-to-b from-emerald-400 to-teal-600 text-slate-950 font-hud font-black text-sm border-2 border-emerald-200 shadow-[0_5px_0_#0f766e] active:translate-y-0.5 cursor-pointer flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-xl bg-gradient-to-b from-emerald-400 to-teal-600 text-slate-950 font-hud font-black text-xs border border-emerald-100 cursor-pointer flex items-center gap-1 whitespace-nowrap"
             >
-              <Play className="w-4 h-4 fill-slate-950" />
-              <span>PLAY • ابدأ اللعب</span>
+              <Play className="w-3.5 h-3.5 fill-slate-950" />
+              <span>ابدأ اللعب</span>
             </button>
 
             <button
               type="button"
+              data-testid="toggle-levels-drawer-btn"
               onClick={() => {
                 soundManager.playClick();
-                document.getElementById('campaign-levels-grid')?.scrollIntoView({ behavior: 'smooth' });
+                setIsLevelsDrawerOpen((v) => !v);
               }}
-              className="px-4 py-2.5 rounded-2xl bg-gradient-to-b from-sky-400 to-blue-600 text-white font-hud font-black text-xs sm:text-sm border-2 border-sky-200 shadow-[0_5px_0_#1e40af] active:translate-y-0.5 cursor-pointer flex items-center gap-1.5"
+              className="px-2.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-hud font-black text-xs border border-sky-300/60 cursor-pointer flex items-center gap-1 whitespace-nowrap"
             >
-              <Rocket className="w-4 h-4" />
-              <span>LEVELS • المستويات (4)</span>
+              <Layers className="w-3.5 h-3.5" />
+              <span>المستويات (4)</span>
             </button>
 
             <button
               type="button"
+              data-testid="open-spacefitx-showcase"
               onClick={() => {
                 soundManager.playClick();
-                setIsHowToPlayOpen(true);
+                setIsSuitShowcaseOpen(true);
               }}
-              className="px-4 py-2.5 rounded-2xl bg-gradient-to-b from-amber-300 to-orange-500 text-slate-950 font-hud font-black text-xs sm:text-sm border-2 border-amber-100 shadow-[0_5px_0_#b45309] active:translate-y-0.5 cursor-pointer flex items-center gap-1.5"
+              className="px-2.5 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-hud font-black text-xs border border-cyan-100 cursor-pointer flex items-center gap-1 whitespace-nowrap"
             >
-              <HelpCircle className="w-4 h-4" />
-              <span>HOW TO PLAY • كيف تلعب</span>
+              <Shield className="w-3.5 h-3.5" />
+              <span>SPACE-FIT X</span>
             </button>
 
             <button
@@ -542,120 +560,48 @@ export const CampaignHubView: React.FC = () => {
                 soundManager.playClick();
                 setIsEcoCabinOpen((v) => !v);
               }}
-              className="px-4 py-2.5 rounded-2xl bg-gradient-to-b from-lime-400 to-emerald-600 text-slate-950 font-hud font-black text-xs sm:text-sm border-2 border-lime-100 shadow-[0_5px_0_#15803d] active:translate-y-0.5 cursor-pointer flex items-center gap-1.5"
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-hud font-black text-xs border border-emerald-300/60 cursor-pointer flex items-center gap-1 whitespace-nowrap"
             >
-              <Sprout className="w-4 h-4" />
-              <span>كابينة الزراعة المائية 🌱</span>
+              <Sprout className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">الزراعة</span>
             </button>
-          </div>
-        </div>
 
-        {isEcoCabinOpen && (
-          <EcoBioCabin
-            levelId={activeLevelId <= 3 ? activeLevelId : 3}
-            campaign={campaign}
-            onUpdateCampaign={updateCampaignState}
-            onClose={() => setIsEcoCabinOpen(false)}
-          />
-        )}
+            <button
+              type="button"
+              onClick={() => {
+                soundManager.playClick();
+                setLocation('SpaceScience');
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-hud font-black text-xs border border-indigo-300/60 cursor-pointer flex items-center gap-1 whitespace-nowrap"
+            >
+              <span>🪐</span>
+              <span className="hidden sm:inline">الكواكب</span>
+            </button>
 
-        <div className="h-[340px] sm:h-[400px] w-full">
-          <WorldNavigator3D campaign={campaign} onSelectLevel={handleSelectLevel} />
-        </div>
+            <button
+              type="button"
+              onClick={() => {
+                soundManager.playClick();
+                setIsSourcesOpen(true);
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-200 font-hud font-black text-xs border border-emerald-400/40 cursor-pointer flex items-center gap-1 whitespace-nowrap"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-emerald-300" />
+              <span className="hidden lg:inline">مصادر (13)</span>
+            </button>
 
-        {/* 4 Sequential Progression Cards */}
-        <section id="campaign-levels-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          {([1, 2, 3, 4] as CampaignLevelId[]).map((lvlId) => {
-            const lvl = CAMPAIGN_LEVELS[lvlId];
-            const unlocked = campaign.unlockedLevels.includes(lvlId);
-            const doneCount = lvl.miniGames.filter((id) =>
-              campaign.completedMiniGames.includes(id)
-            ).length;
-            const total = lvl.miniGames.length;
-            const completedAll = doneCount >= total && (lvlId !== 3 || campaign.l3ReturnAuthorized);
+            <button
+              type="button"
+              onClick={() => {
+                soundManager.playClick();
+                setIsNasaOpen(true);
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-cyan-950/90 hover:bg-cyan-900 text-cyan-200 font-hud font-black text-xs border border-cyan-400/40 cursor-pointer flex items-center gap-1 whitespace-nowrap"
+            >
+              <Satellite className="w-3.5 h-3.5 text-cyan-300" />
+              <span className="hidden lg:inline">NASA</span>
+            </button>
 
-            return (
-              <motion.div
-                key={lvlId}
-                whileHover={unlocked ? { y: -3 } : undefined}
-                className={`rounded-3xl p-4 border-2 flex flex-col justify-between gap-3 transition-all ${
-                  !unlocked
-                    ? 'bg-slate-950/75 border-slate-800 opacity-75'
-                    : completedAll
-                    ? 'bg-emerald-950/35 border-emerald-400/70 shadow-lg'
-                    : 'bg-slate-900/90 border-cyan-400/60 shadow-xl'
-                }`}
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span
-                      className="px-2.5 py-0.5 rounded-full text-[11px] font-black text-slate-950"
-                      style={{ backgroundColor: unlocked ? lvl.themeColorHex : '#64748b' }}
-                    >
-                      المستوى {lvlId}
-                    </span>
-                    <span className="text-xs font-bold text-slate-300">
-                      {lvl.rooms.length} غرف • {total} مهام
-                    </span>
-                  </div>
-
-                  <h3 className="font-hud font-black text-base text-white">{lvl.titleAr}</h3>
-                  <p className="text-xs text-slate-300 leading-relaxed">{lvl.subtitleAr}</p>
-                </div>
-
-                <div className="space-y-2.5">
-                  <div className="h-2 rounded-full bg-slate-950 overflow-hidden border border-slate-800">
-                    <div
-                      className="h-full transition-all"
-                      style={{
-                        width: `${Math.round((doneCount / total) * 100)}%`,
-                        backgroundColor: completedAll ? '#34d399' : lvl.themeColorHex
-                      }}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-300">
-                    <span>التقدم: {doneCount}/{total}</span>
-                    {completedAll ? (
-                      <span className="text-emerald-300">✅ مكتمل</span>
-                    ) : unlocked ? (
-                      <span className="text-cyan-300">مفتوح</span>
-                    ) : (
-                      <span className="text-slate-400">🔒 مقفل</span>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={!unlocked}
-                    onClick={() => handleSelectLevel(lvlId)}
-                    className={`w-full py-2.5 rounded-2xl font-hud font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all ${
-                      unlocked
-                        ? 'bg-gradient-to-r from-cyan-500 to-sky-600 hover:from-cyan-400 hover:to-sky-500 text-slate-950 cursor-pointer shadow'
-                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                    }`}
-                  >
-                    {unlocked ? (
-                      <>
-                        <Rocket className="w-4 h-4" />
-                        <span>دخول خريطة المستوى {lvlId}</span>
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="w-4 h-4" />
-                        <span>أكمل المستوى {lvlId - 1} أولاً</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </motion.div>
-            );
-          })}
-        </section>
-
-        {/* Bottom Robo Prompt + Attribution */}
-        <footer className="rounded-3xl bg-slate-900/75 border border-slate-800 p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={() => {
@@ -664,27 +610,192 @@ export const CampaignHubView: React.FC = () => {
                   dialogueManager.stop();
                 } else {
                   dialogueManager.speak(
-                    'أهلاً يا بطل! اختر المستوى المفتوح على خريطة العالم الـ 3D وتحرك داخل الغرف لإكمال الـ 21 تحدياً!'
+                    'أهلاً يا بطل! استكشف الجزر الطائرة في الأرخبيل واضغط على جزيرة أو تحرك إليها لدخول الـ 21 تحدياً!'
                   );
                 }
               }}
-              className="px-3 py-1.5 rounded-xl bg-cyan-950 border border-cyan-400/50 text-cyan-200 font-bold flex items-center gap-1.5 cursor-pointer"
+              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-200 border border-cyan-400/40 cursor-pointer"
+              aria-label="صوت كابتن روبو"
             >
               <Volume2 className={`w-4 h-4 ${isAudioPlaying ? 'animate-pulse text-amber-300' : ''}`} />
-              <span>{isAudioPlaying ? 'إيقاف صوت روبو' : 'اسمع كابتن روبو'}</span>
             </button>
-            <span className="text-slate-300 font-bold">
-              التخزين: {storageStatus === 'VALID_SAVE' || storageStatus === 'NO_SAVE' ? '✅ محفوظ تلقائياً' : 'وضع الحماية الآمن'}
-            </span>
-          </div>
 
-          <div className="text-slate-400 flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>{nasaCache.getAttribution()} • NASA OSDR Biological Datasets</span>
-          </div>
-        </footer>
-      </main>
+            <button
+              type="button"
+              onClick={() => {
+                soundManager.playClick();
+                setIsHowToPlayOpen(true);
+              }}
+              className="p-1.5 rounded-xl bg-amber-400/90 hover:bg-amber-300 text-slate-950 border border-amber-100 cursor-pointer"
+              aria-label="كيف تلعب"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
 
+            <button
+              type="button"
+              onClick={() => {
+                soundManager.playClick();
+                setIsSettingsOpen(true);
+              }}
+              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 cursor-pointer"
+              aria-label="الإعدادات"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Expandable 4-Level Sequential Overview Modal Drawer */}
+      {isLevelsDrawerOpen && (
+        <div className="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="w-full max-w-6xl rounded-3xl bg-slate-900 border-2 border-cyan-400/60 p-4 sm:p-6 space-y-4 shadow-2xl my-auto">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h2 className="font-hud font-black text-lg sm:text-xl text-cyan-200">
+                  🚀 خريطة المستويات المتسلسلة (4 مستويات • 21 مهمة)
+                </h2>
+                <p className="text-xs text-slate-400">
+                  التخزين: {storageStatus === 'VALID_SAVE' || storageStatus === 'NO_SAVE' ? '✅ محفوظ تلقائياً' : 'وضع الحماية'} •{' '}
+                  {nasaCache.getAttribution()}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLevelsDrawerOpen(false)}
+                className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <section id="campaign-levels-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+              {([1, 2, 3, 4] as CampaignLevelId[]).map((lvlId) => {
+                const lvl = CAMPAIGN_LEVELS[lvlId];
+                const unlocked = campaign.unlockedLevels.includes(lvlId);
+                const doneCount = lvl.miniGames.filter((id) =>
+                  campaign.completedMiniGames.includes(id)
+                ).length;
+                const total = lvl.miniGames.length;
+                const completedAll = doneCount >= total && (lvlId !== 3 || campaign.l3ReturnAuthorized);
+
+                return (
+                  <motion.div
+                    key={lvlId}
+                    whileHover={unlocked ? { y: -3 } : undefined}
+                    className={`rounded-3xl p-4 border-2 flex flex-col justify-between gap-3 transition-all ${
+                      !unlocked
+                        ? 'bg-slate-950/75 border-slate-800 opacity-75'
+                        : completedAll
+                        ? 'bg-emerald-950/35 border-emerald-400/70 shadow-lg'
+                        : 'bg-slate-950/85 border-cyan-400/60 shadow-xl'
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className="px-2.5 py-0.5 rounded-full text-[11px] font-black text-slate-950"
+                          style={{ backgroundColor: unlocked ? lvl.themeColorHex : '#64748b' }}
+                        >
+                          المستوى {lvlId}
+                        </span>
+                        <span className="text-xs font-bold text-slate-300">
+                          {lvl.rooms.length} غرف • {total} مهام
+                        </span>
+                      </div>
+
+                      <h3 className="font-hud font-black text-base text-white">{lvl.titleAr}</h3>
+                      <p className="text-xs text-slate-300 leading-relaxed">{lvl.subtitleAr}</p>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      <div className="h-2 rounded-full bg-slate-900 overflow-hidden border border-slate-800">
+                        <div
+                          className="h-full transition-all"
+                          style={{
+                            width: `${Math.round((doneCount / total) * 100)}%`,
+                            backgroundColor: completedAll ? '#34d399' : lvl.themeColorHex
+                          }}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-300">
+                        <span>التقدم: {doneCount}/{total}</span>
+                        {completedAll ? (
+                          <span className="text-emerald-300">✅ مكتمل</span>
+                        ) : unlocked ? (
+                          <span className="text-cyan-300">مفتوح</span>
+                        ) : (
+                          <span className="text-slate-400">🔒 مقفل</span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={!unlocked}
+                        onClick={() => {
+                          setIsLevelsDrawerOpen(false);
+                          handleSelectLevel(lvlId);
+                        }}
+                        className={`w-full py-2.5 rounded-2xl font-hud font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all ${
+                          unlocked
+                            ? 'bg-gradient-to-r from-cyan-500 to-sky-600 hover:from-cyan-400 hover:to-sky-500 text-slate-950 cursor-pointer shadow'
+                            : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                        }`}
+                      >
+                        {unlocked ? (
+                          <>
+                            <Rocket className="w-4 h-4" />
+                            <span>دخول جزيرة المستوى {lvlId}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="w-4 h-4" />
+                            <span>أكمل المستوى {lvlId - 1} أولاً</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </section>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800 text-xs text-slate-400">
+              <div className="flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span>NASA OSDR Biological Datasets & Eco-Nutrition System</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Star className="w-4 h-4 text-amber-300 fill-amber-300" />
+                <span className="font-bold text-amber-200">{totalStarsScore} نجمة</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Self-Sustaining Eco-Bio Cabin Modal Overlay */}
+      {isEcoCabinOpen && (
+        <div className="fixed inset-0 z-40 bg-slate-950/85 backdrop-blur-md p-3 sm:p-6 overflow-y-auto flex items-start sm:items-center justify-center">
+          <div className="w-full max-w-6xl my-auto">
+            <EcoBioCabin
+              levelId={activeLevelId <= 3 ? activeLevelId : 3}
+              campaign={campaign}
+              onUpdateCampaign={updateCampaignState}
+              onClose={() => setIsEcoCabinOpen(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      <SpaceFitXShowcase
+        isOpen={isSuitShowcaseOpen}
+        suitState={campaign.spaceFitX}
+        onChangeSuitState={(next) => updateCampaignState({ spaceFitX: next })}
+        onClose={() => setIsSuitShowcaseOpen(false)}
+      />
       <SettingsMenu isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       <NasaMissionControlDrawer isOpen={isNasaOpen} onClose={() => setIsNasaOpen(false)} />
       <ScientificSourcesModal isOpen={isSourcesOpen} onClose={() => setIsSourcesOpen(false)} />
@@ -709,9 +820,9 @@ export const CampaignHubView: React.FC = () => {
               </button>
             </div>
             <ul className="space-y-2 text-xs sm:text-sm text-slate-200 leading-relaxed">
-              <li>1️⃣ <strong>تقدّم بالترتيب عبر 4 مستويات:</strong> التحضير على الأرض ← السفر في 0G ← مستعمرة القمر ← العودة للأرض.</li>
-              <li>2️⃣ <strong>حرّك كابتن روبو في الخريطة الـ 3D:</strong> بمفاتيح الأسهم / WASD أو أزرار اللمس أو اضغط مباشرة على باب أي غرفة.</li>
-              <li>3️⃣ <strong>الأكلات المصرية والسيناوية وكابينة الزراعة:</strong> اجمع أكلات آمنة بلا فتات (مثل المش والعجوة والطحينة والجرجير والكابوتشا واللفت).</li>
+              <li>1️⃣ <strong>تجول في الأرخبيل الـ 3D:</strong> تحرك بمفاتيح WASD / الأسهم أو عصا التحكم واقفز بزر Space عبر الجزر الأربع والجسور السماوية!</li>
+              <li>2️⃣ <strong>بدلة SPACE-FIT X الذكية:</strong> افتح عارض البدلة واستخدم الـ 7 وحدات للضغط الذكي والمقاومة والحصاد الحركي للطاقة.</li>
+              <li>3️⃣ <strong>الأكلات المصرية والسيناوية وعسل النحل:</strong> جهّز عسل النحل الجبلي السيناوي والمش والعجوة والطحينة والجرجير والكابوتشا بلا فتات.</li>
               <li>4️⃣ <strong>المصداقية العلمية:</strong> كل حقيقة تحمل شارة صريحة تميّز بين المثبت على ISS ✅ والتجريبي 🧪 والتخطيطي 📐 وتبسيط اللعبة 🎮.</li>
             </ul>
             <button

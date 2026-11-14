@@ -9,6 +9,8 @@ import {
 import { nasaCache } from '../../services/nasa/nasaCache';
 import { NASA_ENGINEERING_TRADEOFFS, NASA_OSDR_METRICS } from '../../services/nasa/nasaOSDR';
 import { ISS_WATER_MILESTONE, SCIENCE_BADGES } from '../../data/science';
+import { SpaceFitXControlsHUD } from '../suit/SpaceFitXControlsHUD';
+import { initialSpaceFitXState } from '../../context/GameContext';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { AlertTriangle, CheckCircle2, ShieldAlert, Sun, Wrench } from 'lucide-react';
@@ -132,6 +134,7 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
   // ---------------------------------------------------------------------------
   if (miniGameId === 'l3_resistance_training') {
     const osdrBone = NASA_OSDR_METRICS[0];
+    const suit = campaign.spaceFitX || initialSpaceFitXState;
     const currentLabel =
       exStage === 'leg'
         ? '1️⃣ تمرين الأرجل (Squat Press)'
@@ -143,7 +146,25 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
 
     const doRep = () => {
       if (exStage === 'done') return;
+      if (suit.emergencyReleased) {
+        soundManager.playAlertSiren();
+        return;
+      }
       soundManager.playClick();
+      // Kinetic Energy Harvesting via SPACE-FIT X Module 07 while exercising
+      const avgLoad = Math.round(Object.values(suit.jointLoads).reduce((a, b) => a + b, 0) / 5);
+      const harvestedGain = Number((0.6 + avgLoad * 0.015).toFixed(1));
+      onUpdateCampaign({
+        spaceFitX: {
+          ...suit,
+          heartRateBpm: Math.min(162, Math.max(108, suit.heartRateBpm + 4)),
+          muscleLoadPct: Math.min(98, Math.max(avgLoad, suit.muscleLoadPct + 6)),
+          jointAngleDeg: exStage === 'leg' ? 78 : exStage === 'arm' ? 54 : 32,
+          harvestedWh: Number((suit.harvestedWh + harvestedGain).toFixed(1)),
+          batteryPercent: Math.min(100, suit.batteryPercent + 2)
+        }
+      });
+
       const nextReps = exReps + 1;
       if (nextReps >= 3) {
         soundManager.playDropSuccess();
@@ -153,7 +174,7 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
         else if (exStage === 'core') {
           setExStage('done');
           soundManager.playFanfare();
-          void dialogueManager.speak('عاش يا بطل! تمارين المقاومة حمت عظامنا وعضلاتنا حسب أبحاث ناسا OSDR!');
+          void dialogueManager.speak('عاش يا بطل! تمارين المقاومة ببدلة SPACE-FIT X حمت عظامنا وحصدت طاقة حركية للبطارية!');
           onCompleteMiniGame('l3_resistance_training', { l3BoneMuscleScore: 100 });
         }
       } else {
@@ -181,16 +202,32 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
 
         <div className="p-6 rounded-2xl bg-slate-950 border border-emerald-500/40 text-center space-y-3">
           <p className="font-hud font-black text-xl text-white">{currentLabel}</p>
+          {suit.emergencyReleased && (
+            <p className="text-xs font-black text-rose-300">
+              ⚠️ تم تفعيل زر الإفلات السريع! أعد قفل مقاومة بدلة SPACE-FIT X من الأسفل لإكمال التمرين.
+            </p>
+          )}
           {exStage !== 'done' && (
             <button
               type="button"
+              disabled={suit.emergencyReleased}
               onClick={doRep}
-              className="px-8 py-4 rounded-2xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-hud font-black text-lg border-2 border-white cursor-pointer hover:scale-105 transition-transform"
+              className={`px-8 py-4 rounded-2xl font-hud font-black text-lg border-2 border-white transition-transform ${
+                suit.emergencyReleased
+                  ? 'bg-slate-800 text-slate-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 cursor-pointer hover:scale-105'
+              }`}
             >
-              اسحب / اضغط للتمرين ({exReps}/3) 🏋️
+              اسحب كابلات SPACE-FIT X وحصد طاقة ({exReps}/3) 🏋️
             </button>
           )}
         </div>
+
+        <SpaceFitXControlsHUD
+          compact
+          suitState={suit}
+          onChange={(next) => onUpdateCampaign({ spaceFitX: next })}
+        />
       </div>
     );
   }
@@ -468,6 +505,9 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
 
     return (
       <div className="bg-slate-900/95 border-2 border-indigo-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
+        <div className="p-3 rounded-2xl bg-cyan-950/60 border border-cyan-400/50 text-xs text-cyan-100 leading-relaxed">
+          🦺 <strong>معلومة علمية:</strong> داخل المحطة ترتدي بدلة التدريب <strong>SPACE-FIT X (IVA)</strong> الخفيفة، أما عند الخروج لسطح القمر فيلزم ارتداء بدلة الضغط الخارجية <strong>Artemis xEMU (EVA)</strong> ذات الخوذة والضغط الجوي!
+        </div>
         {/* Part A: Suit Assembly */}
         <div>
           <h3 className="font-hud font-black text-sm sm:text-base text-cyan-200 mb-2">

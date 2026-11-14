@@ -130,7 +130,7 @@ export const MissionSuccessModal: React.FC<MissionSuccessModalProps> = ({ onProc
               <span>التغليف الآمن للجاذبية الصغرى:</span>
             </span>
             <span className="font-black text-emerald-400 flex items-center gap-1">
-              🌯 تورتيلا وعبوات محكمة الصمامات
+              🍯 عسل سيناوي وعبوات محكمة الصمامات
             </span>
           </div>
 

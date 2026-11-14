@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 
 const DEFAULT_ROBO_TEXT =
-  'أهلاً بك في مختبر التغذية الفضائي! اسحب أو اضغط على 4 وجبات فضائية آمنة (مثل التورتيلا، عبوة الفضاء، كيس العصير، التفاح، البروكلي، والحليب) داخل الصندوق وتجنب الأطعمة المتفتتة أو الغازية! 🎯';
+  'أهلاً بك في مختبر التغذية الفضائي! اسحب أو اضغط على 4 وجبات فضائية آمنة (مثل العسل السيناوي، عبوة الفضاء، كيس العصير، التفاح، البروكلي، والحليب) داخل الصندوق وتجنب الأطعمة المتفتتة أو الغازية! 🎯';
 
 export const NutritionLab: React.FC = () => {
   const {
@@ -238,8 +238,8 @@ export const NutritionLab: React.FC = () => {
         {/* Title & Objective */}
         <div className="flex items-center gap-3">
           <img
-            src="/assets/sprites/food/food-tortilla.png"
-            alt="تورتيلا الفضاء"
+            src="/assets/food/sinai_honey.svg"
+            alt="عسل النحل الجبلي السيناوي"
             className="w-11 h-11 sm:w-12 sm:h-12 object-contain drop-shadow"
           />
           <div className="text-right">
@@ -563,7 +563,7 @@ export const NutritionLab: React.FC = () => {
               <InteractiveQuizDeck
                 questions={NUTRITION_QUIZ_QUESTIONS}
                 titleAr="تحدي غذاء رواد الفضاء من ناسا"
-                subtitleAr="تعرف على سر التورتيلا، منع الفتات في 0G، والبوتاسيوم لحماية العظام!"
+                subtitleAr="تعرف على سر العسل السيناوي، منع الفتات في 0G، والبوتاسيوم لحماية العظام!"
                 accent="emerald"
                 milestoneCount={3}
               />

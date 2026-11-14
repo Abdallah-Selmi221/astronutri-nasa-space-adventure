@@ -162,6 +162,34 @@ export type LunarSampleId = 'basalt_rock' | 'regolith_dust' | 'crater_pebbles';
 
 export type CampaignViewMode = 'world_map' | 'level_hub' | 'minigame';
 
+export type SpaceFitXJointKey = 'shoulders' | 'elbows' | 'hips' | 'knees' | 'ankles';
+
+export interface SpaceFitXState {
+  // Module 01: Smart Compression
+  compressionLevel: 'low' | 'medium' | 'high';
+  // Module 02: Independent Resistance (Shoulders, Elbows, Hips, Knees, Ankles)
+  resistanceMode: 'level1' | 'level2' | 'level3' | 'custom';
+  jointLoads: Record<SpaceFitXJointKey, number>;
+  // Module 03: Impact Protection (Viscoelastic/TPU Pads on joints & spine)
+  impactProtectionActive: boolean;
+  // Module 04: Emergency Response (Quick release + first-aid pouch)
+  emergencyReleased: boolean;
+  medicalPouchReady: boolean;
+  // Module 05: Physiological Monitoring
+  heartRateBpm: number;
+  skinTempC: number;
+  muscleLoadPct: number;
+  jointAngleDeg: number;
+  // Module 06: Personal Radiation Dosimeter (Monitoring / partial shielding only)
+  dosimeterCurrentMsv: number;
+  dosimeterCumulativeMsv: number;
+  // Module 07: Energy Management & Kinetic Harvesting
+  batteryAttached: boolean;
+  batteryPercent: number;
+  powerDrawWatts: number;
+  harvestedWh: number;
+}
+
 export interface CampaignProgressState {
   viewMode: CampaignViewMode;
   activeLevel: CampaignLevelId;
@@ -196,6 +224,8 @@ export interface CampaignProgressState {
   ecoWaterRecyclingOk?: boolean;
   ecoCropsHarvested?: string[];
   ecoPowerSplit?: { water: number; hydro: number; shield: number };
+  // SPACE-FIT X (Prototype 1.0) IVA Countermeasure Garment State
+  spaceFitX?: SpaceFitXState;
 }
 
 export interface GameState {

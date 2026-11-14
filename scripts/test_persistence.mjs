@@ -149,7 +149,7 @@ async function runTests() {
     unlockedRooms: ['Map', 'NutritionLab', 'SpaceScience', 'HumanHealth', 'SuitRoom'],
     cargoWeight: 85,
     cargoItems: [
-      { item: { id: 'tortilla', category: 'carbs', weightPercentage: 25 }, quantity: 1 },
+      { item: { id: 'sinai_honey', category: 'carbs', weightPercentage: 25 }, quantity: 1 },
       { item: { id: 'space_beef', category: 'protein', weightPercentage: 35 }, quantity: 1 }
     ],
     nutritionScore: {
