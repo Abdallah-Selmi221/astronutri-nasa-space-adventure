@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="starGrad" x1="12" y1="6" x2="52" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFF7AE"/>
+      <stop offset="45%" stop-color="#FFD166"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+    <linearGradient id="rimGrad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="29" fill="#1E293B" stroke="#38BDF8" stroke-width="4"/>
+  <path d="M32 10L38.4 23.2L53 25.3L42.4 35.5L45 50L32 43.1L19 50L21.6 35.5L11 25.3L25.6 23.2L32 10Z" fill="url(#starGrad)" stroke="url(#rimGrad)" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M26 24L32 13L35 22L26 24Z" fill="#FFFFFF" fill-opacity="0.65"/>
+</svg>

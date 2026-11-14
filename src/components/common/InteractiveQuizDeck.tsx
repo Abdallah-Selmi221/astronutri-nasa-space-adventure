@@ -3,6 +3,7 @@ import { Check, ChevronLeft, ChevronRight, Radio, RotateCcw, Sparkles, Star, X }
 import { QuizQuestion } from '../../data/questionBanks';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { soundManager } from '../../utils/sound';
+import { shuffleArray } from '../../utils/shuffle';
 
 interface InteractiveQuizDeckProps {
   questions: readonly QuizQuestion[];
@@ -15,6 +16,12 @@ interface InteractiveQuizDeckProps {
 }
 
 const OPTION_LETTERS = ['أ', 'ب', 'ج', 'د'];
+const OPTION_BADGE_COLORS = [
+  'bg-sky-500 text-white border-sky-200/70',
+  'bg-violet-500 text-white border-violet-200/70',
+  'bg-amber-400 text-slate-950 border-amber-100/80',
+  'bg-pink-500 text-white border-pink-200/70'
+];
 
 export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
   questions,
@@ -28,9 +35,19 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<string, { optionId: string; isCorrect: boolean }>>({});
   const [milestoneFired, setMilestoneFired] = useState(false);
+  const [attemptNonce, setAttemptNonce] = useState(0);
 
   const safeQuestions = questions.length > 0 ? questions : [];
+  const shuffledOptionsByQuestion = useMemo(() => {
+    const map: Record<string, QuizQuestion['options']> = {};
+    for (const q of safeQuestions) {
+      map[q.id] = shuffleArray(q.options);
+    }
+    return map;
+  }, [safeQuestions, attemptNonce]);
+
   const currentQ = safeQuestions[currentIdx];
+  const activeOptions = currentQ ? (shuffledOptionsByQuestion[currentQ.id] ?? currentQ.options) : [];
 
   const stats = useMemo(() => {
     const entries = Object.values(answers);
@@ -43,7 +60,7 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
 
   const selectedAnswer = answers[currentQ.id];
   const selectedOption = selectedAnswer
-    ? currentQ.options.find((opt) => opt.id === selectedAnswer.optionId)
+    ? activeOptions.find((opt) => opt.id === selectedAnswer.optionId)
     : undefined;
 
   const handleSelectOption = (option: QuizQuestion['options'][number]) => {
@@ -88,6 +105,7 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
     setAnswers({});
     setCurrentIdx(0);
     setMilestoneFired(false);
+    setAttemptNonce((prev) => prev + 1);
   };
 
   const accentBadge =
@@ -154,7 +172,7 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
       </div>
 
       {/* Numbered Question Pills */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+      <div className="flex flex-wrap items-center gap-1.5 pb-1">
         {safeQuestions.map((q, idx) => {
           const ans = answers[q.id];
           const isCurrent = idx === currentIdx;
@@ -184,17 +202,17 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
       </div>
 
       {/* Active Question Card */}
-      <div className="rounded-[24px] bg-slate-950/75 border-2 border-white/20 p-4 sm:p-5 space-y-4">
+      <div className="rounded-[26px] bg-slate-950/80 border-2 border-cyan-300/35 p-4 sm:p-5 space-y-4 shadow-[0_8px_0_rgba(15,23,42,0.75)]">
         <div className="flex items-start gap-3">
-          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-indigo-500/40 to-cyan-500/30 border-2 border-cyan-300/50 flex items-center justify-center text-2xl sm:text-3xl shrink-0 shadow-md">
+          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-indigo-500/45 to-cyan-500/35 border-2 border-cyan-300/60 flex items-center justify-center text-2xl sm:text-3xl shrink-0 shadow-md">
             {currentQ.icon}
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="text-[11px] font-hud font-black text-cyan-300">
                 سؤال {currentIdx + 1} من {safeQuestions.length}
               </span>
-              <span className="text-[10px] font-hud font-bold px-2 py-0.5 rounded-full bg-indigo-500/30 border border-indigo-300/40 text-indigo-100">
+              <span className="text-[10px] font-hud font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/35 border border-indigo-300/50 text-indigo-100">
                 🛰️ {currentQ.nasaBadgeAr}
               </span>
             </div>
@@ -206,30 +224,40 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
 
         {/* Options */}
         <div className="grid grid-cols-1 gap-2.5">
-          {currentQ.options.map((option, optIdx) => {
+          {activeOptions.map((option, optIdx) => {
             const isSelected = selectedAnswer?.optionId === option.id;
             const showCorrectHighlight = isSelected && option.isCorrect;
             const showWrongHighlight = isSelected && !option.isCorrect;
             const revealCorrect = Boolean(selectedAnswer?.isCorrect) && option.isCorrect;
+            const badgeColor =
+              showCorrectHighlight || revealCorrect
+                ? 'bg-emerald-400 text-slate-950 border-white'
+                : showWrongHighlight
+                ? 'bg-rose-400 text-slate-950 border-white'
+                : OPTION_BADGE_COLORS[optIdx % OPTION_BADGE_COLORS.length];
 
             return (
               <button
                 key={option.id}
                 type="button"
+                data-testid={`quiz-option-${option.id}`}
+                data-correct={option.isCorrect ? 'true' : 'false'}
                 onClick={() => handleSelectOption(option)}
-                className={`w-full text-right p-3.5 rounded-2xl border-2 font-hud font-bold text-sm sm:text-base transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                className={`w-full text-right p-3.5 rounded-2xl border-2 border-b-4 font-hud font-bold text-sm sm:text-base transition-all cursor-pointer flex items-center justify-between gap-3 active:translate-y-0.5 ${
                   showCorrectHighlight || revealCorrect
-                    ? 'bg-emerald-500/30 border-emerald-300 text-white shadow-[0_4px_0_#047857]'
+                    ? 'bg-emerald-500/35 border-emerald-300 text-white shadow-[0_4px_0_#047857]'
                     : showWrongHighlight
-                    ? 'bg-rose-500/30 border-rose-300 text-rose-100'
-                    : 'bg-slate-900/80 hover:bg-indigo-900/60 border-white/20 hover:border-cyan-300/70 text-slate-100 shadow-[0_4px_0_rgba(15,23,42,0.9)] active:translate-y-0.5'
+                    ? 'bg-rose-500/35 border-rose-300 text-rose-100 shadow-[0_4px_0_#9f1239]'
+                    : 'bg-slate-900/85 hover:bg-indigo-900/70 border-white/25 hover:border-cyan-300/80 text-slate-100 shadow-[0_4px_0_rgba(15,23,42,0.95)]'
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center font-black text-xs shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span
+                    className={`w-8 h-8 rounded-xl border flex items-center justify-center font-black text-xs shrink-0 shadow-sm ${badgeColor}`}
+                  >
                     {OPTION_LETTERS[optIdx] || optIdx + 1}
                   </span>
-                  <span>{option.labelAr}</span>
+                  <span className="leading-snug">{option.labelAr}</span>
                 </div>
                 {(showCorrectHighlight || revealCorrect) && <Check className="w-5 h-5 text-emerald-300 shrink-0" />}
                 {showWrongHighlight && <X className="w-5 h-5 text-rose-300 shrink-0" />}

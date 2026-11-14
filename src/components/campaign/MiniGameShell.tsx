@@ -22,12 +22,12 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
 
   return (
     <div
-      className="min-h-screen w-full pt-24 pb-10 px-4 sm:px-6 max-w-5xl mx-auto flex flex-col gap-4"
+      className="min-h-screen w-full pt-20 sm:pt-24 pb-10 px-3 sm:px-6 max-w-5xl mx-auto flex flex-col gap-4 overflow-x-hidden"
       dir="rtl"
     >
       {/* Top Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/95 border-2 border-cyan-400/60 rounded-3xl p-4 shadow-xl">
-        <div className="flex items-center gap-3">
+      <div className="casual-card p-3.5 sm:p-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={() => {
@@ -35,32 +35,32 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
               dialogueManager.stop();
               onBackToLevel();
             }}
-            className="px-3.5 py-2 rounded-2xl bg-slate-800 hover:bg-cyan-700 text-white font-hud font-black text-xs sm:text-sm border border-cyan-400/60 flex items-center gap-1.5 cursor-pointer"
+            className="casual-btn-cyan px-3.5 py-2 text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer shrink-0"
           >
             <ArrowRight className="w-4 h-4" />
-            <span>خريطة المستوى {spec.levelId}</span>
+            <span>المستوى {spec.levelId}</span>
           </button>
 
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xl sm:text-2xl">{spec.icon}</span>
-              <h1 className="font-hud font-black text-lg sm:text-2xl text-white">
+              <h1 className="font-hud font-black text-base sm:text-2xl text-white">
                 {spec.titleAr}
               </h1>
               {isCompleted && (
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400 text-emerald-300 font-hud font-black text-xs flex items-center gap-1">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/25 border border-emerald-400 text-emerald-200 font-hud font-black text-xs flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" /> مكتمل
                 </span>
               )}
             </div>
-            <p className="font-hud text-xs sm:text-sm text-cyan-200 mt-0.5">
+            <p className="font-hud text-xs sm:text-sm text-cyan-200 mt-0.5 leading-snug">
               {spec.subtitleAr}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="px-3 py-1.5 rounded-full bg-sky-950 border border-cyan-400/60 text-cyan-200 font-hud font-black text-xs flex items-center gap-1.5">
+          <span className="px-3 py-1.5 rounded-full bg-sky-950/90 border border-cyan-400/60 text-cyan-200 font-hud font-black text-xs flex items-center gap-1.5">
             <Satellite className="w-3.5 h-3.5 text-amber-300" />
             <span>{spec.nasaBadge}</span>
           </span>
@@ -70,9 +70,9 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
               soundManager.playClick();
               void dialogueManager.speak(spec.roboPromptAr);
             }}
-            className="px-3 py-1.5 rounded-full bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-300 text-cyan-100 font-hud font-black text-xs flex items-center gap-1.5 cursor-pointer"
+            className="casual-btn-primary px-3.5 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer"
           >
-            <Volume2 className="w-4 h-4 text-amber-300" />
+            <Volume2 className="w-4 h-4" />
             <span>اسمع روبو 🤖</span>
           </button>
         </div>

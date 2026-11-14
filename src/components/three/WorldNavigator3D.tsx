@@ -10,6 +10,7 @@ import {
   createFloatingIslandMesh,
   createFloatingLabelSprite
 } from './archipelagoPrimitives';
+import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
 import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
 
 interface WorldNavigator3DProps {
@@ -156,60 +157,31 @@ function getSurfaceInfoAt(x: number, z: number): {
 
 function addIslandLandmarkDecor(group: THREE.Group, levelId: CampaignLevelId): THREE.Object3D[] {
   const animated: THREE.Object3D[] = [];
+  const staticParts: ColoredGeometryPart[] = [];
 
   if (levelId === 1) {
-    // Launch Pad Rocket + Pine Trees
-    const pad = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.4, 1.6, 0.2, 8),
-      new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.4 })
+    // Launch Pad Rocket + Pine Trees merged into 1 draw call
+    staticParts.push(
+      { geometry: new THREE.CylinderGeometry(1.4, 1.6, 0.2, 8), color: 0x334155, position: [1.8, 0.1, -1.6] },
+      { geometry: new THREE.CylinderGeometry(0.42, 0.52, 2.2, 16), color: 0xf8fafc, position: [1.8, 1.3, -1.6] },
+      { geometry: new THREE.ConeGeometry(0.42, 0.9, 16), color: 0xf97316, position: [1.8, 2.85, -1.6] }
     );
-    pad.position.set(1.8, 0.1, -1.6);
-    group.add(pad);
-
-    const body = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.42, 0.52, 2.2, 16),
-      new THREE.MeshStandardMaterial({ color: 0xf8fafc, metalness: 0.35 })
-    );
-    body.position.set(1.8, 1.3, -1.6);
-    const nose = new THREE.Mesh(
-      new THREE.ConeGeometry(0.42, 0.9, 16),
-      new THREE.MeshStandardMaterial({ color: 0xf97316 })
-    );
-    nose.position.set(1.8, 2.85, -1.6);
-    group.add(body, nose);
-
-    // Mini Stylized Trees
     [
       [-2.3, -1.9],
       [-2.8, 1.2],
       [2.4, 1.8]
     ].forEach(([tx, tz]) => {
-      const trunk = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.11, 0.14, 0.65, 8),
-        new THREE.MeshStandardMaterial({ color: 0x78350f })
+      staticParts.push(
+        { geometry: new THREE.CylinderGeometry(0.11, 0.14, 0.65, 8), color: 0x78350f, position: [tx, 0.32, tz] },
+        { geometry: new THREE.ConeGeometry(0.55, 1.25, 10), color: 0x22c55e, position: [tx, 1.1, tz] }
       );
-      trunk.position.set(tx, 0.32, tz);
-      const foliage = new THREE.Mesh(
-        new THREE.ConeGeometry(0.55, 1.25, 10),
-        new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.7 })
-      );
-      foliage.position.set(tx, 1.1, tz);
-      group.add(trunk, foliage);
     });
   } else if (levelId === 2) {
-    // Solar Array Wing + Orbiting NASA 2010 PK Asteroid
-    const mast = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.16, 0.2, 2.1, 10),
-      new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.6 })
+    // Solar Array Wing merged + Orbiting NASA 2010 PK Asteroid
+    staticParts.push(
+      { geometry: new THREE.CylinderGeometry(0.16, 0.2, 2.1, 10), color: 0x94a3b8, position: [-2.1, 1.05, -1.8] },
+      { geometry: new THREE.BoxGeometry(2.8, 0.08, 1.2), color: 0x0284c7, position: [-2.1, 2.1, -1.8], rotation: [0.35, 0, 0] }
     );
-    mast.position.set(-2.1, 1.05, -1.8);
-    const solar = new THREE.Mesh(
-      new THREE.BoxGeometry(2.8, 0.08, 1.2),
-      new THREE.MeshStandardMaterial({ color: 0x0284c7, emissive: 0x0369a1, emissiveIntensity: 0.45 })
-    );
-    solar.position.set(-2.1, 2.1, -1.8);
-    solar.rotation.x = 0.35;
-    group.add(mast, solar);
 
     const asteroid = new THREE.Mesh(
       new THREE.DodecahedronGeometry(0.75, 0),
@@ -219,42 +191,34 @@ function addIslandLandmarkDecor(group: THREE.Group, levelId: CampaignLevelId): T
     group.add(asteroid);
     animated.push(asteroid);
   } else if (levelId === 3) {
-    // Lunar Habitat Domes + Water Tank Towers
-    [-2.0, 2.0].forEach((dx, idx) => {
-      const dome = new THREE.Mesh(
-        new THREE.SphereGeometry(0.95, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.5),
-        new THREE.MeshStandardMaterial({
-          color: idx === 0 ? 0xe2e8f0 : 0x4ade80,
-          emissive: idx === 0 ? 0x000000 : 0x16a34a,
-          emissiveIntensity: idx === 0 ? 0 : 0.35,
-          metalness: 0.35,
-          roughness: 0.3
-        })
-      );
-      dome.position.set(dx, 0.02, -1.8);
-      group.add(dome);
-    });
-    const dish = new THREE.Mesh(
-      new THREE.ConeGeometry(0.55, 0.38, 14),
-      new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.5 })
+    // Lunar Habitat Domes + Dish merged into 1 draw call
+    staticParts.push(
+      { geometry: new THREE.SphereGeometry(0.95, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), color: 0xe2e8f0, position: [-2.0, 0.02, -1.8] },
+      { geometry: new THREE.SphereGeometry(0.95, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), color: 0x4ade80, position: [2.0, 0.02, -1.8] },
+      { geometry: new THREE.ConeGeometry(0.55, 0.38, 14), color: 0xfbbf24, position: [2.2, 1.3, 1.9], rotation: [0, 0, -0.6] }
     );
-    dish.position.set(2.2, 1.3, 1.9);
-    dish.rotation.z = -0.6;
-    group.add(dish);
   } else {
-    // Earth Ocean Recovery Buoy + Golden Victory Crest
-    const buoy = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.45, 0.65, 1.1, 12),
-      new THREE.MeshStandardMaterial({ color: 0xf97316, emissive: 0xea580c, emissiveIntensity: 0.35 })
-    );
-    buoy.position.set(-2.1, 0.55, -1.6);
+    // Earth Ocean Recovery Buoy + Floating Golden Victory Crest
+    staticParts.push({
+      geometry: new THREE.CylinderGeometry(0.45, 0.65, 1.1, 12),
+      color: 0xf97316,
+      position: [-2.1, 0.55, -1.6]
+    });
     const crest = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.75, 0),
       new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xd97706, emissiveIntensity: 0.65, metalness: 0.7 })
     );
     crest.position.set(2.1, 1.75, -1.4);
-    group.add(buoy, crest);
+    group.add(crest);
     animated.push(crest);
+  }
+
+  if (staticParts.length > 0) {
+    const landmarkMesh = new THREE.Mesh(
+      mergeColoredParts(staticParts),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.25 })
+    );
+    group.add(landmarkMesh);
   }
 
   return animated;
@@ -362,11 +326,22 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     rim.position.set(-18, 10, -16);
     scene.add(rim);
 
-    // Build 4 Floating Islands + Glowing Portals + In-World Labels
+    // Build 4 Floating Islands + Instanced Portals + In-World Labels
     const disposableTextures: THREE.Texture[] = [];
-    const portalMeshes: THREE.Mesh[] = [];
     const clickTargets: { mesh: THREE.Object3D; levelId: CampaignLevelId }[] = [];
     const floatingProps: { obj: THREE.Object3D; baseY: number; phase: number }[] = [];
+
+    const portalRingsInst = new THREE.InstancedMesh(
+      new THREE.TorusGeometry(1.15, 0.15, 14, 34, Math.PI * 1.2),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.45, roughness: 0.25 }),
+      ISLAND_CONFIGS.length
+    );
+    const portalCurtainsInst = new THREE.InstancedMesh(
+      new THREE.CircleGeometry(1.05, 24),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.26, side: THREE.DoubleSide }),
+      ISLAND_CONFIGS.length
+    );
+    const portalBasePositions: THREE.Vector3[] = [];
 
     ISLAND_CONFIGS.forEach((cfg, idx) => {
       const unlocked = campaign.unlockedLevels.includes(cfg.levelId);
@@ -383,6 +358,9 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       });
       islandGroup.position.copy(cfg.center);
       scene.add(islandGroup);
+      if (Array.isArray(islandGroup.userData.disposableTextures)) {
+        disposableTextures.push(...(islandGroup.userData.disposableTextures as THREE.Texture[]));
+      }
 
       // Add landmark buildings / trees / asteroids on island
       const props = addIslandLandmarkDecor(islandGroup, cfg.levelId);
@@ -390,29 +368,10 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         floatingProps.push({ obj, baseY: obj.position.y, phase: idx * 1.4 + pIdx });
       });
 
-      // Central Gateway Portal Ring at rear-center of island
-      const portalMat = new THREE.MeshStandardMaterial({
-        color: completed ? 0x10b981 : unlocked ? cfg.rimColor : 0x64748b,
-        emissive: completed ? 0x059669 : unlocked ? cfg.rimColor : 0x1e293b,
-        emissiveIntensity: unlocked ? 0.85 : 0.15,
-        roughness: 0.25
-      });
-      const portalRing = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.15, 14, 34, Math.PI * 1.2), portalMat);
-      portalRing.position.set(0, 1.2, -0.4);
-      islandGroup.add(portalRing);
-      portalMeshes.push(portalRing);
-
-      const portalCurtain = new THREE.Mesh(
-        new THREE.CircleGeometry(1.05, 24),
-        new THREE.MeshBasicMaterial({
-          color: unlocked ? cfg.rimColor : 0x334155,
-          transparent: true,
-          opacity: unlocked ? 0.28 : 0.12,
-          side: THREE.DoubleSide
-        })
-      );
-      portalCurtain.position.set(0, 1.2, -0.4);
-      islandGroup.add(portalCurtain);
+      const portalColor = new THREE.Color(completed ? 0x10b981 : unlocked ? cfg.rimColor : 0x64748b);
+      portalRingsInst.setColorAt(idx, portalColor);
+      portalCurtainsInst.setColorAt(idx, portalColor);
+      portalBasePositions.push(new THREE.Vector3(cfg.center.x, cfg.center.y + 1.2, cfg.center.z - 0.4));
 
       // In-world Sprite Label cleanly hovering above island (ZERO duplicate prefix!)
       const statusBadge = completed ? '✓' : unlocked ? LEVEL_UI_META[cfg.levelId].badge : '🔒';
@@ -430,7 +389,13 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       clickTargets.push({ mesh: islandGroup, levelId: cfg.levelId });
     });
 
-    // Glowing Sky-Bridges Connecting Islands 1<->2<->3<->4 Seamlessly
+    if (portalRingsInst.instanceColor) portalRingsInst.instanceColor.needsUpdate = true;
+    if (portalCurtainsInst.instanceColor) portalCurtainsInst.instanceColor.needsUpdate = true;
+    scene.add(portalRingsInst, portalCurtainsInst);
+
+    // Glowing Sky-Bridges Connecting Islands 1<->2<->3<->4 Merged into 1 Draw Call!
+    const bridgeParts: ColoredGeometryPart[] = [];
+    const helperObj = new THREE.Object3D();
     for (let i = 0; i < ISLAND_CONFIGS.length - 1; i++) {
       const a = ISLAND_CONFIGS[i];
       const b = ISLAND_CONFIGS[i + 1];
@@ -438,34 +403,38 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       const end = new THREE.Vector3(b.center.x, b.center.y, b.center.z);
       const mid = start.clone().add(end).multiplyScalar(0.5);
       const totalDist = start.distanceTo(end);
-
       const bridgeLen = Math.max(4, totalDist - 3.8);
-      const bridgeMesh = new THREE.Mesh(
-        new THREE.BoxGeometry(2.2, 0.22, bridgeLen),
-        new THREE.MeshStandardMaterial({
-          color: 0x0ea5e9,
-          emissive: 0x0284c7,
-          emissiveIntensity: 0.45,
-          transparent: true,
-          opacity: 0.78,
-          roughness: 0.2
-        })
-      );
-      bridgeMesh.position.copy(mid);
-      bridgeMesh.position.y -= 0.1;
-      bridgeMesh.lookAt(end.x, end.y - 0.1, end.z);
-      scene.add(bridgeMesh);
 
-      // Glowing bridge side rails along Z length
+      helperObj.position.set(mid.x, mid.y - 0.1, mid.z);
+      helperObj.lookAt(end.x, end.y - 0.1, end.z);
+      const rot: [number, number, number] = [helperObj.rotation.x, helperObj.rotation.y, helperObj.rotation.z];
+
+      bridgeParts.push({
+        geometry: new THREE.BoxGeometry(2.2, 0.22, bridgeLen),
+        color: 0x0ea5e9,
+        position: [mid.x, mid.y - 0.1, mid.z],
+        rotation: rot
+      });
       [-1.02, 1.02].forEach((rx) => {
-        const rail = new THREE.Mesh(
-          new THREE.BoxGeometry(0.08, 0.08, bridgeLen),
-          new THREE.MeshBasicMaterial({ color: 0x7dd3fc })
-        );
-        rail.position.set(rx, 0.16, 0);
-        bridgeMesh.add(rail);
+        const railWorld = new THREE.Vector3(rx, 0.16, 0).applyEuler(helperObj.rotation).add(helperObj.position);
+        bridgeParts.push({
+          geometry: new THREE.BoxGeometry(0.08, 0.08, bridgeLen),
+          color: 0x7dd3fc,
+          position: [railWorld.x, railWorld.y, railWorld.z],
+          rotation: rot
+        });
       });
     }
+    const mergedBridgesMesh = new THREE.Mesh(
+      mergeColoredParts(bridgeParts),
+      new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.84,
+        roughness: 0.25
+      })
+    );
+    scene.add(mergedBridgesMesh);
 
     // Third-Person Articulated Robo Astronaut in SPACE-FIT X IVA Suit
     const hero = buildSpaceFitXCharacter();
@@ -572,6 +541,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     if (resizeObs) resizeObs.observe(mount);
 
     let rafId = 0;
+    const portalDummy = new THREE.Object3D();
     let lastTime = performance.now();
     const startTime = lastTime;
 
@@ -583,14 +553,26 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
       skyHandle.update(elapsed);
 
-      // Gentle cosmic bob on floating props & portal pulse
+      // Gentle cosmic bob on floating props & instanced portals
       floatingProps.forEach((fp) => {
         fp.obj.position.y = fp.baseY + Math.sin(elapsed * 1.4 + fp.phase) * 0.14;
         fp.obj.rotation.y = elapsed * 0.45 + fp.phase;
       });
-      portalMeshes.forEach((p, idx) => {
-        p.rotation.z = Math.sin(elapsed * 1.2 + idx) * 0.08;
+      portalBasePositions.forEach((bPos, idx) => {
+        portalDummy.position.copy(bPos);
+        portalDummy.rotation.set(0, 0, Math.sin(elapsed * 1.2 + idx) * 0.08);
+        portalDummy.scale.setScalar(1);
+        portalDummy.updateMatrix();
+        portalRingsInst.setMatrixAt(idx, portalDummy.matrix);
+
+        portalDummy.rotation.set(0, 0, 0);
+        const pulse = 0.92 + Math.sin(elapsed * 2.2 + idx) * 0.08;
+        portalDummy.scale.set(pulse, pulse, 1);
+        portalDummy.updateMatrix();
+        portalCurtainsInst.setMatrixAt(idx, portalDummy.matrix);
       });
+      portalRingsInst.instanceMatrix.needsUpdate = true;
+      portalCurtainsInst.instanceMatrix.needsUpdate = true;
 
       // Compute Horizontal Movement Relative to Camera Yaw
       let ix = joystickVecRef.current.x;
@@ -703,6 +685,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       camera.lookAt(pos.x, pos.y + 1.55, pos.z);
 
       renderer.render(scene, camera);
+      mount.dataset.drawCalls = String(renderer.info.render.calls);
     };
 
     rafId = requestAnimationFrame(animate);
@@ -721,7 +704,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       hero.dispose();
       disposableTextures.forEach((tex) => tex.dispose());
       scene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh) {
+        if (obj instanceof THREE.Mesh || obj instanceof THREE.InstancedMesh) {
           obj.geometry?.dispose();
           const m = obj.material;
           if (Array.isArray(m)) m.forEach((x) => x.dispose());
@@ -780,7 +763,11 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   return (
     <div data-testid="world-navigator-3d" className="relative w-full h-full overflow-hidden select-none">
       {/* Full-Viewport 3D WebGL Canvas */}
-      <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
+      <div
+        ref={mountRef}
+        data-testid="three-canvas-mount"
+        className="w-full h-full cursor-grab active:cursor-grabbing"
+      />
 
       {/* Top-Center Compact Edge Pill Selector (Non-Overlapping, keeps data-testid="level-node-*") */}
       <div

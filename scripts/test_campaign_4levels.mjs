@@ -48,6 +48,12 @@ const {
   ISS_WATER_MILESTONE
 } = await loadTsModule('src/data/science.ts');
 const { EGYPTIAN_SINAI_SPACE_FOODS } = await loadTsModule('src/data/foodItems.ts');
+const {
+  SPACE_SCIENCE_QUESTIONS,
+  NUTRITION_QUIZ_QUESTIONS,
+  HEALTH_PHYSICS_QUESTIONS
+} = await loadTsModule('src/data/questionBanks.ts');
+const { shuffleArray } = await loadTsModule('src/utils/shuffle.ts');
 const { saveProgress, hydrateGameState, clearSavedProgress, getStorageStatus } = await import('../src/utils/storage.ts');
 
 let passCount = 0;
@@ -278,6 +284,71 @@ assert(
   fs.existsSync(path.resolve('public/assets/suit/space_fit_x_front_rear.jpg')) &&
     fs.existsSync(path.resolve('public/assets/suit/space_fit_x_hardware.jpg')),
   'SPACE-FIT X (AstroNutri) suit showcase assets exist in public/assets/suit/'
+);
+
+// 7. Quiz Question Banks (42 total): Balanced Answer Indices across [0, 1, 2, 3] & Shuffling
+const allDecks = [
+  ['SPACE_SCIENCE_QUESTIONS', SPACE_SCIENCE_QUESTIONS],
+  ['NUTRITION_QUIZ_QUESTIONS', NUTRITION_QUIZ_QUESTIONS],
+  ['HEALTH_PHYSICS_QUESTIONS', HEALTH_PHYSICS_QUESTIONS]
+];
+let totalQuizQuestions = 0;
+const globalIndexCounts = [0, 0, 0, 0];
+for (const [deckName, deck] of allDecks) {
+  assert(deck.length === 14, `${deckName} has 14 questions (got ${deck.length})`);
+  const deckCounts = [0, 0, 0, 0];
+  let all4OptsAndValid = true;
+  for (const q of deck) {
+    totalQuizQuestions++;
+    const correctPos = q.options.findIndex((o) => o.isCorrect);
+    const correctCount = q.options.filter((o) => o.isCorrect).length;
+    if (q.options.length !== 4 || correctCount !== 1 || correctPos !== q.correctIndex) {
+      all4OptsAndValid = false;
+    }
+    if (correctPos >= 0 && correctPos < 4) {
+      deckCounts[correctPos]++;
+      globalIndexCounts[correctPos]++;
+    }
+  }
+  assert(all4OptsAndValid, `${deckName}: all questions have 4 options and exact 1 correctIndex match`);
+  assert(
+    deckCounts.every((c) => c >= 3),
+    `${deckName}: balanced across أ/ب/ج/د (${JSON.stringify(deckCounts)})`
+  );
+}
+assert(
+  totalQuizQuestions === 42 && globalIndexCounts.every((c) => c >= 10),
+  `All 42 quiz questions distributed evenly across indices [0,1,2,3]: ${JSON.stringify(globalIndexCounts)}`
+);
+
+const sampleInput = [1, 2, 3, 4];
+const shuffledSample = shuffleArray(sampleInput);
+assert(
+  shuffledSample.length === 4 && shuffledSample !== sampleInput && JSON.stringify(sampleInput) === '[1,2,3,4]',
+  'shuffleArray returns a fresh 4-item array without mutating input'
+);
+
+// 8. Zero external links (<a href="http, target="_blank", window.open) & zero legacy banned terms in src/components
+const walkFiles = (dir) => {
+  const results = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) results.push(...walkFiles(full));
+    else if (/\.(ts|tsx)$/.test(entry.name)) results.push(full);
+  }
+  return results;
+};
+const srcFiles = walkFiles(path.resolve('src'));
+const extLinkHits = [];
+for (const f of srcFiles) {
+  const txt = fs.readFileSync(f, 'utf8');
+  if (/target=["']_blank["']|window\.open|<a\s|href=["']http/i.test(txt)) {
+    extLinkHits.push(path.relative(process.cwd(), f));
+  }
+}
+assert(
+  extLinkHits.length === 0,
+  `Zero external links or target="_blank" anchors in src/ (hits: ${JSON.stringify(extLinkHits)})`
 );
 
 console.log('---------------------------------------------------------------');

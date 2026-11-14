@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { CAMPAIGN_LEVELS, SpatialRoomNode } from '../../data/campaignLevels';
 import { CampaignLevelId, CampaignProgressState, SpaceFitXState } from '../../types/game';
 import { soundManager } from '../../utils/sound';
@@ -10,6 +11,7 @@ import {
   createFloatingIslandMesh,
   createStationBuildingMesh
 } from './archipelagoPrimitives';
+import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
 import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
 
 interface SpatialRoomMap3DProps {
@@ -200,6 +202,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     });
     scene.add(island);
 
+    const disposableTextures: THREE.Texture[] = [
+      ...((island.userData.disposableTextures as THREE.Texture[] | undefined) || [])
+    ];
+
     // Central Emblem Landing Beacon in Courtyard Center
     const centerBeacon = new THREE.Mesh(
       new THREE.TorusGeometry(2.2, 0.1, 10, 40),
@@ -209,26 +215,24 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     centerBeacon.position.y = 0.06;
     scene.add(centerBeacon);
 
-    // Microgravity floating orbital props around perimeter in Level 2
-    const orbitSatellites: THREE.Object3D[] = [];
+    // Microgravity floating orbital props around perimeter in Level 2 (1 InstancedMesh!)
+    const orbitSatelliteTransforms: { angle: number; y: number }[] = [];
+    let orbitSatellitesInst: THREE.InstancedMesh | null = null;
     if (theme.isZeroG) {
+      orbitSatellitesInst = new THREE.InstancedMesh(
+        new THREE.DodecahedronGeometry(0.65, 0),
+        new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.4, roughness: 0.35 }),
+        4
+      );
       for (let k = 0; k < 4; k++) {
-        const pod = new THREE.Mesh(
-          new THREE.DodecahedronGeometry(0.65, 0),
-          new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.4, roughness: 0.35 })
-        );
-        const ang = (k / 4) * Math.PI * 2;
-        pod.position.set(Math.cos(ang) * (islandRadius + 2.8), 2.5 + k * 0.4, Math.sin(ang) * (islandRadius + 2.8));
-        scene.add(pod);
-        orbitSatellites.push(pod);
+        orbitSatelliteTransforms.push({ angle: (k / 4) * Math.PI * 2, y: 2.5 + k * 0.4 });
       }
+      scene.add(orbitSatellitesInst);
     }
 
-    // Build Sculpted Station Buildings & Walkways Along Courtyard Ring
-    const disposableTextures: THREE.Texture[] = [];
-    const portalRings: THREE.Mesh[] = [];
-    const curtains: THREE.Mesh[] = [];
+    // Build Sculpted Station Buildings & Merged Walkways Along Courtyard Ring (Low Draw Calls)
     const clickTargets: { group: THREE.Group; room: SpatialRoomNode; entrySpot: THREE.Vector3; pos: THREE.Vector3 }[] = [];
+    const walkwayParts: ColoredGeometryPart[] = [];
 
     const positionedRooms: PositionedRoom[] = rooms.map((room, idx) => {
       const theta = (idx / roomCount) * Math.PI * 2 - Math.PI / 2;
@@ -242,36 +246,100 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       };
     });
 
-    positionedRooms.forEach(({ room, pos, yawToCenter }) => {
+    // 2 InstancedMesh objects handle ALL room portals & curtains across the courtyard (2 draw calls!)
+    const portalRingsInst = new THREE.InstancedMesh(
+      new THREE.TorusGeometry(0.72, 0.11, 12, 28, Math.PI * 1.15),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.42, roughness: 0.25 }),
+      roomCount
+    );
+    const curtainsInst = new THREE.InstancedMesh(
+      new THREE.CircleGeometry(0.65, 24),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.32, side: THREE.DoubleSide }),
+      roomCount
+    );
+    const portalMeta: { basePos: THREE.Vector3; yaw: number; completed: boolean }[] = [];
+    const courtyardBuildingGeoms: THREE.BufferGeometry[] = [];
+    const rotEuler = new THREE.Euler();
+    const rotQuat = new THREE.Quaternion();
+    const unitScale = new THREE.Vector3(1, 1, 1);
+    const mat4 = new THREE.Matrix4();
+
+    positionedRooms.forEach(({ room, pos, yawToCenter }, idx) => {
       const completed = isRoomCompleted(room);
-      const bld = createStationBuildingMesh(room, completed);
+      const bld = createStationBuildingMesh(room, completed, { skipPortals: true });
       bld.group.position.copy(pos);
       bld.group.rotation.y = yawToCenter;
+      const archMesh = bld.group.children.find((c): c is THREE.Mesh => c instanceof THREE.Mesh);
+      if (archMesh) {
+        rotEuler.set(0, yawToCenter, 0);
+        rotQuat.setFromEuler(rotEuler);
+        mat4.compose(pos, rotQuat, unitScale);
+        const worldArchGeom = archMesh.geometry.clone();
+        worldArchGeom.applyMatrix4(mat4);
+        courtyardBuildingGeoms.push(worldArchGeom);
+        bld.group.remove(archMesh);
+        archMesh.geometry.dispose();
+        if (Array.isArray(archMesh.material)) {
+          archMesh.material.forEach((m) => m.dispose());
+        } else {
+          archMesh.material.dispose();
+        }
+      }
+      bld.portalRing.geometry.dispose();
+      (bld.portalRing.material as THREE.Material).dispose();
+      bld.curtain.geometry.dispose();
+      (bld.curtain.material as THREE.Material).dispose();
+
       scene.add(bld.group);
-
       disposableTextures.push(...bld.disposeTextures);
-      portalRings.push(bld.portalRing);
-      curtains.push(bld.curtain);
 
-      // Glowing Promenade Walkway from Center Plaza toward Building Entrance
+      const portalWorldPos = new THREE.Vector3(0, 0.88, 1.15)
+        .applyAxisAngle(new THREE.Vector3(0, 1, 0), yawToCenter)
+        .add(pos);
+      portalMeta.push({ basePos: portalWorldPos, yaw: yawToCenter, completed });
+      const ringCol = new THREE.Color(completed ? '#10b981' : room.accentHex);
+      portalRingsInst.setColorAt(idx, ringCol);
+      curtainsInst.setColorAt(idx, ringCol);
+
+      // Promenade Walkway part merged into one courtyard walkway mesh
       const dirToRoom = pos.clone().normalize();
       const pathLen = Math.max(2, ringRadius - 3.6);
-      const pathMesh = new THREE.Mesh(
-        new THREE.BoxGeometry(1.1, 0.05, pathLen),
-        new THREE.MeshBasicMaterial({
-          color: completed ? 0x10b981 : theme.rimColor,
-          transparent: true,
-          opacity: 0.38
-        })
-      );
-      pathMesh.position.copy(dirToRoom.clone().multiplyScalar(2.1 + pathLen / 2));
-      pathMesh.position.y = 0.03;
-      pathMesh.rotation.y = yawToCenter;
-      scene.add(pathMesh);
+      const pathCenter = dirToRoom.clone().multiplyScalar(2.1 + pathLen / 2);
+      walkwayParts.push({
+        geometry: new THREE.BoxGeometry(1.1, 0.05, pathLen),
+        color: completed ? 0x10b981 : theme.rimColor,
+        position: [pathCenter.x, 0.03, pathCenter.z],
+        rotation: [0, yawToCenter, 0]
+      });
 
       const entrySpot = pos.clone().sub(dirToRoom.clone().multiplyScalar(2.5));
       clickTargets.push({ group: bld.group, room, entrySpot, pos });
     });
+
+    if (portalRingsInst.instanceColor) portalRingsInst.instanceColor.needsUpdate = true;
+    if (curtainsInst.instanceColor) curtainsInst.instanceColor.needsUpdate = true;
+    scene.add(portalRingsInst, curtainsInst);
+
+    let courtyardBuildingsMesh: THREE.Mesh | null = null;
+    if (courtyardBuildingGeoms.length > 0) {
+      const mergedBuildingsGeom = mergeGeometries(courtyardBuildingGeoms, false);
+      if (mergedBuildingsGeom) {
+        courtyardBuildingsMesh = new THREE.Mesh(
+          mergedBuildingsGeom,
+          new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.38, metalness: 0.36 })
+        );
+        scene.add(courtyardBuildingsMesh);
+      }
+      courtyardBuildingGeoms.forEach((g) => g.dispose());
+    }
+
+    if (walkwayParts.length > 0) {
+      const walkwaysMesh = new THREE.Mesh(
+        mergeColoredParts(walkwayParts),
+        new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.42 })
+      );
+      scene.add(walkwaysMesh);
+    }
 
     // Articulated Robo Character wearing SPACE-FIT X IVA Suit (No EVA Helmet inside station)
     const hero = buildSpaceFitXCharacter();
@@ -331,13 +399,12 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointerNdc, camera);
 
-      const hits = raycaster.intersectObjects(
-        clickTargets.map((ct) => ct.group),
-        true
-      );
+      const intersectables: THREE.Object3D[] = clickTargets.map((ct) => ct.group);
+      if (courtyardBuildingsMesh) intersectables.push(courtyardBuildingsMesh);
+      const hits = raycaster.intersectObjects(intersectables, true);
       if (hits.length > 0) {
         const hitObj = hits[0].object;
-        const found = clickTargets.find((ct) => {
+        let found = clickTargets.find((ct) => {
           let p: THREE.Object3D | null = hitObj;
           while (p) {
             if (p === ct.group) return true;
@@ -345,6 +412,17 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           }
           return false;
         });
+        if (!found && courtyardBuildingsMesh && hitObj === courtyardBuildingsMesh) {
+          const hitPt = hits[0].point;
+          let bestDist = Infinity;
+          for (const ct of clickTargets) {
+            const d = hitPt.distanceTo(ct.pos);
+            if (d < bestDist) {
+              bestDist = d;
+              found = ct;
+            }
+          }
+        }
         if (found) {
           soundManager.playClick();
           // If already standing right near that room, enter directly; otherwise walk straight up to it
@@ -374,6 +452,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     const resizeObs = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(handleResize) : null;
     if (resizeObs) resizeObs.observe(mount);
 
+    const portalDummy = new THREE.Object3D();
+    const satDummy = new THREE.Object3D();
     let rafId = 0;
     let lastTime = performance.now();
     const startTime = lastTime;
@@ -386,18 +466,37 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
       skyHandle.update(elapsed);
 
-      portalRings.forEach((p, idx) => {
-        p.rotation.z = Math.sin(elapsed * 1.4 + idx) * 0.09;
+      portalMeta.forEach((pm, idx) => {
+        portalDummy.position.copy(pm.basePos);
+        portalDummy.rotation.set(0, pm.yaw, Math.sin(elapsed * 1.4 + idx) * 0.09);
+        const s = pm.completed ? 1.04 : 1 + Math.sin(elapsed * 2.2 + idx) * 0.03;
+        portalDummy.scale.setScalar(s);
+        portalDummy.updateMatrix();
+        portalRingsInst.setMatrixAt(idx, portalDummy.matrix);
+
+        portalDummy.rotation.set(0, pm.yaw, 0);
+        const pulse = 0.9 + Math.sin(elapsed * 2.4 + idx) * 0.08;
+        portalDummy.scale.set(pulse, pulse, 1);
+        portalDummy.updateMatrix();
+        curtainsInst.setMatrixAt(idx, portalDummy.matrix);
       });
-      curtains.forEach((c, idx) => {
-        const mat = c.material as THREE.MeshBasicMaterial;
-        mat.opacity = 0.22 + Math.sin(elapsed * 2.4 + idx) * 0.1;
-      });
-      orbitSatellites.forEach((sat, idx) => {
-        sat.rotation.x = elapsed * 0.4 + idx;
-        sat.rotation.y = elapsed * 0.55;
-        sat.position.y = 2.5 + idx * 0.35 + Math.sin(elapsed * 1.1 + idx) * 0.45;
-      });
+      portalRingsInst.instanceMatrix.needsUpdate = true;
+      curtainsInst.instanceMatrix.needsUpdate = true;
+
+      if (orbitSatellitesInst) {
+        orbitSatelliteTransforms.forEach((tr, idx) => {
+          satDummy.position.set(
+            Math.cos(tr.angle) * (islandRadius + 2.8),
+            tr.y + Math.sin(elapsed * 1.1 + idx) * 0.45,
+            Math.sin(tr.angle) * (islandRadius + 2.8)
+          );
+          satDummy.rotation.set(elapsed * 0.4 + idx, elapsed * 0.55, 0);
+          satDummy.scale.setScalar(1);
+          satDummy.updateMatrix();
+          orbitSatellitesInst?.setMatrixAt(idx, satDummy.matrix);
+        });
+        orbitSatellitesInst.instanceMatrix.needsUpdate = true;
+      }
 
       // Third-person movement relative to camera orbit yaw
       let ix = joystickVecRef.current.x;
@@ -510,6 +609,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       camera.lookAt(pos.x, pos.y + 1.45, pos.z);
 
       renderer.render(scene, camera);
+      mount.dataset.drawCalls = String(renderer.info.render.calls);
     };
 
     rafId = requestAnimationFrame(animate);
@@ -528,7 +628,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       hero.dispose();
       disposableTextures.forEach((tex) => tex.dispose());
       scene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh) {
+        if (obj instanceof THREE.Mesh || obj instanceof THREE.InstancedMesh) {
           obj.geometry?.dispose();
           const m = obj.material;
           if (Array.isArray(m)) m.forEach((x) => x.dispose());
@@ -582,7 +682,11 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       className="relative w-full h-full overflow-hidden select-none"
     >
       {/* Full-Viewport 3D Island Courtyard Canvas */}
-      <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
+      <div
+        ref={mountRef}
+        data-testid="three-canvas-mount"
+        className="w-full h-full cursor-grab active:cursor-grabbing"
+      />
 
       {/* Compact Non-Overlapping Top-Center Target Indicator */}
       {nearbyRoom && (

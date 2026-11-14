@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGameState } from '../../context/GameContext';
 import { AsteroidRadarModal } from './AsteroidRadarModal';
@@ -8,6 +8,7 @@ import { SPACE_SCIENCE_QUESTIONS } from '../../data/questionBanks';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { soundManager } from '../../utils/sound';
 import { nasaCache } from '../../services/nasa/nasaCache';
+import { shuffleArray } from '../../utils/shuffle';
 import {
   Rocket,
   Radio,
@@ -66,7 +67,8 @@ const CELESTIAL_WORLDS: CelestialWorld[] = [
       options: [
         { id: 'a', labelAr: 'لأنه لا يملك غلافاً جوياً سميكاً ينثر ضوء الشمس', isCorrect: true, feedbackAr: 'أحسنت يا بطل! بدون هواء كثيف ينشر الضوء، تبدو السماء مليئة بالنجوم نهاراً!' },
         { id: 'b', labelAr: 'لأن الشمس لا تصل إليه أبداً', isCorrect: false, feedbackAr: 'عطارد أقرب كوكب للشمس! لكنه بلا غلاف جوي سميك!' },
-        { id: 'c', labelAr: 'لأنه مغطى بالمحيطات المظلمة', isCorrect: false, feedbackAr: 'فكر تاني! عطارد كوكب صخري جاف بلا محيطات!' }
+        { id: 'c', labelAr: 'لأنه مغطى بالمحيطات المظلمة', isCorrect: false, feedbackAr: 'فكر تاني! عطارد كوكب صخري جاف بلا محيطات!' },
+        { id: 'd', labelAr: 'لأنه يدور خارج مجرة درب التبانة', isCorrect: false, feedbackAr: 'عطارد أول كوكب يدور حول شمسنا مباشرة!' }
       ]
     }
   },
@@ -89,9 +91,10 @@ const CELESTIAL_WORLDS: CelestialWorld[] = [
     planetQuestion: {
       questionAr: 'ما السبب الرئيسي الذي يجعل الزهرة أسخن من عطارد رغم أنه أبعد عن الشمس؟',
       options: [
-        { id: 'a', labelAr: 'غلافه الجوي السميك جداً يحبس الحرارة كالدفيئة', isCorrect: true, feedbackAr: 'عبقري الفضاء! ظاهرة الاحتباس الحراري تجعله الكوكب الأشد حرارة!' },
-        { id: 'b', labelAr: 'لأنه يمتلك حلقات جليدية تحرقه', isCorrect: false, feedbackAr: 'الزهرة ليس له حلقات يا بطل، الجواب في سحبه الكثيفة!' },
-        { id: 'c', labelAr: 'لأنه أصغر حجماً من القمر', isCorrect: false, feedbackAr: 'الزهرة حجمه قريب جداً من حجم الأرض!' }
+        { id: 'a', labelAr: 'لأنه يمتلك حلقات جليدية تحرقه', isCorrect: false, feedbackAr: 'الزهرة ليس له حلقات يا بطل، الجواب في سحبه الكثيفة!' },
+        { id: 'b', labelAr: 'غلافه الجوي السميك جداً يحبس الحرارة كالدفيئة', isCorrect: true, feedbackAr: 'عبقري الفضاء! ظاهرة الاحتباس الحراري تجعله الكوكب الأشد حرارة!' },
+        { id: 'c', labelAr: 'لأنه أصغر حجماً من القمر', isCorrect: false, feedbackAr: 'الزهرة حجمه قريب جداً من حجم الأرض!' },
+        { id: 'd', labelAr: 'لوجود محيطات حارة تغطي 100% من سطحه', isCorrect: false, feedbackAr: 'الماء لا يبقى سائلاً على سطح الزهرة الشديد الحرارة!' }
       ]
     }
   },
@@ -114,9 +117,10 @@ const CELESTIAL_WORLDS: CelestialWorld[] = [
     planetQuestion: {
       questionAr: 'ما النسبة التقريبية التي يغطيها الماء من سطح كوكب الأرض الأزرق؟',
       options: [
-        { id: 'a', labelAr: 'حوالي 71% محيطات ومياه سائلة', isCorrect: true, feedbackAr: 'ممتاز! عشان كده أطلقت ناسا على الأرض لقب «الكرة الزرقاء»!' },
-        { id: 'b', labelAr: 'فقط 5% مثل المريخ', isCorrect: false, feedbackAr: 'المياه تغطي معظم كوكبنا! فكر في نسبة قريبة من ثلاثة أرباع الكوكب!' },
-        { id: 'c', labelAr: '100% ثلوج بدون يابسة', isCorrect: false, feedbackAr: 'توجد قارات واسعة بجانب البحار والمحيطات!' }
+        { id: 'a', labelAr: 'فقط 5% مثل المريخ', isCorrect: false, feedbackAr: 'المياه تغطي معظم كوكبنا! فكر في نسبة قريبة من ثلاثة أرباع الكوكب!' },
+        { id: 'b', labelAr: '100% ثلوج بدون يابسة', isCorrect: false, feedbackAr: 'توجد قارات واسعة بجانب البحار والمحيطات!' },
+        { id: 'c', labelAr: 'حوالي 71% محيطات ومياه سائلة', isCorrect: true, feedbackAr: 'ممتاز! عشان كده أطلقت ناسا على الأرض لقب «الكرة الزرقاء»!' },
+        { id: 'd', labelAr: '0% ماء لأن الأرض كوكب غازي', isCorrect: false, feedbackAr: 'الأرض كوكب صخري غني بالمحيطات والأنهار!' }
       ]
     }
   },
@@ -139,9 +143,10 @@ const CELESTIAL_WORLDS: CelestialWorld[] = [
     planetQuestion: {
       questionAr: 'كم تبلغ جاذبية القمر مقارنة بكوكب الأرض؟',
       options: [
-        { id: 'a', labelAr: 'سُدس جاذبية الأرض (0.16G)', isCorrect: true, feedbackAr: 'صحيح! ولذلك تستطيع القفز على القمر 6 مرات أعلى من الأرض!' },
-        { id: 'b', labelAr: 'نفس جاذبية الأرض بالضبط', isCorrect: false, feedbackAr: 'جرب زر القفز فوق ولاحظ مدى ارتفاع قفزة روبو على القمر!' },
-        { id: 'c', labelAr: 'أقوى من المشتري', isCorrect: false, feedbackAr: 'المشتري أضخم كوكب وجاذبيته شديدة، بينما القمر خفيف جداً!' }
+        { id: 'a', labelAr: 'نفس جاذبية الأرض بالضبط', isCorrect: false, feedbackAr: 'جرب زر القفز فوق ولاحظ مدى ارتفاع قفزة روبو على القمر!' },
+        { id: 'b', labelAr: 'أقوى من المشتري', isCorrect: false, feedbackAr: 'المشتري أضخم كوكب وجاذبيته شديدة، بينما القمر خفيف جداً!' },
+        { id: 'c', labelAr: 'ثلاثة أضعاف جاذبية الأرض', isCorrect: false, feedbackAr: 'بالعكس! جاذبية القمر أقل بكثير من جاذبية الأرض!' },
+        { id: 'd', labelAr: 'سُدس جاذبية الأرض (0.16G)', isCorrect: true, feedbackAr: 'صحيح! ولذلك تستطيع القفز على القمر 6 مرات أعلى من الأرض!' }
       ]
     }
   },
@@ -166,7 +171,8 @@ const CELESTIAL_WORLDS: CelestialWorld[] = [
       options: [
         { id: 'a', labelAr: 'غبار أكسيد الحديد (الصدأ)', isCorrect: true, feedbackAr: 'عبقري المريخ! الصدأ الأحمر يغطي صحراء الكوكب الأحمر بالكامل!' },
         { id: 'b', labelAr: 'أشجار الفراولة الحمراء', isCorrect: false, feedbackAr: 'لا توجد غابات حالياً على سطح المريخ البارد!' },
-        { id: 'c', labelAr: 'حمم بركانية مشتعلة دائماً', isCorrect: false, feedbackAr: 'براكين المريخ خامدة منذ ملايين السنين!' }
+        { id: 'c', labelAr: 'حمم بركانية مشتعلة دائماً', isCorrect: false, feedbackAr: 'براكين المريخ خامدة منذ ملايين السنين!' },
+        { id: 'd', labelAr: 'أضواء ليزر من الأقمار الصناعية', isCorrect: false, feedbackAr: 'اللون طبيعي وموجود في صخور وتربة الكوكب نفسها!' }
       ]
     }
   },
@@ -189,9 +195,10 @@ const CELESTIAL_WORLDS: CelestialWorld[] = [
     planetQuestion: {
       questionAr: 'ما هي «البقعة الحمراء العظيمة» الشهيرة على كوكب المشتري؟',
       options: [
-        { id: 'a', labelAr: 'عاصفة إعصارية عملاقة أكبر من حجم الأرض تدور منذ قرون', isCorrect: true, feedbackAr: 'إجابة رائعة! هي أكبر عاصفة مرصودة في المجموعة الشمسية!' },
-        { id: 'b', labelAr: 'قارة صخرية مزروعة بالقمح', isCorrect: false, feedbackAr: 'المشتري كوكب غازي عملاق ليس له قارات صخرية!' },
-        { id: 'c', labelAr: 'محطة وقود قديمة لرواد الفضاء', isCorrect: false, feedbackAr: 'فكر في الطقس والعواصف الغازية الهائلة!' }
+        { id: 'a', labelAr: 'قارة صخرية مزروعة بالقمح', isCorrect: false, feedbackAr: 'المشتري كوكب غازي عملاق ليس له قارات صخرية!' },
+        { id: 'b', labelAr: 'عاصفة إعصارية عملاقة أكبر من حجم الأرض تدور منذ قرون', isCorrect: true, feedbackAr: 'إجابة رائعة! هي أكبر عاصفة مرصودة في المجموعة الشمسية!' },
+        { id: 'c', labelAr: 'محطة وقود قديمة لرواد الفضاء', isCorrect: false, feedbackAr: 'فكر في الطقس والعواصف الغازية الهائلة!' },
+        { id: 'd', labelAr: 'فوهة بركان مليئة بالجليد الأزرق', isCorrect: false, feedbackAr: 'إنها دوامة سحب ورياح شديدة السرعة لا تتوقف!' }
       ]
     }
   },
@@ -214,9 +221,10 @@ const CELESTIAL_WORLDS: CelestialWorld[] = [
     planetQuestion: {
       questionAr: 'مِمَّ تتكون حلقات كوكب زحل اللامعة التي نراها بالتلسكوب؟',
       options: [
-        { id: 'a', labelAr: 'مليارات قطع الجليد والصخور الدوارة التي تعكس ضوء الشمس', isCorrect: true, feedbackAr: 'بطل زحل! قطع الجليد النظيفة تعكس ضوء الشمس كالمرآة!' },
-        { id: 'b', labelAr: 'طوق حديدي صلب مصبوب في قطعة واحدة', isCorrect: false, feedbackAr: 'ليست قطعة واحدة صلبة؛ إنها مليارات القطع المنفصلة!' },
-        { id: 'c', labelAr: 'شرارات نار مشتعلة', isCorrect: false, feedbackAr: 'الفضاء الخارجي بارد جداً؛ الحلقات جليدية وليست ناراً!' }
+        { id: 'a', labelAr: 'طوق حديدي صلب مصبوب في قطعة واحدة', isCorrect: false, feedbackAr: 'ليست قطعة واحدة صلبة؛ إنها مليارات القطع المنفصلة!' },
+        { id: 'b', labelAr: 'شرارات نار مشتعلة', isCorrect: false, feedbackAr: 'الفضاء الخارجي بارد جداً؛ الحلقات جليدية وليست ناراً!' },
+        { id: 'c', labelAr: 'مليارات قطع الجليد والصخور الدوارة التي تعكس ضوء الشمس', isCorrect: true, feedbackAr: 'بطل زحل! قطع الجليد النظيفة تعكس ضوء الشمس كالمرآة!' },
+        { id: 'd', labelAr: 'سحب من دخان المصانع الأرضية', isCorrect: false, feedbackAr: 'حلقات زحل طبيعية بالكامل منذ نشأة المجموعة الشمسية!' }
       ]
     }
   },
@@ -239,9 +247,10 @@ const CELESTIAL_WORLDS: CelestialWorld[] = [
     planetQuestion: {
       questionAr: 'وفق رادار ناسا الحي لكويكب 2010 PK، هل يمثل خطراً على كوكب الأرض؟',
       options: [
-        { id: 'a', labelAr: 'لا، يمر بأمان تام على بعد يزيد عن 19 ضعف مسافة القمر', isCorrect: true, feedbackAr: 'ممتاز يا مراقب ناسا! الكويكب في مسار آمن وبعيد تماماً!' },
-        { id: 'b', labelAr: 'نعم، سيهبط في منتصف ملعب كرة قدم غداً', isCorrect: false, feedbackAr: 'بيانات NeoWs الحية تؤكد أن مساره بعيد جداً وآمن 100%!' },
-        { id: 'c', labelAr: 'يتجمد في مكانه ولا يتحرك في الفضاء', isCorrect: false, feedbackAr: 'الكويكب يتحرك بسرعة تقارب 14.8 كم في الثانية!' }
+        { id: 'a', labelAr: 'نعم، سيهبط في منتصف ملعب كرة قدم غداً', isCorrect: false, feedbackAr: 'بيانات NeoWs الحية تؤكد أن مساره بعيد جداً وآمن 100%!' },
+        { id: 'b', labelAr: 'يتجمد في مكانه ولا يتحرك في الفضاء', isCorrect: false, feedbackAr: 'الكويكب يتحرك بسرعة تقارب 14.8 كم في الثانية!' },
+        { id: 'c', labelAr: 'يدور داخل الغلاف الجوي للأرض كل ساعة', isCorrect: false, feedbackAr: 'مسافة مروره بعيدة جداً وتتفوق على 19 ضعف بعد القمر!' },
+        { id: 'd', labelAr: 'لا، يمر بأمان تام على بعد يزيد عن 19 ضعف مسافة القمر', isCorrect: true, feedbackAr: 'ممتاز يا مراقب ناسا! الكويكب في مسار آمن وبعيد تماماً!' }
       ]
     }
   }
@@ -350,9 +359,13 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
 
   const liveAsteroid = nasaCache.getAsteroid('3542519');
   const sampleKidWeightOnWorld = Math.round(30 * activeWorld.gravityG * 10) / 10;
+  const shuffledPlanetOptions = useMemo(
+    () => shuffleArray(activeWorld.planetQuestion.options),
+    [activeWorld.id]
+  );
   const activeAnswer = planetAnswers[activeWorld.id];
   const selectedOption = activeAnswer
-    ? activeWorld.planetQuestion.options.find((o) => o.id === activeAnswer.optionId)
+    ? shuffledPlanetOptions.find((o) => o.id === activeAnswer.optionId)
     : undefined;
 
   return (
@@ -440,12 +453,12 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
           </button>
         </div>
 
-        {/* INTERACTIVE TRANSPARENT PLANET SELECTOR MAP (8 CELESTIAL BODIES, ZERO BOXES) */}
+        {/* INTERACTIVE TRANSPARENT PLANET SELECTOR MAP (8 CELESTIAL BODIES, ZERO BOXES, RESPONSIVE GRID) */}
         {scienceTab === 'explore' && (
-          <div className="relative py-3 px-2 overflow-x-auto">
-            <div className="flex items-center justify-between gap-4 sm:gap-5 min-w-max mx-auto px-4 relative">
+          <div className="relative py-2 px-1">
+            <div className="grid grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-3 items-end relative">
               {/* Soft Orbit Line Behind Transparent Planets */}
-              <div className="absolute left-8 right-8 top-9 h-0.5 bg-gradient-to-r from-amber-300/35 via-cyan-300/45 to-purple-300/35 pointer-events-none rounded-full" />
+              <div className="hidden lg:block absolute left-8 right-8 top-9 h-0.5 bg-gradient-to-r from-amber-300/35 via-cyan-300/45 to-purple-300/35 pointer-events-none rounded-full" />
 
               {CELESTIAL_WORLDS.map((world) => {
                 const isSelected = activeWorld.id === world.id;
@@ -664,26 +677,32 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
                 </h3>
 
                 <div className="space-y-2.5 pt-1">
-                  {activeWorld.planetQuestion.options.map((opt) => {
+                  {shuffledPlanetOptions.map((opt, optIdx) => {
                     const isPicked = activeAnswer?.optionId === opt.id;
                     const showGood = isPicked && opt.isCorrect;
                     const showBad = isPicked && !opt.isCorrect;
                     const revealGood = Boolean(activeAnswer?.isCorrect) && opt.isCorrect;
+                    const badgeLetter = ['أ', 'ب', 'ج', 'د'][optIdx] || String(optIdx + 1);
 
                     return (
                       <button
                         key={opt.id}
                         type="button"
                         onClick={() => handleAnswerPlanetQuestion(opt)}
-                        className={`w-full text-right p-3.5 rounded-2xl border-2 font-hud font-bold text-sm sm:text-base transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                        className={`w-full text-right p-3.5 rounded-2xl border-2 border-b-4 font-hud font-bold text-sm sm:text-base transition-all cursor-pointer flex items-center justify-between gap-3 active:translate-y-0.5 ${
                           showGood || revealGood
-                            ? 'bg-emerald-500/30 border-emerald-300 text-white'
+                            ? 'bg-emerald-500/35 border-emerald-300 text-white shadow-[0_4px_0_#047857]'
                             : showBad
-                            ? 'bg-rose-500/30 border-rose-300 text-rose-100'
-                            : 'bg-slate-900/80 hover:bg-indigo-900/60 border-white/20 hover:border-cyan-300 text-slate-100'
+                            ? 'bg-rose-500/35 border-rose-300 text-rose-100 shadow-[0_4px_0_#9f1239]'
+                            : 'bg-slate-900/85 hover:bg-indigo-900/75 border-white/25 hover:border-cyan-300 text-slate-100 shadow-[0_4px_0_rgba(15,23,42,0.95)]'
                         }`}
                       >
-                        <span>{opt.labelAr}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-400 to-indigo-500 border border-white/60 text-slate-950 font-black text-xs flex items-center justify-center shrink-0 shadow-sm">
+                            {badgeLetter}
+                          </span>
+                          <span>{opt.labelAr}</span>
+                        </div>
                         {(showGood || revealGood) && <Check className="w-5 h-5 text-emerald-300 shrink-0" />}
                         {showBad && <X className="w-5 h-5 text-rose-300 shrink-0" />}
                       </button>

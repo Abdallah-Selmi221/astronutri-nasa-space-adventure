@@ -11,7 +11,7 @@ import {
   getSourceVerificationStatus
 } from '../../data/science';
 import { soundManager } from '../../utils/sound';
-import { BookOpen, CheckCircle2, ExternalLink, AlertTriangle, X, Filter } from 'lucide-react';
+import { BookOpen, CheckCircle2, ShieldCheck, AlertTriangle, X, Filter } from 'lucide-react';
 
 interface ScientificSourcesModalProps {
   isOpen: boolean;
@@ -203,30 +203,25 @@ export const ScientificSourcesModal: React.FC<ScientificSourcesModalProps> = ({
                         </p>
                       </div>
                       {source && (
-                        <a
-                          href={source.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-[11px] text-cyan-300 hover:text-cyan-200 font-bold w-fit"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          <span>المصدر #{source.index}: {source.title} ({source.year})</span>
-                        </a>
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-cyan-950/70 border border-cyan-400/35 text-[11px] text-cyan-200 font-bold w-fit">
+                          <ShieldCheck className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+                          <span>المرجع #{source.index}: {source.title} ({source.year})</span>
+                        </div>
                       )}
                     </div>
                   );
                 })}
               </div>
 
-              {/* All 13 Official References Table */}
+              {/* All 13 Official References Table (Static In-Game Reference Cards - Zero External Links) */}
               <div className="rounded-3xl bg-slate-950/85 border border-cyan-500/35 p-4 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="font-hud font-black text-sm sm:text-base text-cyan-200">
-                    📚 قائمة المراجع العلمية الرسمية (13 مرجعاً • Scientific References)
+                    📚 بطاقات المراجع العلمية الرسمية (13 مرجعاً داخل التطبيق)
                   </h3>
                   {SCIENCE_LINK_CHECKED_AT && (
-                    <span className="text-[11px] text-slate-400 font-bold">
-                      آخر فحص للروابط: {SCIENCE_LINK_CHECKED_AT.slice(0, 10)}
+                    <span className="text-[11px] text-emerald-300 font-bold">
+                      أرشيف علمي موثق داخل اللعبة • إصدار: {SCIENCE_LINK_CHECKED_AT.slice(0, 10)}
                     </span>
                   )}
                 </div>
@@ -236,20 +231,23 @@ export const ScientificSourcesModal: React.FC<ScientificSourcesModalProps> = ({
                     const st = getSourceVerificationStatus(src.id);
                     const needsReview = st ? st.reviewRequired : false;
                     return (
-                      <a
+                      <div
                         key={src.id}
-                        href={src.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-3 rounded-2xl bg-slate-900/85 hover:bg-slate-800/90 border border-slate-700/80 hover:border-cyan-400/70 transition-all flex items-start justify-between gap-2.5 group"
+                        data-testid="scientific-source-card"
+                        className="p-3.5 rounded-2xl bg-slate-900/90 border-2 border-slate-700/80 hover:border-cyan-400/70 transition-all flex items-start justify-between gap-2.5 shadow-sm"
                       >
-                        <div className="min-w-0 space-y-0.5">
-                          <div className="font-black text-xs text-white group-hover:text-cyan-200 leading-snug">
-                            {src.index}. {src.title} ({src.year})
+                        <div className="min-w-0 space-y-1">
+                          <div className="font-black text-xs text-white leading-snug">
+                            {src.index}. {src.title}
                           </div>
-                          <div className="text-[11px] text-slate-300">{src.titleAr}</div>
-                          <div className="text-[10px] text-cyan-400/80 truncate" dir="ltr">
-                            {src.url}
+                          <div className="text-[11px] text-cyan-100/90 font-bold">{src.titleAr}</div>
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            <span className="px-2 py-0.5 rounded-full bg-indigo-950/90 border border-indigo-400/50 text-indigo-200 text-[10px] font-black">
+                              إصدار {src.year}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-600 text-slate-300 text-[10px] font-bold">
+                              مرجع علمي معتمد
+                            </span>
                           </div>
                         </div>
 
@@ -257,7 +255,7 @@ export const ScientificSourcesModal: React.FC<ScientificSourcesModalProps> = ({
                           {needsReview ? (
                             <span className="px-2 py-0.5 rounded-full bg-amber-950 border border-amber-400 text-amber-200 text-[10px] font-black flex items-center gap-1">
                               <AlertTriangle className="w-3 h-3" />
-                              <span>راجع / Review</span>
+                              <span>قيد التحديث</span>
                             </span>
                           ) : (
                             <span className="px-2 py-0.5 rounded-full bg-emerald-950 border border-emerald-400 text-emerald-200 text-[10px] font-black flex items-center gap-1">
@@ -265,9 +263,9 @@ export const ScientificSourcesModal: React.FC<ScientificSourcesModalProps> = ({
                               <span>موثق</span>
                             </span>
                           )}
-                          <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-cyan-300" />
+                          <ShieldCheck className="w-4 h-4 text-cyan-400" />
                         </div>
-                      </a>
+                      </div>
                     );
                   })}
                 </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameState } from '../../context/GameContext';
 import { AnimatedRobo, RoboState } from '../common/AnimatedRobo';
@@ -8,6 +8,7 @@ import { HydrationGame } from '../minigames/HydrationGame';
 import { ResistanceTraining } from '../minigames/ResistanceTraining';
 import { InteractiveQuizDeck } from '../common/InteractiveQuizDeck';
 import { HEALTH_PHYSICS_QUESTIONS } from '../../data/questionBanks';
+import { shuffleArray } from '../../utils/shuffle';
 import {
   Check,
   X,
@@ -31,13 +32,6 @@ interface HealthOption {
 
 const HEART_HEALTH_OPTIONS: readonly HealthOption[] = [
   {
-    id: 'exercise',
-    labelAr: 'ممارسة الرياضة',
-    icon: '🏃‍♂️',
-    isCorrect: true,
-    feedbackAr: 'أحسنت! الرياضة مهمة لصحة جسمك وتجعل قلب رائد الفضاء قوياً! 💪❤️'
-  },
-  {
     id: 'sleep_early',
     labelAr: 'النوم مبكراً',
     icon: '🛏️',
@@ -50,6 +44,13 @@ const HEART_HEALTH_OPTIONS: readonly HealthOption[] = [
     icon: '🍔',
     isCorrect: false,
     feedbackAr: 'حاسب يا بطل! الأكل السريع مليان دهون بتتعب القلب وممنوع لرواد الفضاء!'
+  },
+  {
+    id: 'exercise',
+    labelAr: 'ممارسة الرياضة',
+    icon: '🏃‍♂️',
+    isCorrect: true,
+    feedbackAr: 'أحسنت! الرياضة مهمة لصحة جسمك وتجعل قلب رائد الفضاء قوياً! 💪❤️'
   },
   {
     id: 'soda_drinks',
@@ -121,6 +122,7 @@ export const HumanHealth: React.FC<HumanHealthProps> = ({ onComplete }) => {
   const [roboSpeech, setRoboSpeech] = useState<string>(INITIAL_HEALTH_SPEECH);
   const [activeHabitId, setActiveHabitId] = useState<string | null>(null);
   const [healthTab, setHealthTab] = useState<'habits' | 'hydration' | 'training' | 'quiz'>('habits');
+  const shuffledHealthOptions = useMemo(() => shuffleArray(HEART_HEALTH_OPTIONS), []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -435,10 +437,11 @@ export const HumanHealth: React.FC<HumanHealthProps> = ({ onComplete }) => {
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            {HEART_HEALTH_OPTIONS.map((option) => {
+            {shuffledHealthOptions.map((option, optIdx) => {
               const isSelected = selectedOptionId === option.id;
               const isCorrectSelected = isSelected && option.isCorrect;
               const isWrongSelected = isSelected && !option.isCorrect;
+              const badgeLetter = ['أ', 'ب', 'ج', 'د'][optIdx] || String(optIdx + 1);
 
               return (
                 <motion.button
@@ -447,16 +450,19 @@ export const HumanHealth: React.FC<HumanHealthProps> = ({ onComplete }) => {
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => handleSelectOption(option)}
-                  className={`relative py-3.5 px-5 rounded-full border-4 font-hud font-black text-base sm:text-xl flex items-center justify-between gap-3 transition-all cursor-pointer ${
+                  className={`relative py-3.5 px-4 sm:px-5 rounded-2xl border-4 border-b-[6px] font-hud font-black text-base sm:text-xl flex items-center justify-between gap-2.5 transition-all cursor-pointer ${
                     isCorrectSelected
                       ? 'bg-gradient-to-r from-lime-300 via-emerald-400 to-green-500 border-white text-slate-950 shadow-[0_0_30px_rgba(16,185,129,0.85)]'
                       : isWrongSelected
                       ? 'bg-gradient-to-r from-rose-200 to-rose-400 border-rose-500 text-slate-950 shadow-[0_0_25px_rgba(244,63,94,0.7)]'
-                      : 'bg-gradient-to-b from-white via-sky-50 to-sky-100 border-sky-300 hover:border-cyan-300 text-slate-900 shadow-md'
+                      : 'bg-gradient-to-b from-white via-sky-50 to-sky-100 border-sky-300 hover:border-cyan-400 text-slate-900 shadow-md'
                   }`}
                 >
-                  <span className="text-2xl">{option.icon}</span>
-                  <span className="flex-1 text-center">{option.labelAr}</span>
+                  <span className="w-7 h-7 rounded-xl bg-indigo-600 text-white text-xs font-black flex items-center justify-center shrink-0">
+                    {badgeLetter}
+                  </span>
+                  <span className="text-2xl shrink-0">{option.icon}</span>
+                  <span className="flex-1 text-center leading-tight">{option.labelAr}</span>
 
                   {isSelected && (
                     <div

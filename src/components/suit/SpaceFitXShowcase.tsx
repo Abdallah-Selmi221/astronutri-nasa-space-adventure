@@ -324,6 +324,54 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
                   جرّب تحريك الأزرار بالأسفل لرؤية التفاعل المباشر على البدلة الـ 3D (ضغط ذكي، كابلات المقاومة، زر الإفلات، والبطارية)!
                 </span>
               </div>
+
+              {/* Studio Concept & Hardware Quick-Inspect Preview Strip */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundManager.playClick();
+                    setTabMode('renderSheet');
+                  }}
+                  className="group rounded-2xl bg-slate-950/90 hover:bg-slate-900 border-2 border-cyan-400/45 hover:border-cyan-300 p-2 text-right transition-all cursor-pointer flex items-center gap-2.5"
+                >
+                  <img
+                    src="/assets/suit/space_fit_x_front_rear.jpg"
+                    alt="AstroNutri SPACE-FIT X Front and Rear"
+                    className="w-16 h-14 rounded-xl object-cover shrink-0 border border-white/15 group-hover:scale-105 transition-transform"
+                  />
+                  <div className="min-w-0">
+                    <div className="font-hud font-black text-xs text-cyan-200 truncate">
+                      منظور التصميم Studio View
+                    </div>
+                    <div className="text-[10px] text-slate-300 leading-snug mt-0.5">
+                      عرض أمامي وخلفي كامل لشعار AstroNutri وبدلة IVA
+                    </div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundManager.playClick();
+                    setTabMode('renderSheet');
+                  }}
+                  className="group rounded-2xl bg-slate-950/90 hover:bg-slate-900 border-2 border-indigo-400/45 hover:border-indigo-300 p-2 text-right transition-all cursor-pointer flex items-center gap-2.5"
+                >
+                  <img
+                    src="/assets/suit/space_fit_x_hardware.jpg"
+                    alt="AstroNutri SPACE-FIT X Hardware Callouts"
+                    className="w-16 h-14 rounded-xl object-cover shrink-0 border border-white/15 group-hover:scale-105 transition-transform"
+                  />
+                  <div className="min-w-0">
+                    <div className="font-hud font-black text-xs text-indigo-200 truncate">
+                      تفاصيل العتاد والـ 7 وحدات
+                    </div>
+                    <div className="text-[10px] text-slate-300 leading-snug mt-0.5">
+                      اضغط لتكبير مخططات الضغط، الكابلات، والبطارية
+                    </div>
+                  </div>
+                </button>
+              </div>
             </div>
           </div>
         )}
