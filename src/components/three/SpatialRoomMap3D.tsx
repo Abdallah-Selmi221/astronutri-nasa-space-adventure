@@ -122,14 +122,63 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       keyLight.position.set(8, 18, 10);
       scene.add(keyLight);
 
-      // Main Station / Base Floor Deck
-      const deckColor = levelId === 3 ? 0x1e293b : levelId === 2 ? 0x0f172a : 0x0b152c;
+      // Main Station / Base Floor Deck + Level-Specific 3D Environment
+      const deckColor = levelId === 3 ? 0x334155 : levelId === 2 ? 0x091224 : 0x0f1d3a;
       const floor = new THREE.Mesh(
         new THREE.BoxGeometry(25, 0.4, 15),
-        new THREE.MeshStandardMaterial({ color: deckColor, roughness: 0.7, metalness: 0.25 })
+        new THREE.MeshStandardMaterial({ color: deckColor, roughness: 0.72, metalness: 0.25 })
       );
       floor.position.y = -0.25;
       scene.add(floor);
+
+      // Level 2 Spacecraft Fuselage Ribs / Handrails & Level 3 Lunar Craters
+      const floatingZeroGProps: THREE.Mesh[] = [];
+      if (levelId === 2) {
+        for (let hx = -9; hx <= 9; hx += 6) {
+          const rib = new THREE.Mesh(
+            new THREE.TorusGeometry(6.8, 0.08, 8, 28, Math.PI),
+            new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.28 })
+          );
+          rib.rotation.y = Math.PI / 2;
+          rib.position.set(hx, 0.05, 0);
+          scene.add(rib);
+        }
+        // Corridor Zero-G yellow handrails + drifting 3D objects
+        [-0.75, 0.75].forEach((rzRail) => {
+          const rail = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.06, 0.06, 19, 10),
+            new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xca8a04, emissiveIntensity: 0.35 })
+          );
+          rail.rotation.z = Math.PI / 2;
+          rail.position.set(0, 0.38, rzRail);
+          scene.add(rail);
+        });
+        for (let i = 0; i < 4; i++) {
+          const cube = new THREE.Mesh(
+            new THREE.BoxGeometry(0.32, 0.24, 0.24),
+            new THREE.MeshStandardMaterial({ color: i % 2 === 0 ? 0x38bdf8 : 0xfbbf24 })
+          );
+          cube.position.set(-6 + i * 4, 0.9, i % 2 === 0 ? -0.3 : 0.35);
+          scene.add(cube);
+          floatingZeroGProps.push(cube);
+        }
+      } else if (levelId === 3) {
+        // 3D Lunar Craters across Moon outpost perimeter
+        [
+          [-10.5, -6.2, 1.4],
+          [10.2, 5.8, 1.7],
+          [-9.8, 6.0, 1.15],
+          [0, -6.4, 1.3]
+        ].forEach(([cx, cz, cr]) => {
+          const crater = new THREE.Mesh(
+            new THREE.TorusGeometry(cr, 0.22, 8, 22),
+            new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9 })
+          );
+          crater.rotation.x = Math.PI / 2;
+          crater.position.set(cx, 0.04, cz);
+          scene.add(crater);
+        });
+      }
 
       const grid = new THREE.GridHelper(24, 24, 0x38bdf8, 0x1e3a8a);
       grid.position.y = -0.02;
@@ -143,7 +192,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       corridorStrip.position.y = 0.01;
       scene.add(corridorStrip);
 
-      // Build 3D Rooms + Door Frames + Walkways
+      // Build 3D Cutaway Rooms + Interior Props + Door Frames
       const doorGlowMeshes: THREE.Mesh[] = [];
       for (const room of levelSpec.rooms) {
         const [rx, rz] = room.pos;
@@ -153,15 +202,58 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
         // Room base pad
         const roomPod = new THREE.Mesh(
-          new THREE.BoxGeometry(rw, 0.65, rd),
+          new THREE.BoxGeometry(rw, 0.5, rd),
           new THREE.MeshStandardMaterial({
             color: completed ? 0x064e3b : 0x172554,
             roughness: 0.45,
             metalness: 0.35
           })
         );
-        roomPod.position.set(rx, 0.3, rz);
+        roomPod.position.set(rx, 0.22, rz);
         scene.add(roomPod);
+
+        // Isometric 2.5D/3D Cutaway Back Wall
+        const backWallZ = rz < 0 ? rz - rd / 2 + 0.08 : rz + rd / 2 - 0.08;
+        const backWall = new THREE.Mesh(
+          new THREE.BoxGeometry(rw, 0.95, 0.14),
+          new THREE.MeshStandardMaterial({
+            color: 0x1e293b,
+            roughness: 0.4,
+            metalness: 0.45
+          })
+        );
+        backWall.position.set(rx, 0.75, backWallZ);
+        scene.add(backWall);
+
+        // Special Room 3D Interior Props
+        if (room.id === 'launch_area') {
+          const rocketBody = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.28, 0.36, 1.65, 12),
+            new THREE.MeshStandardMaterial({ color: 0xf8fafc, metalness: 0.35 })
+          );
+          rocketBody.position.set(rx, 1.25, rz);
+          const nose = new THREE.Mesh(
+            new THREE.ConeGeometry(0.28, 0.55, 12),
+            new THREE.MeshStandardMaterial({ color: 0xf97316 })
+          );
+          nose.position.set(rx, 2.35, rz);
+          scene.add(rocketBody, nose);
+        } else if (room.id === 'solar_panel_field') {
+          const panel = new THREE.Mesh(
+            new THREE.BoxGeometry(2.4, 0.08, 1.2),
+            new THREE.MeshStandardMaterial({ color: 0x0284c7, emissive: 0x0369a1, emissiveIntensity: 0.45 })
+          );
+          panel.rotation.x = 0.25;
+          panel.position.set(rx, 1.05, rz);
+          scene.add(panel);
+        } else if (room.id.includes('food') || room.id.includes('nutrition')) {
+          const growRack = new THREE.Mesh(
+            new THREE.BoxGeometry(1.5, 0.45, 0.75),
+            new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0xa21caf, emissiveIntensity: 0.35 })
+          );
+          growRack.position.set(rx, 0.85, rz);
+          scene.add(growRack);
+        }
 
         // Glowing top perimeter frame
         const rim = new THREE.Mesh(
@@ -172,7 +264,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
             emissiveIntensity: 0.55
           })
         );
-        rim.position.set(rx, 0.66, rz);
+        rim.position.set(rx, 0.52, rz);
         scene.add(rim);
 
         // Glowing door portal facing corridor
@@ -261,8 +353,20 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           }
         }
 
-        // Hover animation
-        roboGroup.position.set(roboPosRef.current.x, Math.sin(t * 4) * 0.08, roboPosRef.current.z);
+        // Hover / 0G float / Lunar 0.16G hop animation
+        const hoverY =
+          levelId === 2
+            ? 0.24 + Math.sin(t * 2.1) * 0.14
+            : levelId === 3
+            ? Math.abs(Math.sin(t * 2.4)) * 0.2
+            : Math.sin(t * 4) * 0.08;
+        roboGroup.position.set(roboPosRef.current.x, hoverY, roboPosRef.current.z);
+
+        floatingZeroGProps.forEach((p, idx) => {
+          p.position.y = 0.95 + Math.sin(t * 1.8 + idx) * 0.18;
+          p.rotation.x += dt * 0.6;
+          p.rotation.y += dt * 0.8;
+        });
 
         // Pulse doors
         for (let i = 0; i < doorGlowMeshes.length; i++) {
@@ -304,6 +408,13 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       return () => {
         cancelAnimationFrame(rafId);
         window.removeEventListener('resize', handleResize);
+        scene.traverse((obj) => {
+          if (obj instanceof THREE.Mesh) {
+            obj.geometry?.dispose();
+            if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose());
+            else obj.material?.dispose();
+          }
+        });
         renderer?.dispose();
       };
     } catch {

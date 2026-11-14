@@ -8,6 +8,7 @@ import {
 } from '../../types/game';
 import { nasaCache } from '../../services/nasa/nasaCache';
 import { NASA_ENGINEERING_TRADEOFFS, NASA_OSDR_METRICS } from '../../services/nasa/nasaOSDR';
+import { ISS_WATER_MILESTONE, SCIENCE_BADGES } from '../../data/science';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { AlertTriangle, CheckCircle2, ShieldAlert, Sun, Wrench } from 'lucide-react';
@@ -91,6 +92,9 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
   );
   const [tradeOffChoice, setTradeOffChoice] = useState<'shield_o2' | 'farm_only' | null>(
     campaign.l3SolarStormSheltered ? 'shield_o2' : null
+  );
+  const [powerSplit, setPowerSplit] = useState<{ water: number; hydro: number; shield: number }>(
+    campaign.ecoPowerSplit || { water: 40, hydro: 20, shield: 40 }
   );
   const latestStorm = nasaCache.getLatestSolarStorm();
 
@@ -215,6 +219,40 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
 
     return (
       <div className="bg-slate-900/95 border-2 border-cyan-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
+        {/* 98% ISS Water Recovery Milestone (June 2023) + Explicit Caveat + Water Electrolysis */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="p-3.5 rounded-2xl bg-cyan-950/60 border border-cyan-400/50 space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-hud font-black text-xs sm:text-sm text-cyan-200">
+                💧 إنجاز ISS: {ISS_WATER_MILESTONE.recoveryPercent}% استرجاع المياه ({ISS_WATER_MILESTONE.dateLabel})
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-950 border border-emerald-400 text-emerald-200 shrink-0">
+                {SCIENCE_BADGES.ISS_PROVEN.labelAr}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-200 leading-relaxed">
+              تجمع المحطة ماء التنفس والعرق والبول ومياه النظافة وإعداد الطعام بمساعدة <strong>Brine Processor Assembly</strong>.
+            </p>
+            <p className="text-[11px] text-amber-200 font-bold leading-relaxed">
+              {ISS_WATER_MILESTONE.caveatAr}
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-indigo-950/55 border border-indigo-400/50 space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-hud font-black text-xs sm:text-sm text-indigo-200">
+                🫧 توليد الأكسجين بالتحليل الكهربائي للماء (ECLSS)
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-950 border border-emerald-400 text-emerald-200 shrink-0">
+                {SCIENCE_BADGES.ISS_PROVEN.labelAr}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-200 leading-relaxed">
+              تشطر أجهزة ECLSS الماء كهربائياً لتوفير O₂ وتسحب CO₂ وتحافظ على الضغط والرطوبة، بينما تبقى النباتات والسبيرولينا وحدات مساعدة فقط.
+            </p>
+          </div>
+        </div>
+
         <div className="space-y-3">
           {steps.map((st, idx) => {
             const done = waterStep > idx;
@@ -296,12 +334,58 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
               >
                 <p className="font-hud font-black text-sm">{label}</p>
                 {idx === 1 && current && (
-                  <div className="mt-2 space-y-2">
+                  <div className="mt-2 space-y-2.5">
                     <p className="text-xs font-hud text-amber-200">{tradeoff.dilemmaAr}</p>
+
+                    {/* 3-Way Interactive Power Allocation Trade-Off */}
+                    <div className="p-3 rounded-xl bg-slate-950/85 border border-amber-400/40 space-y-2">
+                      <div className="flex items-center justify-between text-[11px] font-black text-amber-200">
+                        <span>⚡ موازنة طاقة القاعدة (100%):</span>
+                        <span className="px-2 py-0.5 rounded-full text-[9px] bg-amber-950 border border-amber-400">
+                          {SCIENCE_BADGES.GAME_RULE.labelAr}
+                        </span>
+                      </div>
+                      {[
+                        { key: 'shield' as const, label: '🛡️ دروع الإشعاع (مطلوب ≥ 45%)', color: 'accent-amber-400' },
+                        { key: 'water' as const, label: '💧 تدوير المياه والهواء ECLSS (مطلوب ≥ 30%)', color: 'accent-cyan-400' },
+                        { key: 'hydro' as const, label: '🌱 إضاءة الزراعة المائية (تُخفّض أثناء العاصفة)', color: 'accent-emerald-400' }
+                      ].map((row) => (
+                        <div key={row.key} className="space-y-0.5">
+                          <div className="flex justify-between text-[10px] font-bold text-slate-200">
+                            <span>{row.label}</span>
+                            <span>{powerSplit[row.key]}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            step={5}
+                            value={powerSplit[row.key]}
+                            onChange={(e) => {
+                              const nextVal = Number(e.target.value);
+                              const updated = { ...powerSplit, [row.key]: nextVal };
+                              setPowerSplit(updated);
+                              onUpdateCampaign({ ecoPowerSplit: updated });
+                            }}
+                            className={`w-full cursor-pointer ${row.color}`}
+                          />
+                        </div>
+                      ))}
+                      <div className="text-[10px] font-bold text-slate-300">
+                        إجمالي السحب: {powerSplit.shield + powerSplit.water + powerSplit.hydro}% (الهدف ≤ 100%)
+                      </div>
+                    </div>
+
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => {
+                          const totalPower = powerSplit.shield + powerSplit.water + powerSplit.hydro;
+                          if (powerSplit.shield < 45 || powerSplit.water < 30 || totalPower > 100) {
+                            soundManager.playAlertSiren();
+                            setTradeOffChoice('farm_only');
+                            return;
+                          }
                           soundManager.playClick();
                           setTradeOffChoice('shield_o2');
                           setStormStep(2);
@@ -323,7 +407,7 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
                     </div>
                     {tradeOffChoice === 'farm_only' && (
                       <p className="text-xs text-rose-300 font-hud font-bold">
-                        خطر! {tradeoff.optimalDecisionAr}
+                        خطر! {tradeoff.optimalDecisionAr} (اضبط الدروع ≥ 45% والمياه ≥ 30% والمجموع ≤ 100%!)
                       </p>
                     )}
                   </div>

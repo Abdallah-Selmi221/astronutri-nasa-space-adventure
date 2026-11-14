@@ -1,10 +1,20 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { CampaignProgressState, MiniGameId } from '../../types/game';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { NASA_ENGINEERING_TRADEOFFS } from '../../services/nasa/nasaOSDR';
-import { CheckCircle2, AlertTriangle, Rocket, ShieldCheck, PackageCheck } from 'lucide-react';
+import { EGYPTIAN_SINAI_SPACE_FOODS, FOOD_DATABASE } from '../../data/foodItems';
+import { DAILY_REFERENCE_ASSUMPTIONS, SCIENCE_BADGES } from '../../data/science';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  PackageCheck,
+  Radio,
+  Rocket,
+  ShieldCheck,
+  XCircle
+} from 'lucide-react';
 
 interface Level1Props {
   miniGameId: MiniGameId;
@@ -14,40 +24,739 @@ interface Level1Props {
   onBackToLevel: () => void;
 }
 
-interface L1FoodChoice {
+interface PantryEntry {
   id: string;
   nameAr: string;
+  nameEn: string;
   icon: string;
-  group: 'protein' | 'carbs' | 'fats' | 'vitamins' | 'banned';
-  groupAr: string;
+  svgAsset?: string;
   weightKg: number;
-  crumbWarning?: string;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+  fiber: number;
+  vitamins: number;
+  isBanned: boolean;
+  originBadge?: string;
+  bannedMsg?: string;
 }
 
-const L1_FOOD_OPTIONS: L1FoodChoice[] = [
-  { id: 'chicken_pouch', nameAr: 'دجاج فضائي مجفف', icon: '🍗', group: 'protein', groupAr: 'بروتين', weightKg: 6 },
-  { id: 'space_tortilla', nameAr: 'خبز التورتيلا (بدون فتات)', icon: '🌯', group: 'carbs', groupAr: 'كربوهيدرات', weightKg: 4 },
-  { id: 'almond_pack', nameAr: 'كيس لوز مغلف', icon: '🥜', group: 'fats', groupAr: 'دهون صحية', weightKg: 3 },
-  { id: 'broccoli_strawberries', nameAr: 'بروكلي وفراولة مجففة', icon: '🥦', group: 'vitamins', groupAr: 'فيتامينات وألياف', weightKg: 4 },
-  { id: 'cracker_chips', nameAr: 'بسكويت وشيبسي مقرمش', icon: '🍪', group: 'banned', groupAr: 'ممنوع بالفضاء', weightKg: 3, crumbWarning: 'قاعدة ممنوع الفتات! البسكويت والشيبسي يطيران في 0G ويدمران أجهزة التنفس!' },
-  { id: 'soda_can', nameAr: 'مشروب غازي', icon: '🥤', group: 'banned', groupAr: 'ممنوع بالفضاء', weightKg: 4, crumbWarning: 'المشروبات الغازية ممنوعة لأن الغاز لا ينفصل عن السائل في انعدام الجاذبية!' }
-];
+const buildPantryEntries = (): PantryEntry[] => {
+  const fromFoodDb = (id: string, fallbackWeight: number, vitBoost: number, originBadge?: string): PantryEntry | null => {
+    const f = FOOD_DATABASE.find((item) => item.id === id);
+    if (!f) return null;
+    return {
+      id: f.id,
+      nameAr: f.nameAr || f.name,
+      nameEn: f.name,
+      icon: f.icon,
+      svgAsset: f.svgAsset,
+      weightKg: fallbackWeight,
+      kcal: f.kcal ?? f.proteinGrams * 4 + f.carbsGrams * 4,
+      protein: f.proteinGrams,
+      carbs: f.carbsGrams,
+      fats: f.fatsGrams ?? 2,
+      fiber: f.fiberGrams ?? 2,
+      vitamins: vitBoost,
+      isBanned: f.isBanned,
+      originBadge,
+      bannedMsg: f.bannedReasonAr
+    };
+  };
 
-const L1_EQUIPMENT = [
-  { id: 'suit_liner', nameAr: 'بطانة بدلة الفضاء', icon: '🦺', bay: 'خزانة البدلات' },
-  { id: 'telemetry_tablet', nameAr: 'جهاز قياس المركبة', icon: '📟', bay: 'خزانة القيادة' },
-  { id: 'first_aid', nameAr: 'حقيبة الإسعاف الطبي', icon: '🩹', bay: 'الخزانة الطبية' },
-  { id: 'tool_kit', nameAr: 'طقم مفاتيح الصيانة', icon: '🔧', bay: 'خزانة الأدوات' },
-  { id: 'ration_seal', nameAr: 'أكياس حفظ الطعام المختومة', icon: '🥡', bay: 'خزانة التغذية' }
+  const candidates = [
+    fromFoodDb('space_tortilla', 3, 15, 'ناسا المعتمدة'),
+    fromFoodDb('egy_mish_pouch', 3, 20, 'مصري 🇪🇬'),
+    fromFoodDb('sinai_date_bars', 3, 20, 'سيناوي 🌴'),
+    fromFoodDb('egy_tahini_pouch', 2, 18, 'مصري 🥣'),
+    fromFoodDb('sinai_olive_oil_drops', 1, 16, 'سيناوي 🫒'),
+    fromFoodDb('sinai_herbal_paste', 1, 22, 'سيناوي 🌿'),
+    fromFoodDb('egy_space_cabbage_lettuce', 2, 35, 'زراعة مائية 🌱'),
+    fromFoodDb('egy_space_arugula', 2, 35, 'زراعة مائية 🌱'),
+    fromFoodDb('egy_space_turnip', 2, 28, 'زراعة مائية 🌱'),
+    fromFoodDb('chicken_teriyaki_pouch', 4, 15, 'ناسا المعتمدة')
+  ].filter(Boolean) as PantryEntry[];
+
+  // Red-warning banned items
+  candidates.push(
+    {
+      id: 'banned_crumbly_biscuits',
+      nameAr: 'بسكويت متفتت (خطر)',
+      nameEn: 'Crumbly Biscuits',
+      icon: '🍪',
+      weightKg: 2,
+      kcal: 220,
+      protein: 3,
+      carbs: 35,
+      fats: 8,
+      fiber: 1,
+      vitamins: 0,
+      isBanned: true,
+      originBadge: 'ممنوع بالفضاء 🚫',
+      bannedMsg:
+        '⚠️ خطر الفتات! البسكويت المتفتت يسبح في الجاذبية الصغرى ويسد فلاتر الهواء ويؤذي أعين الرواد!'
+    },
+    {
+      id: 'banned_open_juice',
+      nameAr: 'عصير في كوب مفتوح (خطر)',
+      nameEn: 'Open Juice Cup',
+      icon: '🧃',
+      weightKg: 2,
+      kcal: 110,
+      protein: 0,
+      carbs: 26,
+      fats: 0,
+      fiber: 0,
+      vitamins: 15,
+      isBanned: true,
+      originBadge: 'ممنوع بالفضاء 🚫',
+      bannedMsg:
+        '⚠️ السوائل الحرة ممنوعة! في 0G تتطاير قطرات العصير وتُحدث تماساً كهربائياً بالأجهزة!'
+    }
+  );
+
+  return candidates;
+};
+
+const PANTRY_ENTRIES = buildPantryEntries();
+
+interface EquipInspectionItem {
+  id: string;
+  nameAr: string;
+  nameEn: string;
+  icon: string;
+  bay: string;
+  shouldPack: boolean;
+  reasonAr: string;
+}
+
+const EQUIP_INSPECTION_LIST: EquipInspectionItem[] = [
+  {
+    id: 'med_kit',
+    nameAr: 'حقيبة الإسعافات والقياس الحيوي',
+    nameEn: 'Space Medical Kit',
+    icon: '🧰',
+    bay: 'العيادة الطبية',
+    shouldPack: true,
+    reasonAr: 'ضرورية لمتابعة النبض والضغط والإسعاف الأولي.'
+  },
+  {
+    id: 'damaged_batteries',
+    nameAr: 'بطاريات تالفة ومنتفخة',
+    nameEn: 'Damaged Batteries',
+    icon: '🪫',
+    bay: 'ممنوعة — أمان الطاقة',
+    shouldPack: false,
+    reasonAr: 'مرفوض! البطاريات التالفة تشكل خطر حريق وتسرب كيميائي بالمركبة.'
+  },
+  {
+    id: 'comms_headset',
+    nameAr: 'سماعة اتصال مركز الأرض',
+    nameEn: 'Mission Comms Headset',
+    icon: '🎧',
+    bay: 'غرفة التحكم',
+    shouldPack: true,
+    reasonAr: 'أساسية للتواصل المستمر مع مركز التحكم الأرضي.'
+  },
+  {
+    id: 'game_console',
+    nameAr: 'جهاز ألعاب كبير غير ضروري',
+    nameEn: 'Unnecessary Game Console',
+    icon: '🎮',
+    bay: 'مرفوض — وزن زائد',
+    shouldPack: false,
+    reasonAr: 'مرفوض! كل كيلوجرام في الصاروخ يستهلك وقوداً غالياً بلا فائدة علمية.'
+  },
+  {
+    id: 'o2_monitor',
+    nameAr: 'جهاز قياس الأكسجين المحمول',
+    nameEn: 'Portable O2 Monitor',
+    icon: '🫧',
+    bay: 'حظيرة المركبة',
+    shouldPack: true,
+    reasonAr: 'يراقب نقاء هواء الكابينة وضغط الأكسجين.'
+  },
+  {
+    id: 'expired_pack',
+    nameAr: 'عبوة طعام منتهية الصلاحية',
+    nameEn: 'Expired Pack',
+    icon: '📦',
+    bay: 'مرفوض — سلامة ميكروبية',
+    shouldPack: false,
+    reasonAr: 'مرفوض! السلامة الميكروبية وصلاحية الغذاء شرط أساسي في الفضاء.'
+  },
+  {
+    id: 'safety_tethers',
+    nameAr: 'أحزمة وحبال أمان الجاذبية',
+    nameEn: 'Zero-G Safety Tethers',
+    icon: '🪢',
+    bay: 'ممر انعدام الجاذبية',
+    shouldPack: true,
+    reasonAr: 'تمنع طفو الأدوات وارتطامها في انعدام الجاذبية.'
+  },
+  {
+    id: 'toy_camera',
+    nameAr: 'كاميرا بلاستيكية لعبة',
+    nameEn: 'Toy Camera',
+    icon: '📷',
+    bay: 'مرفوض — غير معتمدة',
+    shouldPack: false,
+    reasonAr: 'مرفوض! استبدلها بأدوات الرصد العلمية المعايرة.'
+  }
 ];
 
 const L1_SHIP_SYSTEMS = [
-  { id: 'oxygen', nameAr: 'خزانات الأكسجين النقي (100%)', icon: '🫁' },
-  { id: 'power', nameAr: 'الطاقة الكهربائية والبطاريات', icon: '⚡' },
-  { id: 'comms', nameAr: 'هوائي الاتصالات الأرضية', icon: '📡' },
-  { id: 'life_support', nameAr: 'وحدة دعم الحياة وتنقية CO2', icon: '♻️' },
-  { id: 'cabin_doors', nameAr: 'أقفال وأبواب الكابينة المحكمة', icon: '🚪' }
+  { id: 'oxygen', nameAr: 'خزانات الأكسجين ومعدل الضغط (O₂)', icon: '🫧' },
+  { id: 'power', nameAr: 'البطاريات وخلايا الطاقة الكهربائية', icon: '⚡' },
+  { id: 'comms', nameAr: 'هوائي الاتصال الأرضي والرادار', icon: '📡' },
+  { id: 'life_support', nameAr: 'نظام دعم الحياة وإزالة CO₂ (ECLSS)', icon: '💨' },
+  { id: 'cabin_doors', nameAr: 'إغلاق وأمان أبواب الكبسولة', icon: '🚪' }
 ];
+
+// ---------------------------------------------------------------------------
+// 1.1 FOOD PACKING CHALLENGE (2.5D Pantry Shelves + Meal Tray + Simplified Game Meters)
+// ---------------------------------------------------------------------------
+const FoodPackingScene: React.FC<{
+  campaign: CampaignProgressState;
+  onComplete: (ids: string[], weightKg: number) => void;
+}> = ({ campaign, onComplete }) => {
+  const [selectedIds, setSelectedIds] = useState<string[]>(
+    campaign.l1SelectedFoodIds.length > 0 ? campaign.l1SelectedFoodIds : []
+  );
+  const [safetyAlert, setSafetyAlert] = useState<string | null>(null);
+
+  const packed = PANTRY_ENTRIES.filter((p) => selectedIds.includes(p.id));
+  const totalKg = packed.reduce((s, p) => s + p.weightKg, 0);
+  const totalProtein = packed.reduce((s, p) => s + p.protein, 0);
+  const totalCarbs = packed.reduce((s, p) => s + p.carbs, 0);
+  const totalFats = packed.reduce((s, p) => s + p.fats, 0);
+  const totalFiber = packed.reduce((s, p) => s + p.fiber, 0);
+  const totalVitamins = packed.reduce((s, p) => s + p.vitamins, 0);
+  const totalKcal = packed.reduce((s, p) => s + p.kcal, 0);
+
+  const maxKg = 20;
+  const pct = (val: number, goal: number) => Math.min(100, Math.round((val / goal) * 100));
+
+  const proteinPct = pct(totalProtein, 35);
+  const carbsPct = pct(totalCarbs, 55);
+  const fatsPct = pct(totalFats, 25);
+  const vitPct = pct(totalVitamins, 55);
+  const fiberPct = pct(totalFiber, 9);
+
+  const isBalanced =
+    packed.length >= 4 &&
+    totalKg <= maxKg &&
+    proteinPct >= 75 &&
+    carbsPct >= 65 &&
+    fatsPct >= 65 &&
+    vitPct >= 70 &&
+    fiberPct >= 65;
+
+  const toggleItem = (entry: PantryEntry) => {
+    if (entry.isBanned) {
+      soundManager.playAlertSiren();
+      setSafetyAlert(entry.bannedMsg || 'ممنوع في الفضاء!');
+      void dialogueManager.speak('حاسب! ده ممنوع في الفضاء عشان الفتات والسوائل الحرة!');
+      return;
+    }
+    soundManager.playClick();
+    setSafetyAlert(null);
+    setSelectedIds((prev) => {
+      if (prev.includes(entry.id)) return prev.filter((x) => x !== entry.id);
+      if (totalKg + entry.weightKg > maxKg) {
+        soundManager.playCautionBeep();
+        setSafetyAlert('⚠️ وصلت للحد الأقصى لسعة صندوق الشحن (20 كجم)! أزل صنفاً لتضيف غيره.');
+        return prev;
+      }
+      return [...prev, entry.id];
+    });
+  };
+
+  return (
+    <div className="bg-slate-900/95 border-2 border-emerald-400/70 rounded-3xl p-4 sm:p-5 space-y-4 shadow-2xl">
+      {/* Educational Header + Simplified Game Rule Notice */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-950/85 rounded-2xl p-3 border border-cyan-500/35">
+        <div className="text-xs font-hud font-bold text-slate-200">
+          🇪🇬 اختر أطعمة مصرية وسيناوية وعالمية آمنة بلا فتات لبناء وجبة الفضاء المتوازنة (4+ أصناف ضمن 20 كجم):
+        </div>
+        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black border bg-amber-950/80 border-amber-400 text-amber-200">
+          {SCIENCE_BADGES.GAME_RULE.labelAr} • تبسيط تعليمي
+        </span>
+      </div>
+
+      {safetyAlert && (
+        <div className="p-3 rounded-2xl bg-rose-950 border-2 border-rose-400 text-rose-100 font-hud font-bold text-xs sm:text-sm flex items-center gap-2">
+          <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+          <span>{safetyAlert}</span>
+        </div>
+      )}
+
+      {/* 3-Column Illustrated Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        {/* LEFT: Pantry Shelves (Egyptian, Sinai, Hydroponic & Warning Items) */}
+        <div className="lg:col-span-5 rounded-2xl bg-slate-950/80 border border-slate-700 p-3 space-y-2.5 max-h-[430px] overflow-y-auto">
+          <div className="font-hud font-black text-xs text-cyan-200">
+            🥫 رفوف المخزن الفضائي ({PANTRY_ENTRIES.length} أصناف)
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
+            {PANTRY_ENTRIES.map((entry) => {
+              const isSelected = selectedIds.includes(entry.id);
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => toggleItem(entry)}
+                  className={`p-2.5 rounded-2xl border-2 text-right flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                    entry.isBanned
+                      ? 'bg-rose-950/45 border-rose-500/75 hover:bg-rose-900/60'
+                      : isSelected
+                      ? 'bg-emerald-950/75 border-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.35)]'
+                      : 'bg-slate-900/85 border-slate-700 hover:border-cyan-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {entry.svgAsset ? (
+                      <img src={entry.svgAsset} alt={entry.nameAr} className="w-10 h-10 object-contain shrink-0" />
+                    ) : (
+                      <span className="text-2xl shrink-0">{entry.icon}</span>
+                    )}
+                    <div className="min-w-0">
+                      <div className="font-hud font-black text-xs text-white truncate">{entry.nameAr}</div>
+                      <div className="text-[10px] text-slate-300 truncate">
+                        {entry.kcal} kcal • ب:{entry.protein}g • ك:{entry.carbs}g • د:{entry.fats}g
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end shrink-0 gap-0.5">
+                    {entry.originBadge && (
+                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                        entry.isBanned ? 'bg-rose-900 text-rose-200' : 'bg-cyan-950 text-cyan-200 border border-cyan-500/40'
+                      }`}>
+                        {entry.originBadge}
+                      </span>
+                    )}
+                    <span className="text-[10px] font-black text-amber-300">{entry.weightKg} كجم</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* CENTER: Astronaut Chef & Meal Tray + Cargo Crate */}
+        <div className="lg:col-span-4 rounded-2xl bg-gradient-to-b from-indigo-950/80 to-slate-950 border-2 border-indigo-400/50 p-4 flex flex-col items-center justify-between gap-3 min-h-[380px]">
+          <div className="text-center space-y-1">
+            <div className="text-5xl">👨‍🚀🍽️</div>
+            <div className="font-hud font-black text-sm text-white">صينية الوجبة وصندوق الشحن</div>
+            <div className="text-[11px] text-indigo-200">
+              اضغط على الطعام لإضافته إلى الصندوق الآمن
+            </div>
+          </div>
+
+          <div className="w-full flex-1 rounded-2xl bg-slate-900/80 border border-slate-700 p-3 space-y-2">
+            <div className="flex items-center justify-between text-xs font-black text-emerald-300">
+              <span>📦 العناصر المحزومة ({packed.length})</span>
+              <span>{totalKcal} kcal</span>
+            </div>
+            {packed.length === 0 ? (
+              <div className="h-32 flex items-center justify-center text-xs text-slate-400 text-center">
+                الصينية فارغة الآن — اختر أطعمة مصرية أو سيناوية أو مائية آمنة!
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {packed.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => toggleItem(p)}
+                    className="px-2.5 py-1.5 rounded-xl bg-emerald-950/80 border border-emerald-400/70 text-[11px] font-bold text-white flex items-center gap-1.5 cursor-pointer hover:bg-rose-950/70"
+                    title="اضغط للإزالة"
+                  >
+                    <span>{p.icon}</span>
+                    <span>{p.nameAr.split(' (')[0]}</span>
+                    <span className="text-rose-300">✕</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="w-full text-[11px] text-cyan-200 bg-sky-950/70 rounded-xl p-2.5 border border-cyan-500/30 text-center font-bold">
+            عدد عناصر السيناوي/المصري بالصندوق: {packed.filter((p) => EGYPTIAN_SINAI_SPACE_FOODS.some((e) => e.id === p.id)).length}
+          </div>
+        </div>
+
+        {/* RIGHT: Glossy Telemetry Meters */}
+        <div className="lg:col-span-3 rounded-2xl bg-slate-950/90 border border-cyan-400/40 p-3.5 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="font-hud font-black text-xs text-white">📊 عدادات المهمة</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+              safetyAlert ? 'bg-rose-600 text-white' : 'bg-emerald-500 text-slate-950'
+            }`}>
+              {safetyAlert ? 'WARNING ⚠️' : 'Safety: SAFE ✅'}
+            </span>
+          </div>
+
+          {/* Cargo Capacity Meter */}
+          <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+            <div className="flex justify-between text-[11px] font-black">
+              <span className="text-amber-300">سعة الشحن</span>
+              <span className="text-white">{totalKg} / {maxKg} كجم</span>
+            </div>
+            <div className="h-2 rounded-full bg-slate-950 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all"
+                style={{ width: `${Math.min(100, (totalKg / maxKg) * 100)}%` }}
+              />
+            </div>
+          </div>
+
+          {/* 5 Macro/Micro Bars (with explicit 'تبسيط' badge) */}
+          <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-black text-cyan-200">توازن التغذية</span>
+              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-amber-950 border border-amber-400 text-amber-200">
+                تبسيط
+              </span>
+            </div>
+            {[
+              { label: 'بروتين', pctVal: proteinPct, color: 'bg-sky-400', raw: `${totalProtein}g` },
+              { label: 'كربوهيدرات', pctVal: carbsPct, color: 'bg-amber-400', raw: `${totalCarbs}g` },
+              { label: 'دهون صحية', pctVal: fatsPct, color: 'bg-yellow-300', raw: `${totalFats.toFixed(0)}g` },
+              { label: 'فيتامينات', pctVal: vitPct, color: 'bg-emerald-400', raw: `${totalVitamins}%` },
+              { label: 'ألياف', pctVal: fiberPct, color: 'bg-pink-400', raw: `${totalFiber.toFixed(0)}g` }
+            ].map((bar) => (
+              <div key={bar.label} className="space-y-0.5">
+                <div className="flex justify-between text-[10px] font-bold text-slate-300">
+                  <span>{bar.label}</span>
+                  <span>{bar.raw} ({bar.pctVal}%)</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-slate-950 overflow-hidden">
+                  <div className={`h-full ${bar.color} transition-all`} style={{ width: `${bar.pctVal}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="p-2 rounded-xl bg-sky-950/60 border border-sky-400/35 text-[10px] text-sky-100 leading-relaxed">
+            📐 <strong>{SCIENCE_BADGES.PLANNING_ASSUMPTION.labelAr}:</strong> لرائد 70 كجم/يوم = {DAILY_REFERENCE_ASSUMPTIONS.energyKcal} kcal و{DAILY_REFERENCE_ASSUMPTIONS.proteinGrams}g بروتين.
+          </div>
+        </div>
+      </div>
+
+      <div className="p-3 rounded-2xl bg-sky-950/60 border border-cyan-500/35 text-xs font-hud text-cyan-100">
+        🛰️ <strong>{NASA_ENGINEERING_TRADEOFFS[1].titleAr}:</strong> {NASA_ENGINEERING_TRADEOFFS[1].optimalDecisionAr}
+      </div>
+
+      <button
+        type="button"
+        disabled={!isBalanced}
+        onClick={() => {
+          soundManager.playFanfare();
+          void dialogueManager.speak('عاش يا بطل! الوجبة متوازنة وتجمع أكلات مصر وسيناء الآمنة بدون فتات!');
+          onComplete(selectedIds, totalKg);
+        }}
+        className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 transition-all ${
+          isBalanced
+            ? 'bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 border-white cursor-pointer hover:brightness-110'
+            : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+        }`}
+      >
+        {isBalanced
+          ? 'تأكيد تعبئة الطعام الآمن وإغلاق الصندوق 🚀'
+          : 'أضف 4+ أصناف متنوعة حتى ترتفع مؤشرات التغذية جميعها فوق 70%'}
+      </button>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// 1.2 EQUIPMENT & INSPECTION (Accept Valid Gear / Reject Faulty Items)
+// ---------------------------------------------------------------------------
+const EquipmentInspectionScene: React.FC<{
+  campaign: CampaignProgressState;
+  onComplete: (packedIds: string[]) => void;
+}> = ({ campaign, onComplete }) => {
+  const [decisions, setDecisions] = useState<Record<string, 'packed' | 'rejected'>>(() => {
+    const init: Record<string, 'packed' | 'rejected'> = {};
+    campaign.l1EquipmentPacked.forEach((id) => {
+      init[id] = 'packed';
+    });
+    return init;
+  });
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  const handleDecide = (item: EquipInspectionItem, choice: 'packed' | 'rejected') => {
+    const correct = (choice === 'packed' && item.shouldPack) || (choice === 'rejected' && !item.shouldPack);
+    if (!correct) {
+      soundManager.playAlertSiren();
+      setFeedback(`⚠️ انتبه! ${item.reasonAr}`);
+      return;
+    }
+    soundManager.playDropSuccess();
+    setFeedback(`✅ قرار سليم: ${item.reasonAr}`);
+    setDecisions((prev) => ({ ...prev, [item.id]: choice }));
+  };
+
+  const validItemsCount = EQUIP_INSPECTION_LIST.filter((i) => i.shouldPack).length;
+  const resolvedCorrectly = EQUIP_INSPECTION_LIST.every((item) => {
+    const d = decisions[item.id];
+    return (item.shouldPack && d === 'packed') || (!item.shouldPack && d === 'rejected');
+  });
+  const resolvedCount = Object.keys(decisions).length;
+
+  return (
+    <div className="bg-slate-900/95 border-2 border-amber-400/70 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-hud font-bold text-xs sm:text-sm text-amber-200">
+          افحص كل عنصر: احزم المعدات السليمة فقط، وارفض التالف أو الزائد عن الحاجة ({resolvedCount}/{EQUIP_INSPECTION_LIST.length}):
+        </p>
+        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-950 border border-amber-400 text-amber-200">
+          المعدات الصالحة المطلوبة: {validItemsCount}
+        </span>
+      </div>
+
+      {feedback && (
+        <div className="p-3 rounded-2xl bg-slate-950/90 border border-cyan-500/40 text-xs font-bold text-cyan-100">
+          {feedback}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {EQUIP_INSPECTION_LIST.map((item) => {
+          const d = decisions[item.id];
+          return (
+            <div
+              key={item.id}
+              className={`p-3.5 rounded-2xl border-2 flex flex-col justify-between gap-2.5 transition-all ${
+                d === 'packed'
+                  ? 'bg-emerald-950/60 border-emerald-400'
+                  : d === 'rejected'
+                  ? 'bg-slate-950/70 border-slate-600 opacity-85'
+                  : 'bg-slate-800/85 border-slate-600'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-3xl shrink-0">{item.icon}</span>
+                <div>
+                  <div className="font-hud font-black text-sm text-white">{item.nameAr}</div>
+                  <div className="text-[11px] text-slate-300">{item.bay}</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDecide(item, 'packed')}
+                  className={`flex-1 py-1.5 rounded-xl text-xs font-black flex items-center justify-center gap-1 cursor-pointer border ${
+                    d === 'packed'
+                      ? 'bg-emerald-500 text-slate-950 border-white'
+                      : 'bg-slate-900 hover:bg-emerald-900/60 text-emerald-200 border-emerald-500/50'
+                  }`}
+                >
+                  <PackageCheck className="w-3.5 h-3.5" />
+                  <span>{d === 'packed' ? 'تم الحزم ✅' : 'احزم للمهمة'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDecide(item, 'rejected')}
+                  className={`flex-1 py-1.5 rounded-xl text-xs font-black flex items-center justify-center gap-1 cursor-pointer border ${
+                    d === 'rejected'
+                      ? 'bg-rose-500 text-white border-white'
+                      : 'bg-slate-900 hover:bg-rose-900/60 text-rose-200 border-rose-500/50'
+                  }`}
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  <span>{d === 'rejected' ? 'تم الاستبعاد 🚫' : 'رفض / استبعاد'}</span>
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <button
+        type="button"
+        disabled={!resolvedCorrectly}
+        onClick={() => {
+          soundManager.playFanfare();
+          void dialogueManager.speak('ممتاز! فرزت المعدات السليمة واستبعدت الأوزان والأشياء التالفة بنجاح!');
+          onComplete(EQUIP_INSPECTION_LIST.filter((i) => i.shouldPack).map((i) => i.id));
+        }}
+        className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 ${
+          resolvedCorrectly
+            ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 border-white cursor-pointer'
+            : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+        }`}
+      >
+        تأكيد فحص وحزم المعدات ✅
+      </button>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// 1.5 MISSION CONTROL & FINAL LAUNCH (Rocket Window + Fault Fix + Countdown)
+// ---------------------------------------------------------------------------
+const MissionControlLaunchScene: React.FC<{
+  campaign: CampaignProgressState;
+  onComplete: () => void;
+  onNextLevel: () => void;
+  onBackToLevel: () => void;
+}> = ({ campaign, onComplete, onNextLevel, onBackToLevel }) => {
+  const [navSynced, setNavSynced] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [launchSuccess, setLaunchSuccess] = useState(
+    campaign.completedMiniGames.includes('l1_mission_launch')
+  );
+  const timersRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach((id) => window.clearTimeout(id));
+    };
+  }, []);
+
+  const reqFood = campaign.completedMiniGames.includes('l1_food_prep');
+  const reqEquip = campaign.completedMiniGames.includes('l1_equipment_prep');
+  const reqMed = campaign.completedMiniGames.includes('l1_medical_check');
+  const reqShip = campaign.completedMiniGames.includes('l1_spaceship_inspect');
+  const canLaunch = reqFood && reqEquip && reqMed && reqShip && navSynced;
+
+  const startCountdown = () => {
+    if (!canLaunch || countdown !== null) return;
+    soundManager.playClick();
+    setCountdown(3);
+    timersRef.current.push(window.setTimeout(() => setCountdown(2), 800));
+    timersRef.current.push(window.setTimeout(() => setCountdown(1), 1600));
+    timersRef.current.push(
+      window.setTimeout(() => {
+        setCountdown(0);
+        setLaunchSuccess(true);
+        soundManager.playFanfare();
+        confetti({ particleCount: 160, spread: 95, origin: { y: 0.6 } });
+        void dialogueManager.speak('عاش يا بطل! تم إطلاق الصاروخ بنجاح وانطلقت الرحلة إلى القمر!');
+        onComplete();
+      }, 2400)
+    );
+  };
+
+  return (
+    <div className="bg-slate-900/95 border-2 border-purple-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
+      {/* Launch Pad Illustrated Window + Telemetry Checklist */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+        <div className="md:col-span-5 rounded-2xl bg-gradient-to-b from-[#081b3b] to-slate-950 border-2 border-cyan-400/50 p-4 flex flex-col items-center justify-center relative overflow-hidden min-h-[190px]">
+          <div className="text-[11px] font-black text-cyan-200 absolute top-2.5 right-3">
+            🪟 نافذة منصة الإطلاق المباشرة
+          </div>
+          <div className={`text-6xl transition-transform duration-700 ${launchSuccess ? '-translate-y-12 scale-110' : ''}`}>
+            🚀
+          </div>
+          <div className="w-32 h-3 rounded-full bg-slate-700 mt-3 border border-slate-500" />
+          <div className="text-[11px] font-bold text-slate-300 mt-2">
+            {launchSuccess ? '🔥 تم الإقلاع نحو المدار!' : canLaunch ? 'جاهز للاشتعال الكامل' : 'في انتظار اكتمال الفحوصات ومزامنة الملاحة'}
+          </div>
+        </div>
+
+        <div className="md:col-span-7 space-y-3">
+          <h2 className="font-hud font-black text-base text-white flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-cyan-400" />
+            <span>قائمة التحقق النهائية للإطلاق:</span>
+          </h2>
+
+          <div className="grid grid-cols-2 gap-2.5 text-xs font-hud font-black">
+            {[
+              { ok: reqFood, label: '1. مخزن الطعام (Food)' },
+              { ok: reqEquip, label: '2. فحص المعدات (Equipment)' },
+              { ok: reqMed, label: '3. الفحص الطبي (Medical)' },
+              { ok: reqShip, label: '4. أنظمة المركبة (Rocket)' }
+            ].map((r) => (
+              <div
+                key={r.label}
+                className={`p-3 rounded-2xl border-2 flex items-center gap-2 ${
+                  r.ok ? 'bg-emerald-950/70 border-emerald-400 text-emerald-200' : 'bg-rose-950/50 border-rose-500 text-rose-200'
+                }`}
+              >
+                {r.ok ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
+                <span>{r.label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Interactive Fault Resolution: Sync Navigation Data */}
+          <div className={`p-3 rounded-2xl border-2 flex flex-wrap items-center justify-between gap-2 ${
+            navSynced ? 'bg-emerald-950/60 border-emerald-400' : 'bg-amber-950/50 border-amber-400 animate-pulse'
+          }`}>
+            <div className="text-xs font-bold text-white flex items-center gap-2">
+              <Radio className="w-4 h-4 text-amber-300" />
+              <span>{navSynced ? '✅ تم مزامنة بيانات الملاحة بنجاح!' : 'تنبيه: بيانات الملاحة تحتاج مزامنة قبل الإطلاق'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                soundManager.playCrystalSparkle();
+                setNavSynced(true);
+              }}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black cursor-pointer ${
+                navSynced ? 'bg-emerald-500 text-slate-950' : 'bg-amber-400 hover:bg-amber-300 text-slate-950'
+              }`}
+            >
+              {navSynced ? 'تمت المزامنة ✓' : 'Sync Navigation Data 🛰️'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {countdown !== null && countdown > 0 && (
+        <div className="py-4 text-center font-hud font-black text-6xl text-amber-300 animate-bounce">
+          {countdown}
+        </div>
+      )}
+
+      {launchSuccess ? (
+        <div className="p-5 rounded-3xl bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-950 border-4 border-emerald-300 text-center space-y-3">
+          <p className="font-mono font-black text-lg sm:text-2xl text-amber-300 tracking-wide">
+            LAUNCH SUCCESSFUL! THE JOURNEY TO THE MOON BEGINS!
+          </p>
+          <p className="font-hud font-black text-base text-white">
+            تم الإطلاق بنجاح! فُتح المستوى الثاني: الرحلة في انعدام الجاذبية 🚀🌕
+          </p>
+          <div className="flex flex-wrap justify-center gap-3 pt-1">
+            <button
+              type="button"
+              onClick={onNextLevel}
+              className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-hud font-black text-base border-2 border-white cursor-pointer hover:scale-105 transition-transform"
+            >
+              انتقل للمستوى 2: الرحلة في 0G 🛸
+            </button>
+            <button
+              type="button"
+              onClick={onBackToLevel}
+              className="px-5 py-3 rounded-2xl bg-slate-800 text-white font-hud font-bold text-sm border border-cyan-400 cursor-pointer"
+            >
+              العودة لخريطة الغرف
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={!canLaunch || countdown !== null}
+          onClick={startCountdown}
+          className={`w-full py-4 rounded-2xl font-hud font-black text-lg border-2 flex items-center justify-center gap-2 ${
+            canLaunch
+              ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-amber-500 text-white border-white cursor-pointer hover:brightness-110 shadow-[0_0_30px_rgba(168,85,247,0.5)]'
+              : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+          }`}
+        >
+          <Rocket className="w-6 h-6" />
+          <span>{canLaunch ? 'INITIATE LAUNCH • ابدأ العد التنازلي (3-2-1)' : 'أكمل الغرف الأربع وزامن الملاحة للإطلاق 🔒'}</span>
+        </button>
+      )}
+    </div>
+  );
+};
 
 export const Level1MiniGames: React.FC<Level1Props> = ({
   miniGameId,
@@ -56,200 +765,34 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
   onNextLevel,
   onBackToLevel
 }) => {
-  // Mini-Game 1: Food Preparation
-  const [selectedFoods, setSelectedFoods] = useState<string[]>(campaign.l1SelectedFoodIds);
-  const [crumbAlert, setCrumbAlert] = useState<string | null>(null);
-
-  // Mini-Game 2: Equipment Preparation
-  const [packedEquipment, setPackedEquipment] = useState<string[]>(campaign.l1EquipmentPacked);
-
-  // Mini-Game 3: Medical Checkup
-  const [hydrationFixed, setHydrationFixed] = useState<boolean>(campaign.l1MedicalCleared);
-  const [sleepFixed, setSleepFixed] = useState<boolean>(campaign.l1MedicalCleared);
-
-  // Mini-Game 4: Spaceship Inspection
+  const [hydrationFixed, setHydrationFixed] = useState(campaign.l1MedicalCleared);
+  const [sleepFixed, setSleepFixed] = useState(campaign.l1MedicalCleared);
   const [checkedShip, setCheckedShip] = useState<string[]>(
     campaign.l1SpaceshipInspected ? L1_SHIP_SYSTEMS.map((s) => s.id) : []
   );
 
-  // Mini-Game 5: Launch Countdown
-  const [countdown, setCountdown] = useState<number | null>(null);
-  const [launchSuccess, setLaunchSuccess] = useState<boolean>(
-    campaign.completedMiniGames.includes('l1_mission_launch')
-  );
-
-  // ---------------------------------------------------------------------------
-  // 1.1 FOOD PREPARATION
-  // ---------------------------------------------------------------------------
   if (miniGameId === 'l1_food_prep') {
-    const pickedItems = L1_FOOD_OPTIONS.filter((f) => selectedFoods.includes(f.id));
-    const totalKg = pickedItems.reduce((sum, f) => sum + f.weightKg, 0);
-    const hasProtein = pickedItems.some((f) => f.group === 'protein');
-    const hasCarbs = pickedItems.some((f) => f.group === 'carbs');
-    const hasFats = pickedItems.some((f) => f.group === 'fats');
-    const hasVitamins = pickedItems.some((f) => f.group === 'vitamins');
-    const all4Groups = hasProtein && hasCarbs && hasFats && hasVitamins && totalKg <= 20;
-
-    const toggleFood = (item: L1FoodChoice) => {
-      if (item.group === 'banned') {
-        soundManager.playAlertSiren();
-        setCrumbAlert(item.crumbWarning || 'طعام مسبب للفتات وممنوع!');
-        void dialogueManager.speak('حاسب! ده هيعمل فتات ويبوظ الأجهزة في الفضاء!');
-        return;
-      }
-      soundManager.playClick();
-      setCrumbAlert(null);
-      setSelectedFoods((prev) =>
-        prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id]
-      );
-    };
-
-    const confirmFood = () => {
-      if (!all4Groups) return;
-      soundManager.playFanfare();
-      void dialogueManager.speak('عاش يا بطل! الأكل متوازن وبدون فتات وجاهز للصاروخ!');
-      onCompleteMiniGame('l1_food_prep', {
-        l1SelectedFoodIds: selectedFoods,
-        l1FoodWeightKg: totalKg
-      });
-    };
-
     return (
-      <div className="bg-slate-900/95 border-2 border-emerald-400/70 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-950/80 rounded-2xl p-3 border border-slate-700">
-          <div className="flex flex-wrap gap-2 text-xs font-hud font-black">
-            <span className={hasProtein ? 'text-emerald-300' : 'text-slate-400'}>🍗 بروتين {hasProtein ? '✓' : '○'}</span>
-            <span className={hasCarbs ? 'text-emerald-300' : 'text-slate-400'}>🌯 تورتيلا (كربوهيدرات) {hasCarbs ? '✓' : '○'}</span>
-            <span className={hasFats ? 'text-emerald-300' : 'text-slate-400'}>🥜 دهون صحية {hasFats ? '✓' : '○'}</span>
-            <span className={hasVitamins ? 'text-emerald-300' : 'text-slate-400'}>🥦 فيتامينات وألياف {hasVitamins ? '✓' : '○'}</span>
-          </div>
-          <span className="font-hud font-black text-sm text-amber-300">
-            سعة الشحن: {totalKg} / 20 كجم
-          </span>
-        </div>
-
-        {crumbAlert && (
-          <div className="p-3 rounded-2xl bg-rose-950 border-2 border-rose-400 text-rose-100 font-hud font-bold text-sm flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
-            <span>{crumbAlert}</span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-          {L1_FOOD_OPTIONS.map((item) => {
-            const active = selectedFoods.includes(item.id);
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => toggleFood(item)}
-                className={`p-4 rounded-2xl border-2 text-right transition-all cursor-pointer ${
-                  item.group === 'banned'
-                    ? 'bg-rose-950/40 border-rose-500/60 hover:bg-rose-900/50'
-                    : active
-                    ? 'bg-emerald-950 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.4)]'
-                    : 'bg-slate-800/80 border-slate-600 hover:border-cyan-400'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-3xl">{item.icon}</span>
-                  <span className="text-xs font-hud font-bold px-2 py-0.5 rounded-full bg-slate-950 text-cyan-200">
-                    {item.groupAr} • {item.weightKg}kg
-                  </span>
-                </div>
-                <p className="font-hud font-black text-base text-white mt-2">{item.nameAr}</p>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="p-3 rounded-2xl bg-sky-950/70 border border-cyan-500/40 text-xs font-hud text-cyan-100">
-          🛰️ <strong>{NASA_ENGINEERING_TRADEOFFS[1].titleAr}:</strong> {NASA_ENGINEERING_TRADEOFFS[1].optimalDecisionAr}
-        </div>
-
-        <button
-          type="button"
-          disabled={!all4Groups}
-          onClick={confirmFood}
-          className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 transition-all ${
-            all4Groups
-              ? 'bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 border-white cursor-pointer hover:brightness-110'
-              : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-          }`}
-        >
-          تأكيد تعبئة الطعام الآمن 🚀
-        </button>
-      </div>
+      <FoodPackingScene
+        campaign={campaign}
+        onComplete={(ids, weightKg) =>
+          onCompleteMiniGame('l1_food_prep', { l1SelectedFoodIds: ids, l1FoodWeightKg: weightKg })
+        }
+      />
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // 1.2 EQUIPMENT PREPARATION
-  // ---------------------------------------------------------------------------
   if (miniGameId === 'l1_equipment_prep') {
-    const toggleItem = (id: string) => {
-      soundManager.playDropSuccess();
-      setPackedEquipment((prev) =>
-        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-      );
-    };
-    const allPacked = packedEquipment.length >= L1_EQUIPMENT.length;
-
     return (
-      <div className="bg-slate-900/95 border-2 border-amber-400/70 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
-        <p className="font-hud font-bold text-sm text-amber-200">
-          اضغط على كل أداة من قائمة الجرد لحزمها في خزانتها الصحيحة ({packedEquipment.length}/{L1_EQUIPMENT.length}):
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {L1_EQUIPMENT.map((eq) => {
-            const done = packedEquipment.includes(eq.id);
-            return (
-              <button
-                key={eq.id}
-                type="button"
-                onClick={() => toggleItem(eq.id)}
-                className={`p-4 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${
-                  done
-                    ? 'bg-emerald-950 border-emerald-400 text-white'
-                    : 'bg-slate-800 border-slate-600 text-slate-200 hover:border-amber-300'
-                }`}
-              >
-                <div className="flex items-center gap-3 text-right">
-                  <span className="text-3xl">{eq.icon}</span>
-                  <div>
-                    <p className="font-hud font-black text-sm sm:text-base">{eq.nameAr}</p>
-                    <p className="font-hud text-xs text-cyan-200">📍 {eq.bay}</p>
-                  </div>
-                </div>
-                {done ? <PackageCheck className="w-6 h-6 text-emerald-400" /> : <span className="text-xs font-hud text-amber-300">احزم ⬅</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        <button
-          type="button"
-          disabled={!allPacked}
-          onClick={() => {
-            soundManager.playFanfare();
-            void dialogueManager.speak('ممتاز! جميع المعدات جاهزة ومرتبة داخل الصاروخ!');
-            onCompleteMiniGame('l1_equipment_prep', { l1EquipmentPacked: packedEquipment });
-          }}
-          className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 ${
-            allPacked
-              ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 border-white cursor-pointer'
-              : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-          }`}
-        >
-          تأكيد حزم المعدات ✅
-        </button>
-      </div>
+      <EquipmentInspectionScene
+        campaign={campaign}
+        onComplete={(packedIds) =>
+          onCompleteMiniGame('l1_equipment_prep', { l1EquipmentPacked: packedIds })
+        }
+      />
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // 1.3 MEDICAL CHECKUP (Reads Food Prep Continuity!)
-  // ---------------------------------------------------------------------------
   if (miniGameId === 'l1_medical_check') {
     const nutritionReady = campaign.completedMiniGames.includes('l1_food_prep');
     const allClear = nutritionReady && hydrationFixed && sleepFixed;
@@ -305,6 +848,15 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
           </div>
         </div>
 
+        <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-400/40 text-xs text-emerald-100 flex flex-wrap items-center justify-between gap-2">
+          <span>
+            💊 <strong>المغذيات الدقيقة للبعثة:</strong> الكالسيوم، فيتامينات D وK وC وB12، الحديد، المغنيسيوم، البوتاسيوم، أوميغا-3، والزنك لحماية العظام والمناعة.
+          </span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-900 border border-emerald-400 text-emerald-200">
+            {SCIENCE_BADGES.ISS_PROVEN.labelAr}
+          </span>
+        </div>
+
         <button
           type="button"
           disabled={!allClear}
@@ -325,9 +877,6 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // 1.4 SPACESHIP INSPECTION
-  // ---------------------------------------------------------------------------
   if (miniGameId === 'l1_spaceship_inspect') {
     const allChecked = checkedShip.length >= L1_SHIP_SYSTEMS.length;
     const toggleCheck = (id: string) => {
@@ -386,106 +935,12 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // 1.5 MISSION CONTROL & LAUNCH
-  // ---------------------------------------------------------------------------
-  const reqFood = campaign.completedMiniGames.includes('l1_food_prep');
-  const reqEquip = campaign.completedMiniGames.includes('l1_equipment_prep');
-  const reqMed = campaign.completedMiniGames.includes('l1_medical_check');
-  const reqShip = campaign.completedMiniGames.includes('l1_spaceship_inspect');
-  const canLaunch = reqFood && reqEquip && reqMed && reqShip;
-
-  const startCountdown = () => {
-    if (!canLaunch || countdown !== null) return;
-    soundManager.playClick();
-    setCountdown(3);
-    const t1 = window.setTimeout(() => setCountdown(2), 800);
-    const t2 = window.setTimeout(() => setCountdown(1), 1600);
-    const t3 = window.setTimeout(() => {
-      setCountdown(0);
-      setLaunchSuccess(true);
-      soundManager.playFanfare();
-      confetti({ particleCount: 160, spread: 95, origin: { y: 0.6 } });
-      void dialogueManager.speak('عاش يا بطل! تم إطلاق الصاروخ بنجاح وانطلقت الرحلة إلى القمر!');
-      onCompleteMiniGame('l1_mission_launch');
-      void t1;
-      void t2;
-      void t3;
-    }, 2400);
-  };
-
   return (
-    <div className="bg-slate-900/95 border-2 border-purple-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
-      <h2 className="font-hud font-black text-lg text-white flex items-center gap-2">
-        <ShieldCheck className="w-5 h-5 text-cyan-400" />
-        <span>فحص جاهزية المهام الأربع قبل الإطلاق:</span>
-      </h2>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-hud font-black">
-        {[
-          { ok: reqFood, label: '1. تجهيز الطعام' },
-          { ok: reqEquip, label: '2. حزم المعدات' },
-          { ok: reqMed, label: '3. الفحص الطبي' },
-          { ok: reqShip, label: '4. فحص المركبة' }
-        ].map((r) => (
-          <div
-            key={r.label}
-            className={`p-3 rounded-2xl border-2 flex items-center gap-2 ${
-              r.ok ? 'bg-emerald-950/70 border-emerald-400 text-emerald-200' : 'bg-rose-950/50 border-rose-500 text-rose-200'
-            }`}
-          >
-            {r.ok ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
-            <span>{r.label}</span>
-          </div>
-        ))}
-      </div>
-
-      {countdown !== null && countdown > 0 && (
-        <div className="py-6 text-center font-hud font-black text-6xl text-amber-300 animate-bounce">
-          {countdown}
-        </div>
-      )}
-
-      {launchSuccess ? (
-        <div className="p-6 rounded-3xl bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-950 border-4 border-emerald-300 text-center space-y-3">
-          <p className="font-mono font-black text-lg sm:text-2xl text-amber-300 tracking-wide">
-            LAUNCH SUCCESSFUL! THE JOURNEY TO THE MOON BEGINS!
-          </p>
-          <p className="font-hud font-black text-lg text-white">
-            تم الإطلاق بنجاح! فُتح المستوى الثاني: الرحلة في انعدام الجاذبية 🚀🌕
-          </p>
-          <div className="flex flex-wrap justify-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onNextLevel}
-              className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-hud font-black text-base border-2 border-white cursor-pointer hover:scale-105 transition-transform"
-            >
-              انتقل للمستوى 2: الرحلة في 0G 🛸
-            </button>
-            <button
-              type="button"
-              onClick={onBackToLevel}
-              className="px-5 py-3 rounded-2xl bg-slate-800 text-white font-hud font-bold text-sm border border-cyan-400 cursor-pointer"
-            >
-              العودة لخريطة الغرف
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          disabled={!canLaunch || countdown !== null}
-          onClick={startCountdown}
-          className={`w-full py-4 rounded-2xl font-hud font-black text-lg border-2 flex items-center justify-center gap-2 ${
-            canLaunch
-              ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-amber-500 text-white border-white cursor-pointer hover:brightness-110 shadow-[0_0_30px_rgba(168,85,247,0.5)]'
-              : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-          }`}
-        >
-          <Rocket className="w-6 h-6" />
-          <span>{canLaunch ? 'ابدأ العد التنازلي وإطلاق الصاروخ (3-2-1)' : 'أكمل الغرف الأربع أولاً للسماح بالإطلاق 🔒'}</span>
-        </button>
-      )}
-    </div>
+    <MissionControlLaunchScene
+      campaign={campaign}
+      onComplete={() => onCompleteMiniGame('l1_mission_launch')}
+      onNextLevel={onNextLevel}
+      onBackToLevel={onBackToLevel}
+    />
   );
 };

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <radialGradient id="cabGrad" cx="38%" cy="32%" r="68%">
+      <stop offset="0%" stop-color="#bef264"/>
+      <stop offset="55%" stop-color="#4ade80"/>
+      <stop offset="100%" stop-color="#15803d"/>
+    </radialGradient>
+    <linearGradient id="podRim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="60" cy="105" rx="38" ry="8" fill="#0f172a" opacity="0.45"/>
+  <rect x="26" y="78" width="68" height="24" rx="10" fill="url(#podRim)" stroke="#0f172a" stroke-width="3"/>
+  <rect x="34" y="85" width="52" height="8" rx="4" fill="#38bdf8" opacity="0.75"/>
+  <circle cx="60" cy="54" r="32" fill="url(#cabGrad)" stroke="#14532d" stroke-width="3.5"/>
+  <path d="M36 42 C48 26, 74 28, 84 44 C72 52, 46 56, 36 42 Z" fill="#dcfce7" opacity="0.45"/>
+  <path d="M32 62 C44 46, 70 46, 86 64 C76 78, 44 80, 32 62 Z" fill="#22c55e" stroke="#14532d" stroke-width="2.5"/>
+  <path d="M44 36 C56 44, 62 62, 54 78" fill="none" stroke="#ecfccb" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+  <path d="M74 36 C64 46, 62 60, 68 76" fill="none" stroke="#ecfccb" stroke-width="2.5" stroke-linecap="round" opacity="0.65"/>
+  <circle cx="46" cy="40" r="4" fill="#ffffff" opacity="0.65"/>
+</svg>

@@ -290,7 +290,23 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         window.removeEventListener('resize', handleResize);
         earthTex.dispose();
         moonTex.dispose();
+        scene.traverse((obj) => {
+          if (obj instanceof THREE.Mesh || obj instanceof THREE.Points || obj instanceof THREE.Line) {
+            obj.geometry?.dispose();
+            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+            mats.forEach((m) => {
+              if (!m) return;
+              if ('map' in m && m.map && typeof (m.map as THREE.Texture).dispose === 'function') {
+                (m.map as THREE.Texture).dispose();
+              }
+              m.dispose();
+            });
+          }
+        });
         renderer?.dispose();
+        if (renderer?.domElement && renderer.domElement.parentNode) {
+          renderer.domElement.parentNode.removeChild(renderer.domElement);
+        }
       };
     } catch {
       setWebglFailed(true);

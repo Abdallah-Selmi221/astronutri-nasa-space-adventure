@@ -6,6 +6,7 @@ import { nasaCache } from '../../services/nasa/nasaCache';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { NASA_OSDR_METRICS } from '../../services/nasa/nasaOSDR';
+import { DAILY_REFERENCE_ASSUMPTIONS, SCIENCE_BADGES } from '../../data/science';
 import { CheckCircle2, Hand, Radar, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 interface Level2Props {
@@ -25,10 +26,10 @@ const FLOATING_ITEMS = [
 ];
 
 const MEAL_GROUPS = [
-  { id: 'protein', labelAr: '🍗 دجاج مشوي معقم (بروتين)', color: 'indigo' },
-  { id: 'carbs', labelAr: '🌯 تورتيلا الحبوب الكاملة (طاقة)', color: 'amber' },
-  { id: 'fats', labelAr: '🥑 مهروس الأفوكادو والجوز (دهون صحية)', color: 'emerald' },
-  { id: 'vitamins', labelAr: '🍓 بروكلي وفراولة بالتجميد (فيتامينات وألياف)', color: 'pink' }
+  { id: 'protein', labelAr: '🧀 المش المصري بالملح الصخري أو الدجاج (بروتين وكالسيوم)', color: 'indigo' },
+  { id: 'carbs', labelAr: '🌴 العجوة السيناوية المضغوطة + تورتيلا (طاقة وكربوهيدرات)', color: 'amber' },
+  { id: 'fats', labelAr: '🫒 زيت الزيتون السيناوي + طحينة السمسم (دهون صحية وأوميغا)', color: 'emerald' },
+  { id: 'vitamins', labelAr: '🥬 الكابوتشا والجرجير واللفت المائي + توابل سيناوية (فيتامينات وألياف)', color: 'pink' }
 ];
 
 export const Level2MiniGames: React.FC<Level2Props> = ({
@@ -262,9 +263,17 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
 
     return (
       <div className="bg-slate-900/95 border-2 border-emerald-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
-        <p className="font-hud font-bold text-sm text-emerald-200">
-          كوّن صينية طعام متكاملة في 0G بتغطية كل المجموعات الغذائية الأربع ({trayGroups.length}/4):
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="font-hud font-bold text-sm text-emerald-200">
+            كوّن صينية طعام متكاملة في 0G من المطبخ المصري والسيناوي والزراعة المائية ({trayGroups.length}/4):
+          </p>
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-950 border border-amber-400 text-amber-200">
+            {SCIENCE_BADGES.GAME_RULE.labelAr}
+          </span>
+        </div>
+        <div className="p-3 rounded-2xl bg-sky-950/60 border border-sky-400/40 text-xs text-sky-100">
+          📐 <strong>{SCIENCE_BADGES.PLANNING_ASSUMPTION.labelAr}:</strong> لرائد 70 كجم/يوم = {DAILY_REFERENCE_ASSUMPTIONS.energyKcal} kcal • {DAILY_REFERENCE_ASSUMPTIONS.proteinGrams}g بروتين • {DAILY_REFERENCE_ASSUMPTIONS.carbsGrams}g كربوهيدرات • {DAILY_REFERENCE_ASSUMPTIONS.fatsGrams}g دهون • {DAILY_REFERENCE_ASSUMPTIONS.fiberGramsRange} ألياف (الزراعة المائية مكملة فقط).
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {MEAL_GROUPS.map((g) => {
             const active = trayGroups.includes(g.id);

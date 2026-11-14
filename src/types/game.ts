@@ -1,4 +1,5 @@
 import { SolarStormData } from '../utils/nasaApi';
+import type { ScienceBadgeType } from '../data/science';
 
 export type RoomLocation =
   | 'Map'
@@ -45,6 +46,16 @@ export interface FoodItem {
   nasaSourceUrl?: string;
   icon: string;
   color: string;
+  // Detailed Space Eco-Nutrition Telemetry (optional for backward compatibility)
+  kcal?: number;
+  fatsGrams?: number;
+  fiberGrams?: number;
+  massGrams?: number;
+  shelfLifeMonths?: number;
+  originTag?: 'egypt_sinai' | 'hydroponic' | 'nasa_standard';
+  badgeType?: ScienceBadgeType;
+  micronutrientsAr?: string[];
+  crumbRating?: 'zero_crumbs' | 'high_crumbs';
 }
 
 export interface CargoItemEntry {
@@ -179,6 +190,12 @@ export interface CampaignProgressState {
   l4EmergencyRepaired: boolean;
   l4ReentrySafe: boolean;
   l4MissionAccomplished: boolean;
+  // Self-Sustaining Hydroponic Bio-Cabin & Power Trade-Offs
+  ecoLedActive?: boolean;
+  ecoNutrientOk?: boolean;
+  ecoWaterRecyclingOk?: boolean;
+  ecoCropsHarvested?: string[];
+  ecoPowerSplit?: { water: number; hydro: number; shield: number };
 }
 
 export interface GameState {

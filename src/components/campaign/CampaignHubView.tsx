@@ -10,6 +10,8 @@ import { Level1MiniGames } from './Level1MiniGames';
 import { Level2MiniGames } from './Level2MiniGames';
 import { Level3MiniGames } from './Level3MiniGames';
 import { Level4MiniGames } from './Level4MiniGames';
+import { EcoBioCabin } from './EcoBioCabin';
+import { ScientificSourcesModal } from './ScientificSourcesModal';
 import { SettingsMenu } from '../common/SettingsMenu';
 import { NasaMissionControlDrawer } from '../common/NasaMissionControlDrawer';
 import { soundManager } from '../../utils/sound';
@@ -17,15 +19,20 @@ import { dialogueManager } from '../../utils/geminiTTS';
 import { nasaCache } from '../../services/nasa/nasaCache';
 import {
   ArrowRight,
+  BookOpen,
   CheckCircle2,
   Compass,
+  HelpCircle,
   Lock,
+  Play,
   Rocket,
   Satellite,
   Settings,
   ShieldCheck,
+  Sprout,
   Star,
-  Volume2
+  Volume2,
+  X
 } from 'lucide-react';
 
 export const CampaignHubView: React.FC = () => {
@@ -45,7 +52,14 @@ export const CampaignHubView: React.FC = () => {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNasaOpen, setIsNasaOpen] = useState(false);
+  const [isSourcesOpen, setIsSourcesOpen] = useState(false);
+  const [isEcoCabinOpen, setIsEcoCabinOpen] = useState(false);
+  const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+
+  useEffect(() => {
+    setIsEcoCabinOpen(false);
+  }, [campaign.viewMode, activeLevelId]);
 
   useEffect(() => {
     const unsub = dialogueManager.subscribeStatus(({ isSpeaking }) => {
@@ -67,6 +81,10 @@ export const CampaignHubView: React.FC = () => {
 
   const handleEnterRoom = (room: SpatialRoomNode) => {
     soundManager.playClick();
+    if (activeLevelId === 3 && room.id === 'food_nutrition_lab') {
+      setIsEcoCabinOpen(true);
+      return;
+    }
     if (room.consoleAction === 'l3_return_auth' && activeLevelId === 3) {
       setCampaignView('minigame', 3, room.id, null);
       return;
@@ -226,6 +244,30 @@ export const CampaignHubView: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {activeLevelId <= 3 && (
+              <button
+                type="button"
+                onClick={() => {
+                  soundManager.playClick();
+                  setIsEcoCabinOpen((v) => !v);
+                }}
+                className="px-3.5 py-1.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs border border-emerald-300 shadow cursor-pointer flex items-center gap-1.5"
+              >
+                <Sprout className="w-4 h-4" />
+                <span>{isEcoCabinOpen ? 'العودة للخريطة الـ 3D' : '🌱 كابينة الزراعة الذاتية'}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                soundManager.playClick();
+                setIsSourcesOpen(true);
+              }}
+              className="px-3 py-1.5 rounded-2xl bg-sky-900 hover:bg-sky-800 text-sky-100 font-black text-xs border border-sky-400/50 cursor-pointer flex items-center gap-1.5"
+            >
+              <BookOpen className="w-4 h-4 text-sky-300" />
+              <span>مصادر علمية (13)</span>
+            </button>
             <span className="px-3 py-1.5 rounded-2xl bg-slate-950 border border-slate-700 text-xs font-black text-emerald-300">
               ✅ التحديات: {levelDoneCount} / {activeLevelSpec.miniGames.length}
             </span>
@@ -256,15 +298,24 @@ export const CampaignHubView: React.FC = () => {
           </div>
         </header>
 
-        {/* Main 3D Walkable Spatial Room Map */}
+        {/* Main 3D Walkable Spatial Room Map OR Self-Sustaining Eco-Bio Cabin */}
         <main className="max-w-7xl w-full mx-auto flex-1 flex flex-col gap-4">
-          <div className="h-[430px] sm:h-[500px] w-full">
-            <SpatialRoomMap3D
+          {isEcoCabinOpen && activeLevelId <= 3 ? (
+            <EcoBioCabin
               levelId={activeLevelId}
               campaign={campaign}
-              onEnterRoom={handleEnterRoom}
+              onUpdateCampaign={updateCampaignState}
+              onClose={() => setIsEcoCabinOpen(false)}
             />
-          </div>
+          ) : (
+            <div className="h-[430px] sm:h-[500px] w-full">
+              <SpatialRoomMap3D
+                levelId={activeLevelId}
+                campaign={campaign}
+                onEnterRoom={handleEnterRoom}
+              />
+            </div>
+          )}
 
           {/* Direct Mini-Game / Sequential Checklist Strip */}
           <section className="rounded-3xl bg-slate-900/85 border border-slate-700/80 p-4 space-y-3">
@@ -352,6 +403,8 @@ export const CampaignHubView: React.FC = () => {
             </div>
           </section>
         </main>
+
+        <ScientificSourcesModal isOpen={isSourcesOpen} onClose={() => setIsSourcesOpen(false)} />
       </div>
     );
   }
@@ -383,6 +436,18 @@ export const CampaignHubView: React.FC = () => {
             <Star className="w-4 h-4 text-amber-300 fill-amber-300" />
             <span>{totalStarsScore}</span>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClick();
+              setIsSourcesOpen(true);
+            }}
+            className="px-3.5 py-2 rounded-2xl bg-emerald-700 hover:bg-emerald-600 text-white font-hud font-black text-xs sm:text-sm border border-emerald-300/60 shadow cursor-pointer flex items-center gap-1.5"
+          >
+            <BookOpen className="w-4 h-4 text-emerald-200" />
+            <span>مصادر علمية (13)</span>
+          </button>
 
           <button
             type="button"
@@ -424,21 +489,82 @@ export const CampaignHubView: React.FC = () => {
 
       {/* Main Content: 3D World Navigator + 4 Sequential Level Cards */}
       <main className="max-w-7xl w-full mx-auto flex-1 flex flex-col gap-5">
-        <div className="text-center space-y-1">
+        <div className="text-center space-y-2.5">
           <h1 className="font-hud font-black text-2xl sm:text-3xl bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-white to-amber-300">
             🚀 خريطة رحلة أسترونوتري الثلاثية الأبعاد (4 مستويات • 21 مهمة)
           </h1>
           <p className="text-xs sm:text-sm text-slate-300 max-w-3xl mx-auto">
             ابدأ من <strong>الأرض</strong>، ثم انطلق في <strong>انعدام الجاذبية</strong>، واستكشف <strong>المستعمرة القمرية</strong>، ثم عُد بأمان إلى <strong>كوكب الأرض</strong>!
           </p>
+
+          {/* Bold Tactile 2.5D Action Strip (PLAY, LEVELS, HOW TO PLAY, ECO-CABIN, SOURCES) */}
+          <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                const highestUnlocked =
+                  [...campaign.unlockedLevels].sort((a, b) => b - a)[0] || 1;
+                handleSelectLevel(highestUnlocked);
+              }}
+              className="px-5 py-2.5 rounded-2xl bg-gradient-to-b from-emerald-400 to-teal-600 text-slate-950 font-hud font-black text-sm border-2 border-emerald-200 shadow-[0_5px_0_#0f766e] active:translate-y-0.5 cursor-pointer flex items-center gap-1.5"
+            >
+              <Play className="w-4 h-4 fill-slate-950" />
+              <span>PLAY • ابدأ اللعب</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                soundManager.playClick();
+                document.getElementById('campaign-levels-grid')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="px-4 py-2.5 rounded-2xl bg-gradient-to-b from-sky-400 to-blue-600 text-white font-hud font-black text-xs sm:text-sm border-2 border-sky-200 shadow-[0_5px_0_#1e40af] active:translate-y-0.5 cursor-pointer flex items-center gap-1.5"
+            >
+              <Rocket className="w-4 h-4" />
+              <span>LEVELS • المستويات (4)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                soundManager.playClick();
+                setIsHowToPlayOpen(true);
+              }}
+              className="px-4 py-2.5 rounded-2xl bg-gradient-to-b from-amber-300 to-orange-500 text-slate-950 font-hud font-black text-xs sm:text-sm border-2 border-amber-100 shadow-[0_5px_0_#b45309] active:translate-y-0.5 cursor-pointer flex items-center gap-1.5"
+            >
+              <HelpCircle className="w-4 h-4" />
+              <span>HOW TO PLAY • كيف تلعب</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                soundManager.playClick();
+                setIsEcoCabinOpen((v) => !v);
+              }}
+              className="px-4 py-2.5 rounded-2xl bg-gradient-to-b from-lime-400 to-emerald-600 text-slate-950 font-hud font-black text-xs sm:text-sm border-2 border-lime-100 shadow-[0_5px_0_#15803d] active:translate-y-0.5 cursor-pointer flex items-center gap-1.5"
+            >
+              <Sprout className="w-4 h-4" />
+              <span>كابينة الزراعة المائية 🌱</span>
+            </button>
+          </div>
         </div>
+
+        {isEcoCabinOpen && (
+          <EcoBioCabin
+            levelId={activeLevelId <= 3 ? activeLevelId : 3}
+            campaign={campaign}
+            onUpdateCampaign={updateCampaignState}
+            onClose={() => setIsEcoCabinOpen(false)}
+          />
+        )}
 
         <div className="h-[340px] sm:h-[400px] w-full">
           <WorldNavigator3D campaign={campaign} onSelectLevel={handleSelectLevel} />
         </div>
 
         {/* 4 Sequential Progression Cards */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <section id="campaign-levels-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {([1, 2, 3, 4] as CampaignLevelId[]).map((lvlId) => {
             const lvl = CAMPAIGN_LEVELS[lvlId];
             const unlocked = campaign.unlockedLevels.includes(lvlId);
@@ -561,6 +687,46 @@ export const CampaignHubView: React.FC = () => {
 
       <SettingsMenu isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       <NasaMissionControlDrawer isOpen={isNasaOpen} onClose={() => setIsNasaOpen(false)} />
+      <ScientificSourcesModal isOpen={isSourcesOpen} onClose={() => setIsSourcesOpen(false)} />
+
+      {/* HOW TO PLAY Modal */}
+      {isHowToPlayOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md"
+          dir="rtl"
+        >
+          <div className="w-full max-w-lg rounded-3xl bg-slate-900 border-2 border-amber-400/70 p-5 space-y-3 text-white shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="font-hud font-black text-lg text-amber-300">
+                🎮 كيف تلعب في أسترونوتري؟ (How To Play)
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsHowToPlayOpen(false)}
+                className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <ul className="space-y-2 text-xs sm:text-sm text-slate-200 leading-relaxed">
+              <li>1️⃣ <strong>تقدّم بالترتيب عبر 4 مستويات:</strong> التحضير على الأرض ← السفر في 0G ← مستعمرة القمر ← العودة للأرض.</li>
+              <li>2️⃣ <strong>حرّك كابتن روبو في الخريطة الـ 3D:</strong> بمفاتيح الأسهم / WASD أو أزرار اللمس أو اضغط مباشرة على باب أي غرفة.</li>
+              <li>3️⃣ <strong>الأكلات المصرية والسيناوية وكابينة الزراعة:</strong> اجمع أكلات آمنة بلا فتات (مثل المش والعجوة والطحينة والجرجير والكابوتشا واللفت).</li>
+              <li>4️⃣ <strong>المصداقية العلمية:</strong> كل حقيقة تحمل شارة صريحة تميّز بين المثبت على ISS ✅ والتجريبي 🧪 والتخطيطي 📐 وتبسيط اللعبة 🎮.</li>
+            </ul>
+            <button
+              type="button"
+              onClick={() => {
+                soundManager.playClick();
+                setIsHowToPlayOpen(false);
+              }}
+              className="w-full py-2.5 rounded-2xl bg-amber-400 text-slate-950 font-hud font-black text-sm cursor-pointer"
+            >
+              فهمت! هيا نبدأ 🚀
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

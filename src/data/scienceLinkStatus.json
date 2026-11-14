@@ -1,0 +1,83 @@
+{
+  "checkedAt": "2026-11-14T17:09:23.547Z",
+  "results": {
+    "src_1_nasa_food_systems": {
+      "statusCode": 200,
+      "reachable": true,
+      "reviewRequired": false,
+      "note": "HTTP OK"
+    },
+    "src_2_human_adaptation": {
+      "statusCode": 200,
+      "reachable": true,
+      "reviewRequired": false,
+      "note": "HTTP OK"
+    },
+    "src_3_nasa_eclss": {
+      "statusCode": 200,
+      "reachable": true,
+      "reviewRequired": false,
+      "note": "HTTP OK"
+    },
+    "src_4_water_recovery_98": {
+      "statusCode": 200,
+      "reachable": true,
+      "reviewRequired": false,
+      "note": "HTTP OK"
+    },
+    "src_5_growing_plants": {
+      "statusCode": 200,
+      "reachable": true,
+      "reviewRequired": false,
+      "note": "HTTP OK"
+    },
+    "src_6_hrr_fn102": {
+      "statusCode": 200,
+      "reachable": true,
+      "reviewRequired": false,
+      "note": "HTTP OK"
+    },
+    "src_7_efri_elis_perchlorates": {
+      "statusCode": 200,
+      "reachable": true,
+      "reviewRequired": false,
+      "note": "HTTP OK"
+    },
+    "src_8_melissa_pbr": {
+      "statusCode": 200,
+      "reachable": true,
+      "reviewRequired": false,
+      "note": "HTTP OK"
+    },
+    "src_9_melissa_flight": {
+      "statusCode": 200,
+      "reachable": true,
+      "reviewRequired": false,
+      "note": "HTTP OK"
+    },
+    "src_10_esa_planting_oxygen": {
+      "statusCode": 200,
+      "reachable": true,
+      "reviewRequired": false,
+      "note": "HTTP OK"
+    },
+    "src_11_arthrospira_c": {
+      "statusCode": 403,
+      "reachable": false,
+      "reviewRequired": true,
+      "note": "HTTP 403"
+    },
+    "src_12_smith_zwart": {
+      "statusCode": 403,
+      "reachable": false,
+      "reviewRequired": true,
+      "note": "HTTP 403"
+    },
+    "src_13_nasa_eclss_tech": {
+      "statusCode": 200,
+      "reachable": true,
+      "reviewRequired": false,
+      "note": "HTTP OK"
+    }
+  }
+}

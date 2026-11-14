@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <radialGradient id="turnipBulb" cx="42%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#e879f9"/>
+      <stop offset="48%" stop-color="#a855f7"/>
+      <stop offset="78%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#cbd5e1"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="60" cy="106" rx="30" ry="7" fill="#0f172a" opacity="0.45"/>
+  <path d="M60 44 C46 28, 34 22, 30 12 C46 12, 56 24, 60 40 Z" fill="#22c55e" stroke="#14532d" stroke-width="2.8"/>
+  <path d="M60 44 C74 28, 86 22, 90 12 C74 12, 64 24, 60 40 Z" fill="#4ade80" stroke="#14532d" stroke-width="2.8"/>
+  <path d="M60 44 C52 24, 54 12, 60 6 C66 12, 68 24, 60 44 Z" fill="#86efac" stroke="#14532d" stroke-width="2.8"/>
+  <path d="M32 64 C32 46, 88 46, 88 64 C88 86, 68 96, 60 104 C52 96, 32 86, 32 64 Z" fill="url(#turnipBulb)" stroke="#1e293b" stroke-width="3.2"/>
+  <ellipse cx="48" cy="58" rx="8" ry="4" fill="#ffffff" opacity="0.5"/>
+</svg>

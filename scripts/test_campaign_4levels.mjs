@@ -1,6 +1,7 @@
 // scripts/test_campaign_4levels.mjs
 // Automated verification for the 4-level / 33-room / 21-minigame campaign registry,
 // sequential unlock gates, cross-game & cross-level continuity, and save-state persistence.
+import fs from 'fs';
 import path from 'path';
 import { buildSync } from 'esbuild';
 
@@ -39,6 +40,14 @@ const loadTsModule = async (relPath) => {
 
 const { CAMPAIGN_LEVELS, MINI_GAME_SPECS } = await loadTsModule('src/data/campaignLevels.ts');
 const { NASA_OSDR_METRICS, NASA_ENGINEERING_TRADEOFFS } = await loadTsModule('src/services/nasa/nasaOSDR.ts');
+const {
+  SCIENCE_BADGES,
+  SCIENTIFIC_SOURCES,
+  SCIENCE_PILLARS,
+  DAILY_REFERENCE_ASSUMPTIONS,
+  ISS_WATER_MILESTONE
+} = await loadTsModule('src/data/science.ts');
+const { EGYPTIAN_SINAI_SPACE_FOODS } = await loadTsModule('src/data/foodItems.ts');
 const { saveProgress, hydrateGameState, clearSavedProgress, getStorageStatus } = await import('../src/utils/storage.ts');
 
 let passCount = 0;
@@ -228,6 +237,43 @@ assert(
     JSON.stringify(['basalt_rock', 'regolith_dust']),
   'Cross-level lunar samples survive save/hydration'
 );
+
+// 6. Central Scientific Layer & Egyptian/Sinai Space Foods Verification
+const badgeKeys = Object.keys(SCIENCE_BADGES).sort();
+assert(
+  JSON.stringify(badgeKeys) ===
+    JSON.stringify(['EXPERIMENTAL', 'GAME_RULE', 'ISS_PROVEN', 'PLANNING_ASSUMPTION']),
+  `SCIENCE_BADGES defines exact 4 scientific honesty badges (got ${JSON.stringify(badgeKeys)})`
+);
+assert(
+  SCIENTIFIC_SOURCES.length === 13,
+  `SCIENTIFIC_SOURCES registers all 13 curated references (got ${SCIENTIFIC_SOURCES.length})`
+);
+assert(
+  SCIENCE_PILLARS.length === 11 && SCIENCE_PILLARS.some((p) => p.badgeType === 'GAME_RULE'),
+  `SCIENCE_PILLARS includes 10 verified pillars + simplified GAME_RULE card (got ${SCIENCE_PILLARS.length})`
+);
+assert(
+  DAILY_REFERENCE_ASSUMPTIONS.bodyMassKg === 70 &&
+    DAILY_REFERENCE_ASSUMPTIONS.energyKcal === 3000 &&
+    DAILY_REFERENCE_ASSUMPTIONS.proteinGrams === 105 &&
+    DAILY_REFERENCE_ASSUMPTIONS.carbsGrams === 390 &&
+    DAILY_REFERENCE_ASSUMPTIONS.fatsGrams === 113,
+  'DAILY_REFERENCE_ASSUMPTIONS matches 70 kg adult 3,000 kcal / 105g P / 390g C / 113g F'
+);
+assert(
+  ISS_WATER_MILESTONE.recoveryPercent === 98 && ISS_WATER_MILESTONE.caveatAr.length > 10,
+  'ISS_WATER_MILESTONE reports 98% June 2023 recovery with explicit experimental caveat'
+);
+assert(
+  EGYPTIAN_SINAI_SPACE_FOODS.length === 8,
+  `EGYPTIAN_SINAI_SPACE_FOODS contains 8 authentic Egyptian/Sinai & Hydroponic items (got ${EGYPTIAN_SINAI_SPACE_FOODS.length})`
+);
+const allFoodSvgsExist = EGYPTIAN_SINAI_SPACE_FOODS.every((item) => {
+  const rel = (item.svgAsset || '').replace(/^\//, '');
+  return rel.length > 0 && fs.existsSync(path.resolve('public', rel));
+});
+assert(allFoodSvgsExist, 'All 8 Egyptian/Sinai space food SVG files exist on disk in public/assets/food/');
 
 console.log('---------------------------------------------------------------');
 console.log(`  RESULT: ${passCount} passed, ${failCount} failed`);
