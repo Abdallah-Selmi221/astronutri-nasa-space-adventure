@@ -10,6 +10,18 @@ if ('serviceWorker' in navigator && import.meta.env.DEV) {
       registration.unregister();
     }
   });
+} else if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  // Register and auto-update the Workbox PWA Service Worker in production
+  void import('virtual:pwa-register').then(({ registerSW }) => {
+    registerSW({
+      immediate: true,
+      onRegisteredSW(_swUrl, registration) {
+        if (registration) {
+          void registration.update();
+        }
+      }
+    });
+  });
 }
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(

@@ -240,11 +240,14 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         disable: mode === 'development',
         registerType: 'autoUpdate',
+        injectRegister: 'auto',
         includeAssets: ['favicon.svg', 'robots.txt', 'apple-touch-icon.png'],
         manifest: {
           name: 'AstroNutri - Junior Astronaut Mission Trainer',
           short_name: 'AstroNutri',
           description: 'Zero-G Transit Preparation & Space Nutrition Training for Junior Astronauts',
+          start_url: '/',
+          scope: '/',
           theme_color: '#0f172a',
           background_color: '#050814',
           display: 'standalone',
@@ -260,7 +263,13 @@ export default defineConfig(({ mode }) => {
               src: '/pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png',
-              purpose: 'any maskable'
+              purpose: 'any'
+            },
+            {
+              src: '/pwa-512x512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'maskable'
             }
           ]
         },
@@ -268,8 +277,9 @@ export default defineConfig(({ mode }) => {
           cleanupOutdatedCaches: true,
           skipWaiting: true,
           clientsClaim: true,
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2,mp3,json}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,webp,woff2,mp3,mp4,json}'],
           globIgnores: [
+            'robo-intro.mp4',
             'assets/scenes/**',
             'assets/sprites/contact-sheet.png',
             'assets/images/robo-cropped.png',
@@ -279,7 +289,7 @@ export default defineConfig(({ mode }) => {
             'audio/robo/sample/sample_manifest.json'
           ],
           navigateFallbackDenylist: [/^\/api\//],
-          maximumFileSizeToCacheInBytes: 10 * 1024 * 1024
+          maximumFileSizeToCacheInBytes: 25 * 1024 * 1024
         }
       })
     ],
