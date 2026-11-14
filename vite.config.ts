@@ -300,6 +300,9 @@ export default defineConfig(({ mode }) => {
             if (id.includes('node_modules/phaser')) {
               return 'phaser-engine';
             }
+            if (id.includes('node_modules/three')) {
+              return 'three-engine';
+            }
             if (
               id.includes('node_modules/react') ||
               id.includes('node_modules/framer-motion') ||

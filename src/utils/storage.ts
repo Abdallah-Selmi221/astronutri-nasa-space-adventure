@@ -3,7 +3,8 @@ import type {
   RoomLocation,
   CargoItemEntry,
   NutritionScore,
-  TradeOffChoice
+  TradeOffChoice,
+  CampaignProgressState
 } from '../types/game';
 
 export const SAVE_STORAGE_KEY = 'astronutri_save_v1';
@@ -46,6 +47,7 @@ export interface AstroNutriSaveDataV1 {
     fuelCellProgress: number;
     isEngineComplete: boolean;
   };
+  campaign?: CampaignProgressState;
 }
 
 export type SaveInspectionResult =
@@ -116,7 +118,8 @@ export function extractSaveData(state: GameState): AstroNutriSaveDataV1 {
       o2ScrubberProgress: state.engineCoreState?.o2ScrubberProgress ?? 20,
       fuelCellProgress: state.engineCoreState?.fuelCellProgress ?? 0,
       isEngineComplete: Boolean(state.engineCoreState?.isEngineComplete)
-    }
+    },
+    ...(state.campaign ? { campaign: state.campaign } : {})
   };
 }
 
@@ -271,7 +274,20 @@ function mergeSavedState(initial: GameState, saved: AstroNutriSaveDataV1): GameS
       solarStormData: null,
       isStormFetching: false,
       isGameVictoryModalOpen: false
-    }
+    },
+
+    ...(initial.campaign || saved.campaign
+      ? {
+          campaign: {
+            ...(initial.campaign as CampaignProgressState),
+            ...(saved.campaign || {}),
+            // Sanitize transient screen state back to clean map on reload
+            viewMode: 'world_map' as const,
+            activeRoomId: null,
+            activeMiniGameId: null
+          }
+        }
+      : {})
   };
 }
 

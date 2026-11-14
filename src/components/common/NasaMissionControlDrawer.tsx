@@ -1,8 +1,9 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { nasaCache } from '../../services/nasa/nasaCache';
+import { NASA_OSDR_METRICS, NASA_ENGINEERING_TRADEOFFS } from '../../services/nasa/nasaOSDR';
 import { soundManager } from '../../utils/sound';
-import { X, Satellite, Sun, Sparkles, Orbit, ShieldCheck } from 'lucide-react';
+import { X, Satellite, Sun, Sparkles, Orbit, ShieldCheck, Activity } from 'lucide-react';
 
 interface NasaMissionControlDrawerProps {
   isOpen: boolean;
@@ -243,6 +244,49 @@ export const NasaMissionControlDrawer: React.FC<NasaMissionControlDrawerProps> =
                       </p>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Card 4: NASA OSDR Biological Datasets & Engineering Trade-Offs */}
+              <div className="p-4 rounded-2xl bg-slate-900/90 border border-emerald-400/40 shadow-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-emerald-300 font-hud font-black text-xs sm:text-sm">
+                    <Activity className="w-4 h-4 text-emerald-400" />
+                    <span>مختبر بيانات ناسا الحيوية (NASA OSDR)</span>
+                  </div>
+                  <span className="text-[10px] font-hud font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400">
+                    4 دراسات نشطة
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {NASA_OSDR_METRICS.map((study) => (
+                    <div
+                      key={study.id}
+                      className="p-2.5 rounded-xl bg-space-950/75 border border-slate-800 space-y-1"
+                    >
+                      <div className="flex items-center justify-between gap-2 text-[11px] font-black text-cyan-200">
+                        <span>{study.titleAr}</span>
+                        <span className="text-[10px] text-amber-300">{study.osdrCode}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">{study.findingAr}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 border-t border-slate-800 space-y-2">
+                  <div className="text-xs font-hud font-black text-amber-300">
+                    ⚖️ موازنات الهندسة والطاقة (Trade-Offs):
+                  </div>
+                  {NASA_ENGINEERING_TRADEOFFS.map((tr) => (
+                    <div
+                      key={tr.id}
+                      className="p-2.5 rounded-xl bg-amber-950/25 border border-amber-500/30 space-y-1"
+                    >
+                      <div className="text-[11px] font-black text-amber-200">{tr.titleAr}</div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">{tr.optimalDecisionAr}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

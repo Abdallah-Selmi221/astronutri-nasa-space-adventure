@@ -9,7 +9,11 @@ import {
   SuitCheckState,
   EngineCoreState,
   LaunchPadState,
-  Level2State
+  Level2State,
+  CampaignProgressState,
+  CampaignLevelId,
+  CampaignViewMode,
+  MiniGameId
 } from '../types/game';
 import { SolarStormData } from '../utils/nasaApi';
 import { TARGET_NUTRITION_REQUIREMENTS } from '../data/foodItems';
@@ -70,8 +74,37 @@ const initialLevel2State: Level2State = {
   isGameVictoryModalOpen: false
 };
 
+export const initialCampaignState: CampaignProgressState = {
+  viewMode: 'world_map',
+  activeLevel: 1,
+  activeRoomId: null,
+  activeMiniGameId: null,
+  unlockedLevels: [1],
+  completedMiniGames: [],
+  l1SelectedFoodIds: [],
+  l1FoodWeightKg: 0,
+  l1EquipmentPacked: [],
+  l1MedicalCleared: false,
+  l1SpaceshipInspected: false,
+  l2SecuredObjects: [],
+  l2HydrationPercent: 15,
+  l2MotionRested: false,
+  l3BoneMuscleScore: 0,
+  l3WaterRecycled: false,
+  l3SolarStormSheltered: false,
+  l3EvaSuitAssembled: false,
+  l3PackedTools: [],
+  l3CollectedSamples: [],
+  l3ReturnAuthorized: false,
+  l4SamplesVerified: false,
+  l4NavigationAligned: false,
+  l4EmergencyRepaired: false,
+  l4ReentrySafe: false,
+  l4MissionAccomplished: false
+};
+
 export const initialState: GameState = {
-  showIntroModal: false, // Default to false: direct entry to 2.5D Home World Screen
+  showIntroModal: false, // Default to false: direct entry to 3D World Progression Map
   currentLocation: 'Map',
   cargoWeight: 0,
   cargoItems: [],
@@ -97,7 +130,8 @@ export const initialState: GameState = {
   level2State: initialLevel2State,
   unlockedRooms: ['Map', 'NutritionLab', 'SpaceScience', 'HumanHealth'],
   soundEnabled: true,
-  cadetName: 'البطل الصغير'
+  cadetName: 'البطل الصغير',
+  campaign: initialCampaignState
 };
 
 export function calculateNutrition(items: CargoItemEntry[]): {
@@ -717,7 +751,140 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...initialState,
         showIntroModal: false,
-        currentLocation: 'Map'
+        currentLocation: 'Map',
+        campaign: initialCampaignState
+      };
+    }
+
+    case 'SET_CAMPAIGN_VIEW': {
+      const curr = state.campaign || initialCampaignState;
+      const targetLevel = action.payload.levelId ?? curr.activeLevel;
+      // Enforce sequential level unlocking gate
+      const safeLevel = curr.unlockedLevels.includes(targetLevel) ? targetLevel : curr.activeLevel;
+      return {
+        ...state,
+        campaign: {
+          ...curr,
+          viewMode: action.payload.viewMode,
+          activeLevel: safeLevel,
+          activeRoomId:
+            action.payload.roomId !== undefined ? action.payload.roomId : curr.activeRoomId,
+          activeMiniGameId:
+            action.payload.miniGameId !== undefined
+              ? action.payload.miniGameId
+              : curr.activeMiniGameId
+        }
+      };
+    }
+
+    case 'UPDATE_CAMPAIGN_STATE': {
+      const curr = state.campaign || initialCampaignState;
+      return {
+        ...state,
+        campaign: {
+          ...curr,
+          ...action.payload
+        }
+      };
+    }
+
+    case 'UNLOCK_CAMPAIGN_LEVEL': {
+      const curr = state.campaign || initialCampaignState;
+      const unlockedLevels = Array.from(
+        new Set([...curr.unlockedLevels, action.payload])
+      ) as CampaignLevelId[];
+      return {
+        ...state,
+        campaign: {
+          ...curr,
+          unlockedLevels
+        }
+      };
+    }
+
+    case 'COMPLETE_CAMPAIGN_MINIGAME': {
+      const curr = state.campaign || initialCampaignState;
+      const { miniGameId, patch } = action.payload;
+      const completedMiniGames = Array.from(
+        new Set([...curr.completedMiniGames, miniGameId])
+      ) as MiniGameId[];
+      let unlockedLevels = [...curr.unlockedLevels];
+      let unlockedRooms = [...state.unlockedRooms];
+      let isNutritionMissionComplete = state.isNutritionMissionComplete;
+      let isHumanHealthComplete = state.isHumanHealthComplete;
+      let isSuitMissionComplete = state.isSuitMissionComplete;
+      let isEngineMissionComplete = state.isEngineMissionComplete;
+      let isReturnMissionComplete = state.isReturnMissionComplete;
+      let launchPadState = state.launchPadState;
+      let level2State = state.level2State;
+
+      // Cross-level automatic progression & legacy milestone sync
+      if (miniGameId === 'l1_food_prep') {
+        isNutritionMissionComplete = true;
+        unlockedRooms = Array.from(new Set([...unlockedRooms, 'SuitRoom']));
+      }
+      if (miniGameId === 'l1_medical_check') {
+        isHumanHealthComplete = true;
+      }
+      if (miniGameId === 'l1_spaceship_inspect') {
+        isEngineMissionComplete = true;
+        unlockedRooms = Array.from(new Set([...unlockedRooms, 'EngineRoom', 'LaunchPad']));
+      }
+      if (miniGameId === 'l1_mission_launch') {
+        unlockedLevels = Array.from(new Set([...unlockedLevels, 2])) as CampaignLevelId[];
+        unlockedRooms = Array.from(new Set([...unlockedRooms, 'LunarDashboard']));
+        launchPadState = { ...launchPadState, isLevel1Complete: true };
+        level2State = { ...level2State, isLevel2Active: true };
+      }
+      if (miniGameId === 'l2_systems_neows') {
+        unlockedLevels = Array.from(new Set([...unlockedLevels, 3])) as CampaignLevelId[];
+      }
+      if (miniGameId === 'l3_eva_prep') {
+        isSuitMissionComplete = true;
+      }
+      if (miniGameId === 'l3_solar_storm') {
+        level2State = { ...level2State, isTradeOffResolved: true };
+      }
+      if (miniGameId === 'l3_lunar_samples') {
+        level2State = { ...level2State, isEVASafeReturned: true };
+      }
+      if (miniGameId === 'l4_safe_landing') {
+        isReturnMissionComplete = true;
+        unlockedRooms = Array.from(new Set([...unlockedRooms, 'ReturnToEarth']));
+      }
+
+      return {
+        ...state,
+        unlockedRooms,
+        isNutritionMissionComplete,
+        isHumanHealthComplete,
+        isSuitMissionComplete,
+        isEngineMissionComplete,
+        isReturnMissionComplete,
+        launchPadState,
+        level2State,
+        campaign: {
+          ...curr,
+          ...(patch || {}),
+          completedMiniGames,
+          unlockedLevels
+        }
+      };
+    }
+
+    case 'AUTHORIZE_LUNAR_RETURN': {
+      const curr = state.campaign || initialCampaignState;
+      const unlockedLevels = Array.from(
+        new Set([...curr.unlockedLevels, 4])
+      ) as CampaignLevelId[];
+      return {
+        ...state,
+        unlockedRooms: Array.from(new Set([...state.unlockedRooms, 'ReturnToEarth'])),
+        campaign: {
+          ...curr,
+          l3ReturnAuthorized: true,
+          unlockedLevels
+        }
       };
     }
 
@@ -775,6 +942,12 @@ interface GameContextType {
   resetProgress: () => void;
   storageStatus: SaveInspectionResult['status'];
   isAutoSaveBlocked: boolean;
+  // 4-Level / 21-Minigame Campaign helpers
+  setCampaignView: (viewMode: CampaignViewMode, levelId?: CampaignLevelId, roomId?: string | null, miniGameId?: MiniGameId | null) => void;
+  completeCampaignMiniGame: (miniGameId: MiniGameId, patch?: Partial<CampaignProgressState>) => void;
+  updateCampaignState: (patch: Partial<CampaignProgressState>) => void;
+  unlockCampaignLevel: (levelId: CampaignLevelId) => void;
+  authorizeLunarReturn: () => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -791,6 +964,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const roomParam = params.get('room') as RoomLocation | null;
         if (roomParam) {
           dispatch({ type: 'SET_LOCATION', payload: roomParam });
+        }
+        const levelParam = Number(params.get('level')) as CampaignLevelId;
+        const gameParam = params.get('game') as MiniGameId | null;
+        if (levelParam >= 1 && levelParam <= 4) {
+          dispatch({ type: 'UNLOCK_CAMPAIGN_LEVEL', payload: levelParam });
+          dispatch({
+            type: 'SET_CAMPAIGN_VIEW',
+            payload: {
+              viewMode: gameParam ? 'minigame' : 'level_hub',
+              levelId: levelParam,
+              miniGameId: gameParam || null
+            }
+          });
         }
       } catch {
         // Safe fallback in restricted environments
@@ -835,7 +1021,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     state.suitState.safetyTetherLatched,
     state.engineCoreState.o2ScrubberProgress,
     state.engineCoreState.fuelCellProgress,
-    state.engineCoreState.isEngineComplete
+    state.engineCoreState.isEngineComplete,
+    state.campaign
   ]);
 
   useEffect(() => {
@@ -1025,6 +1212,41 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetProgress = resetGameFull;
 
+  const setCampaignView = (
+    viewMode: CampaignViewMode,
+    levelId?: CampaignLevelId,
+    roomId?: string | null,
+    miniGameId?: MiniGameId | null
+  ) => {
+    dispatch({
+      type: 'SET_CAMPAIGN_VIEW',
+      payload: { viewMode, levelId, roomId, miniGameId }
+    });
+  };
+
+  const completeCampaignMiniGame = (
+    miniGameId: MiniGameId,
+    patch?: Partial<CampaignProgressState>
+  ) => {
+    dispatch({
+      type: 'COMPLETE_CAMPAIGN_MINIGAME',
+      payload: { miniGameId, patch }
+    });
+  };
+
+  const updateCampaignState = (patch: Partial<CampaignProgressState>) => {
+    dispatch({ type: 'UPDATE_CAMPAIGN_STATE', payload: patch });
+  };
+
+  const unlockCampaignLevel = (levelId: CampaignLevelId) => {
+    dispatch({ type: 'UNLOCK_CAMPAIGN_LEVEL', payload: levelId });
+  };
+
+  const authorizeLunarReturn = () => {
+    soundManager.playFanfare();
+    dispatch({ type: 'AUTHORIZE_LUNAR_RETURN' });
+  };
+
   return (
     <GameContext.Provider
       value={{
@@ -1075,7 +1297,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         resetGameFull,
         resetProgress,
         storageStatus,
-        isAutoSaveBlocked: isAutoSaveDisabled()
+        isAutoSaveBlocked: isAutoSaveDisabled(),
+        setCampaignView,
+        completeCampaignMiniGame,
+        updateCampaignState,
+        unlockCampaignLevel,
+        authorizeLunarReturn
       }}
     >
       {children}

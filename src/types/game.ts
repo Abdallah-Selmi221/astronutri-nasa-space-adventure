@@ -121,6 +121,66 @@ export interface Level2State {
   isGameVictoryModalOpen: boolean;
 }
 
+export type CampaignLevelId = 1 | 2 | 3 | 4;
+
+export type MiniGameId =
+  | 'l1_food_prep'
+  | 'l1_equipment_prep'
+  | 'l1_medical_check'
+  | 'l1_spaceship_inspect'
+  | 'l1_mission_launch'
+  | 'l2_zerog_movement'
+  | 'l2_secure_objects'
+  | 'l2_balanced_meal'
+  | 'l2_hydration'
+  | 'l2_motion_sickness'
+  | 'l2_systems_neows'
+  | 'l3_resistance_training'
+  | 'l3_water_recycling'
+  | 'l3_solar_storm'
+  | 'l3_eva_prep'
+  | 'l3_lunar_samples'
+  | 'l4_departure_prep'
+  | 'l4_navigation_earth'
+  | 'l4_spacecraft_emergency'
+  | 'l4_earth_reentry'
+  | 'l4_safe_landing';
+
+export type LunarToolId = 'gripper' | 'scoop' | 'hammer' | 'collection_bag';
+export type LunarSampleId = 'basalt_rock' | 'regolith_dust' | 'crater_pebbles';
+
+export type CampaignViewMode = 'world_map' | 'level_hub' | 'minigame';
+
+export interface CampaignProgressState {
+  viewMode: CampaignViewMode;
+  activeLevel: CampaignLevelId;
+  activeRoomId: string | null;
+  activeMiniGameId: MiniGameId | null;
+  unlockedLevels: CampaignLevelId[];
+  completedMiniGames: MiniGameId[];
+  // Cross-level & cross-minigame continuity
+  l1SelectedFoodIds: string[];
+  l1FoodWeightKg: number;
+  l1EquipmentPacked: string[];
+  l1MedicalCleared: boolean;
+  l1SpaceshipInspected: boolean;
+  l2SecuredObjects: string[];
+  l2HydrationPercent: number;
+  l2MotionRested: boolean;
+  l3BoneMuscleScore: number;
+  l3WaterRecycled: boolean;
+  l3SolarStormSheltered: boolean;
+  l3EvaSuitAssembled: boolean;
+  l3PackedTools: LunarToolId[];
+  l3CollectedSamples: LunarSampleId[];
+  l3ReturnAuthorized: boolean;
+  l4SamplesVerified: boolean;
+  l4NavigationAligned: boolean;
+  l4EmergencyRepaired: boolean;
+  l4ReentrySafe: boolean;
+  l4MissionAccomplished: boolean;
+}
+
 export interface GameState {
   showIntroModal: boolean;
   currentLocation: RoomLocation;
@@ -142,6 +202,7 @@ export interface GameState {
   unlockedRooms: RoomLocation[];
   soundEnabled: boolean;
   cadetName: string;
+  campaign?: CampaignProgressState;
 }
 
 export type GameAction =
@@ -185,4 +246,10 @@ export type GameAction =
   | { type: 'RESOLVE_TRADE_OFF'; payload: 'shields' | 'farm' }
   | { type: 'OPEN_VICTORY_MODAL' }
   | { type: 'DISMISS_VICTORY_MODAL' }
-  | { type: 'RESET_GAME_FULL' };
+  | { type: 'RESET_GAME_FULL' }
+  // 4-LEVEL / 21-MINIGAME CAMPAIGN ACTIONS
+  | { type: 'SET_CAMPAIGN_VIEW'; payload: { viewMode: CampaignViewMode; levelId?: CampaignLevelId; roomId?: string | null; miniGameId?: MiniGameId | null } }
+  | { type: 'COMPLETE_CAMPAIGN_MINIGAME'; payload: { miniGameId: MiniGameId; patch?: Partial<CampaignProgressState> } }
+  | { type: 'UPDATE_CAMPAIGN_STATE'; payload: Partial<CampaignProgressState> }
+  | { type: 'UNLOCK_CAMPAIGN_LEVEL'; payload: CampaignLevelId }
+  | { type: 'AUTHORIZE_LUNAR_RETURN' };

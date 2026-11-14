@@ -2,80 +2,76 @@
 # AstroNutri — Official Judging Panel Presentation Dossier
 
 **المشروع / Project:** **AstroNutri — مدرب رواد الفضاء الصغار (Junior Astronaut Mission Trainer)**  
-**الفئة العمرية المستهدفة / Target Audience:** الأطفال من **7 إلى 12 سنة** (متحدثو العربية مع مصطلحات علمية موثقة من ناسا)  
-**الهدف العلمي / Mission Vision:** تحويل علوم تغذية رواد الفضاء، فيزياء الجاذبية الصغرى، والاستكشاف الكوكبي من مجرد نصوص نظرية إلى **مغامرة تفاعلية ثنائية ونصف البُعد (2.5D) مدفوعة ببيانات وكالة ناسا الحقيقية**.
+**الفئة العمرية المستهدفة / Target Audience:** الأطفال من **7 إلى 12 سنة** (واجهة عربية كاملة من اليمين لليسار مع مصطلحات ناسا العلمية الموثقة)  
+**الهدف العلمي / Mission Vision:** تحويل علوم تغذية رواد الفضاء، فيزياء الجاذبية الصغرى (`0G` و`0.16G`)، وطقس الفضاء والهندسة المدارية إلى **مغامرة ثلاثية الأبعاد تفاعلية (Three.js 3D + Phaser 3 2.5D)** عبر **4 مستويات متسلسلة تضم 33 غرفة/موقعاً و21 تحدياً تفاعلياً**.
 
 ---
 
-## 1. الرؤية التعليمية وفكرة اللعبة | Game Concept & Educational Vision
+## 1. الهيكل الجديد للمستويات الأربعة (4 Sequential Levels • 33 Spatial Locations • 21 Mini-Games)
 
-تواجه البعثات الفضائية الطويلة (مثل برنامج **Artemis** للعودة إلى القمر والانطلاق للمريخ) تحديات حقيقية يعيشها رائد الفضاء يومياً: كيف يأكل في انعدام الجاذبية دون أن يطفو فتات الخبز في أجهزة المركبة؟ كيف تتأثر العظام والعضلات والقلب في `0G`؟ وكيف يحمي الطاقم نفسه عند هبوب عاصفة شمسية؟
+لضمان وضوح القصة للأطفال ومنع تداخل الغرف غير المرتبطة، تعمل اللعبة عبر **خريطة عالم ثلاثية الأبعاد (`WorldNavigator3D`)** تتصل فيها **4 محطات متسلسلة خطياً (`Level 1 -> Level 2 -> Level 3 -> Level 4`)**، وبداخل كل مستوى **خريطة محطة/قاعدة ثلاثية الأبعاد قابلة للمشي (`SpatialRoomMap3D`)** يتحكم فيها الطفل بكابتن **روبو** عبر `WASD` / الأسهم أو أزرار اللمس أو النقر على الأبواب المضيئة:
 
-صُممت لعبة **AstroNutri** لتجيب عن هذه الأسئلة عملياً عبر مرافقة الطفل للشخصية الكرتونية **"روبو (Robo)"** بلهجة عربية مصرية محببة للأطفال عبر **4 مراحل قصصية متكاملة (8 محطات)**، تدمج اللعب الحركي (Phaser 3 Physics) مع التحديات الذهنية (42 سؤالاً علمياً مصوراً + تحديات تفاعلية لكل كوكب) واستكشاف بيانات ناسا الحقيقية.
+### المستوى 1: التحضير على الأرض (`Level 1: Earth Preparation`) — 6 غرف و5 مهام
+- **الغرف (6):** `Food Storage`، `Equipment Room`، `Medical Room`، `Spaceship Bay`، `Mission Control`، `Launch Area`.
+- **التحديات (5):**
+  1. `l1_food_prep`: تجهيز الطعام الآمن ومراعاة **قاعدة منع الفتات (No Crumbs Rule)** والمشروبات الغازية وموازنة الوزن/التغذية.
+  2. `l1_equipment_prep`: حزم أدوات ومستلزمات المهمة في حقيبة الطاقم.
+  3. `l1_medical_check`: الفحص الطبي (النوم، الترطيب، والتغذية) مع قراءة الاستمرارية من مخزن الطعام.
+  4. `l1_spaceship_inspect`: فحص الأكسجين والطاقة الكهربائية وأبواب الكبسولة.
+  5. `l1_mission_launch`: مراجعة اكتمال المهام الأربع السابقة في مركز التحكم والعد التنازلي للإقلاع (`LAUNCH SUCCESSFUL!`).
 
-**Educational Outcomes for Ages 7–12:**
-- **Space Nutrition & Microgravity Hygiene:** Why tortillas replace crumbly bread in orbit (`0G`), why carbonated soda is banned, and how balanced macronutrients (protein, carbohydrates, potassium/vitamins) support astronauts.
-- **Gravity & Planetary Science:** Interactive comparison across Mercury (`0.38G`), Venus (`0.91G`), Earth (`1.0G`), the Moon (`0.16G`), Mars (`0.38G`), Jupiter (`2.53G`), Saturn (`1.06G`), and Asteroid `2010 PK` (`0.001G`).
-- **Human Health & Spacecraft Systems:** Zero-G hydration mechanics, ARED muscle resistance training, `4.3 PSI` EVA spacesuit pressurization, fuel cell / O2 scrubber engineering, ECLSS water recycling, and Orion atmospheric re-entry angle control.
+### المستوى 2: رحلة انعدام الجاذبية (`Level 2: Zero-G Space Transit`) — 7 غرف و6 مهام
+- **الغرف (7):** `Central Corridor`، `Storage / Supply Room`، `Kitchen / Food Area`، `Hydration Station`، `Medical / Rest Room`، `Spaceship Control Room`، `Observation Window / Space Radar`.
+- **التحديات (6):**
+  1. `l2_zerog_movement`: فيزياء الحركة بالقصور الذاتي والتمسك بمقابض انعدام الجاذبية (`0G`).
+  2. `l2_secure_objects`: تثبيت 5 أدوات طائرة في خزاناتها قبل تشتتها بالمحطة.
+  3. `l2_balanced_meal`: إعداد وجبة متوازنة في المدار (بروتين + كربوهيدرات + دهون صحية + فيتامينات).
+  4. `l2_hydration`: لعبة شرب الماء المختوم (`HydrationGame`) ومعوض السوائل في `0G`.
+  5. `l2_motion_sickness`: إدارة دوار الفضاء وإزاحة السوائل (`NASA OSDR OSD-245`).
+  6. `l2_systems_neows`: فحص أنظمة الملاحة ورادار الكويكب الحقيقي **`2010 PK` (`NASA NeoWs`)** لتأكيد الوصول القمري (`LUNAR ARRIVAL CONFIRMED!`).
+
+### المستوى 3: مستعمرة القمر والعمليات العلمية (`Level 3: Moon Colony`) — 12 غرفة و5 مهام + إذن العودة
+- **الغرف (12):** `Central Hall`، `Exercise Gym`، `ECLSS / Water System Room`، `Greenhouse / Food Lab`، `Medical Bay`، `Power & Control Room`، `Mission Control`، `EVA Prep Room`، `Emergency Shelter`، `Solar Panel Field`، `Lunar Rover Parking`، `Lunar Exploration Zone`.
+- **التحديات (5 + غرفة تفويض العودة):**
+  1. `l3_resistance_training`: تمارين المقاومة اليومية (**الأرجل -> الذراعين -> الجذع**) للحفاظ على كثافة العظام والعضلات (`NASA OSDR OSD-102 ARED`).
+  2. `l3_water_recycling`: صيانة نظام إعادة تدوير المياه المغلق (**ECLSS** — عزل، فتح، تنظيف الفلتر، واختبار النقاء).
+  3. `l3_solar_storm`: الاستجابة للعاصفة الشمسية الحقيقية (`NASA DONKI CME`) وموازنة **الطاقة ⚡ مقابل الأكسجين 🫁 مقابل الدروع 🛡️** ثم الاحتماء بالملجأ الإشعاعي.
+  4. `l3_eva_prep`: ارتداء بدلة القمر (`4.3 PSI`) وحزم **الأدوات العلمية الأربع (`Gripper`, `Scoop`, `Hammer`, `Collection Bag`)**.
+  5. `l3_lunar_samples`: الاستكشاف على سطح القمر بجاذبية `0.16G` ومراقبة أكسجين البدلة — مع **ترابط حقيقي عابر للغرف**: إذا نسي الطفل حزم أي أداة في `EVA Prep Room`، تعيده اللعبة مباشرةً لحزمها قبل السماح بجمع العينة!
+  6. **مركز قيادة القمر (`l3_return_auth`):** مراجعة إتمام التحديات الخمسة ومنح الإذن الرسمي (`ALL SYSTEMS VERIFIED – RETURN TO EARTH AUTHORIZED!`) لفتح المستوى الرابع.
+
+### المستوى 4: رحلة العودة إلى الأرض (`Level 4: Return to Earth`) — 8 غرف و5 مهام
+- **الغرف (8):** `Central Corridor`، `Cargo & Sample Storage`، `Cockpit / Navigation`، `Communication Room`، `Systems Check Station`، `Equipment & Maintenance`، `Medical Bay`، `Crew Quarters`.
+- **التحديات (5):**
+  1. `l4_departure_prep`: فحص الأكسجين والطاقة والاتصالات وتأمين **عينات القمر المجموعة من المستوى 3** (`l3CollectedSamples`) داخل مخزن الشحن.
+  2. `l4_navigation_earth`: ضبط زاوية مسار العودة واختبار **تأخير إشارة الفضاء العميق الحقيقي (~1.3 ثانية)** بين القمر والأرض (`NASA DSN`).
+  3. `l4_spacecraft_emergency`: تشخيص عطل طارئ أثناء العودة (طاقة / اتصال / `CO2`) وإصلاحه بأداة الصيانة الصحيحة.
+  4. `l4_earth_reentry`: فحص ألواح الدرع الحراري **`PICA-X`** وتثبيت زاوية الكبسولة داخل الممر الآمن (`-18° .. +18°`) عند ذروة حرارة `1600°C` وتحمل جاذبية `4.0G` (`NASA OSDR`).
+  5. `l4_safe_landing`: التسلسل الزمني لفتح المظلات الكابحة (`Drogue`) ثم الرئيسية (`Main Chutes`) حتى الهبوط المائي الآمن (`MISSION ACCOMPLISHED!`).
+
+### أكاديمية الكواكب وبنك الـ 42 سؤالاً (`SpaceScience`)
+- تظل **أكاديمية الكواكب الـ 8 والـ 42 سؤالاً** متاحة بضغطة واحدة من الخريطة الرئيسية، مع قفز روبو على جاذبية كل جرم سماوي ومقارنة الوزن والصور الحقيقية من ناسا.
 
 ---
 
-## 2. القصة الكاملة للمراحل الأربع وميكانيكيات اللعب | Complete 4-Stage Story & Gameplay Mechanics
+## 2. التكامل الفعلي مع بيانات ناسا الحية | Real NASA Data Integration
 
-### مدخل الحملة والأرخبيل الفضائي (Home Archipelago Hub)
-- تبدأ التجربة بمقطع فيديو افتتاحي غير قابل للتخطي (`IntroVideoPlayer`) يضع الطفل مباشرة داخل قصة المهمة.
-- يدخل الطفل إلى **عالم الأرخبيل الكوني في Phaser 3** حيث تصطف الجزر الست أفقياً متصلة بمسارات طيران مضيئة. يستطيع الطفل تحريك روبو باللمس أو الأسهم/`WASD` أو النقر على أي جزيرة لتشغيل تسلسل صعود المركبة وطيرانها الفضائي عبر المسار المنحني بين الجزر، مع عرض **خريطة الطيران التفاعلية (`WorldMapPreviewModal`)** التي تتحقق من فتح المراحل بالترتيب.
+تتغذى اللعبة من بيانات ناسا الموثقة عبر `src/services/nasa/nasaCache.ts` و`src/services/nasa/nasaOSDR.ts` ولقطة البيانات المعقمة محلياً `public/data/nasa_snapshots.json` (دون تسريب أي مفاتيح API للمتصفح):
 
-### المرحلة الأولى: تجهيز الإمداد والصحة البدنية (Earth Orbit Prep)
-1. **حديقة ومختبر التغذية (`NutritionLab` + `NutritionLabScene`):**
-   - بيئة فيزيائية تفاعلية في Phaser 3 يسحب فيها الطفل الأطعمة إلى صندوق الحمولة (`0/4` وجبات) أو يختبر حظر الأطعمة الضارة (مثل الخبز العادي والبرجر والبيتزا والمشروبات الغازية) بسبب خطر الفتات والغازات في انعدام الجاذبية.
-   - **بوابة التوازن العلمي:** يشترط قبول المهمة تجميع **4 وجبات آمنة** تتضمن **خبز التورتيلا الفضائي** وتحقق توازناً سليماً بين الوزن والبروتين والطاقة، بالإضافة إلى **تحدي التغذية المكون من 14 سؤالاً** و**مراجع ناسا العلمية الموثقة**.
-2. **أكاديمية الكواكب ورادار ناسا (`SpaceScience` + `PlanetIllustration` + `AsteroidRadarModal`):**
-   - خريطة تفاعلية للمجموعة الشمسية تضم **8 أجرام سماوية** (**عطارد، الزهرة، الأرض، القمر، المريخ، المشتري، زحل، وكويكب 2010 PK**).
-   - عند اختيار أي كوكب يقفز روبو فوق سطحه حسب جاذبيته الحقيقية، مع حاسبة مقارنة الوزن (`30 كجم على الأرض = X كجم هنا`)، صورة حقيقية ودرس موجز من ناسا، وسؤال تفاعلي خاص بكل كوكب يتبعه خيار مواصلة استكشاف كوكب آخر أو التقدم للمرحلة التالية، إلى جانب **14 سؤالاً إضافياً في بنك أسئلة الفضاء**.
-3. **قسم الصحة وجسم الإنسان (`HumanHealth`):**
-   - يجمع بين الهولوجرام التفاعلي لعادات رائد الفضاء، ولعبة **شرب الماء الآمن في `0G` (`HydrationGame`)**، وتمرين **مقاومة العضلات (`ResistanceTraining` — ARED)**، و**تحدي 14 سؤالاً في صحة الفضاء والفيزياء**.
-
-### المرحلة الثانية: تجهيز البدلة والهندسة والانطلاق (Suit, Engine & Launch)
-4. **غرفة بدلة الفضاء (`SuitRoom`):** معايرة ضغط البدلة القمرية إلى **`4.3 PSI`**، قفل الخوذة الذهبية، فحص الطبقات الحرارية الـ 14، وتثبيت حبل الأمان.
-5. **قلب المحرك والطاقة (`EngineCore`):** ضخ منقي ثاني أكسيد الكربون (`O2 Scrubber`) إلى `100%` وشحن خلايا الوقود مع مراقبة الحرارة لمنع السخونة الزائدة (`Overheat`).
-6. **منصة الإطلاق الكبرى (`LaunchPad`):** فحص جاهزية حقيقي للغذاء والبدلة والوقود (لا يُسمح بالإقلاع دون إتمام المرحلتين)، وتحدي **QTE شرب أملاح التوازن قبل الانطلاق** ثم العد التنازلي الصاروخي إلى المدار القمري.
-
-### المرحلة الثالثة: قاعدة القمر "أرتميس" في فوهة شاكلتون (`LunarDashboard` + `LunarOutpostScene`)
-7. **مستعمرة القمر ونظام تدوير المياه (`ECLSSSystem` & `EVATimer` & `SolarStormAlert`):**
-   - استكشاف 2.5D لفوهة شاكلتون بالقطب الجنوبي القمري واستخراج عينات الجليد القمري.
-   - **لغز أنابيب المياه المغلقة (`ECLSS`)** باستخدام خوارزمية البحث العرضي (**BFS Flow Solver**) لتوجيه المياه النظيفة دون انقطاع.
-   - مراقبة مؤقت زميل السير الفضائي (`EVA`) وتزويده بالماء عبر حقيبة البدلة (`IDB`).
-   - **قرار الموازنة الحرج أثناء العاصفة الشمسية (`DONKI`):** تفعيل الدروع الإشعاعية المادية وحماية الطاقم استناداً إلى التفرقة العلمية الموثقة (الفيتامينات تدعم المناعة ولا تحل محل دروع الإشعاع).
-
-### المرحلة الرابعة: العودة إلى كوكب الأرض (`ReturnToEarth`)
-8. **حساب مركز الثقل والغلاف الجوي (`Stage 4`):**
-   - توزيع عينات الصخور القمرية بين جانبي كبسولة العودة (Orion) بشرط ألا يتجاوز الوزن الكلي **100 كجم** وألا يزيد الفارق بين اليمين واليسار عن **15 كجم**.
-   - توجيه درع الحماية الحراري (**PICA-X Re-Entry**) داخل زاوية الأمان أثناء اختراق البلازما عند `1600°C` حتى فتح المظلات والهبوط المائي الآمن (`Splashdown`).
-
----
-
-## 3. التكامل الفعلي مع بيانات ناسا الحية | Real NASA Data Integration
-
-بدلاً من استخدام نصوص وهمية، يعتمد **AstroNutri** على خدمة موحدة في `src/services/nasa/` (`nasaCache.ts` و`nasaNormalizer.ts`) مرتبطة بلقطات بيانات ناسا الرسمية المعقمة (`public/data/nasa_snapshots.json` — خالية تماماً من أي `api_key=`):
-
-| مصدر ناسا الرسمي / NASA API | كيفية استخدامه في ميكانيكيات اللعب / How It Drives Gameplay |
+| مصدر ناسا الرسمي / NASA Dataset | دوره الفعلي داخل اللعب |
 | :--- | :--- |
-| **NASA NeoWs (Near-Earth Object Web Service)** | يُغذي **رادار الكويكبات (`AsteroidRadarModal`)** وبطاقة **كويكب `2010 PK` (`SPK-ID: 3542519`)** بالقطر الفعلي (`~164 م`) والسرعة (`14.8 كم/ث`) ومسافة المرور الآمنة (`> 19 ضعف مسافة القمر`) لطمأنة الأطفال وتعليمهم كيف تحمي ناسا الأرض. |
-| **NASA DONKI (CME / SEP Space Weather)** | يُحفّز حالة **العاصفة الشمسية الحية** في `LunarDashboard` ويعرض سرعة الانبعاث الأكليلي (`km/s`) ومعرّف الحدث (`activityID`) ليتعلم الطفل ضرورة اللجوء لقلب المحطة والدروع المادية عند العواصف. |
-| **NASA APOD (Astronomy Picture of the Day)** | يظهر داخل لوحة بيانات ناسا الحية (`NasaMissionControlDrawer`) ومختبر الكواكب (`SpaceScience`) لعرض صور فلكية حقيقية بتفسيرات مبسطة بالعربية. |
-| **NASA DSCOVR EPIC & Lunar Reconnaissance Orbiter (LROC)** | تزوّد اللعبة بصور أصلية مخزنة محلياً (`earth_blue_marble.jpg`، `moon_surface_lroc.jpg`، `apod_sample.jpg`) مع مسار احتياطي (`onError`) لضمان عمل الصور 100% حتى بدون إنترنت. |
+| **NASA NeoWs (`2010 PK`, SPK-ID `3542519`)** | يُغذي فحص الملاحة في المستوى 2 (`l2_systems_neows`) ورادار الكويكبات بالقطر والسرعة ومسافة المرور الآمنة. |
+| **NASA DONKI (CME Space Weather)** | يُطلق سيناريو العاصفة الشمسية في المستوى 3 (`l3_solar_storm`) وموازنة الطاقة/الأكسجين/الدروع الإشعاعية. |
+| **NASA OSDR (`OSD-102`, `OSD-245`, `OSD-318`, `Re-Entry 4G`)** | يدعم تمارين المقاومة ضد ضمور العضلات والعظام، بروتوكول دوار الفضاء والترطيب، الحماية الإشعاعية، وتحمل جاذبية العودة. |
+| **NASA APOD, EPIC & LROC Imagery** | معروضة في لوحة **بيانات ناسا الحية (`NasaMissionControlDrawer`)** ومختبر الكواكب مع صور محلية تعمل بدون إنترنت. |
 
 ---
 
-## 4. البنية التقنية والاعتمادية بدون إنترنت | Technical Architecture & Offline PWA
+## 3. البنية التقنية، الصوت العربي والعمل دون إنترنت | Tech Architecture & Offline PWA
 
-- **Frontend Stack:** `React 18` + `TypeScript` + `Tailwind CSS` + `Framer Motion` (واجهة ألعاب كاجوال ناعمة مناسبة للأطفال) مع توجيه كامل من اليمين لليسار (`RTL Arabic`).
-- **2.5D Game Engine:** `Phaser 3.90` في مشاهد مخصصة كائنية التوجه (`HomeIslandScene.ts`، `NutritionLabScene.ts`، `LunarOutpostScene.ts`) مع كيانات OOP (`CelestialBody.ts`، `ArticulatedRobo.ts`، `SpacecraftVessel.ts`).
-- **Offline Audio (ElevenLabs Arabic Voice Identity):**
-  - استُخدم نموذج **`eleven_multilingual_v2`** (معرف الصوت `TX3LPaxmHKxFdv7VOQHJ`) لتوليد ملفات صوتية غير متصلة بالإنترنت بالعربية المصرية داخل `public/audio/robo/` (`pilot/` + `sample/` + `campaign/` — أكثر من 25 مقطعاً احترافياً + مؤثرات Web Audio في `sound.ts`).
-- **Progressive Web App (PWA) & Cache-Busting Safety:**
-  - تكوين `vite-plugin-pwa` مع `cleanupOutdatedCaches: true` و`skipWaiting: true` و`clientsClaim: true` لتحديث النسخ فوراً ومنع تجمّد النسخ القديمة، مع تخزين الأصول محلياً للعمل الكامل دون اتصال.
-- **Fail-Closed Save Persistence (`src/utils/storage.ts`):**
-  - نظام حفظ محلي يحمي ملفات التقدم من التلف أو النسخ الأحدث عبر تعطيل الحفظ التلقائي وحماية البيانات الخام حتى يختار اللاعب إعادة الضبط صراحةً، مع `GameErrorBoundary` و`lazyWithRetry` لمنع أخطاء التحميل أو الشاشات السوداء.
-- **Security Hygiene:** مفاتيح API معزولة بالكامل في `.env` (المُدرج في `.gitignore`) وخارج حزمة المتصفح وملف `dist/` النهائي تماماً.
+- **3D & 2.5D Engines:** `Three.js` (`WorldNavigator3D.tsx`, `SpatialRoomMap3D.tsx`) لخريطة العالم الـ 4 محطات والمجسمات والروبوت المتحرك داخل 33 غرفة؛ مع `Phaser 3.90` للمشاهد التخصصية.
+- **Frontend Stack:** `React 18` + `TypeScript` + `Tailwind CSS` + `Framer Motion` مع دعم عربي كامل (`RTL`) ومفاتيح `WASD`/الأسهم وأزرار اللمس للأطفال.
+- **ElevenLabs Egyptian Arabic Voice (`dialogueManager`):**
+  - صوت عربي مصري دافئ ومخزن محلياً في `public/audio/robo/` (`eleven_multilingual_v2`, Voice ID `TX3LPaxmHKxFdv7VOQHJ`) يغطي التوجيهات الصوتية عبر المستويات الأربعة مع مؤثرات Web Audio في `sound.ts`.
+- **Offline PWA & Fail-Closed Persistence:**
+  - حزمة `vite-plugin-pwa` بتخزين حتى `25 MB` لدعم فيديو البداية والصوتيات وبيانات ناسا دون إنترنت، مع `AstroNutriSaveDataV1` (`src/utils/storage.ts`) لحفظ التقدم واستمرارية الموارد (الطعام، الأدوات الـ 4، وعينات القمر) بين المستويات بأمان.

@@ -8,26 +8,18 @@ import { geminiTTS } from '../../utils/geminiTTS';
 import { Star, Settings, Home, Satellite } from 'lucide-react';
 
 export const HeaderHUD: React.FC = () => {
-  const { state, setLocation } = useGameState();
+  const { state, setLocation, setCampaignView } = useGameState();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNasaOpen, setIsNasaOpen] = useState(false);
 
-  // Calculate readable player star score (synchronized with HomeWorldScreen)
-  const completedMissionsCount = [
-    state.isNutritionMissionComplete,
-    state.isHumanHealthComplete,
-    state.isSuitMissionComplete,
-    state.engineCoreState.isEngineComplete,
-    state.launchPadState.isLevel1Complete,
-    state.level2State.isTradeOffResolved,
-    state.isReturnMissionComplete
-  ].filter(Boolean).length;
-
-  const totalStarsScore = 250 + completedMissionsCount * 50 + state.cargoItems.length * 25;
+  // Synchronized star score across Campaign Hub & SpaceScience
+  const campaignCompletedCount = state.campaign?.completedMiniGames.length || 0;
+  const totalStarsScore = 250 + campaignCompletedCount * 25 + state.cargoItems.length * 15;
 
   const handleGoHome = () => {
     geminiTTS.stop();
     soundManager.playClick();
+    setCampaignView('world_map', state.campaign?.activeLevel || 1, null, null);
     setLocation('Map');
   };
 

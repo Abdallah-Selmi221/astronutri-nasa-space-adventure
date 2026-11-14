@@ -353,27 +353,30 @@ export class DialogueManager {
   }
 
   private resolveLocalAudioUrl(text: string): string | null {
-    // 1. Stage 2 Zero-G & Spacecraft Handrails
-    if (text.includes('الدرابزين') || (text.includes('تطفو') && text.includes('الجاذبية'))) {
+    // 1. Stage 2 Zero-G & Spacecraft Handrails / Floating Objects / Hydration
+    if (text.includes('الدرابزين') || text.includes('القصور الذاتي') || (text.includes('تطفو') && text.includes('الجاذبية'))) {
       return '/audio/robo/pilot/pilot_02_handrail.mp3';
     }
-    if (text.includes('بتطفو') || text.includes('الأدوات') || text.includes('ثبتها')) {
+    if (text.includes('بتطفو') || text.includes('الأغراض الطافية') || text.includes('الأدوات') || text.includes('ثبتها') || text.includes('خزانتها')) {
       return '/audio/robo/pilot/pilot_03_loose_objects.mp3';
     }
+    if (text.includes('كيس الماء') || text.includes('القطرات') || text.includes('توقف وابلع')) {
+      return '/audio/robo/campaign/health_welcome.mp3';
+    }
 
-    // 2. Island Hopping & Onboarding
-    if (text.includes('نطير بالسفينة') || text.includes('اربط الحزام') || text.includes('وصلنا إلى')) {
+    // 2. Island Hopping, World Map & Onboarding
+    if (text.includes('نطير بالسفينة') || text.includes('اربط الحزام') || text.includes('وصلنا إلى') || text.includes('الرحلة إلى القمر')) {
       return '/audio/robo/campaign/island_hop_welcome.mp3';
     }
 
-    // 3. Planet & NASA Radar Exploration (SpaceScience)
-    if (text.includes('كويكب') || text.includes('2010 PK') || text.includes('رادار ناسا رصد')) {
+    // 3. Planet & NASA Radar Exploration (SpaceScience + NeoWs)
+    if (text.includes('كويكب') || text.includes('2010 PK') || text.includes('رادار ناسا') || text.includes('NeoWs')) {
       return '/audio/robo/campaign/asteroid_radar.mp3';
     }
-    if (text.includes('على الأرض') || text.includes('كوكب الأرض')) {
+    if (text.includes('على الأرض') || text.includes('كوكب الأرض') || text.includes('مركز الأرض')) {
       return '/audio/robo/campaign/planet_earth.mp3';
     }
-    if (text.includes('على القمر') || text.includes('سُدس')) {
+    if (text.includes('على القمر') || text.includes('سطح القمر') || text.includes('سُدس') || text.includes('0.16')) {
       return '/audio/robo/campaign/planet_moon.mp3';
     }
     if (text.includes('على المريخ') || text.includes('كوكب المريخ')) {
@@ -386,14 +389,14 @@ export class DialogueManager {
       return '/audio/robo/campaign/planet_jupiter.mp3';
     }
 
-    // 4. Nutrition Lab Coaching
+    // 4. Nutrition Lab Coaching (L1 Food Prep & L2 Balanced Meal)
     if (text.includes('خبز التورتيلا')) {
       return '/audio/robo/campaign/nutrition_tortilla.mp3';
     }
-    if (text.includes('نوازن') || text.includes('البروتين والطاقة') || text.includes('غير متوازن')) {
+    if (text.includes('نوازن') || text.includes('البروتين والطاقة') || text.includes('غير متوازن') || text.includes('وجبة فضائية متوازنة')) {
       return '/audio/robo/campaign/nutrition_balance_tip.mp3';
     }
-    if (text.includes('مختبر التغذية') || text.includes('أربع وجبات') || text.includes('4 وجبات')) {
+    if (text.includes('مختبر التغذية') || text.includes('مخزن الطعام') || text.includes('أربع وجبات') || text.includes('4 وجبات')) {
       return '/audio/robo/campaign/nutrition_welcome.mp3';
     }
 
@@ -405,38 +408,38 @@ export class DialogueManager {
       return '/audio/robo/campaign/quiz_hint.mp3';
     }
 
-    // 6. Stage 1 Rooms & Stage 3/4 Briefings
-    if (text.includes('قسم الصحة') || text.includes('صحة القلب') || text.includes('عضلاتنا')) {
+    // 6. Levels 1-4 Briefings & NASA Systems
+    if (text.includes('قسم الصحة') || text.includes('الفحص الطبي') || text.includes('صحة القلب') || text.includes('عضلاتنا') || text.includes('المقاومة') || text.includes('OSDR') || text.includes('دوار')) {
       return '/audio/robo/campaign/health_welcome.mp3';
     }
-    if (text.includes('بدلة الفضاء') || text.includes('الخوذة الذهبية')) {
+    if (text.includes('بدلة الفضاء') || text.includes('البدلة القمرية') || text.includes('الخوذة الذهبية') || text.includes('غرفة التجهيز')) {
       return '/audio/robo/campaign/suit_welcome.mp3';
     }
-    if (text.includes('قلب المحرك') || text.includes('خلايا الوقود')) {
+    if (text.includes('قلب المحرك') || text.includes('خلايا الوقود') || text.includes('حظيرة المركبة') || text.includes('عطل طارئ') || text.includes('غرفة الصيانة')) {
       return '/audio/robo/campaign/engine_welcome.mp3';
     }
-    if (text.includes('منصة الإطلاق') || text.includes('أملاح التوازن')) {
+    if (text.includes('منصة الإطلاق') || text.includes('إطلاق الصاروخ') || text.includes('أملاح التوازن') || text.includes('العد التنازلي')) {
       return '/audio/robo/campaign/launch_welcome.mp3';
     }
-    if (text.includes('عاصفة شمسية') || text.includes('دونكي') || text.includes('DONKI')) {
+    if (text.includes('عاصفة شمسية') || text.includes('دونكي') || text.includes('DONKI') || text.includes('ملجأ الطوارئ')) {
       return '/audio/robo/campaign/lunar_storm_warning.mp3';
     }
-    if (text.includes('فتات') || text.includes('خطر') || text.includes('حاسب') || text.includes('ممنوع') || text.includes('تحذير')) {
+    if (text.includes('فتات') || text.includes('خطر') || text.includes('حاسب') || text.includes('ممنوع') || text.includes('تحذير') || text.includes('نسيت أداة')) {
       return '/audio/robo/sample/sample_warning.mp3';
     }
-    if (text.includes('ECLSS') || text.includes('تدوير المياه') || text.includes('مسار المياه')) {
+    if (text.includes('ECLSS') || text.includes('تدوير المياه') || text.includes('الفلتر') || text.includes('مسار المياه')) {
       return '/audio/robo/pilot/pilot_04_eclss_success.mp3';
     }
-    if (text.includes('موازنة') || text.includes('عينات القمر')) {
+    if (text.includes('موازنة') || text.includes('عينات القمر') || text.includes('خزانات الشحن')) {
       return '/audio/robo/campaign/return_balance.mp3';
     }
-    if (text.includes('الغلاف الجوي') || text.includes('زاوية الأمان')) {
+    if (text.includes('الغلاف الجوي') || text.includes('الدرع الحراري') || text.includes('زاوية الأمان') || text.includes('المظلات')) {
       return '/audio/robo/campaign/return_reentry.mp3';
     }
-    if (text.includes('فتحت مرحلة') || text.includes('فتحت محطة') || text.includes('المحطة التالية')) {
+    if (text.includes('فتحت مرحلة') || text.includes('فتحت محطة') || text.includes('المستوى التالي') || text.includes('الإذن بالعودة')) {
       return '/audio/robo/campaign/mission_unlock.mp3';
     }
-    if (text.includes('مبروووك') || text.includes('قاعدة القمر') || text.includes('كبسولة العودة')) {
+    if (text.includes('مبروووك') || text.includes('قاعدة القمر') || text.includes('كبسولة العودة') || text.includes('تمت المهمة')) {
       return '/audio/robo/pilot/pilot_05_emotional_reflection.mp3';
     }
     if (text.includes('عاش') || text.includes('أحسنت') || text.includes('برافو') || text.includes('ممتاز') || text.includes('اختيار ذكي') || text.includes('الله عليك')) {
