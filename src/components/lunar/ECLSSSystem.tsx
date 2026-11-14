@@ -9,6 +9,7 @@ import {
   Info,
   ShieldCheck
 } from 'lucide-react';
+import { PipePuzzle } from './PipePuzzle';
 
 export const ECLSSSystem: React.FC = () => {
   const { 
@@ -136,21 +137,24 @@ export const ECLSSSystem: React.FC = () => {
         </AnimatePresence>
       </div>
 
-      {/* Repair Interaction Button */}
-      <div>
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.96 }}
-          onClick={repairECLSS}
-          className={`w-full py-4 px-6 rounded-2xl font-hud font-black text-sm sm:text-base tracking-wide transition-all flex items-center justify-center gap-2 shadow-xl ${
-            isProcessorFailed
-              ? 'bg-gradient-to-r from-rose-600 to-red-600 text-white animate-pulse border-2 border-rose-400 shadow-rose-600/50'
-              : 'bg-gradient-to-r from-cyan-400 to-blue-500 text-space-950 shadow-cyan-500/30 hover:brightness-110 active:scale-95'
-          }`}
-        >
-          <Wrench className="w-5 h-5" />
-          <span>إصلاح معالج البول والعرق وإعادة التدوير 🔧</span>
-        </motion.button>
+      {/* Interactive ECLSS Water Recycler Pipe Puzzle */}
+      <div className="space-y-3">
+        <PipePuzzle 
+          isProcessorFailed={isProcessorFailed} 
+          onPuzzleSolved={repairECLSS} 
+        />
+
+        {/* Emergency Manual Override for Accessibility */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={repairECLSS}
+            className="text-[11px] text-slate-400 hover:text-cyan-300 underline transition-colors flex items-center gap-1"
+          >
+            <Wrench className="w-3 h-3" />
+            <span>تجاوز يدوي للطوارئ</span>
+          </button>
+        </div>
       </div>
 
       {/* Success Modal: 98% recycled fact */}

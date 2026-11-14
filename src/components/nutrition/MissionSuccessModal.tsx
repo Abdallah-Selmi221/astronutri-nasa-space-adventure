@@ -16,7 +16,7 @@ interface MissionSuccessModalProps {
 }
 
 export const MissionSuccessModal: React.FC<MissionSuccessModalProps> = ({ onProceed }) => {
-  const { state, completeNutritionMission } = useGameState();
+  const { state } = useGameState();
   const { cargoWeight, nutritionScore, cadetName } = state;
 
   useEffect(() => {
@@ -48,11 +48,10 @@ export const MissionSuccessModal: React.FC<MissionSuccessModalProps> = ({ onProc
   }, []);
 
   const handleClaimAndProceed = () => {
-    completeNutritionMission();
     onProceed();
   };
 
-  const roboSuccessSpeech = `الله عليك يا بطل! أحسنت! جهزت وجبات الفضاء بنجاح وبنسبة متوازنة! يلا بينا نكتشف الكواكب في قسم علوم الفضاء!`;
+  const roboSuccessSpeech = `الله عليك يا بطل! أحسنت! جهزت وجبات الفضاء بنجاح وبنسبة متوازنة! تم فتح غرفة بدلة الفضاء الآن!`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
@@ -151,7 +150,7 @@ export const MissionSuccessModal: React.FC<MissionSuccessModalProps> = ({ onProc
           onClick={handleClaimAndProceed}
           className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 text-space-950 font-hud font-black text-sm sm:text-base tracking-wide shadow-xl shadow-emerald-500/30 flex items-center justify-center gap-2"
         >
-          <span>انطلق للمهمة التالية: علوم الفضاء 🪐</span>
+          <span>انطلق للمهمة التالية: غرفة بدلة الفضاء 👨‍🚀</span>
           <ArrowLeft className="w-5 h-5" />
         </motion.button>
       </motion.div>

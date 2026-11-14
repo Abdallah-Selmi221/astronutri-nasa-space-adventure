@@ -1,0 +1,150 @@
+{
+  "generatedAt": "2026-11-14T00:43:32.151Z",
+  "voiceId": "TX3LPaxmHKxFdv7VOQHJ",
+  "modelId": "eleven_multilingual_v2",
+  "clipCount": 20,
+  "totalCharactersInScript": 1543,
+  "quotaRemaining": 10000,
+  "clips": [
+    {
+      "id": "island_hop_welcome",
+      "filename": "island_hop_welcome.mp3",
+      "text": "يلا نطير بالسفينة الفضائية للجزيرة الجديدة! اربط الحزام يا بطل الفضاء!",
+      "bytes": 91158,
+      "skipped": false
+    },
+    {
+      "id": "planet_earth",
+      "filename": "planet_earth.mp3",
+      "text": "أهلاً بك على كوكب الأرض! الجاذبية هنا واحد جي ومليان مياه وهوا نتنفسه!",
+      "bytes": 108712,
+      "skipped": false
+    },
+    {
+      "id": "planet_moon",
+      "filename": "planet_moon.mp3",
+      "text": "أهلاً بك على القمر! الجاذبية هنا سُدس الأرض بس، هتنط فوق زي الكنغر!",
+      "bytes": 91158,
+      "skipped": false
+    },
+    {
+      "id": "planet_mars",
+      "filename": "planet_mars.mp3",
+      "text": "وصلنا لكوكب المريخ الأحمر! الجاذبية هنا تلت جاذبية الأرض وعليه أكبر بركان في الفضاء!",
+      "bytes": 119161,
+      "skipped": false
+    },
+    {
+      "id": "planet_saturn",
+      "filename": "planet_saturn.mp3",
+      "text": "بص على حلقات زحل الذهبية! دي كلها صخور وجليد لامع بتلف حوالين الكوكب!",
+      "bytes": 99935,
+      "skipped": false
+    },
+    {
+      "id": "planet_jupiter",
+      "filename": "planet_jupiter.mp3",
+      "text": "ده كوكب المشتري العملاق! جاذبيته تقيلة أوي، أكتر من ضعفين جاذبية الأرض!",
+      "bytes": 100771,
+      "skipped": false
+    },
+    {
+      "id": "asteroid_radar",
+      "filename": "asteroid_radar.mp3",
+      "text": "رادار ناسا رصد كويكب عشرين عشرة بي كي! ماشي بسرعة كبيرة وبعيد عن الأرض بأمان تام!",
+      "bytes": 111220,
+      "skipped": false
+    },
+    {
+      "id": "nutrition_welcome",
+      "filename": "nutrition_welcome.mp3",
+      "text": "أهلاً في مختبر التغذية! اختار أربع وجبات متوازنة من غير فتات عشان نحمي أجهزة المركبة!",
+      "bytes": 112474,
+      "skipped": false
+    },
+    {
+      "id": "nutrition_tortilla",
+      "filename": "nutrition_tortilla.mp3",
+      "text": "برافو! خبز التورتيلا هو بطل الفضاء لأنه ما بيتفتتش أبداً في انعدام الجاذبية!",
+      "bytes": 104950,
+      "skipped": false
+    },
+    {
+      "id": "nutrition_balance_tip",
+      "filename": "nutrition_balance_tip.mp3",
+      "text": "ركز يا كابتن! لازم نوازن بين البروتين والطاقة ونحط التورتيلا عشان الصندوق يكتمل صح!",
+      "bytes": 118325,
+      "skipped": false
+    },
+    {
+      "id": "health_welcome",
+      "filename": "health_welcome.mp3",
+      "text": "في الفضاء عضلاتنا وقلبنا محتاجين رياضة ومية وأكل صحي كل يوم! جاهز للتحدي؟",
+      "bytes": 117071,
+      "skipped": false
+    },
+    {
+      "id": "suit_welcome",
+      "filename": "suit_welcome.mp3",
+      "text": "يلا نجهز بدلة الفضاء! اقفل الخوذة، واظبط الضغط على أربعة وتلاتة من عشرة، وتأكد من حبل الأمان!",
+      "bytes": 117907,
+      "skipped": false
+    },
+    {
+      "id": "engine_welcome",
+      "filename": "engine_welcome.mp3",
+      "text": "ركز معايا في غرفة المحرك! اشحن خلايا الوقود ونقي الأكسجين، وخلي بالك الحرارة ما تعلاش!",
+      "bytes": 109548,
+      "skipped": false
+    },
+    {
+      "id": "launch_welcome",
+      "filename": "launch_welcome.mp3",
+      "text": "الصاروخ جاهز على منصة الإطلاق! اشرب أملاح التوازن في المنطقة الخضرا ويلا نطلع القمر!",
+      "bytes": 105786,
+      "skipped": false
+    },
+    {
+      "id": "lunar_storm_warning",
+      "filename": "lunar_storm_warning.mp3",
+      "text": "إنذار من رادار ناسا دونكي! عاصفة شمسية جاية! قرر توجه الطاقة للدروع ولا الصوبة الزراعية!",
+      "bytes": 126684,
+      "skipped": false
+    },
+    {
+      "id": "return_balance",
+      "filename": "return_balance.mp3",
+      "text": "وصلنا مرحلة العودة للأرض! رتب عينات القمر في الجهتين بالتساوي عشان الكبسولة تطير بأمان!",
+      "bytes": 116235,
+      "skipped": false
+    },
+    {
+      "id": "return_reentry",
+      "filename": "return_reentry.mp3",
+      "text": "احنا داخلين الغلاف الجوي! حرك الكبسولة يمين وشمال عشان نحافظ على زاوية الأمان!",
+      "bytes": 112474,
+      "skipped": false
+    },
+    {
+      "id": "quiz_praise",
+      "filename": "quiz_praise.mp3",
+      "text": "الله عليك يا عبقري الفضاء! إجابة ممتازة مية في المية! استمر يا بطل!",
+      "bytes": 105786,
+      "skipped": false
+    },
+    {
+      "id": "quiz_hint",
+      "filename": "quiz_hint.mp3",
+      "text": "قربت جداً يا بطل! فكر تاني في المعلومة العلمية وجرب إجابة تانية!",
+      "bytes": 73185,
+      "skipped": false
+    },
+    {
+      "id": "mission_unlock",
+      "filename": "mission_unlock.mp3",
+      "text": "عاش يا بطل! فتحت محطة جديدة في مغامرة أرتميس! يلا بينا نكمل رحلتنا!",
+      "bytes": 94083,
+      "skipped": false
+    }
+  ]
+}

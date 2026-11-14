@@ -4,6 +4,7 @@ import confetti from 'canvas-confetti';
 import { useGameState } from '../../context/GameContext';
 import { soundManager } from '../../utils/sound';
 import { AnimatedRobo } from '../common/AnimatedRobo';
+import { SuitPrep } from '../minigames/SuitPrep';
 import { 
   ArrowRight, 
   Wind, 
@@ -25,6 +26,7 @@ export const SuitRoom: React.FC = () => {
 
   const { suitState, cadetName } = state;
   const [showCelebration, setShowCelebration] = useState(false);
+  const [suitMode, setSuitMode] = useState<'checklist' | 'minigame'>('checklist');
 
   // Pressure evaluation in Egyptian Arabic
   const getPressureFeedback = () => {
@@ -125,8 +127,48 @@ export const SuitRoom: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Grid: Spacesuit Avatar Hologram + Interactive Checklist Controls */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* Mode Switcher Tabs */}
+      <div className="flex items-center justify-center gap-3 mb-6" dir="rtl">
+        <button
+          type="button"
+          onClick={() => setSuitMode('checklist')}
+          className={`px-5 py-2.5 rounded-2xl font-hud font-black text-xs sm:text-sm transition-all cursor-pointer ${
+            suitMode === 'checklist'
+              ? 'bg-cyan-500 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.5)] scale-105'
+              : 'bg-space-900 text-slate-300 hover:bg-space-800 border border-slate-700'
+          }`}
+        >
+          لوحة فحص البدلة والضغط 🎛️
+        </button>
+        <button
+          type="button"
+          onClick={() => setSuitMode('minigame')}
+          className={`px-5 py-2.5 rounded-2xl font-hud font-black text-xs sm:text-sm transition-all cursor-pointer ${
+            suitMode === 'minigame'
+              ? 'bg-violet-500 text-slate-950 shadow-[0_0_15px_rgba(168,85,247,0.5)] scale-105'
+              : 'bg-space-900 text-slate-300 hover:bg-space-800 border border-slate-700'
+          }`}
+        >
+          لعبة تركيب أجزاء البدلة 🧩
+        </button>
+      </div>
+
+      {suitMode === 'minigame' ? (
+        <div className="mb-6">
+          <SuitPrep
+            onComplete={() => {
+              soundManager.playFanfare();
+              setO2Pressure(4.3);
+              if (!suitState.helmetVisorLocked) toggleSuitEquipment('helmetVisorLocked');
+              if (!suitState.thermalLayersInspected) toggleSuitEquipment('thermalLayersInspected');
+              if (!suitState.safetyTetherLatched) toggleSuitEquipment('safetyTetherLatched');
+              setSuitMode('checklist');
+            }}
+          />
+        </div>
+      ) : (
+        /* Main Grid: Spacesuit Avatar Hologram + Interactive Checklist Controls */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* LEFT COLUMN: Interactive Spacesuit Hologram (5 cols) */}
         <div className="lg:col-span-5 bg-space-950/90 border-4 border-cyan-500/50 rounded-3xl p-6 backdrop-blur-xl shadow-2xl shadow-cyan-950/30 flex flex-col items-center justify-center relative overflow-hidden min-h-[460px]">
@@ -367,6 +409,7 @@ export const SuitRoom: React.FC = () => {
 
         </div>
       </div>
+      )}
 
       {/* Success Celebration Modal */}
       <AnimatePresence>

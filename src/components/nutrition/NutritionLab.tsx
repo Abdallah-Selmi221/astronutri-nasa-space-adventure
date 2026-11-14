@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameState } from '../../context/GameContext';
 import { FoodItem } from '../../types/game';
 import { FOOD_DATABASE, NASA_OFFICIAL_REFERENCES } from '../../data/foodItems';
+import { NUTRITION_QUIZ_QUESTIONS } from '../../data/questionBanks';
 import { MissionSuccessModal } from './MissionSuccessModal';
+import { InteractiveQuizDeck } from '../common/InteractiveQuizDeck';
 import { PhaserNutritionCanvas } from '../../game/PhaserNutritionCanvas';
 import {
   EventBus,
@@ -24,16 +26,13 @@ import {
   Check,
   RotateCcw,
   Zap,
-  Droplets,
   Apple,
-  ShieldCheck,
   BookOpen,
-  ExternalLink,
   Volume2,
   Star,
   AlertTriangle,
-  Sparkles,
-  Dumbbell
+  Dumbbell,
+  Brain
 } from 'lucide-react';
 
 const DEFAULT_ROBO_TEXT =
@@ -46,13 +45,15 @@ export const NutritionLab: React.FC = () => {
     addFoodItem,
     removeFoodItem,
     clearCargo,
-    completeNutritionMission
+    completeNutritionMission,
+    canCompleteMission
   } = useGameState();
 
   const [roboSpeech, setRoboSpeech] = useState<string>(DEFAULT_ROBO_TEXT);
   const [inspectedItem, setInspectedItem] = useState<FoodItem>(FOOD_DATABASE[0]);
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [showNasaSourcesModal, setShowNasaSourcesModal] = useState<boolean>(false);
+  const [showNutritionQuizModal, setShowNutritionQuizModal] = useState<boolean>(false);
   const [cargoWarningToast, setCargoWarningToast] = useState<string | null>(null);
   const [dialogueStatus, setDialogueStatus] = useState<DialogueStatus>(
     dialogueManager.getStatusSnapshot()
@@ -70,18 +71,20 @@ export const NutritionLab: React.FC = () => {
       ? 1
       : 0;
 
-  // Dynamic nutrition metrics for the "التوازن الغذائي" HUD
-  const vitaminsPercent = Math.min(100, packedCount === 0 ? 15 : 25 + packedCount * 20);
-  const proteinPercent = Math.min(
-    100,
-    Math.round((state.nutritionScore.totalProtein / 75) * 100) || (packedCount > 0 ? 35 : 10)
-  );
-  const energyPercent = Math.min(
-    100,
-    Math.round((state.nutritionScore.totalCarbs / 85) * 100) || (packedCount > 0 ? 40 : 15)
-  );
-  const hasDrinkTube = state.cargoItems.some((e) => e.item.id === 'drink_tube');
-  const waterPercent = hasDrinkTube ? 100 : Math.min(95, 50 + packedCount * 12);
+  // Dynamic nutrition metrics for the "التوازن الغذائي" HUD (strictly derived from real packed cargo)
+  const vitaminCategoryCount = state.cargoItems.filter(
+    (e) =>
+      e.item.id.includes('apple') ||
+      e.item.id.includes('broccoli') ||
+      e.item.id.includes('strawberr') ||
+      e.item.category === 'carbs' ||
+      e.item.category === 'special'
+  ).length;
+  const vitaminsPercent = packedCount === 0 ? 0 : Math.min(100, vitaminCategoryCount * 35);
+  const proteinPercent =
+    packedCount === 0 ? 0 : Math.min(100, Math.round((state.nutritionScore.totalProtein / 75) * 100));
+  const energyPercent =
+    packedCount === 0 ? 0 : Math.min(100, Math.round((state.nutritionScore.totalCarbs / 85) * 100));
 
   // Subscribe to DialogueManager status for live voice telemetry
   useEffect(() => {
@@ -205,13 +208,20 @@ export const NutritionLab: React.FC = () => {
 
   const handleConfirmMission = () => {
     dialogueManager.stop();
-    if (packedCount === 4) {
+    if (packedCount === 4 && canCompleteMission) {
       soundManager.playFanfare();
       EventBus.emit('nutrition:celebrate');
       completeNutritionMission();
       setShowSuccessModal(true);
+    } else if (packedCount === 4 && !canCompleteMission) {
+      const balancePrompt = state.nutritionScore.feedbackTip;
+      soundManager.playAlertSiren();
+      setCargoWarningToast(balancePrompt);
+      setRoboSpeech(balancePrompt);
+      EventBus.emit('nutrition:robo-state', { state: 'WARNING' });
+      void dialogueManager.speak(balancePrompt);
     } else {
-      const promptPhrase = `يا بطل الفضاء! نحتاج إلى 4 وجبات فضائية آمنة داخل الصندوق قبل الإقلاع (لديك الآن ${packedCount}/4).`;
+      const promptPhrase = `يا بطل الفضاء! نحتاج إلى 4 وجبات فضائية متوازنة داخل الصندوق قبل الإقلاع (لديك الآن ${packedCount}/4).`;
       setCargoWarningToast(promptPhrase);
       setRoboSpeech(promptPhrase);
       EventBus.emit('nutrition:robo-state', { state: 'TALKING' });
@@ -220,11 +230,11 @@ export const NutritionLab: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full min-h-screen flex flex-col justify-between overflow-x-hidden select-none pt-20 pb-4 px-2.5 sm:px-5 lg:px-7 bg-slate-950">
+    <div className="relative w-full min-h-screen flex flex-col justify-between gap-4 overflow-x-hidden select-none pt-24 pb-6 px-3 sm:px-6 lg:px-8 bg-slate-950">
       {/* ===================================================================
           1. TOP MISSION HEADER HUD & 3-STAR PROGRESS BAR
          =================================================================== */}
-      <div className="relative z-20 w-full max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 mb-2.5 bg-gradient-to-r from-slate-900/95 via-sky-950/95 to-slate-900/95 border-2 border-cyan-400/60 rounded-3xl px-4 py-2.5 shadow-[0_8px_30px_rgba(6,182,212,0.3)]">
+      <div className="relative z-20 w-full max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 casual-card p-4">
         {/* Title & Objective */}
         <div className="flex items-center gap-3">
           <img
@@ -279,14 +289,26 @@ export const NutritionLab: React.FC = () => {
           </div>
         </div>
 
-        {/* Action Controls: NASA Sources & Confirm Button */}
-        <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+        {/* Action Controls: Quiz, NASA Sources & Confirm Button */}
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClick();
+              setShowNutritionQuizModal(true);
+            }}
+            className="casual-btn-primary px-3.5 py-2 text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer"
+          >
+            <Brain className="w-4 h-4" />
+            <span>تحدي التغذية ({NUTRITION_QUIZ_QUESTIONS.length})</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setShowNasaSourcesModal(true)}
-            className="px-3.5 py-2 rounded-2xl bg-sky-900/90 hover:bg-sky-800 border-2 border-cyan-300/70 text-cyan-100 font-hud font-black text-xs sm:text-sm flex items-center gap-1.5 shadow cursor-pointer"
+            className="casual-btn-cyan px-3.5 py-2 text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer"
           >
-            <BookOpen className="w-4 h-4 text-cyan-300" />
+            <BookOpen className="w-4 h-4" />
             <span>مراجع ناسا العلمية</span>
           </button>
 
@@ -310,8 +332,10 @@ export const NutritionLab: React.FC = () => {
             whileTap={{ scale: 0.96 }}
             onClick={handleConfirmMission}
             className={`px-5 py-2.5 rounded-2xl border-3 font-hud font-black text-sm sm:text-base flex items-center gap-2 shadow-lg cursor-pointer ${
-              packedCount === 4
+              packedCount === 4 && canCompleteMission
                 ? 'bg-gradient-to-r from-emerald-400 via-green-500 to-teal-600 border-white text-white shadow-[0_0_25px_rgba(16,185,129,0.7)]'
+                : packedCount === 4
+                ? 'bg-amber-900/80 border-amber-400 text-amber-200 hover:brightness-110'
                 : 'bg-slate-800 border-slate-500 text-slate-300 hover:border-cyan-300'
             }`}
           >
@@ -322,251 +346,128 @@ export const NutritionLab: React.FC = () => {
       </div>
 
       {/* ===================================================================
-          2. MAIN HYBRID WORKSPACE: PHASER 3 GAME STAGE + REACT HUD SIDEBAR
+          2. MAIN CHILD-FRIENDLY WORKSPACE: 85%+ 2.5D GAMEPLAY VIEWPORT
          =================================================================== */}
-      <div className="relative z-10 w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-3.5 flex-1 items-stretch">
-        {/* PHASER 3 INTERACTIVE CANVAS LAYER (8 Cols on Desktop) — Zero Overlapping HTML Overlays */}
-        <div className="lg:col-span-8 w-full flex flex-col gap-2">
-          {/* Packed Cargo Strip Positioned Cleanly Above Canvas (Never Blocks Pointer Events) */}
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/95 border-2 border-cyan-400/50 rounded-2xl px-3.5 py-2 shadow">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="font-hud font-black text-xs text-cyan-300 ml-1">
-                محتويات الصندوق:
+      <div className="relative z-10 w-full max-w-7xl mx-auto flex flex-col gap-2.5 flex-1 items-stretch">
+        {/* Packed Cargo Cartoon Strip */}
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/95 border-2 border-cyan-400/60 rounded-2xl px-4 py-2 shadow-lg">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-hud font-black text-xs sm:text-sm text-cyan-300 ml-1">
+              🍱 محتويات الصندوق:
+            </span>
+            {inspectedItem && (
+              <span className="text-[11px] font-hud font-bold px-2 py-0.5 rounded-lg bg-sky-950 text-cyan-200 border border-cyan-500/40">
+                فحص: {inspectedItem.nameAr}
               </span>
-              {state.cargoItems.length === 0 ? (
-                <span className="font-hud font-bold text-xs text-slate-300">
-                  الصندوق فارغ — اسحب أو اضغط على أي وجبة داخل مساحة اللعب!
-                </span>
-              ) : (
-                state.cargoItems.map(({ item, quantity }) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      setCargoWarningToast(null);
-                      removeFoodItem(item.id);
-                    }}
-                    className="px-2.5 py-0.5 rounded-full bg-emerald-600/90 hover:bg-rose-600 text-white font-hud font-black text-xs border border-white/80 flex items-center gap-1 transition-colors cursor-pointer"
-                    title="اضغط لإزالة عنصر"
-                  >
-                    <span>{item.icon}</span>
-                    <span>{item.nameAr}</span>
-                    <span>×{quantity}</span>
-                  </button>
-                ))
-              )}
-            </div>
-
-            {packedCount === 4 && (
-              <span className="px-3 py-0.5 rounded-full bg-amber-500/20 border border-amber-400 text-amber-300 font-hud font-black text-xs">
-                الصندوق ممتلئ (4/4) ✅
+            )}
+            {state.cargoItems.length === 0 ? (
+              <span className="font-hud font-bold text-xs text-slate-300">
+                الصندوق فارغ — اسحب أو اضغط على أي وجبة فضائية داخل مساحة اللعب!
               </span>
+            ) : (
+              state.cargoItems.map(({ item, quantity }) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setCargoWarningToast(null);
+                    removeFoodItem(item.id);
+                  }}
+                  className="px-3 py-1 rounded-full bg-emerald-600/90 hover:bg-rose-600 text-white font-hud font-black text-xs border border-white flex items-center gap-1.5 transition-colors cursor-pointer shadow"
+                  title="اضغط لإزالة عنصر"
+                >
+                  <span>{item.icon}</span>
+                  <span>{item.nameAr}</span>
+                  <span>×{quantity}</span>
+                </button>
+              ))
             )}
           </div>
 
-          {cargoWarningToast && (
-            <div
-              role="alert"
-              data-testid="cargo-warning-toast"
-              className="flex items-center justify-between gap-2 bg-amber-950/95 border-2 border-amber-400 rounded-2xl px-4 py-2 text-amber-200 font-hud font-black text-xs sm:text-sm shadow-lg"
-            >
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>{cargoWarningToast}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCargoWarningToast(null)}
-                className="px-2 py-0.5 rounded-lg bg-amber-900/80 hover:bg-amber-800 text-amber-100 text-xs cursor-pointer"
-              >
-                إغلاق
-              </button>
-            </div>
+          {packedCount === 4 && (
+            <span className="px-3 py-1 rounded-full bg-amber-500/25 border-2 border-amber-400 text-amber-300 font-hud font-black text-xs animate-pulse">
+              الصندوق ممتلئ وجاهز للانطلاق! (4/4) ✅
+            </span>
           )}
-
-          <div className="w-full h-[460px] sm:h-[520px] lg:h-[550px] rounded-3xl border-4 border-cyan-400/75 shadow-[0_0_40px_rgba(6,182,212,0.35)] overflow-hidden relative bg-slate-950 flex flex-col">
-            <PhaserNutritionCanvas className="flex-1 w-full h-full" />
-          </div>
         </div>
 
-        {/* REACT SCIENTIFIC & TELEMETRY HUD SIDEBAR (4 Cols on Desktop) */}
-        <div className="lg:col-span-4 w-full flex flex-col justify-between gap-3">
-          {/* PANEL A: ROBO LIVE DIALOGUE & VOICE STATUS CARD */}
-          <div className="rounded-3xl bg-gradient-to-b from-sky-950/95 via-slate-900/95 to-slate-950/95 border-3 border-cyan-400/80 p-4 shadow-xl">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-emerald-400 animate-ping" />
-                <span className="font-hud font-black text-sm text-cyan-300">
-                  توجيهات الكابتن روبو 🤖
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => void dialogueManager.speak(roboSpeech)}
-                className="px-2.5 py-1 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-300 text-cyan-100 font-hud font-bold text-xs flex items-center gap-1 cursor-pointer"
-              >
-                <Volume2 className="w-3.5 h-3.5 text-cyan-300" />
-                <span>
-                  {dialogueStatus.isLoading
-                    ? 'جاري التحميل...'
-                    : dialogueStatus.isSpeaking
-                    ? 'يتحدث الآن 🔊'
-                    : 'استمع لروبو'}
-                </span>
-              </button>
+        {cargoWarningToast && (
+          <div
+            role="alert"
+            data-testid="cargo-warning-toast"
+            className="flex items-center justify-between gap-2 bg-amber-950/95 border-2 border-amber-400 rounded-2xl px-4 py-2 text-amber-200 font-hud font-black text-xs sm:text-sm shadow-lg"
+          >
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+              <span>{cargoWarningToast}</span>
             </div>
+            <button
+              type="button"
+              onClick={() => setCargoWarningToast(null)}
+              className="px-2.5 py-1 rounded-xl bg-amber-900 hover:bg-amber-800 text-amber-100 text-xs font-hud font-bold cursor-pointer"
+            >
+              إغلاق
+            </button>
+          </div>
+        )}
 
-            <p className="font-hud font-black text-sm sm:text-base text-white leading-relaxed bg-slate-950/80 border border-cyan-500/30 rounded-2xl p-3">
-              {roboSpeech}
-            </p>
+        {/* 2.5D INTERACTIVE VIEWPORT OCCUPYING 85%+ VIEWPORT HEIGHT */}
+        <div className="w-full flex-1 min-h-[480px] sm:min-h-[540px] rounded-3xl border-4 border-cyan-400/80 shadow-[0_0_40px_rgba(6,182,212,0.35)] overflow-hidden relative bg-slate-950 flex flex-col">
+          <PhaserNutritionCanvas className="flex-1 w-full h-full" />
+        </div>
 
-            {dialogueStatus.toastError && (
-              <div className="mt-2 px-3 py-1.5 rounded-xl bg-amber-950/90 border border-amber-400/60 text-amber-200 font-hud font-bold text-xs">
-                {dialogueStatus.toastError}
-              </div>
-            )}
+        {/* BOTTOM CARTOON ROBO GUIDANCE & NUTRITION TELEMETRY DOCK */}
+        <div className="w-full grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+          {/* Playful Robo Speech Balloon (8 Cols) */}
+          <div className="md:col-span-8 bg-gradient-to-r from-sky-950/95 via-slate-900/95 to-slate-950/95 border-2 border-cyan-400/70 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-md">
+            <div className="flex items-center gap-2.5 flex-1">
+              <span className="text-2xl shrink-0">🤖</span>
+              <p className="font-hud font-bold text-xs sm:text-sm text-white leading-relaxed">
+                {roboSpeech}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void dialogueManager.speak(roboSpeech)}
+              className="px-3 py-1.5 rounded-xl bg-cyan-500/25 hover:bg-cyan-500/40 border border-cyan-300 text-cyan-200 font-hud font-bold text-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+            >
+              <Volume2 className="w-4 h-4 text-cyan-300" />
+              <span>{dialogueStatus.isSpeaking ? 'يتحدث 🔊' : 'استمع لروبو'}</span>
+            </button>
           </div>
 
-          {/* PANEL B: VERIFIED NASA SCIENCE vs. GAMEPLAY MECHANIC INSPECTOR */}
-          <div className="rounded-3xl bg-gradient-to-b from-slate-900/95 to-slate-950/95 border-3 border-amber-400/70 p-4 shadow-xl flex-1 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between gap-2 pb-2 mb-2.5 border-b border-slate-800">
-                <div className="flex items-center gap-2">
-                  <img
-                    src={inspectedItem.svgAsset}
-                    alt={inspectedItem.nameAr}
-                    className="w-10 h-10 object-contain rounded-xl bg-slate-800 p-1 border border-slate-700"
-                  />
-                  <div>
-                    <h3 className="font-hud font-black text-base text-white">
-                      {inspectedItem.nameAr}
-                    </h3>
-                    <span
-                      className={`inline-block text-[11px] font-hud font-black px-2 py-0.5 rounded-full ${
-                        inspectedItem.isBanned
-                          ? 'bg-rose-950 text-rose-300 border border-rose-500'
-                          : 'bg-emerald-950 text-emerald-300 border border-emerald-500'
-                      }`}
-                    >
-                      {inspectedItem.isBanned
-                        ? 'ممنوع في الجاذبية الصغرى 🚫'
-                        : 'معتمد لرواد الفضاء ✅'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Verified NASA Scientific Fact */}
-              <div className="rounded-2xl bg-sky-950/70 border border-cyan-400/50 p-3 mb-2.5">
-                <div className="flex items-center gap-1.5 text-cyan-300 font-hud font-black text-xs mb-1">
-                  <ShieldCheck className="w-4 h-4 text-cyan-400 shrink-0" />
-                  <span>حقيقة علمية موثقة (NASA):</span>
-                </div>
-                <p className="font-hud font-bold text-xs sm:text-sm text-slate-100 leading-relaxed">
-                  {inspectedItem.nasaVerifiedFactAr || inspectedItem.funFactAr}
-                </p>
-              </div>
-
-              {/* Explicit Gameplay Simplification Distinction */}
-              <div className="rounded-2xl bg-amber-950/45 border border-amber-400/45 p-2.5 mb-2">
-                <div className="flex items-center gap-1.5 text-amber-300 font-hud font-black text-xs mb-0.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>ميكانيكية اللعب المبسطة:</span>
-                </div>
-                <p className="font-hud font-bold text-xs text-amber-100 leading-relaxed">
-                  {inspectedItem.gameplaySimplificationAr}
-                </p>
+          {/* Simple Cartoon Nutrient Gauges (4 Cols) */}
+          <div className="md:col-span-4 bg-slate-900/95 border-2 border-sky-400/70 rounded-2xl p-2.5 flex items-center justify-around gap-2 shadow-md">
+            {/* Vitamins */}
+            <div className="flex flex-col items-center">
+              <span className="text-[11px] font-hud font-black text-emerald-400 flex items-center gap-0.5">
+                <Apple className="w-3 h-3" /> فيتامين
+              </span>
+              <span className="text-xs font-hud font-black text-white">{vitaminsPercent}%</span>
+              <div className="w-14 h-1.5 bg-slate-800 rounded-full overflow-hidden mt-0.5">
+                <div style={{ width: `${vitaminsPercent}%` }} className="h-full bg-emerald-400" />
               </div>
             </div>
 
-            {/* Official NASA Reference Link */}
-            {inspectedItem.nasaSourceUrl && (
-              <a
-                href={inspectedItem.nasaSourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-1 inline-flex items-center justify-between w-full px-3 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-cyan-400/40 text-cyan-200 font-hud font-bold text-xs transition-colors"
-              >
-                <span>المصدر: {inspectedItem.nasaSourceTitle}</span>
-                <ExternalLink className="w-3.5 h-3.5 text-cyan-300" />
-              </a>
-            )}
-          </div>
-
-          {/* PANEL C: NUTRITIONAL BALANCE TELEMETRY ("التوازن الغذائي") */}
-          <div className="rounded-3xl bg-gradient-to-b from-white/95 via-sky-50/95 to-cyan-100/95 border-3 border-sky-400 p-4 text-slate-900 shadow-lg">
-            <div className="bg-gradient-to-r from-blue-950 via-sky-800 to-blue-950 text-white font-hud font-black text-sm sm:text-base text-center py-1.5 rounded-xl border border-cyan-300 mb-3">
-              التوازن الغذائي للشحنة
+            {/* Protein */}
+            <div className="flex flex-col items-center">
+              <span className="text-[11px] font-hud font-black text-indigo-400 flex items-center gap-0.5">
+                <Dumbbell className="w-3 h-3" /> بروتين
+              </span>
+              <span className="text-xs font-hud font-black text-white">{proteinPercent}%</span>
+              <div className="w-14 h-1.5 bg-slate-800 rounded-full overflow-hidden mt-0.5">
+                <div style={{ width: `${proteinPercent}%` }} className="h-full bg-indigo-400" />
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
-              {/* Vitamins */}
-              <div>
-                <div className="flex items-center justify-between text-xs font-hud font-black mb-1">
-                  <span className="flex items-center gap-1 text-emerald-800">
-                    <Apple className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
-                    <span>فيتامينات</span>
-                  </span>
-                  <span>{vitaminsPercent}%</span>
-                </div>
-                <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden border border-slate-300">
-                  <motion.div
-                    animate={{ width: `${vitaminsPercent}%` }}
-                    className="h-full bg-gradient-to-r from-emerald-400 to-green-600 rounded-full"
-                  />
-                </div>
-              </div>
-
-              {/* Protein & Bones */}
-              <div>
-                <div className="flex items-center justify-between text-xs font-hud font-black mb-1">
-                  <span className="flex items-center gap-1 text-indigo-800">
-                    <Dumbbell className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>بروتين وعظام</span>
-                  </span>
-                  <span>{proteinPercent}%</span>
-                </div>
-                <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden border border-slate-300">
-                  <motion.div
-                    animate={{ width: `${proteinPercent}%` }}
-                    className="h-full bg-gradient-to-r from-indigo-400 to-blue-600 rounded-full"
-                  />
-                </div>
-              </div>
-
-              {/* Energy */}
-              <div>
-                <div className="flex items-center justify-between text-xs font-hud font-black mb-1">
-                  <span className="flex items-center gap-1 text-amber-800">
-                    <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
-                    <span>طاقة</span>
-                  </span>
-                  <span>{energyPercent}%</span>
-                </div>
-                <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden border border-slate-300">
-                  <motion.div
-                    animate={{ width: `${energyPercent}%` }}
-                    className="h-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-full"
-                  />
-                </div>
-              </div>
-
-              {/* Zero-G Hydration */}
-              <div>
-                <div className="flex items-center justify-between text-xs font-hud font-black mb-1">
-                  <span className="flex items-center gap-1 text-sky-800">
-                    <Droplets className="w-3.5 h-3.5 text-sky-500 fill-sky-400" />
-                    <span>ترطيب آمن</span>
-                  </span>
-                  <span>{waterPercent}%</span>
-                </div>
-                <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden border border-slate-300">
-                  <motion.div
-                    animate={{ width: `${waterPercent}%` }}
-                    className="h-full bg-gradient-to-r from-cyan-400 to-blue-600 rounded-full"
-                  />
-                </div>
+            {/* Energy */}
+            <div className="flex flex-col items-center">
+              <span className="text-[11px] font-hud font-black text-amber-400 flex items-center gap-0.5">
+                <Zap className="w-3 h-3" /> طاقة
+              </span>
+              <span className="text-xs font-hud font-black text-white">{energyPercent}%</span>
+              <div className="w-14 h-1.5 bg-slate-800 rounded-full overflow-hidden mt-0.5">
+                <div style={{ width: `${energyPercent}%` }} className="h-full bg-amber-400" />
               </div>
             </div>
           </div>
@@ -616,15 +517,10 @@ export const NutritionLab: React.FC = () => {
                       <h3 className="font-hud font-black text-sm sm:text-base text-cyan-300">
                         {ref.titleAr}
                       </h3>
-                      <a
-                        href={ref.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400 text-cyan-100 font-hud font-bold text-xs flex items-center gap-1 shrink-0"
-                      >
-                        <span>رابط ناسا</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                      <div className="px-3 py-1 rounded-xl bg-cyan-500/20 border border-cyan-400 text-cyan-200 font-hud font-bold text-xs flex items-center gap-1.5 shrink-0">
+                        <span className="text-sm">🛰️</span>
+                        <span>مختوم ببيانات ناسا الرسمية</span>
+                      </div>
                     </div>
                     <p className="font-hud font-bold text-xs sm:text-sm text-white">
                       ✅ <strong>الحقيقة العلمية:</strong> {ref.verifiedFactAr}
@@ -641,6 +537,42 @@ export const NutritionLab: React.FC = () => {
       </AnimatePresence>
 
       {/* ===================================================================
+          3B. INTERACTIVE NUTRITION 14-QUESTION QUIZ MODAL
+         =================================================================== */}
+      <AnimatePresence>
+        {showNutritionQuizModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.92 }}
+              className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-[28px] bg-slate-950/95 border-4 border-amber-300 p-4 sm:p-6 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-hud font-black text-base sm:text-lg text-amber-200">
+                  🥗 مسابقة أبطال التغذية الفضائية
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowNutritionQuizModal(false)}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-600 text-white font-hud font-black text-xs sm:text-sm cursor-pointer"
+                >
+                  إغلاق ✕
+                </button>
+              </div>
+              <InteractiveQuizDeck
+                questions={NUTRITION_QUIZ_QUESTIONS}
+                titleAr="تحدي غذاء رواد الفضاء من ناسا"
+                subtitleAr="تعرف على سر التورتيلا، منع الفتات في 0G، والبوتاسيوم لحماية العظام!"
+                accent="emerald"
+                milestoneCount={3}
+              />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ===================================================================
           4. MISSION SUCCESS CELEBRATION MODAL
          =================================================================== */}
       <AnimatePresence>
@@ -649,7 +581,7 @@ export const NutritionLab: React.FC = () => {
             onProceed={() => {
               dialogueManager.stop();
               setShowSuccessModal(false);
-              setLocation('SpaceScience');
+              setLocation('SuitRoom');
             }}
           />
         )}

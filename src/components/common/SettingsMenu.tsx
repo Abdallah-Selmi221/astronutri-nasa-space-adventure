@@ -14,7 +14,9 @@ import {
   CheckCircle2,
   UserCheck,
   Music,
-  PlayCircle
+  PlayCircle,
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 
 interface SettingsMenuProps {
@@ -24,7 +26,7 @@ interface SettingsMenuProps {
 }
 
 export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onReplayIntro }) => {
-  const { state, toggleSound, resetGameFull, dispatch } = useGameState();
+  const { state, toggleSound, resetGameFull, unlockAllRooms, dispatch, storageStatus } = useGameState();
 
   const [volume, setVolume] = useState<number>(() => soundManager.getVolume());
   const [bgmVolume, setBgmVolume] = useState<number>(() => soundManager.getBgmVolume());
@@ -108,23 +110,10 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
     soundManager.playAlertSiren();
     geminiTTS.stop();
     try {
-      localStorage.clear();
+      localStorage.removeItem('astronutri_save_v1');
     } catch {
       // ignore storage errors
     }
-    // Restore defaults
-    soundManager.setVolume(85);
-    soundManager.setEnabled(true);
-    soundManager.setBgmVolume(35);
-    soundManager.setBgmEnabled(true);
-    geminiTTS.setVoiceEnabled(true);
-    setVolume(85);
-    setBgmVolume(35);
-    setBgmEnabled(true);
-    setRoboVoiceEnabled(true);
-    setLanguage('ar');
-    document.documentElement.lang = 'ar';
-    document.documentElement.dir = 'rtl';
 
     resetGameFull();
     setConfirmReset(false);
@@ -426,8 +415,55 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                 </div>
               </div>
 
+              {/* 4B. TEACHER / EVALUATOR SANDBOX MODE */}
+              <div className="p-4 rounded-3xl bg-space-950/90 border-2 border-indigo-500/40 shadow-inner flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-hud font-black text-sm text-indigo-200">
+                    وضع الاستكشاف المفتوح (للمعلمين والتقييم)
+                  </h3>
+                  <p className="text-[11px] text-slate-300 font-bold mt-0.5">
+                    فتح جميع المراحل الثماني مباشرة لتجربة أي مهمة بدون انتظار التدرج.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    unlockAllRooms();
+                    onClose();
+                  }}
+                  className="px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-md active:scale-95 transition-all shrink-0 cursor-pointer"
+                >
+                  {state.unlockedRooms.length >= 9 ? 'جميع المراحل مفتوحة ✅' : 'فتح جميع المراحل 🔓'}
+                </button>
+              </div>
+
               {/* 5. RESET GAME (CLEAR LOCALSTORAGE & RESTART FROM LEVEL 1) */}
               <div className="p-4 rounded-3xl bg-rose-950/50 border-2 border-rose-500/50 shadow-inner">
+                {/* Safe Recovery Status Banners */}
+                {storageStatus === 'CORRUPT_SAVE' && (
+                  <div className="mb-3.5 p-3 rounded-2xl bg-amber-950/80 border-2 border-amber-500 text-amber-200 text-xs font-bold flex items-start gap-2.5">
+                    <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-hud font-black text-amber-300">تنبيه: تعذر قراءة ملف التقدم السابق (Corrupted Save)</p>
+                      <p className="text-[11px] text-amber-200/90 leading-relaxed font-bold">
+                        تم إيقاف الحفظ التلقائي لحماية بياناتك الأصلية. يمكنك الاستمرار في اللعب، أو استخدام زر &quot;إعادة بدء المهمة&quot; أدناه لمسح الملف التالف والبدء من جديد.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {storageStatus === 'FUTURE_SAVE' && (
+                  <div className="mb-3.5 p-3 rounded-2xl bg-cyan-950/80 border-2 border-cyan-400 text-cyan-200 text-xs font-bold flex items-start gap-2.5">
+                    <Info className="w-5 h-5 text-cyan-300 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-hud font-black text-cyan-300">معلومة: تم اكتشاف ملف حفظ من إصدار مستقبلي أحدث</p>
+                      <p className="text-[11px] text-cyan-200/90 leading-relaxed font-bold">
+                        تم إيقاف الحفظ التلقائي لمنع الكتابة فوق تقدمك من الإصدار الأحدث. يمكنك اللعب بشكل طبيعي في هذه الجلسة.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div>
                     <h3 className="font-hud font-black text-sm sm:text-base text-rose-200 flex items-center gap-2">

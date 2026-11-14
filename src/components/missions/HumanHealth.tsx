@@ -4,6 +4,10 @@ import { useGameState } from '../../context/GameContext';
 import { AnimatedRobo, RoboState } from '../common/AnimatedRobo';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { soundManager } from '../../utils/sound';
+import { HydrationGame } from '../minigames/HydrationGame';
+import { ResistanceTraining } from '../minigames/ResistanceTraining';
+import { InteractiveQuizDeck } from '../common/InteractiveQuizDeck';
+import { HEALTH_PHYSICS_QUESTIONS } from '../../data/questionBanks';
 import {
   Check,
   X,
@@ -110,12 +114,13 @@ export interface HumanHealthProps {
 }
 
 export const HumanHealth: React.FC<HumanHealthProps> = ({ onComplete }) => {
-  const { setLocation } = useGameState();
+  const { setLocation, completeHumanHealth } = useGameState();
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
   const [roboState, setRoboState] = useState<RoboState>('EXPLAINING');
   const [roboSpeech, setRoboSpeech] = useState<string>(INITIAL_HEALTH_SPEECH);
   const [activeHabitId, setActiveHabitId] = useState<string | null>(null);
+  const [healthTab, setHealthTab] = useState<'habits' | 'hydration' | 'training' | 'quiz'>('habits');
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -135,6 +140,7 @@ export const HumanHealth: React.FC<HumanHealthProps> = ({ onComplete }) => {
     if (option.isCorrect) {
       soundManager.playFanfare();
       setIsCompleted(true);
+      completeHumanHealth();
       setRoboState('CELEBRATING');
       void dialogueManager.speak(option.feedbackAr);
     } else {
@@ -196,8 +202,84 @@ export const HumanHealth: React.FC<HumanHealthProps> = ({ onComplete }) => {
             حافظ على صحتك لتكون رائد فضاء قوياً 💪
           </p>
         </div>
+
+        {/* Tab Selection (Casual Game Pills) */}
+        <div className="flex items-center justify-center gap-2 sm:gap-3 mt-4 flex-wrap" dir="rtl">
+          <button
+            type="button"
+            onClick={() => setHealthTab('habits')}
+            className={`px-4 sm:px-6 py-2 rounded-2xl font-hud font-black text-xs sm:text-sm transition-all cursor-pointer ${
+              healthTab === 'habits'
+                ? 'casual-btn-primary scale-105'
+                : 'bg-slate-900/80 text-slate-200 hover:bg-slate-800 border-2 border-white/20'
+            }`}
+          >
+            العادات الصحية للرواد 🌟
+          </button>
+          <button
+            type="button"
+            onClick={() => setHealthTab('hydration')}
+            className={`px-4 sm:px-6 py-2 rounded-2xl font-hud font-black text-xs sm:text-sm transition-all cursor-pointer ${
+              healthTab === 'hydration'
+                ? 'casual-btn-cyan scale-105'
+                : 'bg-slate-900/80 text-slate-200 hover:bg-slate-800 border-2 border-white/20'
+            }`}
+          >
+            تحدي شرب الماء 0G 💧
+          </button>
+          <button
+            type="button"
+            onClick={() => setHealthTab('training')}
+            className={`px-4 sm:px-6 py-2 rounded-2xl font-hud font-black text-xs sm:text-sm transition-all cursor-pointer ${
+              healthTab === 'training'
+                ? 'casual-btn-emerald scale-105'
+                : 'bg-slate-900/80 text-slate-200 hover:bg-slate-800 border-2 border-white/20'
+            }`}
+          >
+            تمرين مقاومة العضلات ARED 💪
+          </button>
+          <button
+            type="button"
+            onClick={() => setHealthTab('quiz')}
+            className={`px-4 sm:px-6 py-2 rounded-2xl font-hud font-black text-xs sm:text-sm transition-all cursor-pointer ${
+              healthTab === 'quiz'
+                ? 'casual-btn-primary scale-105'
+                : 'bg-slate-900/80 text-slate-200 hover:bg-slate-800 border-2 border-white/20'
+            }`}
+          >
+            🧠 أسئلة الصحة والفيزياء ({HEALTH_PHYSICS_QUESTIONS.length})
+          </button>
+        </div>
       </div>
 
+      {healthTab === 'quiz' ? (
+        <div className="relative z-10 w-full max-w-4xl mx-auto my-auto py-4">
+          <InteractiveQuizDeck
+            questions={HEALTH_PHYSICS_QUESTIONS}
+            titleAr="تحدي صحة رواد الفضاء وفيزياء الطيران"
+            subtitleAr="أجب عن أسئلة العظام، الجاذبية، درع الحماية الحراري، وعودة كبسولة أوريون!"
+            accent="emerald"
+            milestoneCount={3}
+            isMilestoneDone={isCompleted}
+            onMilestoneComplete={() => {
+              soundManager.playFanfare();
+              setIsCompleted(true);
+              completeHumanHealth();
+              setRoboState('CELEBRATING');
+              setRoboSpeech('ممتاز! نجحت في اختبار صحة وفيزياء الفضاء بالكامل! 🏆❤️');
+            }}
+          />
+        </div>
+      ) : healthTab === 'hydration' ? (
+        <div className="relative z-10 w-full max-w-4xl mx-auto my-auto py-4">
+          <HydrationGame onComplete={() => { soundManager.playFanfare(); setHealthTab('habits'); }} />
+        </div>
+      ) : healthTab === 'training' ? (
+        <div className="relative z-10 w-full max-w-4xl mx-auto my-auto py-4">
+          <ResistanceTraining onComplete={() => { soundManager.playFanfare(); setHealthTab('habits'); }} />
+        </div>
+      ) : (
+      <>
       {/* ===================================================================
           2. MIDDLE 3-COLUMN RESPONSIVE STAGE (Flexbox & Grid)
              [Robo + Health Meter] | [Interactive Human Body Hologram + 4 Pillars] | [Golden Tips]
@@ -417,6 +499,8 @@ export const HumanHealth: React.FC<HumanHealthProps> = ({ onComplete }) => {
           </AnimatePresence>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };

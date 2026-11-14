@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="140" viewBox="0 0 480 140">
+  <defs>
+    <linearGradient id="btnG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFBD39" />
+      <stop offset="45%" stop-color="#FF9F1C" />
+      <stop offset="100%" stop-color="#E85D04" />
+    </linearGradient>
+    <linearGradient id="shineG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.65" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.05" />
+    </linearGradient>
+  </defs>
+  <!-- Button Body -->
+  <rect x="10" y="18" width="460" height="106" rx="42" fill="#9D0208" />
+  <rect x="10" y="10" width="460" height="106" rx="40" fill="url(#btnG)" stroke="#FFE6A7" stroke-width="3" />
+  <path d="M 24 24 Q 240 14 456 24 Q 436 68 240 68 Q 44 68 24 24 Z" fill="url(#shineG)" />
+  <text x="220" y="76" font-family="'Cairo', 'Tajawal', sans-serif" font-weight="900" font-size="34" fill="#FFFFFF" text-anchor="middle">
+    ابدأ المغامرة الفضائية
+  </text>
+  <text x="405" y="80" font-size="44" text-anchor="middle">🚀</text>
+</svg>

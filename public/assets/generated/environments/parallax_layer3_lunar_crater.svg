@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="craterGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#727A9A" />
+      <stop offset="35%" stop-color="#4C5370" />
+      <stop offset="100%" stop-color="#202436" />
+    </linearGradient>
+    <linearGradient id="domeGlass" x1="20%" y1="10%" x2="80%" y2="90%">
+      <stop offset="0%" stop-color="#B2F7EF" stop-opacity="0.85" />
+      <stop offset="50%" stop-color="#7BDFF2" stop-opacity="0.6" />
+      <stop offset="100%" stop-color="#2A85B8" stop-opacity="0.75" />
+    </linearGradient>
+    <linearGradient id="solarPanel" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2D5BFF" />
+      <stop offset="100%" stop-color="#142A7A" />
+    </linearGradient>
+  </defs>
+
+  <!-- Distant Crater Ridge -->
+  <path d="M 0 680 Q 420 620 900 660 T 1920 630 L 1920 1080 L 0 1080 Z" fill="#353B52" opacity="0.8" />
+
+  <!-- Shackleton Crater Foreground Ridge -->
+  <path d="M 0 740 Q 320 680 720 730 Q 1200 660 1600 720 Q 1820 690 1920 710 L 1920 1080 L 0 1080 Z" fill="url(#craterGrad)" />
+
+  <!-- Bio-Dome 1 (Hydroponics Center) -->
+  <path d="M 620 730 A 130 130 0 0 1 880 730 Z" fill="url(#domeGlass)" stroke="#E0FBFC" stroke-width="3" />
+  <circle cx="750" cy="690" r="28" fill="#52B788" opacity="0.7" />
+  <circle cx="790" cy="710" r="20" fill="#74C69D" opacity="0.8" />
+  <circle cx="715" cy="710" r="22" fill="#40916C" opacity="0.8" />
+
+  <!-- Solar Arrays -->
+  <rect x="420" y="695" width="110" height="42" rx="4" fill="url(#solarPanel)" stroke="#B8C5E6" stroke-width="2" transform="rotate(-8 420 695)" />
+  <rect x="960" y="700" width="110" height="42" rx="4" fill="url(#solarPanel)" stroke="#B8C5E6" stroke-width="2" transform="rotate(6 960 700)" />
+
+  <!-- ECLSS Water Storage Silo -->
+  <rect x="1140" y="660" width="60" height="90" rx="12" fill="#E2E8F0" stroke="#718096" stroke-width="3" />
+  <rect x="1148" y="675" width="44" height="60" rx="6" fill="#38BDF8" opacity="0.9" />
+</svg>

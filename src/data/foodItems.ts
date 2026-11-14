@@ -246,6 +246,136 @@ export const FOOD_DATABASE: FoodItem[] = [
     nasaSourceUrl: 'https://www.nasa.gov/reference/jsc-food-nutrition/',
     icon: '🍕',
     color: 'from-rose-600 to-red-800'
+  },
+
+  // 10. Freeze-Dried Strawberries — APPROVED [✓]
+  {
+    id: 'freeze_dried_strawberries',
+    name: 'Freeze-Dried Space Strawberries',
+    nameAr: 'فراولة مجففة بالتجميد',
+    svgAsset: '/assets/food/fruits.svg',
+    category: 'carbs',
+    weightPercentage: 25,
+    proteinGrams: 4,
+    carbsGrams: 28,
+    isBanned: false,
+    funFact: 'Freeze-dried fruit locks in sweet flavors and vitamins with zero liquids to spill!',
+    funFactAr: 'من أشهى فواكه رواد الفضاء! تُجفف في غرف تبريد عملاقة لتحتفظ بطعمها الرائع بدون أي سوائل حرة!',
+    nasaVerifiedFactAr: 'حقيقة علمية (ناسا): التجفيف بالتجميد يحفظ أكثر من 97% من العناصر الغذائية والفيتامينات مع تقليل وزن الشحن.',
+    gameplaySimplificationAr: 'تبسيط اللعبة: تمنح شحنة سريعة من الفيتامينات الطبيعية.',
+    nasaSourceTitle: 'NASA Space Food Systems',
+    nasaSourceUrl: 'https://www.nasa.gov/directorates/esdmd/hhp/space-food-systems/',
+    icon: '🍓',
+    color: 'from-pink-500 to-rose-600'
+  },
+
+  // 11. Mac & Cheese Space Pouch — APPROVED [✓]
+  {
+    id: 'mac_and_cheese_pouch',
+    name: 'NASA Mac & Cheese Pouch',
+    nameAr: 'مكرونة بالجبنة الفضائية',
+    svgAsset: '/assets/food/cheese.svg',
+    category: 'carbs',
+    weightPercentage: 25,
+    proteinGrams: 16,
+    carbsGrams: 35,
+    isBanned: false,
+    funFact: 'Warm and comforting in zero-g! Astronauts inject hot water into the pouch and knead it before eating with a long spoon.',
+    funFactAr: 'وجبة دافئة شهيرة لرواد الفضاء! يُحقن فيها الماء الساخن وتُخلط جيداً داخل الكيس المغلق.',
+    nasaVerifiedFactAr: 'حقيقة علمية (ناسا): توفر الكربوهيدرات المعقدة دفعة طاقة متواصلة لرواد الفضاء أثناء مهام الصيانة الطويلة.',
+    gameplaySimplificationAr: 'تبسيط اللعبة: توفر طاقة كربوهيدرات عالية ومستمرة.',
+    nasaSourceTitle: 'NASA Space Food Systems',
+    nasaSourceUrl: 'https://www.nasa.gov/directorates/esdmd/hhp/space-food-systems/',
+    icon: '🧀',
+    color: 'from-yellow-400 to-amber-600'
+  },
+
+  // 12. Chicken Teriyaki Space Pouch — APPROVED [✓]
+  {
+    id: 'chicken_teriyaki_pouch',
+    name: 'Chicken Teriyaki & Veggies Pouch',
+    nameAr: 'دجاج ترياكي بالخضار',
+    svgAsset: '/assets/food/meat.svg',
+    category: 'protein',
+    weightPercentage: 25,
+    proteinGrams: 28,
+    carbsGrams: 14,
+    isBanned: false,
+    funFact: 'High in lean protein to help astronauts maintain muscle mass while living in microgravity.',
+    funFactAr: 'قطع دجاج متبلة غنية بالبروتين لدعم بناء العضلات ومنع ضمورها في الجاذبية الصغرى!',
+    nasaVerifiedFactAr: 'حقيقة علمية (ناسا): يحتاج الرواد لجرعات بروتين يومية مع تمارين المقاومة لحماية الكتلة العضلية.',
+    gameplaySimplificationAr: 'تبسيط اللعبة: يعزز مؤشر البروتين العضلي بقوة.',
+    nasaSourceTitle: 'NASA JSC Food & Nutrition',
+    nasaSourceUrl: 'https://www.nasa.gov/reference/jsc-food-nutrition/',
+    icon: '🍗',
+    color: 'from-orange-500 to-red-600'
+  },
+
+  // 13. Hot Sauce Squeeze Tube — APPROVED [✓]
+  {
+    id: 'spicy_sauce_tube',
+    name: 'NASA Spicy Hot Sauce Tube',
+    nameAr: 'أنبوب الصلصة الحارة',
+    svgAsset: '/assets/food/sauce.svg',
+    category: 'special',
+    weightPercentage: 15,
+    proteinGrams: 2,
+    carbsGrams: 8,
+    isBanned: false,
+    funFact: 'Fluid shifts cause astronauts to lose taste acuity; hot sauce is their number one favorite condiment to revive flavors!',
+    funFactAr: 'في انعدام الجاذبية، ترتفع سوائل الجسم نحو الرأس فيضعف التذوق! الصلصة الحارة هي المفضل لديهم لإعادة النكهة القوية!',
+    nasaVerifiedFactAr: 'حقيقة علمية (ناسا): ظاهرة "تغير حاسة التذوق" تجعل الصلصات الحارة من أكثر العناصر طلباً بين طاقم محطة الفضاء.',
+    gameplaySimplificationAr: 'تبسيط اللعبة: عنصر معنوي مميز يرفع حيوية الطاقم.',
+    nasaSourceTitle: 'NASA Space Food Systems',
+    nasaSourceUrl: 'https://www.nasa.gov/directorates/esdmd/hhp/space-food-systems/',
+    icon: '🌶️',
+    color: 'from-red-500 to-rose-700'
+  },
+
+  // 14. Crumbly Chocolate Cookies — BANNED [X]
+  {
+    id: 'banned_cookies',
+    name: 'Crumbly Chocolate Cookies',
+    nameAr: 'بسكويت شوكولاتة متفتت',
+    svgAsset: '/assets/food/banned_cookie.svg',
+    category: 'banned',
+    weightPercentage: 15,
+    proteinGrams: 3,
+    carbsGrams: 32,
+    isBanned: true,
+    bannedReason: 'The No-Crumbs Rule! Cookie crumbs break and float in microgravity, posing serious hazards to eyes and cabin air scrubbers!',
+    bannedReasonAr: 'قاعدة حظر الفتات الصارمة! بسكويت الشوكولاتة يتفتت إلى آلاف الشظايا الصغيرة التي تطفو وتدخل في أعين الرواد وفلاتر الأكسجين!',
+    funFact: 'Ordinary cookies are strictly prohibited; astronauts eat bite-sized gelatin-coated treats instead!',
+    funFactAr: 'ممنوع في الفضاء! الفتات المتطاير لا يسقط بل يسبح في الهواء كالغبار!',
+    nasaVerifiedFactAr: 'حقيقة علمية (ناسا): الفتات الجاف قد يسبب حرائق أو انسداداً في أنظمة تنقية الهواء.',
+    gameplaySimplificationAr: 'تبسيط اللعبة: يرفض الصندوق البسكويت المتفتت لحماية المحطة.',
+    nasaSourceTitle: 'NASA Space Food Systems',
+    nasaSourceUrl: 'https://www.nasa.gov/directorates/esdmd/hhp/space-food-systems/',
+    icon: '🍪',
+    color: 'from-amber-800 to-yellow-900'
+  },
+
+  // 15. Crispy Potato Chips — BANNED [X]
+  {
+    id: 'banned_chips',
+    name: 'Crispy Salty Chips',
+    nameAr: 'رقائق شيبس متطايرة',
+    svgAsset: '/assets/food/banned_chips.svg',
+    category: 'banned',
+    weightPercentage: 15,
+    proteinGrams: 2,
+    carbsGrams: 30,
+    isBanned: true,
+    bannedReason: 'Chips shatter into sharp floating crumbs and contain heavy sodium that weakens astronaut bone density!',
+    bannedReasonAr: 'ممنوع تماماً! الشيبس ينكسر لفتات حاد يطفو في الهواء، ونسبة الملح العالية تسرع تآكل عظام رواد الفضاء!',
+    funFact: 'Sodium draws calcium out of bones, worsening space osteoporosis!',
+    funFactAr: 'الملح الزائد يطرد الكالسيوم خارج العظام ويزيد من هشاشتها في انعدام الجاذبية!',
+    nasaVerifiedFactAr: 'حقيقة علمية (ناسا): تمنع الأطعمة شديدة التفتت والملوحة لحماية العظام وأنظمة الملاحة.',
+    gameplaySimplificationAr: 'تبسيط اللعبة: مرفوض لحماية العظام ومنع الفتات المتطاير.',
+    nasaSourceTitle: 'NASA JSC Food & Nutrition',
+    nasaSourceUrl: 'https://www.nasa.gov/reference/jsc-food-nutrition/',
+    icon: '🥔',
+    color: 'from-amber-700 to-orange-800'
   }
 ];
 

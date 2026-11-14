@@ -8,7 +8,8 @@ export type RoomLocation =
   | 'SuitRoom'
   | 'EngineRoom'
   | 'LaunchPad'
-  | 'LunarDashboard';
+  | 'LunarDashboard'
+  | 'ReturnToEarth';
 
 export type NutritionBalanceStatus = 
   | 'empty' 
@@ -130,8 +131,10 @@ export interface GameState {
   o2Level: number;   // 0 to 100%
   hasSpicySauce: boolean;
   isNutritionMissionComplete: boolean;
+  isHumanHealthComplete: boolean;
   isSuitMissionComplete: boolean;
   isEngineMissionComplete: boolean;
+  isReturnMissionComplete: boolean;
   suitState: SuitCheckState;
   engineCoreState: EngineCoreState;
   launchPadState: LaunchPadState;
@@ -151,9 +154,12 @@ export type GameAction =
   | { type: 'TOGGLE_SOUND' }
   | { type: 'SET_CADET_NAME'; payload: string }
   | { type: 'COMPLETE_NUTRITION_MISSION' }
+  | { type: 'COMPLETE_HUMAN_HEALTH' }
   | { type: 'SET_O2_PRESSURE'; payload: number }
   | { type: 'TOGGLE_SUIT_EQUIPMENT'; payload: keyof Omit<SuitCheckState, 'o2PressurePSI' | 'isO2Calibrated'> }
   | { type: 'COMPLETE_SUIT_MISSION' }
+  | { type: 'COMPLETE_RETURN_MISSION' }
+  | { type: 'UNLOCK_ALL_ROOMS' }
   | { type: 'PUMP_O2_SCRUBBER'; payload?: number }
   | { type: 'FILL_FUEL_CELL_TICK'; payload: { amount: number; heatIncrease: number } }
   | { type: 'COOL_FUEL_CELL_TICK' }

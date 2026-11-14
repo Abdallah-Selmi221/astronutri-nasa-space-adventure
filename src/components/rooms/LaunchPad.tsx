@@ -35,6 +35,12 @@ export const LaunchPad: React.FC = () => {
     isLevel1Complete 
   } = launchPadState;
 
+  const isNutritionReady = state.isNutritionMissionComplete && cargoWeight >= 50;
+  const isSuitReady = state.isSuitMissionComplete && state.suitState.isO2Calibrated;
+  const isFuelReady = state.engineCoreState.isEngineComplete && fuelLevel >= 100;
+  const isO2Ready = state.engineCoreState.isEngineComplete && o2Level >= 100;
+  const isAllSystemsReady = isNutritionReady && isSuitReady && isFuelReady && isO2Ready;
+
   const animRef = useRef<number | null>(null);
   const posRef = useRef(0);
   const dirRef = useRef(1);
@@ -72,6 +78,7 @@ export const LaunchPad: React.FC = () => {
   };
 
   const handleLaunchRocket = () => {
+    if (!isAllSystemsReady || !qteSipSuccess) return;
     triggerBlastOff();
 
     setTimeout(() => {
@@ -181,40 +188,72 @@ export const LaunchPad: React.FC = () => {
           <div>
             <h3 className="font-hud font-black text-base sm:text-lg text-white mb-4 border-b border-space-800 pb-2 flex items-center gap-2">
               <span>فحص جاهزية الرحلة</span>
-              <span className="text-xs text-cyan-400">✅</span>
+              <span className="text-xs text-cyan-400">{isAllSystemsReady ? '✅' : '⏳'}</span>
             </h3>
 
             <div className="space-y-3 text-xs sm:text-sm font-bold">
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-space-900/80 border border-space-800">
+              <div className={`flex items-center justify-between p-3 rounded-2xl border ${
+                isNutritionReady ? 'bg-space-900/80 border-space-800' : 'bg-amber-950/50 border-amber-500/60'
+              }`}>
                 <span className="flex items-center gap-2 text-slate-300">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  {isNutritionReady ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-amber-400" />
+                  )}
                   <span>حقيبة وجبات الفضاء:</span>
                 </span>
-                <span className="text-emerald-400 font-black">{cargoWeight}% معبأة</span>
+                <span className={isNutritionReady ? 'text-emerald-400 font-black' : 'text-amber-300 font-black'}>
+                  {isNutritionReady ? `${cargoWeight}% متوازنة` : `${cargoWeight}% (أكمل التغذية)`}
+                </span>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-space-900/80 border border-space-800">
+              <div className={`flex items-center justify-between p-3 rounded-2xl border ${
+                isSuitReady ? 'bg-space-900/80 border-space-800' : 'bg-amber-950/50 border-amber-500/60'
+              }`}>
                 <span className="flex items-center gap-2 text-slate-300">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  {isSuitReady ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-amber-400" />
+                  )}
                   <span>ضغط بدلة الفضاء:</span>
                 </span>
-                <span className="text-emerald-400 font-black">4.3 PSI مثالي</span>
+                <span className={isSuitReady ? 'text-emerald-400 font-black' : 'text-amber-300 font-black'}>
+                  {isSuitReady ? `${state.suitState.o2PressurePSI} PSI مثالي` : `${state.suitState.o2PressurePSI} PSI (عاير البدلة)`}
+                </span>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-space-900/80 border border-space-800">
+              <div className={`flex items-center justify-between p-3 rounded-2xl border ${
+                isFuelReady ? 'bg-space-900/80 border-space-800' : 'bg-amber-950/50 border-amber-500/60'
+              }`}>
                 <span className="flex items-center gap-2 text-slate-300">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  {isFuelReady ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-amber-400" />
+                  )}
                   <span>خلايا الوقود الصاروخي:</span>
                 </span>
-                <span className="text-amber-400 font-black">{fuelLevel}% ممتلئة</span>
+                <span className={isFuelReady ? 'text-emerald-400 font-black' : 'text-amber-400 font-black'}>
+                  {fuelLevel}% ممتلئة
+                </span>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-space-900/80 border border-space-800">
+              <div className={`flex items-center justify-between p-3 rounded-2xl border ${
+                isO2Ready ? 'bg-space-900/80 border-space-800' : 'bg-amber-950/50 border-amber-500/60'
+              }`}>
                 <span className="flex items-center gap-2 text-slate-300">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  {isO2Ready ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-amber-400" />
+                  )}
                   <span>تنقية الأكسجين:</span>
                 </span>
-                <span className="text-cyan-400 font-black">{o2Level}% نقي</span>
+                <span className={isO2Ready ? 'text-cyan-400 font-black' : 'text-amber-400 font-black'}>
+                  {o2Level}% نقي
+                </span>
               </div>
             </div>
           </div>
@@ -329,6 +368,41 @@ export const LaunchPad: React.FC = () => {
                 <Wine className="w-6 h-6" />
                 <span>اشرب العصير الآن! (اضغط في المنطقة الخضراء)</span>
               </motion.button>
+            ) : !isAllSystemsReady ? (
+              <div className="p-4 rounded-2xl bg-amber-950/70 border-2 border-amber-400 text-center space-y-2.5">
+                <p className="text-xs sm:text-sm font-black text-amber-200">
+                  ⚠️ يجب إكمال تجهيز الطعام والبدلة والمحرك (100%) قبل إشعال الصاروخ!
+                </p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {!isNutritionReady && (
+                    <button
+                      type="button"
+                      onClick={() => setLocation('NutritionLab')}
+                      className="px-3.5 py-2 rounded-xl bg-emerald-500 text-space-950 font-black text-xs cursor-pointer"
+                    >
+                      إكمال مختبر التغذية 🍏
+                    </button>
+                  )}
+                  {!isSuitReady && (
+                    <button
+                      type="button"
+                      onClick={() => setLocation('SuitRoom')}
+                      className="px-3.5 py-2 rounded-xl bg-cyan-400 text-space-950 font-black text-xs cursor-pointer"
+                    >
+                      معايرة بدلة الفضاء 🧑‍🚀
+                    </button>
+                  )}
+                  {(!isFuelReady || !isO2Ready) && (
+                    <button
+                      type="button"
+                      onClick={() => setLocation('EngineRoom')}
+                      className="px-3.5 py-2 rounded-xl bg-amber-400 text-space-950 font-black text-xs cursor-pointer"
+                    >
+                      شحن المحرك والطاقة ⚡
+                    </button>
+                  )}
+                </div>
+              </div>
             ) : (
               <motion.button
                 whileHover={{ scale: 1.04 }}

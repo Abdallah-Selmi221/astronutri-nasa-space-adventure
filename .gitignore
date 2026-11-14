@@ -1,8 +1,15 @@
 node_modules
 dist
 dist-ssr
-scratch/
+/scratch/
+/video/
+/image/
+/tmp/
+public/robo-intro.mp4
+public/assets/scenes/
+tokens.json
 *.local
+*.log
 .env
 .env.*
 !.env.example

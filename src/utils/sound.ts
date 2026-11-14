@@ -610,6 +610,14 @@ class SpaceSoundManager {
   }
 
   // Celebratory Fanfare
+  public playPneumatic() {
+    this.playPressurizeHiss();
+  }
+
+  public playCollect() {
+    this.playDropSuccess();
+  }
+
   public playFanfare() {
     if (!this.isEnabled()) return;
     const ctx = this.getContext();

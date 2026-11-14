@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameState } from '../../context/GameContext';
 import { soundManager } from '../../utils/sound';
@@ -6,21 +6,25 @@ import { dialogueManager } from '../../utils/geminiTTS';
 import { EventBus } from '../../game/EventBus';
 import { PhaserHomeIslandCanvas } from '../../game/PhaserHomeIslandCanvas';
 import { SettingsMenu } from '../common/SettingsMenu';
+import { NasaMissionControlDrawer } from '../common/NasaMissionControlDrawer';
 import { WorldMapPreviewModal } from './WorldMapPreviewModal';
-import { Star, Settings, Volume2, VolumeX, Map, Sparkles, Navigation } from 'lucide-react';
+import { ARCHIPELAGO_ISLANDS } from '../../game/scenes/HomeIslandScene';
+import { Star, Settings, Map, Sparkles, Navigation, AlertTriangle, Info, Satellite } from 'lucide-react';
 
-const WELCOME_DIALOGUE =
-  'جاهز للمغامرة يا بطل؟ يلا بينا نطير لحديقة التغذية الفضائية ونستكشف أسرار طعام رواد الفضاء!';
+const ISLAND_EMOJIS = ['🍏', '🪐', '🧑‍🚀', '🚀', '🌙', '🌍'];
 
 export const HomeWorldScreen: React.FC = () => {
-  const { state, setLocation } = useGameState();
+  const { state, setLocation, storageStatus } = useGameState();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWorldMapOpen, setIsWorldMapOpen] = useState(false);
+  const [isNasaOpen, setIsNasaOpen] = useState(false);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [activeIslandIndex, setActiveIslandIndex] = useState<number>(0);
   const [activeSpeech, setActiveSpeech] = useState<string>(
-    'جاهز للمغامرة يا بطل؟ اضغط على الجزيرة للتحرك، أو اضغط على الصاروخ للانطلاق! 🚀'
+    'أهلاً بك في الأرخبيل الكوني! اختر إحدى الجزر الست للاستكشاف أو اضغط على الصاروخ للانطلاق! 🚀'
   );
   const [interactionToast, setInteractionToast] = useState<{ name: string; message: string } | null>(null);
+  const navFallbackTimerRef = useRef<number | null>(null);
 
   // Subscribe to DialogueManager audio playback status
   useEffect(() => {
@@ -30,29 +34,63 @@ export const HomeWorldScreen: React.FC = () => {
     return () => unsub();
   }, []);
 
+  const getLockReason = (targetKey: string): string | null => {
+    if (state.unlockedRooms.includes(targetKey as any)) return null;
+    if (targetKey === 'SuitRoom') return 'أكمل "مختبر التغذية" أولاً لفتح مركز بدلة الفضاء!';
+    if (targetKey === 'EngineRoom') return 'أكمل فحص "بدلة الفضاء" أولاً لفتح غرفة المحرك!';
+    if (targetKey === 'LaunchPad') return 'أكمل تجهيز الطعام والبدلة والمحرك أولاً لفتح منصة الإطلاق!';
+    if (targetKey === 'LunarDashboard') return 'أكمل الإقلاع من "منصة الإطلاق" للوصول لمستعمرة القمر!';
+    if (targetKey === 'ReturnToEarth') return 'أكمل مهمات مستعمرة القمر (ECLSS والعاصفة الشمسية) للعودة إلى الأرض!';
+    return 'أكمل المرحلة السابقة أولاً لفتح هذه الجزيرة!';
+  };
+
+  const handleLaunchMissionRef = useRef<(missionKey?: string) => void>();
+  handleLaunchMissionRef.current = (missionKey?: string) => {
+    if (navFallbackTimerRef.current) {
+      window.clearTimeout(navFallbackTimerRef.current);
+      navFallbackTimerRef.current = null;
+    }
+    const target = (missionKey || ARCHIPELAGO_ISLANDS[activeIslandIndex]?.key || 'NutritionLab') as string;
+    const lockMsg = getLockReason(target);
+    if (lockMsg) {
+      soundManager.playAlertSiren();
+      setActiveSpeech(lockMsg);
+      setInteractionToast({ name: 'مهمة مقفلة 🔒', message: lockMsg });
+      window.setTimeout(() => setInteractionToast(null), 4000);
+      return;
+    }
+    dialogueManager.stop();
+    soundManager.playFanfare();
+    setLocation(target as any);
+  };
+
   // EventBus listeners for Phaser 3 game world interactions
   useEffect(() => {
-    const handleLaunchMission = () => {
-      dialogueManager.stop();
-      soundManager.playFanfare();
-      setLocation('NutritionLab');
+    const handleLaunchMission = (missionKey?: string) => {
+      handleLaunchMissionRef.current?.(missionKey);
     };
 
     const handlePropClicked = (payload: { name: string; message: string }) => {
       setInteractionToast(payload);
       setActiveSpeech(payload.message);
-      // Auto-dismiss interaction toast after 3.5s
       const timer = window.setTimeout(() => {
         setInteractionToast(null);
-      }, 3500);
+      }, 4000);
       return () => window.clearTimeout(timer);
+    };
+
+    const handleIslandChanged = (payload: { index: number; config: any }) => {
+      setActiveIslandIndex(payload.index);
+      setActiveSpeech(`وصلنا إلى ${payload.config.nameAr}! ${payload.config.subtitleAr} 🚀`);
     };
 
     const handleRoboGreet = () => {
       soundManager.playClick();
-      setActiveSpeech(WELCOME_DIALOGUE);
+      const curr = ARCHIPELAGO_ISLANDS[activeIslandIndex];
+      const greet = `أهلاً بك يا بطل في ${curr?.nameAr || 'الأرخبيل الكوني'}! جاهز للمغامرة؟ اضغط على الصاروخ للانطلاق!`;
+      setActiveSpeech(greet);
       if (state.soundEnabled) {
-        void dialogueManager.speak(WELCOME_DIALOGUE);
+        void dialogueManager.speak(greet);
       }
     };
 
@@ -63,20 +101,25 @@ export const HomeWorldScreen: React.FC = () => {
 
     EventBus.on('home-launch-mission', handleLaunchMission);
     EventBus.on('home-prop-clicked', handlePropClicked);
+    EventBus.on('home-island-changed', handleIslandChanged);
     EventBus.on('home-robo-greet', handleRoboGreet);
     EventBus.on('home-open-world-map', handleOpenMap);
 
-    // Auto-start ambient space BGM if enabled
     soundManager.startBGM();
 
     return () => {
+      if (navFallbackTimerRef.current) {
+        window.clearTimeout(navFallbackTimerRef.current);
+        navFallbackTimerRef.current = null;
+      }
       EventBus.off('home-launch-mission', handleLaunchMission);
       EventBus.off('home-prop-clicked', handlePropClicked);
+      EventBus.off('home-island-changed', handleIslandChanged);
       EventBus.off('home-robo-greet', handleRoboGreet);
       EventBus.off('home-open-world-map', handleOpenMap);
       dialogueManager.stop();
     };
-  }, [setLocation, state.soundEnabled]);
+  }, [setLocation, state.soundEnabled, activeIslandIndex]);
 
   const handleSpeakWelcome = () => {
     if (isAudioPlaying) {
@@ -87,21 +130,85 @@ export const HomeWorldScreen: React.FC = () => {
     }
   };
 
+  const handleSelectIsland = (index: number) => {
+    if (index === activeIslandIndex) return;
+    soundManager.playClick();
+    EventBus.emit('home-switch-island', index);
+  };
+
   const handleStartAdventureCTA = () => {
     dialogueManager.stop();
+    const targetKey = (ARCHIPELAGO_ISLANDS[activeIslandIndex]?.key || 'NutritionLab') as string;
+    const lockMsg = getLockReason(targetKey);
+    if (lockMsg) {
+      soundManager.playAlertSiren();
+      setActiveSpeech(lockMsg);
+      setInteractionToast({ name: 'مهمة مقفلة 🔒', message: lockMsg });
+      window.setTimeout(() => setInteractionToast(null), 4000);
+      return;
+    }
+
     soundManager.playClick();
-    // Signal Phaser engine: Robo runs to spaceship and blasts off
+    // Trigger Phaser boarding animation
     EventBus.emit('home-start-adventure-action');
+
+    // FAIL-SAFE NAVIGATION FALLBACK:
+    // If Phaser animation callback fails or takes longer than 1100ms, navigate directly from React!
+    if (navFallbackTimerRef.current) {
+      window.clearTimeout(navFallbackTimerRef.current);
+    }
+    navFallbackTimerRef.current = window.setTimeout(() => {
+      soundManager.playFanfare();
+      setLocation(targetKey as any);
+    }, 1100);
   };
+
+  // Sync campaign unlocks & completed badges onto Phaser archipelago signposts
+  useEffect(() => {
+    const completedKeys: string[] = [];
+    if (state.isNutritionMissionComplete) completedKeys.push('NutritionLab');
+    if (state.isHumanHealthComplete) completedKeys.push('HumanHealth');
+    if (state.isSuitMissionComplete) completedKeys.push('SuitRoom');
+    if (state.engineCoreState.isEngineComplete || state.isEngineMissionComplete) completedKeys.push('EngineRoom');
+    if (state.launchPadState.isLevel1Complete) completedKeys.push('LaunchPad');
+    if (state.level2State.isTradeOffResolved && state.level2State.isEVASafeReturned) completedKeys.push('LunarDashboard');
+    if (state.isReturnMissionComplete) completedKeys.push('ReturnToEarth');
+
+    const syncTimer = window.setTimeout(() => {
+      EventBus.emit('home-islands-sync', {
+        unlockedKeys: state.unlockedRooms,
+        completedKeys
+      });
+    }, 150);
+    return () => window.clearTimeout(syncTimer);
+  }, [
+    state.unlockedRooms,
+    state.isNutritionMissionComplete,
+    state.isHumanHealthComplete,
+    state.isSuitMissionComplete,
+    state.isEngineMissionComplete,
+    state.engineCoreState.isEngineComplete,
+    state.launchPadState.isLevel1Complete,
+    state.level2State.isTradeOffResolved,
+    state.level2State.isEVASafeReturned,
+    state.isReturnMissionComplete,
+    activeIslandIndex
+  ]);
 
   // Calculate player stars score
   const completedMissionsCount = [
     state.isNutritionMissionComplete,
+    state.isHumanHealthComplete,
     state.isSuitMissionComplete,
-    state.engineCoreState.isEngineComplete,
-    state.launchPadState.isLevel1Complete
+    state.isEngineMissionComplete,
+    state.launchPadState.isLevel1Complete,
+    state.level2State.isTradeOffResolved,
+    state.isReturnMissionComplete
   ].filter(Boolean).length;
   const totalStarsScore = 250 + completedMissionsCount * 50 + state.cargoItems.length * 25;
+
+  const currentIsland = ARCHIPELAGO_ISLANDS[activeIslandIndex] || ARCHIPELAGO_ISLANDS[0];
+  const isCurrentIslandLocked = Boolean(getLockReason(currentIsland.key));
 
   return (
     <div
@@ -145,6 +252,18 @@ export const HomeWorldScreen: React.FC = () => {
           </div>
         </motion.div>
 
+        {/* Current Island Title Capsule */}
+        <motion.div
+          key={currentIsland.key}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="pastel-glass-panel hidden md:flex items-center gap-2 px-4 py-1.5 text-pastel-white font-hud font-bold text-xs pointer-events-auto"
+          dir="rtl"
+        >
+          <span className="text-base">{ISLAND_EMOJIS[activeIslandIndex]}</span>
+          <span className="text-pastel-cyan font-black">{currentIsland.nameAr}</span>
+        </motion.div>
+
         {/* Top Right Control Pills */}
         <div className="pointer-events-auto flex items-center gap-2 sm:gap-3">
           {/* Star Counter Pill */}
@@ -161,7 +280,27 @@ export const HomeWorldScreen: React.FC = () => {
             </span>
           </motion.div>
 
-          {/* Proposed World Map Button */}
+          {/* NASA Live Data Drawer Button */}
+          <motion.button
+            type="button"
+            initial={{ opacity: 0, y: -15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12 }}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
+            onClick={() => {
+              soundManager.playClick();
+              setIsNasaOpen(true);
+            }}
+            className="pastel-glass-panel-interactive flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 text-cyan-200 font-hud font-bold text-xs sm:text-sm border-cyan-400/50 relative"
+            aria-label="بيانات ناسا الفضائية الحية"
+          >
+            <Satellite className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-300" />
+            <span className="hidden sm:inline">بيانات ناسا</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline sm:hidden" />
+          </motion.button>
+
+          {/* World Map Button */}
           <motion.button
             type="button"
             initial={{ opacity: 0, y: -15 }}
@@ -200,11 +339,92 @@ export const HomeWorldScreen: React.FC = () => {
         </div>
       </header>
 
-      {/* Spacer to push center view completely open for Phaser 3 World */}
+      {/* Non-intrusive Storage Status Pill */}
+      {(storageStatus === 'CORRUPT_SAVE' || storageStatus === 'FUTURE_SAVE') && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative z-30 w-full max-w-xl mx-auto px-4 pointer-events-none mt-1"
+        >
+          <div
+            onClick={() => {
+              soundManager.playClick();
+              setIsSettingsOpen(true);
+            }}
+            className={`pointer-events-auto cursor-pointer flex items-center justify-between gap-2.5 px-4 py-2 rounded-2xl border-2 shadow-lg backdrop-blur-md transition-transform hover:scale-[1.02] active:scale-95 ${
+              storageStatus === 'CORRUPT_SAVE'
+                ? 'bg-amber-950/90 border-amber-400 text-amber-200'
+                : 'bg-cyan-950/90 border-cyan-400 text-cyan-200'
+            }`}
+            dir="rtl"
+          >
+            <div className="flex items-center gap-2">
+              {storageStatus === 'CORRUPT_SAVE' ? (
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              ) : (
+                <Info className="w-4 h-4 text-cyan-300 shrink-0" />
+              )}
+              <span className="font-hud font-bold text-xs">
+                {storageStatus === 'CORRUPT_SAVE'
+                  ? 'تنبيه: ملف التقدم به خطأ. تم إيقاف الحفظ التلقائي لحماية بياناتك.'
+                  : 'معلومة: تم اكتشاف ملف حفظ من إصدار أحدث. تم إيقاف الحفظ التلقائي.'}
+              </span>
+            </div>
+            <span className="text-[10px] font-hud font-black underline shrink-0">
+              فتح الإعدادات ⚙️
+            </span>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Spacer to keep center view open for Phaser 3 World */}
       <div className="flex-1 pointer-events-none" />
 
       {/* =====================================================================
-          LAYER 3 & 4: BOTTOM HUD (Speech Bubble, Chunky Adventure CTA, Controls Hint)
+          LAYER 3: 6-ISLAND ARCHIPELAGO NAVIGATION DOCK
+          ===================================================================== */}
+      <div className="relative z-30 w-full max-w-4xl mx-auto px-3 sm:px-6 pointer-events-none mb-2">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="pointer-events-auto casual-card rounded-3xl p-2 sm:p-2.5 flex items-center justify-between gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none"
+          dir="rtl"
+        >
+          {ARCHIPELAGO_ISLANDS.map((island, idx) => {
+            const isActive = idx === activeIslandIndex;
+            const isIslandLocked = Boolean(getLockReason(island.key));
+            return (
+              <button
+                key={island.key}
+                type="button"
+                onClick={() => handleSelectIsland(idx)}
+                className={`flex-1 min-w-[74px] sm:min-w-[96px] py-2 px-1.5 rounded-2xl flex flex-col items-center gap-1 transition-all duration-200 cursor-pointer relative ${
+                  isActive
+                    ? 'bg-gradient-to-b from-cyan-400 to-blue-600 border-2 border-white text-slate-950 shadow-[0_4px_0_#0369a1] scale-105'
+                    : isIslandLocked
+                    ? 'bg-slate-900/60 border border-slate-700 text-slate-300 opacity-80 hover:opacity-100'
+                    : 'bg-slate-900/75 border-2 border-white/20 text-white hover:border-cyan-300'
+                }`}
+              >
+                <span className="text-lg sm:text-2xl filter drop-shadow">
+                  {ISLAND_EMOJIS[idx]}
+                  {isIslandLocked ? '🔒' : ''}
+                </span>
+                <span
+                  className={`text-[10px] sm:text-xs font-hud font-black text-center whitespace-nowrap ${
+                    isActive ? 'text-slate-950' : isIslandLocked ? 'text-slate-300' : 'text-cyan-100'
+                  }`}
+                >
+                  {island.nameAr.split(' ')[0]} {island.nameAr.split(' ')[1] || ''}
+                </span>
+              </button>
+            );
+          })}
+        </motion.div>
+      </div>
+
+      {/* =====================================================================
+          LAYER 4: BOTTOM HUD (Speech Bubble, Chunky Adventure CTA, Controls Hint)
           ===================================================================== */}
       <footer className="relative z-30 w-full max-w-2xl mx-auto flex flex-col items-center gap-2.5 px-4 pb-3 sm:pb-6 pointer-events-none">
         {/* Interaction Toast */}
@@ -233,17 +453,17 @@ export const HomeWorldScreen: React.FC = () => {
           className="pointer-events-auto cursor-pointer bg-white/95 backdrop-blur-md text-slate-900 px-4 py-2 sm:px-5 sm:py-2.5 rounded-3xl border-2 sm:border-3 border-pastel-cyan shadow-[0_12px_32px_rgba(0,0,0,0.35)] flex items-center gap-3 max-w-md hover:scale-105 active:scale-95 transition-transform"
           title="اضغط للاستماع إلى روبو"
         >
-          <div
-            className={`w-8 h-8 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
-              isAudioPlaying
-                ? 'bg-pastel-cyan text-slate-950 animate-pulse'
-                : 'bg-pastel-sky/30 text-sky-800'
-            }`}
-          >
-            {isAudioPlaying ? (
-              <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />
-            ) : (
-              <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" />
+          <div className="relative shrink-0">
+            <img 
+              src="/assets/generated/characters/robo_chibi_sprite.png" 
+              alt="روبو" 
+              className="w-10 h-10 rounded-2xl bg-slate-900 p-0.5 border-2 border-cyan-400 object-contain shadow-inner"
+            />
+            {isAudioPlaying && (
+              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
+              </span>
             )}
           </div>
           <div className="flex-1 text-right">
@@ -256,48 +476,116 @@ export const HomeWorldScreen: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Chunky Action Button: "ابدأ المغامرة الفضائية" */}
-        <motion.button
-          type="button"
-          onClick={handleStartAdventureCTA}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="pointer-events-auto btn-chunky-adventure px-8 py-3.5 sm:px-14 sm:py-4 text-xl sm:text-3xl flex items-center gap-3 sm:gap-4 shadow-[0_14px_40px_rgba(255,159,28,0.6)] cursor-pointer"
-          dir="rtl"
-          aria-label="ابدأ المغامرة الفضائية"
-        >
-          <span>ابدأ المغامرة الفضائية</span>
-          <span className="text-2xl sm:text-4xl filter drop-shadow">🚀</span>
-        </motion.button>
+        {/* Action Row: Chunky Adventure CTA + Intuitive On-Screen Touch/Keyboard Control Pad */}
+        <div className="pointer-events-auto w-full flex flex-wrap items-center justify-center gap-3 sm:gap-4" dir="rtl">
+          <motion.button
+            type="button"
+            onClick={handleStartAdventureCTA}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className={`px-7 py-3.5 sm:px-10 sm:py-4 text-lg sm:text-2xl flex items-center gap-3 sm:gap-4 cursor-pointer ${
+              isCurrentIslandLocked
+                ? 'rounded-3xl bg-slate-800/95 border-2 border-amber-400/70 text-amber-200 font-hud font-black shadow-lg'
+                : 'btn-chunky-adventure shadow-[0_14px_40px_rgba(255,159,28,0.6)]'
+            }`}
+            aria-label={`انطلق إلى ${currentIsland.nameAr}`}
+          >
+            <span>{isCurrentIslandLocked ? `🔒 ${currentIsland.nameAr} (مقفلة)` : `انطلق إلى ${currentIsland.nameAr}`}</span>
+            <span className="text-xl sm:text-3xl filter drop-shadow">{ISLAND_EMOJIS[activeIslandIndex]}</span>
+          </motion.button>
 
-        {/* Exploration controls subtitle */}
+          {/* Compact Casual Robo D-Pad Controls (Touch + WASD / Arrows Hint) */}
+          <div
+            className="casual-card px-3 py-2 flex items-center gap-1.5"
+            dir="ltr"
+            aria-label="أزرار تحريك روبو على الجزيرة"
+          >
+            <button
+              type="button"
+              onClick={() => { soundManager.playClick(); EventBus.emit('home-nudge-robo', { dx: -55, dy: 0 }); }}
+              className="w-8 h-8 rounded-xl bg-slate-900 hover:bg-cyan-500 hover:text-slate-950 border border-cyan-300/60 text-cyan-200 font-black text-xs flex items-center justify-center cursor-pointer"
+              aria-label="تحريك روبو يساراً"
+            >
+              ◀
+            </button>
+            <div className="flex flex-col gap-1">
+              <button
+                type="button"
+                onClick={() => { soundManager.playClick(); EventBus.emit('home-nudge-robo', { dx: 0, dy: -45 }); }}
+                className="w-8 h-6 rounded-lg bg-slate-900 hover:bg-cyan-500 hover:text-slate-950 border border-cyan-300/60 text-cyan-200 font-black text-[10px] flex items-center justify-center cursor-pointer"
+                aria-label="تحريك روبو للأعلى"
+              >
+                ▲
+              </button>
+              <button
+                type="button"
+                onClick={() => { soundManager.playClick(); EventBus.emit('home-nudge-robo', { dx: 0, dy: 45 }); }}
+                className="w-8 h-6 rounded-lg bg-slate-900 hover:bg-cyan-500 hover:text-slate-950 border border-cyan-300/60 text-cyan-200 font-black text-[10px] flex items-center justify-center cursor-pointer"
+                aria-label="تحريك روبو للأسفل"
+              >
+                ▼
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => { soundManager.playClick(); EventBus.emit('home-nudge-robo', { dx: 55, dy: 0 }); }}
+              className="w-8 h-8 rounded-xl bg-slate-900 hover:bg-cyan-500 hover:text-slate-950 border border-cyan-300/60 text-cyan-200 font-black text-xs flex items-center justify-center cursor-pointer"
+              aria-label="تحريك روبو يميناً"
+            >
+              ▶
+            </button>
+          </div>
+        </div>
+
+        {/* Clear Exploration Controls Hint */}
         <div
           dir="rtl"
-          className="flex items-center gap-2 text-center font-hud font-bold text-[11px] sm:text-xs text-pastel-sky/95 drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)]"
+          className="flex items-center gap-2 text-center font-hud font-bold text-[11px] sm:text-xs text-pastel-sky/95 bg-slate-950/65 px-3 py-1 rounded-full border border-white/15"
         >
-          <Navigation className="w-3.5 h-3.5 text-pastel-cyan inline" />
+          <Navigation className="w-3.5 h-3.5 text-pastel-cyan inline shrink-0" />
           <span>
-            المس أو اضغط على أي مكان بالجزيرة لتحريك روبو 🕹️ أو استكشف البلورات والفطر والصاروخ!
+            حرّك روبو باللمس أو الأسهم / WASD 🕹️ • واضغط على أي جزيرة للطيران بالمركبة ✈️
           </span>
         </div>
       </footer>
 
-      {/* Proposed World Map Modal */}
+      {/* World Map Modal */}
       <WorldMapPreviewModal
         isOpen={isWorldMapOpen}
         onClose={() => setIsWorldMapOpen(false)}
-        onSelectMission={() => {
-          setLocation('NutritionLab');
+        onSelectMission={(missionId) => {
+          setIsWorldMapOpen(false);
+          const lockMsg = getLockReason(missionId);
+          if (lockMsg) {
+            soundManager.playAlertSiren();
+            setActiveSpeech(lockMsg);
+            setInteractionToast({ name: 'مهمة مقفلة 🔒', message: lockMsg });
+            window.setTimeout(() => setInteractionToast(null), 4000);
+            return;
+          }
+          const foundIdx = ARCHIPELAGO_ISLANDS.findIndex((i) => i.key === missionId);
+          if (foundIdx >= 0) {
+            handleSelectIsland(foundIdx);
+          } else {
+            setLocation(missionId as any);
+          }
         }}
       />
 
-      {/* Settings Modal (Self-contained) */}
+      {/* Settings Modal */}
       <SettingsMenu
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onReplayIntro={handleSpeakWelcome}
       />
+
+      {/* NASA Mission Control Live Data Drawer */}
+      <NasaMissionControlDrawer
+        isOpen={isNasaOpen}
+        onClose={() => setIsNasaOpen(false)}
+      />
     </div>
   );
 };
+
 export default HomeWorldScreen;

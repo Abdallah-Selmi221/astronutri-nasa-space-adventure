@@ -2,20 +2,25 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useGameState } from '../../context/GameContext';
 import { SettingsMenu } from './SettingsMenu';
+import { NasaMissionControlDrawer } from './NasaMissionControlDrawer';
 import { soundManager } from '../../utils/sound';
 import { geminiTTS } from '../../utils/geminiTTS';
-import { Star, Settings, Home } from 'lucide-react';
+import { Star, Settings, Home, Satellite } from 'lucide-react';
 
 export const HeaderHUD: React.FC = () => {
   const { state, setLocation } = useGameState();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isNasaOpen, setIsNasaOpen] = useState(false);
 
-  // Calculate readable player star score (starts at 250 as shown in the reference)
+  // Calculate readable player star score (synchronized with HomeWorldScreen)
   const completedMissionsCount = [
     state.isNutritionMissionComplete,
+    state.isHumanHealthComplete,
     state.isSuitMissionComplete,
     state.engineCoreState.isEngineComplete,
-    state.launchPadState.isLevel1Complete
+    state.launchPadState.isLevel1Complete,
+    state.level2State.isTradeOffResolved,
+    state.isReturnMissionComplete
   ].filter(Boolean).length;
 
   const totalStarsScore = 250 + completedMissionsCount * 50 + state.cargoItems.length * 25;
@@ -35,41 +40,57 @@ export const HeaderHUD: React.FC = () => {
     <>
       <header className="fixed top-3 inset-x-0 z-40 px-4 sm:px-8 pointer-events-none select-none">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          {/* C) Simple Home Icon to Return to the Map */}
+          {/* C) Casual Pill Home Button */}
           <motion.button
             type="button"
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
+            whileHover={{ scale: 1.06 }}
+            whileTap={{ scale: 0.94 }}
             onClick={handleGoHome}
-            className="pointer-events-auto w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-b from-sky-400 via-blue-600 to-indigo-900 border-4 border-cyan-200 text-white flex items-center justify-center shadow-[0_8px_25px_rgba(2,6,23,0.65)]"
+            className="pointer-events-auto casual-btn-cyan w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center cursor-pointer"
             aria-label="العودة للخريطة"
           >
-            <Home className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
+            <Home className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.5]" />
           </motion.button>
 
-          {/* A) Giant Yellow Star Icon + Large Readable Score & B) Large Simple Gear Icon */}
-          <div className="pointer-events-auto flex items-center gap-3 sm:gap-4">
-            {/* A) Giant Yellow Star + Score */}
-            <div className="flex items-center gap-2.5 bg-slate-950/90 border-4 border-cyan-300/80 rounded-full px-5 sm:px-6 py-2 shadow-[0_8px_25px_rgba(2,6,23,0.7)]">
-              <Star className="w-8 h-8 sm:w-9 sm:h-9 text-yellow-400 fill-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.9)]" />
-              <span className="font-hud font-black text-2xl sm:text-3xl text-white tracking-wider">
+          {/* A) Giant Yellow Star Badge + NASA Data & Settings */}
+          <div className="pointer-events-auto flex items-center gap-2 sm:gap-3">
+            {/* NASA Live Data Button */}
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.94 }}
+              onClick={() => {
+                soundManager.playClick();
+                setIsNasaOpen(true);
+              }}
+              className="casual-pill w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center relative cursor-pointer hover:brightness-110"
+              aria-label="بيانات ناسا الحية"
+            >
+              <Satellite className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2] text-cyan-200" />
+              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 animate-pulse border-2 border-slate-900" />
+            </motion.button>
+
+            {/* A) Casual Gold Star Score Badge */}
+            <div className="casual-badge flex items-center gap-2 px-4 sm:px-5 py-1.5 sm:py-2">
+              <Star className="w-6 h-6 sm:w-7 sm:h-7 text-amber-950 fill-amber-950 drop-shadow-sm" />
+              <span className="font-hud font-black text-xl sm:text-2xl tracking-wider">
                 {totalStarsScore}
               </span>
             </div>
 
-            {/* B) Large Simple Gear Icon for Settings/Audio */}
+            {/* B) Large Settings Button */}
             <motion.button
               type="button"
-              whileHover={{ scale: 1.08, rotate: 25 }}
-              whileTap={{ scale: 0.92 }}
+              whileHover={{ scale: 1.06, rotate: 20 }}
+              whileTap={{ scale: 0.94 }}
               onClick={() => {
                 soundManager.playClick();
                 setIsSettingsOpen(true);
               }}
-              className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-b from-sky-400 via-blue-600 to-indigo-900 border-4 border-cyan-200 text-white flex items-center justify-center shadow-[0_8px_25px_rgba(2,6,23,0.65)]"
+              className="casual-pill w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center text-white cursor-pointer hover:brightness-110"
               aria-label="الإعدادات والصوت"
             >
-              <Settings className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
+              <Settings className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.5]" />
             </motion.button>
           </div>
         </div>
@@ -78,6 +99,11 @@ export const HeaderHUD: React.FC = () => {
       <SettingsMenu
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+
+      <NasaMissionControlDrawer
+        isOpen={isNasaOpen}
+        onClose={() => setIsNasaOpen(false)}
       />
     </>
   );

@@ -98,6 +98,16 @@
       "style": "3d-cartoon-svg"
     },
     {
+      "id": "earth-3d",
+      "file": "/assets/ui/earth-3d.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
+      "id": "mars-3d",
+      "file": "/assets/ui/mars-3d.svg",
+      "style": "3d-cartoon-svg"
+    },
+    {
       "id": "hub_bg",
       "file": "/assets/images/space-station-hub.jpg",
       "style": "3d-illustrated-backdrop"

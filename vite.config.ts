@@ -227,10 +227,18 @@ export default defineConfig(({ mode }) => {
   const serverOnlyGeminiKey = env.GEMINI_API_KEY || '';
 
   return {
+    server: {
+      port: 5173,
+      strictPort: false,
+      watch: {
+        ignored: ['**/video/**']
+      }
+    },
     plugins: [
       react(),
       localVercelTtsPlugin(serverOnlyGeminiKey),
       VitePWA({
+        disable: mode === 'development',
         registerType: 'autoUpdate',
         includeAssets: ['favicon.svg', 'robots.txt', 'apple-touch-icon.png'],
         manifest: {
@@ -257,11 +265,18 @@ export default defineConfig(({ mode }) => {
           ]
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}'],
+          cleanupOutdatedCaches: true,
+          skipWaiting: true,
+          clientsClaim: true,
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2,mp3,json}'],
           globIgnores: [
             'assets/scenes/**',
             'assets/sprites/contact-sheet.png',
-            'assets/images/robo-cropped.png'
+            'assets/images/robo-cropped.png',
+            'audio/robo/automation-test/**',
+            'audio/robo/model-comparison/**',
+            'audio/robo/sample/sample_greeting.mp3',
+            'audio/robo/sample/sample_manifest.json'
           ],
           navigateFallbackDenylist: [/^\/api\//],
           maximumFileSizeToCacheInBytes: 10 * 1024 * 1024

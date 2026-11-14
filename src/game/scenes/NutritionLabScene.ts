@@ -7,6 +7,18 @@ import {
   NutritionSyncCargoPayload
 } from '../EventBus';
 import { ProceduralRobo } from '../objects/ProceduralRobo';
+import { CelestialBody, EarthPlanet } from '../objects/CelestialBody';
+import { soundManager } from '../../utils/sound';
+
+interface HandrailNode {
+  container: Phaser.GameObjects.Container;
+  bar: Phaser.GameObjects.Graphics;
+  glow: Phaser.GameObjects.Graphics;
+  label: Phaser.GameObjects.Text;
+  width: number;
+  height: number;
+  orientation: 'horizontal' | 'vertical';
+}
 
 interface FoodPodNode {
   item: FoodItem;
@@ -27,17 +39,15 @@ interface FoodPodNode {
   dragStartY: number;
   dragStartTime: number;
   isDelivering: boolean;
+  hasCelebrated?: boolean;
 }
 
 export class NutritionLabScene extends Phaser.Scene {
   private static readonly MAX_CARGO_CAPACITY = 4;
 
   private bgGraphics!: Phaser.GameObjects.Graphics;
-  private earthSprite!: Phaser.GameObjects.Image;
-  private saturnSprite!: Phaser.GameObjects.Image;
-  private asteroidSprite!: Phaser.GameObjects.Image;
-  private bridgeLeft!: Phaser.GameObjects.Image;
-  private bridgeRight!: Phaser.GameObjects.Image;
+  private earthPlanet?: EarthPlanet;
+  private observationWindowGraphics!: Phaser.GameObjects.Graphics;
 
   private robo!: ProceduralRobo;
 
@@ -50,10 +60,18 @@ export class NutritionLabScene extends Phaser.Scene {
 
   private foodPods: FoodPodNode[] = [];
   private hazardEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
-  private crateStarEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
+
+  // Zero-G Physics & Handrail Slingshot Traversal
+  private handrails: HandrailNode[] = [];
+  private trajectoryGraphics!: Phaser.GameObjects.Graphics;
+  private isAimingSlingshot: boolean = false;
+  private slingshotAnchorX: number = 0;
+  private slingshotAnchorY: number = 0;
 
   private currentCargo: CargoItemEntry[] = [];
   private committedItemIds: Set<string> = new Set();
+  private celebratedItemIds: Set<string> = new Set();
+  private lastSuccessSoundTime: number = 0;
   private crateWorldX: number = 0;
   private crateWorldY: number = 0;
   private crateDropRadius: number = 145;
@@ -64,13 +82,9 @@ export class NutritionLabScene extends Phaser.Scene {
 
   public preload(): void {
     ProceduralRobo.preloadAssets(this);
+    CelestialBody.preloadAssets(this);
 
-    this.load.image('lab-earth', '/assets/sprites/space/planet-earth.png');
-    this.load.image('lab-saturn', '/assets/sprites/space/planet-saturn.png');
-    this.load.image('lab-asteroid', '/assets/sprites/space/asteroid-purple.png');
     this.load.image('lab-crate', '/assets/sprites/environment/cargo-crate-clean.png');
-    this.load.image('lab-bridge-l', '/assets/sprites/environment/platform-bridge-metal-left.png');
-    this.load.image('lab-bridge-r', '/assets/sprites/environment/platform-bridge-metal-right.png');
 
     for (const item of FOOD_DATABASE) {
       if (item.svgAsset) {
@@ -111,44 +125,21 @@ export class NutritionLabScene extends Phaser.Scene {
       })
       .setDepth(1);
 
-    // Floating Planetary Bodies visible through Space Station Window
-    this.earthSprite = this.add.image(width * 0.16, height * 0.22, 'lab-earth').setDepth(2).setAlpha(0.88);
-    this.saturnSprite = this.add.image(width * 0.82, height * 0.18, 'lab-saturn').setDepth(2).setAlpha(0.85);
-    this.asteroidSprite = this.add.image(width * 0.28, height * 0.14, 'lab-asteroid').setDepth(2).setAlpha(0.7);
+    // Panoramic Space Galley Observation Window (Upper Wall of Galley)
+    const winWidth = Math.min(width * 0.88, 880);
+    const winHeight = 130;
+    const winX = width * 0.5;
+    const winY = 85;
 
-    this.tweens.add({
-      targets: this.earthSprite,
-      y: '+=12',
-      angle: { from: -2, to: 2 },
-      duration: 5200,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
+    this.observationWindowGraphics = this.add.graphics().setDepth(1);
+    this.observationWindowGraphics.fillStyle(0x030712, 0.95);
+    this.observationWindowGraphics.fillRoundedRect(winX - winWidth / 2, winY - winHeight / 2, winWidth, winHeight, 18);
+    this.observationWindowGraphics.lineStyle(3, 0x0284c7, 0.9);
+    this.observationWindowGraphics.strokeRoundedRect(winX - winWidth / 2, winY - winHeight / 2, winWidth, winHeight, 18);
 
-    this.tweens.add({
-      targets: this.saturnSprite,
-      y: '-=10',
-      angle: { from: -3, to: 3 },
-      duration: 6000,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
-
-    this.tweens.add({
-      targets: this.asteroidSprite,
-      x: '+=16',
-      y: '+=8',
-      angle: 360,
-      duration: 18000,
-      repeat: -1,
-      ease: 'Linear'
-    });
-
-    // Metallic Lab Deck Platforms
-    this.bridgeLeft = this.add.image(width * 0.18, height * 0.52, 'lab-bridge-l').setDepth(3).setAlpha(0.85);
-    this.bridgeRight = this.add.image(width * 0.82, height * 0.52, 'lab-bridge-r').setDepth(3).setAlpha(0.85);
+    // Procedural Earth visible strictly through Galley observation window
+    this.earthPlanet = new EarthPlanet(this, winX + winWidth * 0.28, winY, 46);
+    this.earthPlanet.setDepth(2);
 
     // 2. CENTER INTERACTIVE 3D SPACE CARGO CRATE DROP ZONE
     this.crateContainer = this.add.container(width * 0.42, height * 0.34).setDepth(10);
@@ -167,8 +158,8 @@ export class NutritionLabScene extends Phaser.Scene {
     this.crateContainer.add(this.packedSpritesContainer);
 
     this.crateStatusText = this.add
-      .text(0, 92, 'اسحب أو اضغط على طعام الفضاء لوضعه في الصندوق 🎯', {
-        fontFamily: ' Cairo, Tajawal, sans-serif',
+      .text(0, -90, 'اسحب أو اضغط على طعام الفضاء لوضعه في الصندوق 🎯', {
+        fontFamily: 'Cairo, Tajawal, sans-serif',
         fontSize: '15px',
         fontStyle: 'bold',
         color: '#e0f2fe',
@@ -191,19 +182,7 @@ export class NutritionLabScene extends Phaser.Scene {
       ease: 'Sine.easeInOut'
     });
 
-    // Particle Emitters for Cargo Crate Feedback
-    this.crateStarEmitter = this.add
-      .particles(0, 0, 'robo-star-particle', {
-        speed: { min: 100, max: 240 },
-        angle: { min: 190, max: 350 },
-        scale: { start: 0.5, end: 0.08 },
-        alpha: { start: 1, end: 0 },
-        gravityY: 200,
-        lifespan: 800,
-        emitting: false
-      })
-      .setDepth(30);
-
+    // Particle Emitter for Banned Zero-G Food Hazard Feedback
     this.hazardEmitter = this.add
       .particles(0, 0, 'hazard-crumb-dot', {
         speed: { min: 70, max: 190 },
@@ -215,28 +194,109 @@ export class NutritionLabScene extends Phaser.Scene {
       })
       .setDepth(30);
 
+    // Trajectory vector graphics for Zero-G slingshot aiming
+    this.trajectoryGraphics = this.add.graphics().setDepth(45);
+
     // 3. PROCEDURAL ROBO CHARACTER RIG (Right side of lab stage for RTL layout)
     this.robo = new ProceduralRobo(this, width * 0.78, height * 0.33, 0.74);
     this.robo.setDepth(15);
+
+    // Enable Zero-G Arcade Physics on Robo with momentum & low drag
+    this.physics.world.enable(this.robo);
+    const roboBody = this.robo.body as Phaser.Physics.Arcade.Body;
+    roboBody.setCollideWorldBounds(true);
+    roboBody.setBounce(0.75, 0.75);
+    roboBody.setDrag(18, 18);
+    roboBody.setSize(70, 95);
+    roboBody.setOffset(-35, -45);
+
+    this.robo.setInteractive(new Phaser.Geom.Rectangle(-40, -50, 80, 100), Phaser.Geom.Rectangle.Contains);
+    this.robo.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      this.startSlingshot(this.robo.x, this.robo.y, pointer);
+    });
     this.robo.on('robo-clicked', () => {
       EventBus.emit('nutrition:robo-clicked');
     });
 
-    // 4. INTERACTIVE ZERO-G FOOD PODS (All 9 NASA Food Items)
+    // 4. INTERACTIVE EVA HANDRAILS (Grab & Slingshot Traversal)
+    this.createHandrails();
+
+    // 5. INTERACTIVE ZERO-G FOOD PODS (All 9 NASA Food Items with Stable Shelf Slots)
     this.createFoodPods();
 
-    // 5. INITIAL RESPONSIVE LAYOUT & RESIZE LISTENER
+    // Global Slingshot Trajectory Preview & Launch Handlers
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (!this.isAimingSlingshot) return;
+      this.trajectoryGraphics.clear();
+      const startX = this.slingshotAnchorX;
+      const startY = this.slingshotAnchorY;
+      const dragDist = Phaser.Math.Distance.Between(startX, startY, pointer.x, pointer.y);
+      const angle = Phaser.Math.Angle.Between(pointer.x, pointer.y, startX, startY);
+
+      // Elastic bungee cord
+      this.trajectoryGraphics.lineStyle(3, 0xfacc15, 0.85);
+      this.trajectoryGraphics.lineBetween(startX, startY, pointer.x, pointer.y);
+
+      // Propulsion forecast vector
+      const launchSpeed = Math.min(dragDist * 3.8, 550);
+      const forecastDist = Math.min(220, launchSpeed * 0.4);
+      const targetX = startX + Math.cos(angle) * forecastDist;
+      const targetY = startY + Math.sin(angle) * forecastDist;
+
+      this.trajectoryGraphics.lineStyle(4, 0x38bdf8, 0.9);
+      this.trajectoryGraphics.lineBetween(startX, startY, targetX, targetY);
+
+      for (let i = 1; i <= 5; i++) {
+        const frac = i / 5;
+        const dotX = startX + Math.cos(angle) * forecastDist * frac;
+        const dotY = startY + Math.sin(angle) * forecastDist * frac;
+        this.trajectoryGraphics.fillStyle(0x38bdf8, 1 - frac * 0.15);
+        this.trajectoryGraphics.fillCircle(dotX, dotY, 4.5 - frac * 0.5);
+      }
+    });
+
+    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      if (!this.isAimingSlingshot) return;
+      this.trajectoryGraphics.clear();
+      this.isAimingSlingshot = false;
+
+      const startX = this.slingshotAnchorX;
+      const startY = this.slingshotAnchorY;
+      const dragDist = Phaser.Math.Distance.Between(startX, startY, pointer.x, pointer.y);
+
+      if (dragDist > 18) {
+        this.tweens.killTweensOf(this.robo);
+        const angle = Phaser.Math.Angle.Between(pointer.x, pointer.y, startX, startY);
+        const speed = Math.min(dragDist * 4.2, 580);
+        const vx = Math.cos(angle) * speed;
+        const vy = Math.sin(angle) * speed;
+
+        const rBody = this.robo.body as Phaser.Physics.Arcade.Body;
+        rBody.setVelocity(vx, vy);
+
+        soundManager.playPressurizeHiss();
+        this.robo.setRoboState('FLYING');
+      }
+    });
+
+    // 6. INITIAL RESPONSIVE LAYOUT & RESIZE LISTENER
     this.layoutScene(width, height);
-    this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
+    const onResize = (gameSize: Phaser.Structs.Size) => {
       if (this.scene && this.sys && this.sys.isActive()) {
         this.layoutScene(gameSize.width, gameSize.height);
       }
-    });
+    };
+    this.scale.on('resize', onResize);
 
     // 6. SUBSCRIBE TO REACT EVENT BUS
     const onSyncCargo = (payload: NutritionSyncCargoPayload) => {
       this.currentCargo = payload.cargoItems;
       this.committedItemIds = new Set(payload.cargoItems.map((e) => e.item.id));
+      for (const id of Array.from(this.celebratedItemIds)) {
+        if (!this.committedItemIds.has(id)) {
+          this.celebratedItemIds.delete(id);
+        }
+      }
       this.syncFoodPodVisualStates();
       this.renderPackedCargoSprites();
     };
@@ -247,14 +307,22 @@ export class NutritionLabScene extends Phaser.Scene {
       }
     };
 
+    let lastCelebrateTime = 0;
     const onCelebrate = () => {
+      const now = performance.now();
+      if (now - lastCelebrateTime < 1500) return;
+      lastCelebrateTime = now;
       if (this.robo && this.robo.active) {
         this.robo.setRoboState('CELEBRATING');
       }
-      if (this.crateStarEmitter) {
-        this.crateStarEmitter.setPosition(this.crateWorldX, this.crateWorldY - 25);
-        this.crateStarEmitter.explode(24);
-      }
+      this.tweens.add({
+        targets: this.crateContainer,
+        scaleX: 1.08,
+        scaleY: 1.08,
+        duration: 180,
+        yoyo: true,
+        ease: 'Back.easeOut'
+      });
     };
 
     EventBus.on('nutrition:sync-cargo', onSyncCargo);
@@ -308,19 +376,142 @@ export class NutritionLabScene extends Phaser.Scene {
       }
     };
 
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+    const cleanupScene = () => {
       EventBus.off('nutrition:sync-cargo', onSyncCargo);
       EventBus.off('nutrition:robo-state', onRoboState);
       EventBus.off('nutrition:celebrate', onCelebrate);
-    });
+      this.scale.off('resize', onResize);
+      delete (window as unknown as Record<string, unknown>).__ASTRONUTRI_NUTRITION_SCENE__;
+    };
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanupScene);
+    this.events.once(Phaser.Scenes.Events.DESTROY, cleanupScene);
 
     EventBus.emit('nutrition:scene-ready');
   }
 
   public override update(time: number, delta: number): void {
+    if (this.earthPlanet) {
+      this.earthPlanet.update(time, delta);
+    }
     if (this.robo && this.robo.active) {
       this.robo.preUpdate(time, delta);
+
+      const body = this.robo.body as Phaser.Physics.Arcade.Body | undefined;
+      if (body) {
+        const speed = Math.sqrt(body.velocity.x * body.velocity.x + body.velocity.y * body.velocity.y);
+        if (speed > 25 && this.robo.currentState !== 'FLYING') {
+          this.robo.setRoboState('FLYING');
+        } else if (speed <= 25 && this.robo.currentState === 'FLYING') {
+          this.robo.setRoboState('IDLE');
+        }
+      }
     }
+  }
+
+  private startSlingshot(anchorX: number, anchorY: number, _pointer: Phaser.Input.Pointer): void {
+    this.isAimingSlingshot = true;
+    this.slingshotAnchorX = anchorX;
+    this.slingshotAnchorY = anchorY;
+
+    soundManager.playClick();
+    this.robo.setRoboState('IDLE');
+    const roboBody = this.robo.body as Phaser.Physics.Arcade.Body;
+    roboBody.setVelocity(0, 0);
+
+    this.tweens.killTweensOf(this.robo);
+    this.tweens.add({
+      targets: this.robo,
+      x: anchorX,
+      y: anchorY + 30,
+      duration: 180,
+      ease: 'Quad.easeOut'
+    });
+  }
+
+  private createHandrails(): void {
+    this.handrails = [];
+
+    const railConfigs: Array<{
+      id: string;
+      label: string;
+      orientation: 'horizontal' | 'vertical';
+      width: number;
+      height: number;
+    }> = [
+      { id: 'eva-top', label: 'درابزين السقف 🚀 (اسحب للإطلاق)', orientation: 'horizontal', width: 260, height: 26 },
+      { id: 'eva-mid', label: 'درابزين المنصة 🕹️ (اسحب للانطلاق)', orientation: 'horizontal', width: 280, height: 26 },
+      { id: 'eva-left', label: 'درابزين الجدار الأيسر', orientation: 'vertical', width: 26, height: 160 },
+      { id: 'eva-right', label: 'درابزين الجدار الأيمن', orientation: 'vertical', width: 26, height: 160 }
+    ];
+
+    railConfigs.forEach((cfg) => {
+      const container = this.add.container(0, 0).setDepth(12);
+
+      const glow = this.add.graphics();
+      container.add(glow);
+
+      const bar = this.add.graphics();
+      container.add(bar);
+
+      // Draw metallic high-visibility rail
+      bar.fillStyle(0x0f172a, 0.9);
+      bar.lineStyle(3, 0x38bdf8, 1);
+      if (cfg.orientation === 'horizontal') {
+        bar.fillRoundedRect(-cfg.width / 2, -cfg.height / 2, cfg.width, cfg.height, 8);
+        bar.strokeRoundedRect(-cfg.width / 2, -cfg.height / 2, cfg.width, cfg.height, 8);
+        // Yellow safety hazard grips
+        bar.fillStyle(0xfacc15, 0.85);
+        bar.fillRoundedRect(-cfg.width / 2 + 10, -cfg.height / 2 + 4, 32, cfg.height - 8, 4);
+        bar.fillRoundedRect(cfg.width / 2 - 42, -cfg.height / 2 + 4, 32, cfg.height - 8, 4);
+      } else {
+        bar.fillRoundedRect(-cfg.width / 2, -cfg.height / 2, cfg.width, cfg.height, 8);
+        bar.strokeRoundedRect(-cfg.width / 2, -cfg.height / 2, cfg.width, cfg.height, 8);
+        // Yellow safety hazard grips
+        bar.fillStyle(0xfacc15, 0.85);
+        bar.fillRoundedRect(-cfg.width / 2 + 4, -cfg.height / 2 + 10, cfg.width - 8, 28, 4);
+        bar.fillRoundedRect(-cfg.width / 2 + 4, cfg.height / 2 - 38, cfg.width - 8, 28, 4);
+      }
+
+      // Handrail label
+      const label = this.add
+        .text(0, cfg.orientation === 'horizontal' ? -cfg.height / 2 - 14 : cfg.height / 2 + 12, cfg.label, {
+          fontFamily: 'Cairo, Tajawal, sans-serif',
+          fontSize: '11px',
+          fontStyle: 'bold',
+          color: '#38bdf8',
+          backgroundColor: '#030712cc',
+          padding: { x: 6, y: 2 }
+        })
+        .setOrigin(0.5);
+      container.add(label);
+
+      // Make handrail interactive
+      const hitZone = new Phaser.Geom.Rectangle(-cfg.width / 2 - 10, -cfg.height / 2 - 10, cfg.width + 20, cfg.height + 20);
+      container.setInteractive(hitZone, Phaser.Geom.Rectangle.Contains);
+
+      container.on('pointerover', () => {
+        glow.clear();
+        glow.lineStyle(6, 0xfacc15, 0.6);
+        if (cfg.orientation === 'horizontal') {
+          glow.strokeRoundedRect(-cfg.width / 2 - 4, -cfg.height / 2 - 4, cfg.width + 8, cfg.height + 8, 10);
+        } else {
+          glow.strokeRoundedRect(-cfg.width / 2 - 4, -cfg.height / 2 - 4, cfg.width + 8, cfg.height + 8, 10);
+        }
+      });
+
+      container.on('pointerout', () => {
+        if (!this.isAimingSlingshot) {
+          glow.clear();
+        }
+      });
+
+      container.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+        this.startSlingshot(container.x, container.y, pointer);
+      });
+
+      this.handrails.push({ container, bar, glow, label, width: cfg.width, height: cfg.height, orientation: cfg.orientation });
+    });
   }
 
   private createFoodPods(): void {
@@ -452,6 +643,7 @@ export class NutritionLabScene extends Phaser.Scene {
         if (podNode.isDelivering) return;
 
         podNode.floatTween.pause();
+
         podNode.dragStartX = pointer.x;
         podNode.dragStartY = pointer.y;
         podNode.dragStartTime = this.time.now;
@@ -622,9 +814,17 @@ export class NutritionLabScene extends Phaser.Scene {
       ease: 'Cubic.easeOut',
       onComplete: () => {
         this.pulseCrateFeedback('success');
-        if (this.crateStarEmitter) {
-          this.crateStarEmitter.setPosition(this.crateWorldX, this.crateWorldY - 22);
-          this.crateStarEmitter.explode(14);
+
+        // Clean pop feedback & debounced sound
+        if (!this.celebratedItemIds.has(item.id)) {
+          this.celebratedItemIds.add(item.id);
+          podNode.hasCelebrated = true;
+
+          const now = performance.now();
+          if (now - this.lastSuccessSoundTime > 350) {
+            this.lastSuccessSoundTime = now;
+            soundManager.playDropSuccess();
+          }
         }
 
         this.robo.setRoboState('HAPPY');
@@ -776,21 +976,11 @@ export class NutritionLabScene extends Phaser.Scene {
       this.bgGraphics.lineBetween(gx, deckTopY, gx, height);
     }
 
-    // 2. Position Parallax Space Objects
-    this.earthSprite.setPosition(width * 0.14, deckTopY * 0.45);
-    this.earthSprite.setScale(isCompact ? 0.55 : 0.82);
-
-    this.saturnSprite.setPosition(width * 0.85, deckTopY * 0.38);
-    this.saturnSprite.setScale(isCompact ? 0.48 : 0.72);
-
-    this.asteroidSprite.setPosition(width * 0.32, deckTopY * 0.25);
-    this.asteroidSprite.setScale(isCompact ? 0.45 : 0.65);
-
-    this.bridgeLeft.setPosition(width * 0.14, deckTopY - 6);
-    this.bridgeLeft.setScale(isCompact ? 0.52 : 0.78);
-
-    this.bridgeRight.setPosition(width * 0.86, deckTopY - 6);
-    this.bridgeRight.setScale(isCompact ? 0.52 : 0.78);
+    // 2. Position Parallax Space Objects & Observation Window
+    if (this.earthPlanet) {
+      this.earthPlanet.setPosition(width * 0.5 + Math.min(width * 0.44, 440) * 0.5, 85);
+      this.earthPlanet.setScale(isCompact ? 0.65 : 0.95);
+    }
 
     // 3. Position Center Cargo Crate & Right Procedural Robo
     this.crateWorldX = isCompact ? width * 0.36 : width * 0.41;
@@ -801,8 +991,8 @@ export class NutritionLabScene extends Phaser.Scene {
     this.crateContainer.setPosition(this.crateWorldX, this.crateWorldY);
     this.crateSprite.setScale(crateScale);
     this.crateGlowCircle.setRadius(165 * crateScale);
-    this.crateStatusText.setPosition(0, 145 * crateScale);
-    this.crateStatusText.setFontSize(isCompact ? 11 : 14);
+    this.crateStatusText.setPosition(0, -118 * crateScale);
+    this.crateStatusText.setFontSize(isCompact ? 11 : 13);
 
     // Draw tractor beam funnel above crate
     this.crateBeamGraphics.clear();
@@ -816,6 +1006,14 @@ export class NutritionLabScene extends Phaser.Scene {
     const roboY = isCompact ? deckTopY * 0.58 : deckTopY * 0.60;
     const roboScale = isCompact ? 0.52 : isShort ? 0.62 : 0.76;
     this.robo.setHomeTransform(roboX, roboY, roboScale);
+
+    // Position EVA Handrails for Zero-G grab & slingshot traversal (clean non-overlapping clearance)
+    if (this.handrails.length >= 4) {
+      this.handrails[0].container.setPosition(width * 0.5, 26);
+      this.handrails[1].container.setPosition(width * 0.5, deckTopY + 18);
+      this.handrails[2].container.setPosition(80, deckTopY * 0.5);
+      this.handrails[3].container.setPosition(width - 80, deckTopY * 0.5);
+    }
 
     // 4. Layout the 9 Interactive Zero-G Food Pods in the Lower Lab Shelf Area
     const shelfTop = deckTopY + (isCompact ? 34 : 44);

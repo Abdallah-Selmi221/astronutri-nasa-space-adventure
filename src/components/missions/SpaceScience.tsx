@@ -1,299 +1,749 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { useGameState } from '../../context/GameContext';
-import { AnimatedRobo, RoboState } from '../common/AnimatedRobo';
+import { AsteroidRadarModal } from './AsteroidRadarModal';
+import { PlanetIllustration } from './PlanetIllustration';
+import { InteractiveQuizDeck } from '../common/InteractiveQuizDeck';
+import { SPACE_SCIENCE_QUESTIONS } from '../../data/questionBanks';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { soundManager } from '../../utils/sound';
-import { Check, X, Lightbulb, Sparkles, ArrowLeft } from 'lucide-react';
+import { nasaCache } from '../../services/nasa/nasaCache';
+import {
+  Rocket,
+  Radio,
+  Compass,
+  Sparkles,
+  Scale,
+  Check,
+  X,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp
+} from 'lucide-react';
 
-interface PlanetOption {
-  id: string;
-  nameAr: string;
-  sprite: string;
-  isCorrect: boolean;
-  wrongFeedbackAr: string;
+interface PlanetChallenge {
+  questionAr: string;
+  options: { id: string; labelAr: string; isCorrect: boolean; feedbackAr: string }[];
 }
 
-const PLANET_OPTIONS: readonly PlanetOption[] = [
+interface CelestialWorld {
+  id: string;
+  nameAr: string;
+  englishName: string;
+  gravityG: number;
+  gravityLabelAr: string;
+  jumpHeightPx: number;
+  hopDurationSec: number;
+  bgGradient: string;
+  surfaceColor: string;
+  surfaceBorder: string;
+  scientificFactAr: string;
+  nasaDiscoveryAr: string;
+  nasaImage: string;
+  badgeAccent: string;
+  planetQuestion: PlanetChallenge;
+}
+
+const CELESTIAL_WORLDS: CelestialWorld[] = [
   {
-    id: 'jupiter',
-    nameAr: 'المشتري',
-    sprite: '/assets/sprites/planet-jupiter.png',
-    isCorrect: false,
-    wrongFeedbackAr: 'حاول تاني يا بطل! المشتري هو أكبر كوكب، بس مش هو الكوكب الأحمر!'
+    id: 'mercury',
+    nameAr: 'عطارد',
+    englishName: 'Mercury',
+    gravityG: 0.38,
+    gravityLabelAr: '0.38G (أقرب كوكب للشمس)',
+    jumpHeightPx: 85,
+    hopDurationSec: 0.85,
+    bgGradient: 'from-stone-950 via-amber-950/60 to-slate-950',
+    surfaceColor: 'bg-stone-800/90',
+    surfaceBorder: 'border-amber-400',
+    scientificFactAr:
+      'عطارد هو أصغر كواكب المجموعة الشمسية وأقربها للشمس؛ سطحه مليء بالفوهات الصخرية مثل القمر لأن غلافه الجوي رقيق جداً.',
+    nasaDiscoveryAr: 'مركبة NASA MESSENGER التقطت أكثر من 250 ألف صورة واكتشفت آثار جليد داخل فوهات القطبين المظلمة!',
+    nasaImage: '/assets/nasa/moon_surface_lroc.jpg',
+    badgeAccent: 'text-amber-200 border-amber-300 bg-amber-500/20',
+    planetQuestion: {
+      questionAr: 'لماذا تكون السماء فوق كوكب عطارد سوداء حتى في وقت النهار؟',
+      options: [
+        { id: 'a', labelAr: 'لأنه لا يملك غلافاً جوياً سميكاً ينثر ضوء الشمس', isCorrect: true, feedbackAr: 'أحسنت يا بطل! بدون هواء كثيف ينشر الضوء، تبدو السماء مليئة بالنجوم نهاراً!' },
+        { id: 'b', labelAr: 'لأن الشمس لا تصل إليه أبداً', isCorrect: false, feedbackAr: 'عطارد أقرب كوكب للشمس! لكنه بلا غلاف جوي سميك!' },
+        { id: 'c', labelAr: 'لأنه مغطى بالمحيطات المظلمة', isCorrect: false, feedbackAr: 'فكر تاني! عطارد كوكب صخري جاف بلا محيطات!' }
+      ]
+    }
   },
   {
-    id: 'mars',
-    nameAr: 'المريخ',
-    sprite: '/assets/sprites/planet-mars.png',
-    isCorrect: true,
-    wrongFeedbackAr: ''
-  },
-  {
-    id: 'saturn',
-    nameAr: 'زحل',
-    sprite: '/assets/sprites/planet-saturn.png',
-    isCorrect: false,
-    wrongFeedbackAr: 'قريب يا كابتن! زحل مشهور بحلقاته الجميلة، فكر في الكوكب اللي لونه أحمر!'
+    id: 'venus',
+    nameAr: 'الزهرة',
+    englishName: 'Venus',
+    gravityG: 0.91,
+    gravityLabelAr: '0.91G (أكثر الكواكب سخونة)',
+    jumpHeightPx: 50,
+    hopDurationSec: 0.55,
+    bgGradient: 'from-amber-950 via-orange-950 to-slate-950',
+    surfaceColor: 'bg-amber-900/90',
+    surfaceBorder: 'border-orange-400',
+    scientificFactAr:
+      'الزهرة هو الكوكب الأكثر سخونة في المجموعة الشمسية (أكثر من 460°م) بسبب غلافه الكثيف من ثاني أكسيد الكربون الذي يحبس الحرارة.',
+    nasaDiscoveryAr: 'تستعد مهمة NASA DAVINCI لإرسال مسبار يخترق السحب الذهبية للزهرة لتحليل غازاته!',
+    nasaImage: '/assets/nasa/apod_sample.jpg',
+    badgeAccent: 'text-orange-200 border-orange-300 bg-orange-500/20',
+    planetQuestion: {
+      questionAr: 'ما السبب الرئيسي الذي يجعل الزهرة أسخن من عطارد رغم أنه أبعد عن الشمس؟',
+      options: [
+        { id: 'a', labelAr: 'غلافه الجوي السميك جداً يحبس الحرارة كالدفيئة', isCorrect: true, feedbackAr: 'عبقري الفضاء! ظاهرة الاحتباس الحراري تجعله الكوكب الأشد حرارة!' },
+        { id: 'b', labelAr: 'لأنه يمتلك حلقات جليدية تحرقه', isCorrect: false, feedbackAr: 'الزهرة ليس له حلقات يا بطل، الجواب في سحبه الكثيفة!' },
+        { id: 'c', labelAr: 'لأنه أصغر حجماً من القمر', isCorrect: false, feedbackAr: 'الزهرة حجمه قريب جداً من حجم الأرض!' }
+      ]
+    }
   },
   {
     id: 'earth',
     nameAr: 'الأرض',
-    sprite: '/assets/sprites/planet-earth.png',
-    isCorrect: false,
-    wrongFeedbackAr: 'الأرض هي كوكبنا الأزرق الجميل! اختار الكوكب الأحمر يا بطل!'
+    englishName: 'Earth',
+    gravityG: 1.0,
+    gravityLabelAr: '1.0G (جاذبية مثالية 9.8 م/ث²)',
+    jumpHeightPx: 45,
+    hopDurationSec: 0.5,
+    bgGradient: 'from-blue-950 via-sky-900 to-indigo-950',
+    surfaceColor: 'bg-emerald-900/85',
+    surfaceBorder: 'border-emerald-400',
+    scientificFactAr:
+      'كوكبنا الأزرق الجميل، الكوكب الوحيد المعروف بوجود ماء سائل على سطحه وغلاف جوي غني بالأكسجين يحمي الحياة.',
+    nasaDiscoveryAr: 'قمر NASA DSCOVR EPIC يراقب الكوكب الأزرق يومياً لحماية المناخ والغلاف الجوي.',
+    nasaImage: '/assets/nasa/earth_blue_marble.jpg',
+    badgeAccent: 'text-emerald-200 border-emerald-300 bg-emerald-500/20',
+    planetQuestion: {
+      questionAr: 'ما النسبة التقريبية التي يغطيها الماء من سطح كوكب الأرض الأزرق؟',
+      options: [
+        { id: 'a', labelAr: 'حوالي 71% محيطات ومياه سائلة', isCorrect: true, feedbackAr: 'ممتاز! عشان كده أطلقت ناسا على الأرض لقب «الكرة الزرقاء»!' },
+        { id: 'b', labelAr: 'فقط 5% مثل المريخ', isCorrect: false, feedbackAr: 'المياه تغطي معظم كوكبنا! فكر في نسبة قريبة من ثلاثة أرباع الكوكب!' },
+        { id: 'c', labelAr: '100% ثلوج بدون يابسة', isCorrect: false, feedbackAr: 'توجد قارات واسعة بجانب البحار والمحيطات!' }
+      ]
+    }
+  },
+  {
+    id: 'moon',
+    nameAr: 'القمر',
+    englishName: 'The Moon',
+    gravityG: 0.16,
+    gravityLabelAr: '0.16G (سُدس جاذبية الأرض)',
+    jumpHeightPx: 120,
+    hopDurationSec: 1.2,
+    bgGradient: 'from-slate-950 via-slate-900 to-indigo-950',
+    surfaceColor: 'bg-slate-800/90',
+    surfaceBorder: 'border-slate-300',
+    scientificFactAr:
+      'الجاذبية على القمر خفيفة جداً (سُدس الأرض فقط)، لذلك يقفز رواد الفضاء عالياً وببطء ممتع!',
+    nasaDiscoveryAr: 'مركبة NASA LRO رسمت خرائط فوهة شاكلتون بالقطب الجنوبي لاكتشاف الجليد المائي لمهمة أرتميس.',
+    nasaImage: '/assets/nasa/moon_surface_lroc.jpg',
+    badgeAccent: 'text-yellow-200 border-yellow-300 bg-yellow-500/20',
+    planetQuestion: {
+      questionAr: 'كم تبلغ جاذبية القمر مقارنة بكوكب الأرض؟',
+      options: [
+        { id: 'a', labelAr: 'سُدس جاذبية الأرض (0.16G)', isCorrect: true, feedbackAr: 'صحيح! ولذلك تستطيع القفز على القمر 6 مرات أعلى من الأرض!' },
+        { id: 'b', labelAr: 'نفس جاذبية الأرض بالضبط', isCorrect: false, feedbackAr: 'جرب زر القفز فوق ولاحظ مدى ارتفاع قفزة روبو على القمر!' },
+        { id: 'c', labelAr: 'أقوى من المشتري', isCorrect: false, feedbackAr: 'المشتري أضخم كوكب وجاذبيته شديدة، بينما القمر خفيف جداً!' }
+      ]
+    }
+  },
+  {
+    id: 'mars',
+    nameAr: 'المريخ',
+    englishName: 'Mars',
+    gravityG: 0.38,
+    gravityLabelAr: '0.38G (الكوكب الأحمر)',
+    jumpHeightPx: 85,
+    hopDurationSec: 0.85,
+    bgGradient: 'from-orange-950 via-red-950 to-slate-950',
+    surfaceColor: 'bg-amber-900/90',
+    surfaceBorder: 'border-orange-500',
+    scientificFactAr:
+      'الكوكب الأحمر غني بأكسيد الحديد (الصدأ)، ويضم جبل «أوليمبوس مونس» أكبر بركان في المجموعة الشمسية بارتفاع 22 كم!',
+    nasaDiscoveryAr: 'تتجول عربة NASA Perseverance حالياً لتحليل صخور المريخ والبحث عن آثار بحيرات قديمة.',
+    nasaImage: '/assets/nasa/apod_sample.jpg',
+    badgeAccent: 'text-orange-200 border-orange-300 bg-orange-500/20',
+    planetQuestion: {
+      questionAr: 'ما الذي يمنح رمال كوكب المريخ لونها الأحمر المميز؟',
+      options: [
+        { id: 'a', labelAr: 'غبار أكسيد الحديد (الصدأ)', isCorrect: true, feedbackAr: 'عبقري المريخ! الصدأ الأحمر يغطي صحراء الكوكب الأحمر بالكامل!' },
+        { id: 'b', labelAr: 'أشجار الفراولة الحمراء', isCorrect: false, feedbackAr: 'لا توجد غابات حالياً على سطح المريخ البارد!' },
+        { id: 'c', labelAr: 'حمم بركانية مشتعلة دائماً', isCorrect: false, feedbackAr: 'براكين المريخ خامدة منذ ملايين السنين!' }
+      ]
+    }
+  },
+  {
+    id: 'jupiter',
+    nameAr: 'المشتري',
+    englishName: 'Jupiter',
+    gravityG: 2.53,
+    gravityLabelAr: '2.53G (جاذبية عملاقة هائلة)',
+    jumpHeightPx: 18,
+    hopDurationSec: 0.32,
+    bgGradient: 'from-stone-950 via-amber-950 to-indigo-950',
+    surfaceColor: 'bg-stone-900/90',
+    surfaceBorder: 'border-amber-500',
+    scientificFactAr:
+      'أكبر كواكب المجموعة الشمسية؛ جاذبيته تعادل ضعفين ونصف جاذبية الأرض وتدور فيه «البقعة الحمراء العظيمة».',
+    nasaDiscoveryAr: 'تدور مركبة NASA Juno حول المشتري لدراسة عواصفه العملاقة وأقماره الجليدية مثل أوروبا.',
+    nasaImage: '/assets/nasa/apod_sample.jpg',
+    badgeAccent: 'text-rose-200 border-rose-300 bg-rose-500/20',
+    planetQuestion: {
+      questionAr: 'ما هي «البقعة الحمراء العظيمة» الشهيرة على كوكب المشتري؟',
+      options: [
+        { id: 'a', labelAr: 'عاصفة إعصارية عملاقة أكبر من حجم الأرض تدور منذ قرون', isCorrect: true, feedbackAr: 'إجابة رائعة! هي أكبر عاصفة مرصودة في المجموعة الشمسية!' },
+        { id: 'b', labelAr: 'قارة صخرية مزروعة بالقمح', isCorrect: false, feedbackAr: 'المشتري كوكب غازي عملاق ليس له قارات صخرية!' },
+        { id: 'c', labelAr: 'محطة وقود قديمة لرواد الفضاء', isCorrect: false, feedbackAr: 'فكر في الطقس والعواصف الغازية الهائلة!' }
+      ]
+    }
+  },
+  {
+    id: 'saturn',
+    nameAr: 'زحل',
+    englishName: 'Saturn',
+    gravityG: 1.06,
+    gravityLabelAr: '1.06G (ذو الحلقات الجليدية)',
+    jumpHeightPx: 42,
+    hopDurationSec: 0.48,
+    bgGradient: 'from-amber-950 via-yellow-950 to-slate-950',
+    surfaceColor: 'bg-yellow-950/90',
+    surfaceBorder: 'border-yellow-400',
+    scientificFactAr:
+      'عملاق غازي رائع تزينه حلقات ذهبية واسعة تتكون من مليارات قطع الجليد والصخور الدوارة حوله.',
+    nasaDiscoveryAr: 'اكتشفت مركبة NASA Cassini ينابيع ماء جليدية تنطلق من قمره إنسيلادوس!',
+    nasaImage: '/assets/nasa/apod_sample.jpg',
+    badgeAccent: 'text-amber-200 border-amber-300 bg-amber-500/20',
+    planetQuestion: {
+      questionAr: 'مِمَّ تتكون حلقات كوكب زحل اللامعة التي نراها بالتلسكوب؟',
+      options: [
+        { id: 'a', labelAr: 'مليارات قطع الجليد والصخور الدوارة التي تعكس ضوء الشمس', isCorrect: true, feedbackAr: 'بطل زحل! قطع الجليد النظيفة تعكس ضوء الشمس كالمرآة!' },
+        { id: 'b', labelAr: 'طوق حديدي صلب مصبوب في قطعة واحدة', isCorrect: false, feedbackAr: 'ليست قطعة واحدة صلبة؛ إنها مليارات القطع المنفصلة!' },
+        { id: 'c', labelAr: 'شرارات نار مشتعلة', isCorrect: false, feedbackAr: 'الفضاء الخارجي بارد جداً؛ الحلقات جليدية وليست ناراً!' }
+      ]
+    }
+  },
+  {
+    id: 'asteroid_2010pk',
+    nameAr: 'كويكب 2010 PK',
+    englishName: 'Asteroid 2010 PK',
+    gravityG: 0.001,
+    gravityLabelAr: 'انعدام جاذبية تقريباً (رادار NeoWs)',
+    jumpHeightPx: 145,
+    hopDurationSec: 1.5,
+    bgGradient: 'from-purple-950 via-slate-950 to-black',
+    surfaceColor: 'bg-zinc-900/90',
+    surfaceBorder: 'border-cyan-400',
+    scientificFactAr:
+      'كويكب حقيقي ترصده ناسا باستمرار بقطر ~164 متراً وسرعة ~14.8 كم/ث، ويمر بأمان بعيداً عن الأرض!',
+    nasaDiscoveryAr: 'بيانات NASA NeoWs المباشرة تحسب مسافة مروره (أكثر من 19 ضعف مسافة القمر) بدقة عالية.',
+    nasaImage: '/assets/nasa/apod_sample.jpg',
+    badgeAccent: 'text-cyan-200 border-cyan-300 bg-cyan-500/20',
+    planetQuestion: {
+      questionAr: 'وفق رادار ناسا الحي لكويكب 2010 PK، هل يمثل خطراً على كوكب الأرض؟',
+      options: [
+        { id: 'a', labelAr: 'لا، يمر بأمان تام على بعد يزيد عن 19 ضعف مسافة القمر', isCorrect: true, feedbackAr: 'ممتاز يا مراقب ناسا! الكويكب في مسار آمن وبعيد تماماً!' },
+        { id: 'b', labelAr: 'نعم، سيهبط في منتصف ملعب كرة قدم غداً', isCorrect: false, feedbackAr: 'بيانات NeoWs الحية تؤكد أن مساره بعيد جداً وآمن 100%!' },
+        { id: 'c', labelAr: 'يتجمد في مكانه ولا يتحرك في الفضاء', isCorrect: false, feedbackAr: 'الكويكب يتحرك بسرعة تقارب 14.8 كم في الثانية!' }
+      ]
+    }
   }
 ];
-
-const INITIAL_QUESTION_SPEECH = 'ما هو الكوكب الأحمر؟ 🚀';
-const CORRECT_ANSWER_SPEECH =
-  'إجابة صحيحة يا بطل الفضاء! المريخ هو الكوكب الأحمر بسبب أكسيد الحديد على سطحه! 🌟';
 
 export interface SpaceScienceProps {
   onComplete?: () => void;
 }
 
-export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete }) => {
-  const { setLocation } = useGameState();
-  const [selectedPlanetId, setSelectedPlanetId] = useState<string | null>(null);
-  const [isAnsweredCorrectly, setIsAnsweredCorrectly] = useState<boolean>(false);
-  const [roboState, setRoboState] = useState<RoboState>('EXPLAINING');
-  const [roboSpeech, setRoboSpeech] = useState<string>(INITIAL_QUESTION_SPEECH);
+export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onComplete }) => {
+  const { state, setLocation } = useGameState();
+  const [activeWorld, setActiveWorld] = useState<CelestialWorld>(CELESTIAL_WORLDS[2]); // Start warmly on Earth
+  const [scienceTab, setScienceTab] = useState<'explore' | 'quiz'>('explore');
+  const [isRadarOpen, setIsRadarOpen] = useState<boolean>(false);
+  const [roboPosX, setRoboPosX] = useState<number>(50);
+  const [isJumping, setIsJumping] = useState<boolean>(false);
+  const [completedWorlds, setCompletedWorlds] = useState<Set<string>>(new Set());
+  const [planetAnswers, setPlanetAnswers] = useState<Record<string, { optionId: string; isCorrect: boolean }>>({});
+  const [quizSolvedCount, setQuizSolvedCount] = useState<number>(0);
+
+  const terrainRef = useRef<HTMLDivElement>(null);
+  const mapTopRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void dialogueManager.speak(INITIAL_QUESTION_SPEECH);
-    }, 120);
+    const speech = `أهلاً بك على ${activeWorld.nameAr}! ${activeWorld.scientificFactAr}`;
+    void dialogueManager.speak(speech);
+  }, [activeWorld]);
 
-    return () => {
-      window.clearTimeout(timer);
-      dialogueManager.stop();
+  const handleSelectWorld = (world: CelestialWorld) => {
+    soundManager.playClick();
+    setActiveWorld(world);
+    setRoboPosX(50);
+  };
+
+  const handleTriggerJump = () => {
+    if (isJumping) return;
+    soundManager.playBoing();
+    setIsJumping(true);
+    setTimeout(() => setIsJumping(false), activeWorld.hopDurationSec * 1000);
+  };
+
+  const handleMoveRoboStep = (deltaPercent: number) => {
+    soundManager.playClick();
+    setRoboPosX((prev) => Math.max(14, Math.min(86, prev + deltaPercent)));
+  };
+
+  const handleTerrainClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement)?.closest('button')) return;
+    if (!terrainRef.current) return;
+    const rect = terrainRef.current.getBoundingClientRect();
+    const clickX = ((e.clientX - rect.left) / rect.width) * 100;
+    setRoboPosX(Math.max(14, Math.min(86, clickX)));
+    handleTriggerJump();
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (scienceTab !== 'explore') return;
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        setRoboPosX((prev) => Math.min(86, prev + 6));
+      } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        setRoboPosX((prev) => Math.max(14, prev - 6));
+      } else if (e.code === 'Space' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+        e.preventDefault();
+        handleTriggerJump();
+      }
     };
-  }, []);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeWorld, scienceTab]);
 
-  const handleSelectOption = (option: PlanetOption) => {
-    setSelectedPlanetId(option.id);
+  const handleAnswerPlanetQuestion = (opt: PlanetChallenge['options'][number]) => {
+    soundManager.playClick();
+    setPlanetAnswers((prev) => ({
+      ...prev,
+      [activeWorld.id]: { optionId: opt.id, isCorrect: opt.isCorrect }
+    }));
 
-    if (option.isCorrect) {
-      soundManager.playFanfare();
-      setIsAnsweredCorrectly(true);
-      setRoboState('CELEBRATING');
-      setRoboSpeech(CORRECT_ANSWER_SPEECH);
-      void dialogueManager.speak(CORRECT_ANSWER_SPEECH);
+    if (opt.isCorrect) {
+      soundManager.playDropSuccess();
+      setCompletedWorlds((prev) => new Set([...prev, activeWorld.id]));
+      void dialogueManager.speak('إجابة عبقرية! بطل ناسا الحقيقي ممتاز جداً!');
     } else {
       soundManager.playAlertSiren();
-      setRoboState('WARNING');
-      setRoboSpeech(option.wrongFeedbackAr);
-      void dialogueManager.speak(option.wrongFeedbackAr);
+      void dialogueManager.speak('قربت جداً يا بطل! فكر تاني وجرب الخيار الصح!');
     }
   };
 
-  const handleNextMission = () => {
-    dialogueManager.stop();
+  const handleExploreNextPlanet = () => {
     soundManager.playClick();
-    if (onComplete) {
-      onComplete();
+    const unvisited = CELESTIAL_WORLDS.find((w) => w.id !== activeWorld.id && !completedWorlds.has(w.id));
+    const currentIdx = CELESTIAL_WORLDS.findIndex((w) => w.id === activeWorld.id);
+    const nextWorld = unvisited || CELESTIAL_WORLDS[(currentIdx + 1) % CELESTIAL_WORLDS.length];
+    handleSelectWorld(nextWorld);
+    mapTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleProceedNextStage = () => {
+    soundManager.playFanfare();
+    if (state.unlockedRooms.includes('LunarDashboard')) {
+      setLocation('LunarDashboard');
     } else {
-      setLocation('HumanHealth');
+      setLocation('Map');
     }
   };
+
+  const liveAsteroid = nasaCache.getAsteroid('3542519');
+  const sampleKidWeightOnWorld = Math.round(30 * activeWorld.gravityG * 10) / 10;
+  const activeAnswer = planetAnswers[activeWorld.id];
+  const selectedOption = activeAnswer
+    ? activeWorld.planetQuestion.options.find((o) => o.id === activeAnswer.optionId)
+    : undefined;
 
   return (
-    <div className="relative w-full min-h-screen flex flex-col justify-between overflow-x-hidden select-none pt-20 pb-6 px-3 sm:px-6 lg:px-8">
-      {/* ===================================================================
-          CLEAN SPACE OBSERVATORY BACKGROUND (NO FLATTENED SCREENSHOT)
-         =================================================================== */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_#0b2963_0%,_#061539_55%,_#020617_100%)]" />
-        <div className="absolute inset-0 space-stars opacity-75" />
+    <div
+      className={`relative w-full min-h-screen flex flex-col gap-4 overflow-x-hidden select-none pt-20 pb-8 px-3 sm:px-6 lg:px-8 bg-gradient-to-b ${activeWorld.bgGradient} transition-colors duration-700`}
+      dir="rtl"
+    >
+      {/* Clean Subtle Cosmic Background */}
+      <div className="fixed inset-0 space-stars opacity-65 pointer-events-none" />
 
-        {/* Distant Floating Saturn & Earth in Observatory Viewport */}
-        <motion.img
-          src="/assets/ui/saturn-3d.svg"
-          alt=""
-          animate={{ y: [0, -8, 0], rotate: [-2, 2, -2] }}
-          transition={{ repeat: Infinity, duration: 7, ease: 'easeInOut' }}
-          className="absolute top-20 left-[12%] w-24 sm:w-36 object-contain opacity-80"
-        />
+      {/* 1. CLEAN HEADER & MODE SWITCHER */}
+      <div ref={mapTopRef} className="relative z-10 w-full max-w-6xl mx-auto flex flex-col gap-4">
+        <div className="casual-card p-4 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <PlanetIllustration planetId={activeWorld.id} size={52} />
+            <div>
+              <h1 className="font-hud font-black text-xl sm:text-2xl text-white flex items-center gap-2 flex-wrap">
+                <span>أكاديمية الكواكب والجاذبية</span>
+                <span className={`text-xs px-3 py-0.5 rounded-full border ${activeWorld.badgeAccent}`}>
+                  {activeWorld.nameAr}
+                </span>
+              </h1>
+              <p className="text-xs sm:text-sm font-hud font-bold text-cyan-200 mt-0.5">
+                {activeWorld.gravityLabelAr} • الكواكب المكتملة: {completedWorlds.size} / {CELESTIAL_WORLDS.length}
+              </p>
+            </div>
+          </div>
 
-        {/* Futuristic Observatory Ceiling Arch & Floor */}
-        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[130%] h-40 rounded-b-[100%] border-b-4 border-cyan-300/50 bg-gradient-to-b from-sky-900/60 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 h-[28%] bg-gradient-to-t from-sky-950 via-slate-900/90 to-transparent border-t-2 border-cyan-400/40" />
-      </div>
-
-      {/* ===================================================================
-          1. TOP RESPONSIVE TITLE BANNER ("علوم الفضاء")
-         =================================================================== */}
-      <div className="relative z-10 w-full max-w-4xl mx-auto flex flex-col items-center text-center mb-4">
-        <div className="inline-flex items-center gap-3 px-6 sm:px-12 py-2.5 sm:py-3.5 rounded-full bg-gradient-to-r from-blue-950 via-sky-700 to-blue-950 border-4 border-cyan-300 shadow-[0_10px_30px_rgba(6,182,212,0.5)]">
-          <img
-            src="/assets/ui/saturn-3d.svg"
-            alt="كوكب"
-            className="w-10 h-10 sm:w-12 sm:h-12 object-contain"
-          />
-          <h1 className="font-hud font-black text-2xl sm:text-4xl text-white drop-shadow">
-            علوم الفضاء
-          </h1>
-        </div>
-
-        <div className="mt-2.5 px-6 sm:px-10 py-2 rounded-full bg-gradient-to-r from-slate-900/95 via-sky-950/95 to-slate-900/95 border-2 border-amber-400/80 shadow-lg">
-          <p className="font-hud font-black text-sm sm:text-xl text-white">
-            اكتشف الكواكب وأجب على الأسئلة 🪐
-          </p>
-        </div>
-      </div>
-
-      {/* ===================================================================
-          2. MIDDLE 3-COLUMN RESPONSIVE STAGE (Flexbox & Grid)
-             [Robo + Question Bubble] | [3D Floating Planet Display] | [Quick Facts Card]
-         =================================================================== */}
-      <div className="relative z-10 w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-center my-auto py-2">
-        {/* COLUMN 1 (Right in RTL, 3 cols): AnimatedRobo + Question Bubble */}
-        <div className="lg:col-span-3 w-full flex flex-col items-center justify-center order-2 lg:order-1">
-          <AnimatedRobo
-            state={roboState}
-            spokenText={roboSpeech}
-            autoSpeak={false}
-            size="lg"
-            showSpeechBubble={true}
-          />
-        </div>
-
-        {/* COLUMN 2 (Center, 6 cols): Separate 3D-Styled Floating Planet in Sci-Fi Frame */}
-        <div className="lg:col-span-6 w-full flex flex-col items-center justify-center order-1 lg:order-2">
-          <div className="relative w-full max-w-xl rounded-[2.5rem] p-4 sm:p-6 bg-gradient-to-b from-slate-950/90 via-indigo-950/90 to-slate-950/95 border-4 border-cyan-300 shadow-[0_0_50px_rgba(34,211,238,0.5)] flex flex-col items-center justify-center overflow-hidden min-h-[260px] sm:min-h-[320px]">
-            {/* Starfield inside Hologram Frame */}
-            <div className="absolute inset-0 space-stars opacity-85 pointer-events-none" />
-
-            {/* Neon Corner Brackets */}
-            <div className="absolute top-3 left-3 w-8 h-8 border-t-4 border-l-4 border-cyan-300 rounded-tl-xl pointer-events-none" />
-            <div className="absolute top-3 right-3 w-8 h-8 border-t-4 border-r-4 border-cyan-300 rounded-tr-xl pointer-events-none" />
-            <div className="absolute bottom-3 left-3 w-8 h-8 border-b-4 border-l-4 border-cyan-300 rounded-bl-xl pointer-events-none" />
-            <div className="absolute bottom-3 right-3 w-8 h-8 border-b-4 border-r-4 border-cyan-300 rounded-br-xl pointer-events-none" />
-
-            {/* Floating 3D Red Planet Component */}
-            <motion.div
-              animate={{
-                y: [0, -12, 0],
-                rotate: [0, 3, -3, 0],
-                scale: isAnsweredCorrectly ? [1, 1.08, 1] : 1
-              }}
-              transition={{ repeat: Infinity, duration: 5, ease: 'easeInOut' }}
-              className="relative z-10 w-48 h-48 sm:w-64 sm:h-64 rounded-full flex items-center justify-center"
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsRadarOpen(true)}
+              className="casual-btn-cyan py-2.5 px-4 text-xs sm:text-sm flex items-center gap-2 cursor-pointer"
             >
-              <div className="absolute inset-0 rounded-full bg-orange-500/30 blur-2xl pointer-events-none" />
-              <img
-                src="/assets/sprites/mars-hero.png"
-                alt="الكوكب الأحمر - المريخ"
-                draggable={false}
-                className="w-full h-full object-contain rounded-full shadow-[0_0_45px_rgba(234,88,12,0.75)] border-2 border-orange-300/40"
-              />
-            </motion.div>
+              <Radio className="w-4 h-4 animate-pulse" />
+              <span>رادار كويكب ناسا 2010 PK 📡</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleProceedNextStage}
+              className="casual-btn-primary py-2.5 px-4 text-xs sm:text-sm flex items-center gap-2 cursor-pointer"
+            >
+              <Rocket className="w-4 h-4" />
+              <span>
+                {state.unlockedRooms.includes('LunarDashboard')
+                  ? 'الانتقال لمستعمرة القمر 🌙'
+                  : 'العودة لاستكمال تجهيز الرحلة 🚀'}
+              </span>
+            </button>
           </div>
         </div>
 
-        {/* COLUMN 3 (Left in RTL, 3 cols): "معلومات سريعة" (Quick Facts) Panel */}
-        <div className="lg:col-span-3 w-full flex justify-center order-3">
-          <div className="w-full max-w-sm rounded-[2rem] bg-gradient-to-b from-amber-100 via-orange-50 to-amber-100 border-4 border-amber-400 shadow-[0_12px_35px_rgba(245,158,11,0.35)] p-4 sm:p-5 text-slate-900 relative">
-            <div className="flex items-center justify-between bg-gradient-to-r from-blue-950 via-sky-800 to-blue-950 text-white font-hud font-black text-base sm:text-lg px-4 py-2 rounded-2xl border-2 border-cyan-300 mb-3 shadow">
-              <span>معلومات سريعة</span>
-              <Lightbulb className="w-6 h-6 text-yellow-300 fill-yellow-300 animate-pulse" />
-            </div>
-
-            <p className="font-hud font-black text-sm sm:text-lg text-slate-900 leading-relaxed text-center py-2">
-              المريخ يُعرف بالكوكب الأحمر بسبب لونه المميز الغني بأكسيد الحديد! 🔴
-            </p>
-
-            <div className="mt-3 rounded-2xl overflow-hidden border-2 border-amber-300 bg-gradient-to-r from-orange-800 via-amber-700 to-red-900 p-3 text-center text-amber-100 font-hud font-bold text-xs sm:text-sm">
-              🏔️ يضم كوكب المريخ جبل أوليمبوس، وهو أكبر بركان في المجموعة الشمسية!
-            </div>
-          </div>
+        {/* Mode Tabs */}
+        <div className="flex items-center justify-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClick();
+              setScienceTab('explore');
+            }}
+            className={`px-5 py-2.5 rounded-2xl font-hud font-black text-xs sm:text-sm transition-all cursor-pointer ${
+              scienceTab === 'explore'
+                ? 'casual-btn-cyan'
+                : 'bg-slate-900/80 text-slate-200 border-2 border-white/20 hover:bg-slate-800'
+            }`}
+          >
+            🪐 خريطة المجموعة الشمسية واستكشاف الكواكب
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClick();
+              setScienceTab('quiz');
+            }}
+            className={`px-5 py-2.5 rounded-2xl font-hud font-black text-xs sm:text-sm transition-all cursor-pointer flex items-center gap-2 ${
+              scienceTab === 'quiz'
+                ? 'casual-btn-primary'
+                : 'bg-slate-900/80 text-slate-200 border-2 border-white/20 hover:bg-slate-800'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>🧠 تحدي أسئلة الفضاء ({SPACE_SCIENCE_QUESTIONS.length} سؤال)</span>
+            {quizSolvedCount >= 3 && <span className="text-emerald-200">✅</span>}
+          </button>
         </div>
-      </div>
 
-      {/* ===================================================================
-          3. BOTTOM 4 RESPONSIVE ANSWER BUTTONS (Grid Layout)
-         =================================================================== */}
-      <div className="relative z-20 w-full max-w-5xl mx-auto mt-4">
-        <div className="bg-sky-950/85 backdrop-blur-md border-4 border-cyan-400/70 rounded-[2.2rem] p-3.5 sm:p-5 shadow-2xl">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 sm:gap-5">
-            {PLANET_OPTIONS.map((option) => {
-              const isSelected = selectedPlanetId === option.id;
-              const showCorrectStyle = isSelected && option.isCorrect;
-              const showWrongStyle = isSelected && !option.isCorrect;
+        {/* INTERACTIVE TRANSPARENT PLANET SELECTOR MAP (8 CELESTIAL BODIES, ZERO BOXES) */}
+        {scienceTab === 'explore' && (
+          <div className="relative py-3 px-2 overflow-x-auto">
+            <div className="flex items-center justify-between gap-4 sm:gap-5 min-w-max mx-auto px-4 relative">
+              {/* Soft Orbit Line Behind Transparent Planets */}
+              <div className="absolute left-8 right-8 top-9 h-0.5 bg-gradient-to-r from-amber-300/35 via-cyan-300/45 to-purple-300/35 pointer-events-none rounded-full" />
 
-              return (
-                <motion.button
-                  key={option.id}
-                  type="button"
-                  whileHover={{ scale: 1.05, y: -5 }}
-                  whileTap={{ scale: 0.96 }}
-                  onClick={() => handleSelectOption(option)}
-                  className={`relative rounded-3xl p-3 sm:p-4 flex flex-col items-center justify-between border-4 transition-all cursor-pointer ${
-                    showCorrectStyle
-                      ? 'bg-gradient-to-b from-lime-200 via-emerald-300 to-green-500 border-emerald-300 shadow-[0_0_35px_rgba(16,185,129,0.8)]'
-                      : showWrongStyle
-                      ? 'bg-gradient-to-b from-rose-100 to-rose-300 border-rose-500 shadow-[0_0_25px_rgba(244,63,94,0.7)]'
-                      : 'bg-gradient-to-b from-white via-sky-50 to-sky-100 border-sky-300 hover:border-cyan-300 shadow-lg'
-                  }`}
-                >
-                  {/* Top-Right Status Badge when Selected */}
-                  {isSelected && (
+              {CELESTIAL_WORLDS.map((world) => {
+                const isSelected = activeWorld.id === world.id;
+                const isSolved = completedWorlds.has(world.id);
+
+                return (
+                  <motion.button
+                    key={world.id}
+                    type="button"
+                    whileHover={{ scale: 1.12, y: -4 }}
+                    whileTap={{ scale: 0.94 }}
+                    onClick={() => handleSelectWorld(world)}
+                    className="relative z-10 flex flex-col items-center gap-1.5 bg-transparent border-0 p-1 cursor-pointer group focus:outline-none"
+                  >
                     <div
-                      className={`absolute -top-3 -right-3 w-9 h-9 sm:w-10 sm:h-10 rounded-full border-3 border-white flex items-center justify-center shadow-lg ${
-                        option.isCorrect ? 'bg-emerald-500 text-white' : 'bg-rose-600 text-white'
+                      className={`relative flex items-center justify-center rounded-full transition-all duration-300 ${
+                        isSelected
+                          ? 'scale-115 drop-shadow-[0_0_22px_rgba(34,211,238,0.9)]'
+                          : 'opacity-85 group-hover:opacity-100'
                       }`}
                     >
-                      {option.isCorrect ? (
-                        <Check className="w-6 h-6 stroke-[3.5]" />
-                      ) : (
-                        <X className="w-6 h-6 stroke-[3.5]" />
+                      <PlanetIllustration planetId={world.id} size={isSelected ? 74 : 62} />
+                      {isSolved && (
+                        <span className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-black border-2 border-white shadow-md">
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        </span>
                       )}
                     </div>
-                  )}
-
-                  {/* Planet 3D Sprite */}
-                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white/90 flex items-center justify-center p-1.5 shadow-inner">
-                    <img
-                      src={option.sprite}
-                      alt={option.nameAr}
-                      draggable={false}
-                      className="w-full h-full object-contain pointer-events-none"
-                    />
-                  </div>
-
-                  {/* Planet Arabic Label */}
-                  <span className="font-hud font-black text-base sm:text-xl text-slate-950 mt-2">
-                    {option.nameAr}
-                  </span>
-                </motion.button>
-              );
-            })}
+                    <span
+                      className={`font-hud font-black text-xs sm:text-sm px-2.5 py-0.5 rounded-full transition-colors ${
+                        isSelected
+                          ? 'bg-cyan-400 text-slate-950 shadow'
+                          : 'text-slate-100 group-hover:text-cyan-200'
+                      }`}
+                    >
+                      {world.nameAr}
+                    </span>
+                  </motion.button>
+                );
+              })}
+            </div>
           </div>
+        )}
+      </div>
 
-          {/* Proceed Button after Correct Answer */}
-          <AnimatePresence>
-            {isAnsweredCorrectly && (
+      {scienceTab === 'quiz' ? (
+        <div className="relative z-10 w-full max-w-4xl mx-auto my-2 flex-1">
+          <InteractiveQuizDeck
+            questions={SPACE_SCIENCE_QUESTIONS}
+            titleAr="اختبار أبطال الفضاء من ناسا"
+            subtitleAr="اختبر معلوماتك عن عطارد، الزهرة، المريخ، حلقات زحل، وكويكب 2010 PK!"
+            accent="cyan"
+            milestoneCount={3}
+            onMilestoneComplete={(score) => setQuizSolvedCount(score)}
+          />
+        </div>
+      ) : (
+        <div className="relative z-10 w-full max-w-6xl mx-auto flex flex-col gap-4">
+          {/* 2. UNCLUTTERED 2.5D CARTOON SURFACE VIEWPORT WITH TOUCH + KEYBOARD PAD */}
+          <div
+            ref={terrainRef}
+            onClick={handleTerrainClick}
+            className="relative w-full h-[340px] sm:h-[400px] rounded-3xl border-4 border-cyan-300/80 overflow-hidden shadow-[0_0_40px_rgba(6,182,212,0.28)] bg-gradient-to-b from-transparent via-black/35 to-black/80 flex flex-col justify-end cursor-pointer"
+          >
+            {/* Top-Right Compact Gravity Weight Comparator Badge */}
+            <div className="absolute top-4 right-4 z-20 casual-pill px-4 py-2 flex items-center gap-2 text-xs sm:text-sm font-hud font-black text-amber-200 pointer-events-none">
+              <Scale className="w-4 h-4 text-amber-300 shrink-0" />
+              <span>
+                وزن 30 كجم على الأرض = <strong className="text-white">{sampleKidWeightOnWorld} كجم</strong> على {activeWorld.nameAr}
+              </span>
+            </div>
+
+            {/* Floating Transparent Celestial Planet in Sky */}
+            <motion.div
+              animate={{ y: [0, -8, 0] }}
+              transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute top-6 left-8 pointer-events-none opacity-95"
+            >
+              <PlanetIllustration planetId={activeWorld.id} size={96} />
+            </motion.div>
+
+            {/* Interactive Chibi Robo Character */}
+            <div
+              className="absolute bottom-20 transition-all duration-300 pointer-events-none"
+              style={{ left: `${roboPosX}%`, transform: 'translateX(-50%)' }}
+            >
               <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="mt-4 flex justify-center"
+                animate={
+                  isJumping
+                    ? {
+                        y: -activeWorld.jumpHeightPx,
+                        rotate: [0, -8, 8, 0],
+                        scale: [1, 1.12, 0.96, 1]
+                      }
+                    : { y: [0, -4, 0] }
+                }
+                transition={{
+                  duration: isJumping ? activeWorld.hopDurationSec : 1.4,
+                  ease: isJumping ? 'easeOut' : 'easeInOut',
+                  repeat: isJumping ? 0 : Infinity
+                }}
+                className="flex flex-col items-center"
               >
+                <img
+                  src="/assets/generated/characters/robo_chibi_sprite.png"
+                  alt="روبو"
+                  className="w-20 h-20 sm:w-24 sm:h-24 object-contain drop-shadow-[0_10px_18px_rgba(0,0,0,0.85)]"
+                />
+                <motion.div
+                  animate={isJumping ? { scale: 0.35, opacity: 0.2 } : { scale: 1, opacity: 0.6 }}
+                  transition={{ duration: activeWorld.hopDurationSec }}
+                  className="w-16 h-3.5 rounded-full bg-black/60 blur-[2px] mt-1"
+                />
+              </motion.div>
+            </div>
+
+            {/* Surface Deck with On-Screen Robo Touch & Keyboard Controls */}
+            <div
+              className={`w-full min-h-[76px] py-2 ${activeWorld.surfaceColor} border-t-4 ${activeWorld.surfaceBorder} flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 shadow-2xl relative z-10`}
+            >
+              <div className="flex items-center gap-2 text-white font-hud font-black text-xs sm:text-sm">
+                <Compass className="w-4 h-4 text-cyan-300 shrink-0" />
+                <span>سطح {activeWorld.nameAr} • الجاذبية: {activeWorld.gravityG}G</span>
+              </div>
+
+              {/* Intuitive Touch + Keyboard Control Pad */}
+              <div className="flex items-center gap-2" dir="ltr">
                 <button
                   type="button"
-                  onClick={handleNextMission}
-                  className="px-8 py-3.5 rounded-full bg-gradient-to-r from-emerald-400 via-green-500 to-teal-600 hover:brightness-110 text-white font-hud font-black text-lg sm:text-xl border-4 border-white shadow-[0_0_30px_rgba(16,185,129,0.7)] flex items-center gap-2 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMoveRoboStep(-10);
+                  }}
+                  className="p-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border-2 border-cyan-300 text-white cursor-pointer"
+                  aria-label="تحريك لليسار"
                 >
-                  <Sparkles className="w-6 h-6" />
-                  <span>المهمة التالية: الصحة وجسم الإنسان</span>
-                  <ArrowLeft className="w-6 h-6" />
+                  <ArrowLeft className="w-4 h-4" />
                 </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTriggerJump();
+                  }}
+                  className="casual-btn-primary py-2 px-4 text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ArrowUp className="w-4 h-4" />
+                  <span>اقفز [SPACE] 🚀</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMoveRoboStep(10);
+                  }}
+                  className="p-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border-2 border-cyan-300 text-white cursor-pointer"
+                  aria-label="تحريك لليمين"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. FOCUSED PER-PLANET LESSON + INTERACTIVE CHALLENGE (MAX 2 CARDS, GENEROUS GAP-4) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+            {/* Left/Top Lesson + Real NASA Photo Card (5 Cols) */}
+            <div className="lg:col-span-5 casual-card p-4 flex flex-col justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <PlanetIllustration planetId={activeWorld.id} size={48} />
+                <div>
+                  <h2 className="font-hud font-black text-base sm:text-lg text-white">
+                    بطاقة استكشاف {activeWorld.nameAr}
+                  </h2>
+                  <p className="text-xs text-cyan-200 font-bold">{activeWorld.englishName}</p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl overflow-hidden border-2 border-cyan-300/50 h-36 bg-slate-950">
+                <img
+                  src={activeWorld.nasaImage}
+                  alt={`صورة ناسا لـ ${activeWorld.nameAr}`}
+                  onError={(e) => {
+                    const img = e.currentTarget as HTMLImageElement;
+                    if (!img.dataset.fallbackApplied) {
+                      img.dataset.fallbackApplied = '1';
+                      img.src = '/assets/nasa/apod_sample.jpg';
+                    }
+                  }}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+
+              <p className="font-hud font-bold text-xs sm:text-sm text-white leading-relaxed">
+                {activeWorld.scientificFactAr}
+              </p>
+
+              <div className="rounded-2xl bg-slate-950/75 border border-cyan-400/35 p-3 text-xs font-hud font-bold text-cyan-200 leading-relaxed">
+                🛰️ <strong>رصد ناسا:</strong> {activeWorld.nasaDiscoveryAr}
+                {activeWorld.id === 'asteroid_2010pk' && (
+                  <span className="block mt-1 text-amber-200">
+                    سرعة الكويكب: {Math.round(liveAsteroid.relativeVelocityKmS * 10) / 10} كم/ث • القطر: {Math.round(liveAsteroid.diameterMeters.max)} م
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Right Focused Interactive Planet Question + Continuation Choice (7 Cols) */}
+            <div className="lg:col-span-7 casual-card p-4 sm:p-5 flex flex-col justify-between gap-4">
+              <div className="space-y-3">
+                <span className="casual-badge inline-flex items-center gap-1.5 px-3 py-1 text-xs font-hud font-black">
+                  🎯 سؤال محطة {activeWorld.nameAr}
+                </span>
+                <h3 className="font-hud font-black text-base sm:text-xl text-white leading-relaxed">
+                  {activeWorld.planetQuestion.questionAr}
+                </h3>
+
+                <div className="space-y-2.5 pt-1">
+                  {activeWorld.planetQuestion.options.map((opt) => {
+                    const isPicked = activeAnswer?.optionId === opt.id;
+                    const showGood = isPicked && opt.isCorrect;
+                    const showBad = isPicked && !opt.isCorrect;
+                    const revealGood = Boolean(activeAnswer?.isCorrect) && opt.isCorrect;
+
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => handleAnswerPlanetQuestion(opt)}
+                        className={`w-full text-right p-3.5 rounded-2xl border-2 font-hud font-bold text-sm sm:text-base transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                          showGood || revealGood
+                            ? 'bg-emerald-500/30 border-emerald-300 text-white'
+                            : showBad
+                            ? 'bg-rose-500/30 border-rose-300 text-rose-100'
+                            : 'bg-slate-900/80 hover:bg-indigo-900/60 border-white/20 hover:border-cyan-300 text-slate-100'
+                        }`}
+                      >
+                        <span>{opt.labelAr}</span>
+                        {(showGood || revealGood) && <Check className="w-5 h-5 text-emerald-300 shrink-0" />}
+                        {showBad && <X className="w-5 h-5 text-rose-300 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {selectedOption && (
+                  <div
+                    className={`rounded-2xl p-3.5 border-2 font-hud font-bold text-xs sm:text-sm ${
+                      selectedOption.isCorrect
+                        ? 'bg-emerald-950/65 border-emerald-400/70 text-emerald-100'
+                        : 'bg-amber-950/65 border-amber-400/70 text-amber-100'
+                    }`}
+                  >
+                    💡 {selectedOption.feedbackAr}
+                  </div>
+                )}
+              </div>
+
+              {/* Post-Answer Continuation Choice Prompt */}
+              {activeAnswer?.isCorrect && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-2xl bg-gradient-to-r from-cyan-950/90 to-emerald-950/90 border-2 border-cyan-300/70 p-4 space-y-3"
+                >
+                  <p className="font-hud font-black text-sm sm:text-base text-white">
+                    🎉 رائع يا رائد الفضاء! ماذا تريد أن تفعل الآن؟
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleExploreNextPlanet}
+                      className="casual-btn-cyan px-4 py-2.5 text-xs sm:text-sm cursor-pointer"
+                    >
+                      استكشاف كوكب آخر 🪐
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleProceedNextStage}
+                      className="casual-btn-primary px-4 py-2.5 text-xs sm:text-sm cursor-pointer"
+                    >
+                      إكمال المهمة والانتقال للمرحلة التالية 🚀
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* NASA Asteroid Radar Modal */}
+      <AsteroidRadarModal
+        isOpen={isRadarOpen}
+        onClose={() => setIsRadarOpen(false)}
+      />
     </div>
   );
 };
+
+export default SpaceScience;

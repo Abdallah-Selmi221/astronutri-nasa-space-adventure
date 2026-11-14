@@ -11,8 +11,9 @@ import {
   Droplets, 
   Activity, 
   Heart, 
-  Sprout,
-  ArrowRight
+  Sprout, 
+  ArrowRight,
+  Rocket
 } from 'lucide-react';
 
 export const VictoryModal: React.FC = () => {
@@ -194,6 +195,20 @@ export const VictoryModal: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Stage 4 Launch Button */}
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={() => {
+              dismissVictoryModal();
+              setLocation('ReturnToEarth');
+            }}
+            className="w-full mb-3 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-400 via-orange-500 to-yellow-400 text-space-950 font-hud font-black text-sm sm:text-base shadow-xl shadow-orange-500/50 hover:brightness-110 flex items-center justify-center gap-2 border-2 border-yellow-200"
+          >
+            <Rocket className="w-5 h-5 fill-current" />
+            <span>الانطلاق نحو المرحلة 4: العودة للأرض والهبوط المائي 🌍🚀</span>
+          </motion.button>
 
           {/* Action Buttons: Play Again & Return to Map */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">

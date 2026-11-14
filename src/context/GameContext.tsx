@@ -14,6 +14,14 @@ import {
 import { SolarStormData } from '../utils/nasaApi';
 import { TARGET_NUTRITION_REQUIREMENTS } from '../data/foodItems';
 import { soundManager } from '../utils/sound';
+import { 
+  hydrateGameState, 
+  saveProgress, 
+  clearSavedProgress, 
+  isAutoSaveDisabled,
+  getStorageStatus,
+  SaveInspectionResult
+} from '../utils/storage';
 
 const initialSuitState: SuitCheckState = {
   helmetVisorLocked: false,
@@ -62,7 +70,7 @@ const initialLevel2State: Level2State = {
   isGameVictoryModalOpen: false
 };
 
-const initialState: GameState = {
+export const initialState: GameState = {
   showIntroModal: false, // Default to false: direct entry to 2.5D Home World Screen
   currentLocation: 'Map',
   cargoWeight: 0,
@@ -79,8 +87,10 @@ const initialState: GameState = {
   o2Level: 20,
   hasSpicySauce: false,
   isNutritionMissionComplete: false,
+  isHumanHealthComplete: false,
   isSuitMissionComplete: false,
   isEngineMissionComplete: false,
+  isReturnMissionComplete: false,
   suitState: initialSuitState,
   engineCoreState: initialEngineCoreState,
   launchPadState: initialLaunchPadState,
@@ -107,9 +117,8 @@ export function calculateNutrition(items: CargoItemEntry[]): {
     totalProtein += item.proteinGrams * quantity;
     totalCarbs += item.carbsGrams * quantity;
 
-    if (item.id === TARGET_NUTRITION_REQUIREMENTS.requiresSpecialItem) {
-      hasSpicySauce = true;
-    }
+    // Special items handled by standard nutrition metrics
+    // Legacy hasSpicySauce field preserved as false for storage schema backward compatibility
   }
 
   const cargoWeight = Math.min(100, rawWeight);
@@ -130,16 +139,16 @@ export function calculateNutrition(items: CargoItemEntry[]): {
     feedbackTip = `محتاجين على الأقل ${TARGET_NUTRITION_REQUIREMENTS.minCargoWeight}% من وزن الشحنة لتكفي رواد الفضاء!`;
   } else if (ratio > TARGET_NUTRITION_REQUIREMENTS.idealProteinRatioMax) {
     status = 'too_much_protein';
-    statusLabel = 'بروتين زيادة عن اللزوم! ⚠️';
-    feedbackTip = 'العضلات محمية لكن الرواد محتاجين طاقة سريعة! ضيف فواكه مجففة!';
+    statusLabel = 'نسبة بروتين مرتفعة! ⚠️';
+    feedbackTip = 'البروتين يحمي العضلات من الضمور في الفضاء، لكن الرواد يحتاجون أيضاً كربوهيدرات متوازنة لمنحهم طاقة مستمرة!';
   } else if (ratio < TARGET_NUTRITION_REQUIREMENTS.idealProteinRatioMin) {
     status = 'too_much_carbs';
-    statusLabel = 'كربوهيدرات وسكريات زيادة! ⚠️';
-    feedbackTip = 'طاقة ممتازة لكن العضلات ستضعف في انعدام الجاذبية! ضيف لحم أو جبن!';
+    statusLabel = 'كربوهيدرات مرتفعة! ⚠️';
+    feedbackTip = 'الكربوهيدرات تمنح طاقة حركية، لكن الرواد بحاجة إلى بروتينات لحماية العضلات وكثافة العظام في الجاذبية الصغرى!';
   } else {
     status = 'optimal_balanced';
-    statusLabel = 'توازن غذائي مثالي لرواد الفضاء! 🌟';
-    feedbackTip = 'عضلات قوية وطاقة صاروخية! وجبات أبطال الفضاء جاهزة للإقلاع!';
+    statusLabel = 'توازن غذائي معتمد من ناسا! 🌟';
+    feedbackTip = 'توازن مثالي بين طاقة الكربوهيدرات وبروتينات حماية العضلات! وجبة رواد الفضاء جاهزة للإقلاع!';
   }
 
   const canCompleteMission = 
@@ -241,6 +250,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         isNutritionMissionComplete: true,
         unlockedRooms: updatedRooms
+      };
+    }
+
+    case 'COMPLETE_HUMAN_HEALTH': {
+      return {
+        ...state,
+        isHumanHealthComplete: true
       };
     }
 
@@ -555,8 +571,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'CONCLUDE_EVA': {
       soundManager.playFanfare();
       const willTriggerVictory = state.level2State.isTradeOffResolved;
+      const updatedRooms: RoomLocation[] =
+        willTriggerVictory && !state.unlockedRooms.includes('ReturnToEarth')
+          ? [...state.unlockedRooms, 'ReturnToEarth']
+          : state.unlockedRooms;
       return {
         ...state,
+        unlockedRooms: updatedRooms,
         level2State: {
           ...state.level2State,
           isEVASafeReturned: true,
@@ -623,9 +644,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
       // Check if Victory Screen should open (EVA returned + storm resolved)
       const shouldOpenVictory = state.level2State.isEVASafeReturned;
+      const updatedRooms: RoomLocation[] =
+        shouldOpenVictory && !state.unlockedRooms.includes('ReturnToEarth')
+          ? [...state.unlockedRooms, 'ReturnToEarth']
+          : state.unlockedRooms;
 
       return {
         ...state,
+        unlockedRooms: updatedRooms,
         level2State: {
           ...state.level2State,
           tradeOffChoice: choice,
@@ -636,6 +662,31 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           isSolarStormActive: false,
           isGameVictoryModalOpen: shouldOpenVictory
         }
+      };
+    }
+
+    case 'COMPLETE_RETURN_MISSION': {
+      return {
+        ...state,
+        isReturnMissionComplete: true
+      };
+    }
+
+    case 'UNLOCK_ALL_ROOMS': {
+      const allRooms: RoomLocation[] = [
+        'Map',
+        'NutritionLab',
+        'SpaceScience',
+        'HumanHealth',
+        'SuitRoom',
+        'EngineRoom',
+        'LaunchPad',
+        'LunarDashboard',
+        'ReturnToEarth'
+      ];
+      return {
+        ...state,
+        unlockedRooms: allRooms
       };
     }
 
@@ -686,6 +737,9 @@ interface GameContextType {
   clearCargo: () => void;
   toggleSound: () => void;
   completeNutritionMission: () => void;
+  completeHumanHealth: () => void;
+  completeReturnMission: () => void;
+  unlockAllRooms: () => void;
   canCompleteMission: boolean;
   setO2Pressure: (pressure: number) => void;
   toggleSuitEquipment: (key: keyof Omit<SuitCheckState, 'o2PressurePSI' | 'isO2Calibrated'>) => void;
@@ -718,12 +772,71 @@ interface GameContextType {
   openVictoryModal: () => void;
   dismissVictoryModal: () => void;
   resetGameFull: () => void;
+  resetProgress: () => void;
+  storageStatus: SaveInspectionResult['status'];
+  isAutoSaveBlocked: boolean;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [state, dispatch] = useReducer(gameReducer, initialState);
+  const [state, dispatch] = useReducer(gameReducer, initialState, hydrateGameState);
+  const [storageStatus, setStorageStatus] = React.useState<SaveInspectionResult['status']>(() => getStorageStatus());
+
+  // Deep-linking / URL room navigation helper for testing & direct stage routing
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location?.search) {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const roomParam = params.get('room') as RoomLocation | null;
+        if (roomParam) {
+          dispatch({ type: 'SET_LOCATION', payload: roomParam });
+        }
+      } catch {
+        // Safe fallback in restricted environments
+      }
+    }
+  }, []);
+
+  // Debounced auto-save effect for persistent game progress
+  useEffect(() => {
+    // If a future save version is detected, auto-save is permanently blocked to prevent data destruction
+    if (isAutoSaveDisabled()) return;
+
+    const timer = window.setTimeout(() => {
+      saveProgress(state);
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [
+    state.cadetName,
+    state.unlockedRooms,
+    state.isNutritionMissionComplete,
+    state.isHumanHealthComplete,
+    state.isSuitMissionComplete,
+    state.isEngineMissionComplete,
+    state.isReturnMissionComplete,
+    state.launchPadState.isLevel1Complete,
+    state.level2State.isLevel2Active,
+    state.level2State.isTradeOffResolved,
+    state.level2State.tradeOffChoice,
+    state.level2State.isEVASafeReturned,
+    state.level2State.astronautHealthPercent,
+    state.level2State.lunarFarmHealthPercent,
+    state.cargoItems,
+    state.cargoWeight,
+    state.hasSpicySauce,
+    state.suitState.helmetVisorLocked,
+    state.suitState.o2PressurePSI,
+    state.suitState.isO2Calibrated,
+    state.suitState.thermalLayersInspected,
+    state.suitState.safetyTetherLatched,
+    state.engineCoreState.o2ScrubberProgress,
+    state.engineCoreState.fuelCellProgress,
+    state.engineCoreState.isEngineComplete
+  ]);
 
   useEffect(() => {
     soundManager.setEnabled(state.soundEnabled);
@@ -778,6 +891,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const completeNutritionMission = () => {
     soundManager.playFanfare();
     dispatch({ type: 'COMPLETE_NUTRITION_MISSION' });
+  };
+
+  const completeHumanHealth = () => {
+    soundManager.playFanfare();
+    dispatch({ type: 'COMPLETE_HUMAN_HEALTH' });
+  };
+
+  const completeReturnMission = () => {
+    soundManager.playFanfare();
+    dispatch({ type: 'COMPLETE_RETURN_MISSION' });
+  };
+
+  const unlockAllRooms = () => {
+    soundManager.playClick();
+    dispatch({ type: 'UNLOCK_ALL_ROOMS' });
   };
 
   const setO2Pressure = (pressure: number) => {
@@ -890,8 +1018,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resetGameFull = () => {
+    clearSavedProgress();
+    setStorageStatus('NO_SAVE');
     dispatch({ type: 'RESET_GAME_FULL' });
   };
+
+  const resetProgress = resetGameFull;
 
   return (
     <GameContext.Provider
@@ -906,6 +1038,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearCargo,
         toggleSound,
         completeNutritionMission,
+        completeHumanHealth,
+        completeReturnMission,
+        unlockAllRooms,
         canCompleteMission,
         setO2Pressure,
         toggleSuitEquipment,
@@ -937,7 +1072,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         resolveTradeOff,
         openVictoryModal,
         dismissVictoryModal,
-        resetGameFull
+        resetGameFull,
+        resetProgress,
+        storageStatus,
+        isAutoSaveBlocked: isAutoSaveDisabled()
       }}
     >
       {children}

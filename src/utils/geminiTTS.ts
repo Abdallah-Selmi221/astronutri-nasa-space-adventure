@@ -83,6 +83,7 @@ export class DialogueManager {
   private isSpeaking: boolean = false;
   private toastError: string | null = null;
   private toastTimer: number | null = null;
+  private hasShownFallbackToast: boolean = false;
   private voiceEnabled: boolean = true;
 
   private speakingListeners: Set<(speaking: boolean) => void> = new Set();
@@ -351,6 +352,102 @@ export class DialogueManager {
     this.isProcessingQueue = false;
   }
 
+  private resolveLocalAudioUrl(text: string): string | null {
+    // 1. Stage 2 Zero-G & Spacecraft Handrails
+    if (text.includes('الدرابزين') || (text.includes('تطفو') && text.includes('الجاذبية'))) {
+      return '/audio/robo/pilot/pilot_02_handrail.mp3';
+    }
+    if (text.includes('بتطفو') || text.includes('الأدوات') || text.includes('ثبتها')) {
+      return '/audio/robo/pilot/pilot_03_loose_objects.mp3';
+    }
+
+    // 2. Island Hopping & Onboarding
+    if (text.includes('نطير بالسفينة') || text.includes('اربط الحزام') || text.includes('وصلنا إلى')) {
+      return '/audio/robo/campaign/island_hop_welcome.mp3';
+    }
+
+    // 3. Planet & NASA Radar Exploration (SpaceScience)
+    if (text.includes('كويكب') || text.includes('2010 PK') || text.includes('رادار ناسا رصد')) {
+      return '/audio/robo/campaign/asteroid_radar.mp3';
+    }
+    if (text.includes('على الأرض') || text.includes('كوكب الأرض')) {
+      return '/audio/robo/campaign/planet_earth.mp3';
+    }
+    if (text.includes('على القمر') || text.includes('سُدس')) {
+      return '/audio/robo/campaign/planet_moon.mp3';
+    }
+    if (text.includes('على المريخ') || text.includes('كوكب المريخ')) {
+      return '/audio/robo/campaign/planet_mars.mp3';
+    }
+    if (text.includes('زحل')) {
+      return '/audio/robo/campaign/planet_saturn.mp3';
+    }
+    if (text.includes('المشتري')) {
+      return '/audio/robo/campaign/planet_jupiter.mp3';
+    }
+
+    // 4. Nutrition Lab Coaching
+    if (text.includes('خبز التورتيلا')) {
+      return '/audio/robo/campaign/nutrition_tortilla.mp3';
+    }
+    if (text.includes('نوازن') || text.includes('البروتين والطاقة') || text.includes('غير متوازن')) {
+      return '/audio/robo/campaign/nutrition_balance_tip.mp3';
+    }
+    if (text.includes('مختبر التغذية') || text.includes('أربع وجبات') || text.includes('4 وجبات')) {
+      return '/audio/robo/campaign/nutrition_welcome.mp3';
+    }
+
+    // 5. Quiz & Challenge Feedback
+    if (text.includes('عبقري الفضاء') || text.includes('مية في المية') || text.includes('إجابة صحيحة')) {
+      return '/audio/robo/campaign/quiz_praise.mp3';
+    }
+    if (text.includes('قربت جداً') || text.includes('فكر تاني') || text.includes('جرب إجابة')) {
+      return '/audio/robo/campaign/quiz_hint.mp3';
+    }
+
+    // 6. Stage 1 Rooms & Stage 3/4 Briefings
+    if (text.includes('قسم الصحة') || text.includes('صحة القلب') || text.includes('عضلاتنا')) {
+      return '/audio/robo/campaign/health_welcome.mp3';
+    }
+    if (text.includes('بدلة الفضاء') || text.includes('الخوذة الذهبية')) {
+      return '/audio/robo/campaign/suit_welcome.mp3';
+    }
+    if (text.includes('قلب المحرك') || text.includes('خلايا الوقود')) {
+      return '/audio/robo/campaign/engine_welcome.mp3';
+    }
+    if (text.includes('منصة الإطلاق') || text.includes('أملاح التوازن')) {
+      return '/audio/robo/campaign/launch_welcome.mp3';
+    }
+    if (text.includes('عاصفة شمسية') || text.includes('دونكي') || text.includes('DONKI')) {
+      return '/audio/robo/campaign/lunar_storm_warning.mp3';
+    }
+    if (text.includes('فتات') || text.includes('خطر') || text.includes('حاسب') || text.includes('ممنوع') || text.includes('تحذير')) {
+      return '/audio/robo/sample/sample_warning.mp3';
+    }
+    if (text.includes('ECLSS') || text.includes('تدوير المياه') || text.includes('مسار المياه')) {
+      return '/audio/robo/pilot/pilot_04_eclss_success.mp3';
+    }
+    if (text.includes('موازنة') || text.includes('عينات القمر')) {
+      return '/audio/robo/campaign/return_balance.mp3';
+    }
+    if (text.includes('الغلاف الجوي') || text.includes('زاوية الأمان')) {
+      return '/audio/robo/campaign/return_reentry.mp3';
+    }
+    if (text.includes('فتحت مرحلة') || text.includes('فتحت محطة') || text.includes('المحطة التالية')) {
+      return '/audio/robo/campaign/mission_unlock.mp3';
+    }
+    if (text.includes('مبروووك') || text.includes('قاعدة القمر') || text.includes('كبسولة العودة')) {
+      return '/audio/robo/pilot/pilot_05_emotional_reflection.mp3';
+    }
+    if (text.includes('عاش') || text.includes('أحسنت') || text.includes('برافو') || text.includes('ممتاز') || text.includes('اختيار ذكي') || text.includes('الله عليك')) {
+      return '/audio/robo/sample/sample_success.mp3';
+    }
+    if (text.includes('أهلًا') || text.includes('أهلاً') || text.includes('أهلا') || text.includes('مرحباً') || text.includes('الأرخبيل') || text.includes('روبو')) {
+      return '/audio/robo/pilot/pilot_01_welcome.mp3';
+    }
+    return null;
+  }
+
   private async executeUtterance(item: QueuedUtterance): Promise<void> {
     const { id, text, onStart, onEnd, onError } = item;
 
@@ -361,6 +458,35 @@ export class DialogueManager {
         await this.playBufferAsync(cachedBuffer, id, onStart, onEnd);
       }
       return;
+    }
+
+    // 1B. Check pre-authored ElevenLabs local MP3 tracks (instant, offline, zero 503!)
+    const localMp3Url = this.resolveLocalAudioUrl(text);
+    if (localMp3Url) {
+      const mp3CachedBuffer = this.memoryCache.get(`__mp3__:${localMp3Url}`);
+      if (mp3CachedBuffer) {
+        this.memoryCache.set(text, mp3CachedBuffer);
+        if (id === this.activeUtteranceId) {
+          await this.playBufferAsync(mp3CachedBuffer, id, onStart, onEnd);
+        }
+        return;
+      }
+      try {
+        const res = await fetch(localMp3Url);
+        if (res.ok) {
+          const arrayBuf = await res.arrayBuffer();
+          const ctx = this.getAudioContext();
+          const decoded = await ctx.decodeAudioData(arrayBuf.slice(0));
+          this.memoryCache.set(`__mp3__:${localMp3Url}`, decoded);
+          this.memoryCache.set(text, decoded);
+          if (id === this.activeUtteranceId) {
+            await this.playBufferAsync(decoded, id, onStart, onEnd);
+          }
+          return;
+        }
+      } catch {
+        // Fall through to localStorage / API proxy cleanly
+      }
     }
 
     // 2. Check localStorage PCM16 cache (works 100% offline!)
@@ -471,12 +597,12 @@ export class DialogueManager {
         return;
       }
 
-      // API failed or offline: exit THINKING state, show non-blocking toast, NEVER use browser speech fallback
-      this.emitStatus(
-        false,
-        false,
-        'وضع القراءة الصامت: استمر في اللعب مع رسائل روبو المرئية! 🚀'
-      );
+      // API failed or offline: exit THINKING state, show non-blocking toast once per session
+      const toastMsg = this.hasShownFallbackToast
+        ? null
+        : 'وضع القراءة الصامت: استمر في اللعب مع رسائل روبو المرئية! 🚀';
+      this.hasShownFallbackToast = true;
+      this.emitStatus(false, false, toastMsg);
       if (onError) onError(err);
       if (onEnd) onEnd();
     }

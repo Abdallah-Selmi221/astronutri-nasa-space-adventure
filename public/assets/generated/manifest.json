@@ -1,0 +1,137 @@
+{
+  "project": "AstroNutri Junior Astronaut Mission Trainer",
+  "test_run_timestamp": "2026-11-13T02:05:14.346Z",
+  "total_assets": 10,
+  "pipeline_tools_tested": [
+    "PixelLab API v2",
+    "Gemini Multimodal / REST API",
+    "Canva Connect API v1"
+  ],
+  "security_audit": {
+    "pixellab_api_key_status": "SECURE - Server-side only, excluded by .gitignore, no leaks",
+    "gemini_api_key_status": "SECURE - Kept in .env, excluded by .gitignore",
+    "canva_credentials_status": "SECURE - Kept in .env and tokens.json, excluded by .gitignore"
+  },
+  "assets": [
+    {
+      "asset_name": "robo_concept_canonical.jpg",
+      "category": "characters",
+      "tool": "Gemini Multimodal Concept Engine",
+      "prompt": "Canonical 2.5D Robo Character A-Pose, 3.2 heads tall, ceramic chassis, coral joints, turquoise visor",
+      "dimensions": "1024x1024",
+      "size_bytes": 354456,
+      "has_transparency": false,
+      "key_lighting": "Top-Left 45° Warm Sunlight",
+      "cost": "0 (Built-in)",
+      "quality_gate": "PASSED - Reference Standard"
+    },
+    {
+      "asset_name": "robo_chibi_sprite.png",
+      "category": "characters",
+      "tool": "PixelLab API v2 (create-image-pixen)",
+      "prompt": "Cute friendly chibi sci-fi astronaut robot companion named Robo, glossy white chassis, turquoise visor, coral orange accents, front facing A-pose sprite",
+      "dimensions": "128x128",
+      "size_bytes": 6480,
+      "has_transparency": true,
+      "key_lighting": "2D Pixel Art Sprite (Subtle Top Lighting)",
+      "cost": "1 generation",
+      "quality_gate": "PASSED - Real 2D Pixel Sprite (Reality Check: PixelLab creates 2D pixel art, not 3D geometry)"
+    },
+    {
+      "asset_name": "lunar_outpost_shackleton_2_5d.jpg",
+      "category": "environments",
+      "tool": "Gemini Multimodal 2.5D Concept Engine",
+      "prompt": "Vibrant child-friendly 2.5D cosmic lunar outpost perched on Shackleton Crater rim, glowing pastel bio-domes, solar panels, warm 45° golden sunlight, turquoise and magenta nebula, deep cosmic sky",
+      "dimensions": "1024x1024",
+      "size_bytes": 847577,
+      "has_transparency": false,
+      "key_lighting": "Top-Left 45° Warm Sunlight (Consistent)",
+      "cost": "0 (Built-in)",
+      "quality_gate": "PASSED - Premium 2.5D Depth, Inviting & Vibrant"
+    },
+    {
+      "asset_name": "parallax_layer1_deep_cosmos.svg",
+      "category": "environments",
+      "tool": "Vector Parallax Generator (AstroNutri Spec)",
+      "prompt": "Deep cosmic sky with twinkling stars and glowing Earth",
+      "dimensions": "1920x1080",
+      "size_bytes": 1734,
+      "has_transparency": false,
+      "key_lighting": "Atmospheric Top-Left",
+      "cost": "0",
+      "quality_gate": "PASSED - Optimized for 60FPS Phaser Scroll"
+    },
+    {
+      "asset_name": "parallax_layer2_nebula_clouds.svg",
+      "category": "environments",
+      "tool": "Vector Parallax Generator (AstroNutri Spec)",
+      "prompt": "Vibrant turquoise and magenta glowing nebula with warm 45° sunlight wash",
+      "dimensions": "1920x1080",
+      "size_bytes": 1262,
+      "has_transparency": true,
+      "key_lighting": "Top-Left 45° Golden Sunlight",
+      "cost": "0",
+      "quality_gate": "PASSED - Anti-dark-void compliance"
+    },
+    {
+      "asset_name": "parallax_layer3_lunar_crater.svg",
+      "category": "environments",
+      "tool": "Vector Parallax Generator (AstroNutri Spec)",
+      "prompt": "Shackleton Crater rim with bio-domes, solar arrays, and ECLSS water silo",
+      "dimensions": "1920x1080",
+      "size_bytes": 2065,
+      "has_transparency": true,
+      "key_lighting": "Top-Left 45° Rim Light",
+      "cost": "0",
+      "quality_gate": "PASSED - Clean silhouette & 2.5D depth"
+    },
+    {
+      "asset_name": "mission_banner_shackleton.svg",
+      "category": "ui",
+      "tool": "Vector UI Spec (Canva Master)",
+      "prompt": "Pastel glassmorphic mission banner with Arabic typography: مهمة القمر: محطة شاكلتون",
+      "dimensions": "800x260",
+      "size_bytes": 1280,
+      "has_transparency": true,
+      "key_lighting": "Top-Left 45° Glass Rim",
+      "cost": "0",
+      "quality_gate": "PASSED - Vector crisp RTL typography"
+    },
+    {
+      "asset_name": "mission_banner_shackleton_canva.png",
+      "category": "ui",
+      "tool": "Canva Connect API v1 (Asset Upload + Design Create + Export Job)",
+      "prompt": "Exported official Canva PNG render of Mission Banner",
+      "dimensions": "800x260",
+      "size_bytes": 2965,
+      "has_transparency": false,
+      "key_lighting": "Top-Left 45°",
+      "cost": "1 Canva Design & Export Job",
+      "quality_gate": "PASSED - Production Canva CDN Export Verified"
+    },
+    {
+      "asset_name": "btn_launch_adventure.svg",
+      "category": "ui",
+      "tool": "Vector UI Spec (Canva Master)",
+      "prompt": "Glossy orange child-friendly space adventure button with rocket: ابدأ المغامرة الفضائية 🚀",
+      "dimensions": "480x140",
+      "size_bytes": 1115,
+      "has_transparency": true,
+      "key_lighting": "Top-Left 45° Gloss Dome",
+      "cost": "0",
+      "quality_gate": "PASSED - Tactile 3D affordance for children"
+    },
+    {
+      "asset_name": "progress_eclss_water.svg",
+      "category": "ui",
+      "tool": "Vector UI Spec (Canva Master)",
+      "prompt": "Glass cylinder ECLSS water recycling progress gauge with 75% cyan level: خزان المياه ECLSS",
+      "dimensions": "400x100",
+      "size_bytes": 1187,
+      "has_transparency": true,
+      "key_lighting": "Top-Left 45° Specular Highlight",
+      "cost": "0",
+      "quality_gate": "PASSED - Clear visual feedback for 7-12 age group"
+    }
+  ]
+}

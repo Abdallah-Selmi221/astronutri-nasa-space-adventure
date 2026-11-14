@@ -2,11 +2,16 @@ import { CargoItemEntry, FoodItem } from '../types/game';
 
 export type PhaserRoboState =
   | 'IDLE'
+  | 'WALKING'
+  | 'RUNNING'
   | 'FLYING'
   | 'TALKING'
   | 'HAPPY'
   | 'WARNING'
-  | 'CELEBRATING';
+  | 'CELEBRATING'
+  | 'WAVING'
+  | 'POINTING'
+  | 'HOPPING';
 
 export interface NutritionPackedPayload {
   item: FoodItem;

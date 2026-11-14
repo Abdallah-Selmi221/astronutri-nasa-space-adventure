@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameState } from '../../context/GameContext';
 import { ECLSSSystem } from './ECLSSSystem';
@@ -6,6 +6,12 @@ import { EVATimer } from './EVATimer';
 import { SolarStormAlert } from './SolarStormAlert';
 import { VictoryModal } from './VictoryModal';
 import { AnimatedRobo } from '../common/AnimatedRobo';
+import { PhaserLunarCanvas } from '../../game/PhaserLunarCanvas';
+import { EventBus } from '../../game/EventBus';
+import { FilterMaintenance } from '../minigames/FilterMaintenance';
+import { ResourceDashboard } from '../minigames/ResourceDashboard';
+import { nasaCache } from '../../services/nasa/nasaCache';
+import { soundManager } from '../../utils/sound';
 import { 
   ArrowRight, 
   Droplets, 
@@ -18,12 +24,15 @@ import {
   Heart,
   Sprout,
   AlertTriangle,
-  Award
+  Award,
+  Compass,
+  Info
 } from 'lucide-react';
 
 export const LunarDashboard: React.FC = () => {
   const { state, setLocation, triggerSolarStorm, openVictoryModal } = useGameState();
   const { cadetName, level2State } = state;
+  const [lunarTab, setLunarTab] = useState<'overview' | 'filters' | 'power'>('overview');
   const { 
     waterLevel, 
     evaTimeRemaining, 
@@ -38,6 +47,41 @@ export const LunarDashboard: React.FC = () => {
     isEVASafeReturned
   } = level2State;
 
+  const [lunarToast, setLunarToast] = useState<{ title: string; message: string } | null>(null);
+  const [extractedSamples, setExtractedSamples] = useState<number>(0);
+  const latestCme = nasaCache.getLatestSolarStorm();
+  const cmeSpeedText = latestCme.speedKmS ? `${latestCme.speedKmS} كم/ث` : latestCme.educationalLabelAr;
+
+  // Sync Solar Storm status to Phaser 2.5D Canvas
+  useEffect(() => {
+    EventBus.emit('lunar:storm-alert', isSolarStormActive);
+  }, [isSolarStormActive]);
+
+  // Subscribe to Phaser Scene interactions
+  useEffect(() => {
+    const handlePropInspected = (payload: { title: string; message: string }) => {
+      setLunarToast(payload);
+      setTimeout(() => setLunarToast(null), 4500);
+    };
+
+    const handleSampleExtracted = () => {
+      setExtractedSamples((prev) => Math.min(3, prev + 1));
+      setLunarToast({
+        title: 'استخراج جليد قمري نقي! 💎🧊',
+        message: 'تم حفر عينة جليد من قاع فوهة شاكلتون.. الجليد سيتحول لماء شرب ووقود هيدروجيني!'
+      });
+      setTimeout(() => setLunarToast(null), 4000);
+    };
+
+    EventBus.on('lunar:prop-inspected', handlePropInspected);
+    EventBus.on('lunar:sample-extracted', handleSampleExtracted);
+
+    return () => {
+      EventBus.off('lunar:prop-inspected', handlePropInspected);
+      EventBus.off('lunar:sample-extracted', handleSampleExtracted);
+    };
+  }, []);
+
   // Dynamically trigger the Solar Storm event 7 seconds into Level 2 if not yet triggered/resolved
   useEffect(() => {
     if (!isSolarStormActive && !isTradeOffResolved) {
@@ -49,7 +93,7 @@ export const LunarDashboard: React.FC = () => {
   }, [isSolarStormActive, isTradeOffResolved, triggerSolarStorm]);
 
   return (
-    <div className="w-full max-w-7xl mx-auto py-6 px-3 sm:px-6 flex flex-col flex-1">
+    <div className="w-full max-w-7xl mx-auto pt-24 pb-8 px-3 sm:px-6 flex flex-col gap-4 flex-1">
       {/* Top Breadcrumb & Outpost Title */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
         <div className="flex items-center gap-3">
@@ -60,18 +104,25 @@ export const LunarDashboard: React.FC = () => {
             <ArrowRight className="w-4 h-4 text-cyan-400" />
             <span>خريطة المحطة</span>
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-500/50">
-                المستوى 2: نشط 🌕
-              </span>
-              <h2 className="font-hud font-black text-xl sm:text-2xl text-white tracking-wide flex items-center gap-2">
-                قاعدة عمليات القمر <span className="text-cyan-400">أرتميس</span>
-              </h2>
+          <div className="flex items-center gap-3">
+            <img 
+              src="/assets/generated/ui/mission_banner_shackleton.svg" 
+              alt="شعار مهمة شاكلتون" 
+              className="hidden md:block h-10 w-auto object-contain filter drop-shadow-md"
+            />
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-500/50">
+                  المستوى 2: نشط 🌕
+                </span>
+                <h2 className="font-hud font-black text-xl sm:text-2xl text-white tracking-wide flex items-center gap-2">
+                  قاعدة عمليات القمر <span className="text-cyan-400">أرتميس</span>
+                </h2>
+              </div>
+              <p className="text-xs text-slate-300">
+                قاعدة القطب الجنوبي للقمر • فوهة شاكلتون الفضائية
+              </p>
             </div>
-            <p className="text-xs text-slate-300">
-              قاعدة القطب الجنوبي للقمر • فوهة شاكلتون الفضائية
-            </p>
           </div>
         </div>
 
@@ -122,6 +173,99 @@ export const LunarDashboard: React.FC = () => {
           <p className="text-xs sm:text-sm text-slate-200 font-bold leading-relaxed">
             &quot;أهلاً بيك في محطة القمر يا بطل! حافظ على خزان مياه الشرب ECLSS، وراقب وقت بدلة زميلك في السير القمري وزوّده بماء الشرب من كيس البدلة (IDB)، واستعد لرادار العواصف الشمسية بالدروع المادية!&quot;
           </p>
+          <p className="text-[11px] font-hud font-bold text-amber-300 mt-1 flex items-center gap-1.5">
+            <Radio className="w-3.5 h-3.5 animate-pulse shrink-0" />
+            <span>رصد عواصف الشمس NASA DONKI الحية: سرعة الانبعاث {cmeSpeedText} — فحص الدروع الإشعاعية نشط!</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Mode Switcher Tabs */}
+      <div className="flex items-center justify-center gap-2 sm:gap-3 mb-6 flex-wrap" dir="rtl">
+        <button
+          type="button"
+          onClick={() => setLunarTab('overview')}
+          className={`px-4 sm:px-6 py-2 rounded-2xl font-hud font-black text-xs sm:text-sm transition-all cursor-pointer ${
+            lunarTab === 'overview'
+              ? 'bg-cyan-500 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.5)] scale-105'
+              : 'bg-space-900 text-slate-300 hover:bg-space-800 border border-slate-700'
+          }`}
+        >
+          مستعمرة القمر وأنابيب ECLSS 🌕
+        </button>
+        <button
+          type="button"
+          onClick={() => setLunarTab('filters')}
+          className={`px-4 sm:px-6 py-2 rounded-2xl font-hud font-black text-xs sm:text-sm transition-all cursor-pointer ${
+            lunarTab === 'filters'
+              ? 'bg-emerald-500 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.5)] scale-105'
+              : 'bg-space-900 text-slate-300 hover:bg-space-800 border border-slate-700'
+          }`}
+        >
+          صيانة فلاتر تنقية الهواء 🔧
+        </button>
+        <button
+          type="button"
+          onClick={() => setLunarTab('power')}
+          className={`px-4 sm:px-6 py-2 rounded-2xl font-hud font-black text-xs sm:text-sm transition-all cursor-pointer ${
+            lunarTab === 'power'
+              ? 'bg-amber-500 text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.5)] scale-105'
+              : 'bg-space-900 text-slate-300 hover:bg-space-800 border border-slate-700'
+          }`}
+        >
+          لوحة إدارة طاقة القاعدة ⚡
+        </button>
+      </div>
+
+      {lunarTab === 'filters' ? (
+        <div className="mb-6">
+          <FilterMaintenance onComplete={() => { soundManager.playFanfare(); setLunarTab('overview'); }} />
+        </div>
+      ) : lunarTab === 'power' ? (
+        <div className="mb-6">
+          <ResourceDashboard onComplete={() => { soundManager.playFanfare(); setLunarTab('overview'); }} />
+        </div>
+      ) : (
+      <>
+
+      {/* 2.5D Interactive Lunar Outpost Exploration Viewport */}
+      <div className="mb-6 rounded-3xl border-2 border-cyan-400/50 bg-space-950/95 shadow-2xl overflow-hidden relative">
+        <div className="h-64 sm:h-80 w-full relative">
+          <PhaserLunarCanvas />
+
+          {/* Interactive Exploration Overlay Badge */}
+          <div className="absolute top-3 right-3 flex items-center gap-2">
+            <div className="bg-space-950/85 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-cyan-400/50 text-[11px] font-black text-cyan-200 flex items-center gap-2 shadow-lg">
+              <Sparkles className="w-3.5 h-3.5 text-yellow-400 animate-spin" />
+              <span>عينات الجليد القمري: {extractedSamples}/3</span>
+            </div>
+            <div className="hidden sm:flex bg-space-950/85 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-cyan-400/40 text-[11px] font-black text-slate-300 items-center gap-1.5">
+              <Compass className="w-3.5 h-3.5 text-cyan-400" />
+              <span>اضغط على صخور الجليد أو القباب للاستكشاف</span>
+            </div>
+          </div>
+
+          {/* Toast Notification for Base Exploration */}
+          <AnimatePresence>
+            {lunarToast && (
+              <motion.div
+                initial={{ opacity: 0, y: 15, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                className="absolute bottom-3 inset-x-3 sm:inset-x-auto sm:right-4 sm:max-w-md p-3.5 rounded-2xl bg-gradient-to-r from-space-900 via-sky-950 to-indigo-950 border-2 border-cyan-400/80 shadow-2xl text-right backdrop-blur-md z-30"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Info className="w-4 h-4 text-cyan-300 shrink-0" />
+                  <h5 className="font-hud font-black text-xs sm:text-sm text-cyan-200">
+                    {lunarToast.title}
+                  </h5>
+                </div>
+                <p className="text-[11px] sm:text-xs text-slate-200 font-bold leading-relaxed">
+                  {lunarToast.message}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -306,6 +450,8 @@ export const LunarDashboard: React.FC = () => {
           </span>
         </div>
       </div>
+      </>
+      )}
 
       {/* MODALS */}
       <SolarStormAlert />

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="100" viewBox="0 0 400 100">
+  <defs>
+    <linearGradient id="waterG" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00F2FE" />
+      <stop offset="100%" stop-color="#4FACFE" />
+    </linearGradient>
+    <linearGradient id="tubeG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#0F172A" stop-opacity="0.95" />
+    </linearGradient>
+  </defs>
+  <!-- Glass Cylinder Tube -->
+  <rect x="10" y="15" width="380" height="70" rx="35" fill="url(#tubeG)" stroke="#38BDF8" stroke-width="2.5" />
+  <!-- Water Fill (75% Progress) -->
+  <rect x="16" y="21" width="280" height="58" rx="29" fill="url(#waterG)" />
+  <!-- Inner Bubble -->
+  <circle cx="270" cy="40" r="8" fill="#FFFFFF" opacity="0.6" />
+  <circle cx="210" cy="55" r="5" fill="#FFFFFF" opacity="0.5" />
+  <!-- Labels -->
+  <text x="140" y="58" font-family="'Cairo', sans-serif" font-weight="900" font-size="24" fill="#FFFFFF" text-anchor="middle">
+    خزان المياه ECLSS: 75%
+  </text>
+  <text x="350" y="60" font-size="28" text-anchor="middle">💧</text>
+</svg>

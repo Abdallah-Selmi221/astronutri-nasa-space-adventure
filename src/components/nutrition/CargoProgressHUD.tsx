@@ -20,7 +20,8 @@ export const CargoProgressHUD: React.FC = () => {
   );
 
   const energyScore = Math.min(100, Math.round((totalCarbs / 45) * 100));
-  const proteinHydrationScore = Math.min(100, Math.round((totalProtein / 45) * 100));
+  const proteinScore = Math.min(100, Math.round((totalProtein / 45) * 100));
+  const hydrationScore = cargoItems.some(e => e.item.id === 'drink_tube') ? 100 : Math.min(60, cargoItems.length * 15);
 
   const bars = [
     {
@@ -34,7 +35,7 @@ export const CargoProgressHUD: React.FC = () => {
     },
     {
       id: 'energy',
-      label: 'الطاقة والنشاط',
+      label: 'طاقة النشاط (كربوهيدرات)',
       icon: '⚡',
       percent: energyScore,
       gradient: 'from-yellow-300 via-amber-400 to-orange-500',
@@ -43,10 +44,19 @@ export const CargoProgressHUD: React.FC = () => {
     },
     {
       id: 'protein',
-      label: 'البروتين والترطيب',
+      label: 'البروتين وحماية العضلات',
+      icon: '💪',
+      percent: proteinScore,
+      gradient: 'from-indigo-400 via-blue-500 to-indigo-600',
+      trackBorder: 'border-indigo-300',
+      badgeColor: 'text-indigo-800 bg-indigo-100'
+    },
+    {
+      id: 'hydration',
+      label: 'ترطيب وسوائل آمنة',
       icon: '💧',
-      percent: proteinHydrationScore,
-      gradient: 'from-cyan-300 via-sky-500 to-blue-600',
+      percent: hydrationScore,
+      gradient: 'from-cyan-300 via-sky-400 to-blue-500',
       trackBorder: 'border-sky-300',
       badgeColor: 'text-sky-800 bg-sky-100'
     }

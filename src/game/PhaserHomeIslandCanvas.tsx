@@ -7,8 +7,7 @@ export interface PhaserHomeIslandCanvasProps {
 
 /**
  * Mounts the Phaser 3 2.5D Game Layer for the Home Island exploration world.
- * Dynamically imports Phaser 3 and HomeIslandScene so the game world is rendered
- * and controlled completely by the game engine.
+ * Features safe dimension guards and synchronous canvas detachment to eliminate P0 WebGL collisions.
  */
 export const PhaserHomeIslandCanvas: React.FC<PhaserHomeIslandCanvasProps> = ({ className = '' }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -19,6 +18,11 @@ export const PhaserHomeIslandCanvas: React.FC<PhaserHomeIslandCanvasProps> = ({ 
     if (!parentEl) return;
 
     let cancelled = false;
+
+    // Purge any stale child canvas before mounting
+    while (parentEl.firstChild) {
+      parentEl.removeChild(parentEl.firstChild);
+    }
 
     void (async () => {
       const [PhaserModule, { HomeIslandScene }] = await Promise.all([
@@ -31,15 +35,22 @@ export const PhaserHomeIslandCanvas: React.FC<PhaserHomeIslandCanvasProps> = ({ 
       const PhaserEngine = PhaserModule.default || PhaserModule;
 
       if (gameRef.current) {
-        gameRef.current.destroy(true);
+        try {
+          gameRef.current.destroy(true, false);
+        } catch {
+          // ignore
+        }
         gameRef.current = null;
       }
+
+      const safeWidth = Math.max(320, containerRef.current.clientWidth || 390);
+      const safeHeight = Math.max(420, containerRef.current.clientHeight || 640);
 
       const config: Phaser.Types.Core.GameConfig = {
         type: PhaserEngine.AUTO,
         parent: containerRef.current,
-        width: containerRef.current.clientWidth || 1280,
-        height: containerRef.current.clientHeight || 720,
+        width: safeWidth,
+        height: safeHeight,
         transparent: true,
         scale: {
           mode: PhaserEngine.Scale.RESIZE,
@@ -60,8 +71,17 @@ export const PhaserHomeIslandCanvas: React.FC<PhaserHomeIslandCanvasProps> = ({ 
     return () => {
       cancelled = true;
       if (gameRef.current) {
-        gameRef.current.destroy(true);
+        try {
+          gameRef.current.destroy(true, false);
+        } catch {
+          // ignore
+        }
         gameRef.current = null;
+      }
+      if (parentEl) {
+        while (parentEl.firstChild) {
+          parentEl.removeChild(parentEl.firstChild);
+        }
       }
     };
   }, []);
@@ -69,9 +89,10 @@ export const PhaserHomeIslandCanvas: React.FC<PhaserHomeIslandCanvasProps> = ({ 
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full overflow-hidden select-none touch-none ${className}`}
+      className={`relative w-full h-full min-h-[460px] overflow-hidden select-none touch-none ${className}`}
       style={{ touchAction: 'none' }}
     />
   );
 };
+
 export default PhaserHomeIslandCanvas;

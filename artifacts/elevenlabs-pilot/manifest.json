@@ -1,0 +1,53 @@
+{
+  "timestamp": "2026-11-13T15:21:29.587Z",
+  "voiceId": "TX3LPaxmHKxFdv7VOQHJ",
+  "voiceName": "Liam - Energetic Young Mascot (eleven_multilingual_v2)",
+  "modelId": "eleven_multilingual_v2",
+  "totalSynthesizedCharacters": 480,
+  "preUsage": 77,
+  "postUsage": 77,
+  "quotaUsedInPilot": 0,
+  "remainingQuota": 9923,
+  "files": [
+    {
+      "id": "pilot_01_welcome",
+      "filename": "pilot_01_welcome.mp3",
+      "text": "أهلًا يا بطل! أنا روبو، رفيقك في الرحلة دي. جاهز نطلع من الأرض ونستكشف القمر؟",
+      "context": "Stage 1: Welcome & Academy Awakening",
+      "bytes": 102861,
+      "characterCount": 77
+    },
+    {
+      "id": "pilot_02_handrail",
+      "filename": "pilot_02_handrail.mp3",
+      "text": "امسك الدرابزين واسحب نفسك بهدوء ناحية الباب. خلي بالك، في الفضاء هتفضل تتحرك حتى بعد ما تسيب إيدك.",
+      "context": "Stage 2: Zero-G Handrail Locomotion",
+      "bytes": 127520,
+      "characterCount": 98
+    },
+    {
+      "id": "pilot_03_loose_objects",
+      "filename": "pilot_03_loose_objects.mp3",
+      "text": "تنبيه يا بطل! في أدوات بتطفو جوه المركبة. لمّها بسرعة وثبّتها في أماكنها قبل ما تخبط في الأجهزة.",
+      "context": "Stage 2: Loose Objects Emergency Scramble",
+      "bytes": 115399,
+      "characterCount": 96
+    },
+    {
+      "id": "pilot_04_eclss_success",
+      "filename": "pilot_04_eclss_success.mp3",
+      "text": "عاش يا بطل! كده ظبطت مسار المياه ورجع النظام يشتغل. شغل ممتاز!",
+      "context": "Stage 3: ECLSS Water Processor Restoration",
+      "bytes": 101189,
+      "characterCount": 62
+    },
+    {
+      "id": "pilot_05_emotional_reflection",
+      "filename": "pilot_05_emotional_reflection.mp3",
+      "text": "عارف؟ أول يوم ليا في الأكاديمية كنت متحمس وخايف في نفس الوقت. بس من ساعة ما بدأنا المغامرة سوا، وأنا عرفت إننا نقدر نواجه أي تحدي. يلا نكمل رحلتنا!",
+      "context": "Stage 4 / Emotional Arc: Pre-Reentry Bonding",
+      "bytes": 184781,
+      "characterCount": 147
+    }
+  ]
+}

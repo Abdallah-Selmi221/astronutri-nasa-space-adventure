@@ -738,6 +738,92 @@ const uiAssets = {
     <path d="M 202 80 A 92 26 0 0 1 18 80" fill="none" stroke="url(#saturnRing)" stroke-width="16" />
     <path d="M 190 80 A 80 20 0 0 1 30 80" fill="none" stroke="#ffffff" stroke-width="2.5" opacity="0.65" />
   </g>
+</svg>`,
+
+  'earth-3d.svg': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <defs>
+    ${commonDefs}
+    <radialGradient id="earthFresnel" cx="50%" cy="50%" r="50%">
+      <stop offset="70%" stop-color="#38bdf8" stop-opacity="0" />
+      <stop offset="90%" stop-color="#38bdf8" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#0284c7" stop-opacity="0.65" />
+    </radialGradient>
+    <radialGradient id="earthOcean" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="35%" stop-color="#0284c7" />
+      <stop offset="75%" stop-color="#034078" />
+      <stop offset="100%" stop-color="#001220" />
+    </radialGradient>
+    <radialGradient id="earthShading" cx="30%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35" />
+      <stop offset="55%" stop-color="#000000" stop-opacity="0" />
+      <stop offset="100%" stop-color="#020617" stop-opacity="0.85" />
+    </radialGradient>
+    <clipPath id="earthClip">
+      <circle cx="90" cy="90" r="62" />
+    </clipPath>
+  </defs>
+  <g filter="url(#drop3d)">
+    <!-- Atmospheric Outer Glow -->
+    <circle cx="90" cy="90" r="68" fill="url(#earthFresnel)" />
+    <!-- Base Ocean Sphere -->
+    <circle cx="90" cy="90" r="62" fill="url(#earthOcean)" />
+    
+    <!-- Continents inside clip -->
+    <g clip-path="url(#earthClip)">
+      <!-- Landmass 1 (Eurasia / Africa shape) -->
+      <path d="M 70 45 C 90 40, 115 50, 120 75 C 110 95, 95 105, 80 115 C 65 110, 55 90, 60 70 Z" fill="#22c55e" opacity="0.9" />
+      <path d="M 85 55 C 95 50, 105 60, 100 70 C 90 75, 80 70, 85 55 Z" fill="#b45309" opacity="0.6" />
+      <!-- Landmass 2 (Americas shape) -->
+      <path d="M 40 55 C 50 48, 55 65, 48 85 C 42 98, 48 115, 42 125 C 34 115, 30 90, 36 70 Z" fill="#22c55e" opacity="0.9" />
+      <!-- Australia / Islands -->
+      <circle cx="125" cy="115" r="9" fill="#22c55e" />
+      <circle cx="138" cy="100" r="5" fill="#22c55e" />
+      
+      <!-- Swirling Clouds -->
+      <path d="M 45 60 Q 80 48 120 62" stroke="#ffffff" stroke-width="7" stroke-linecap="round" fill="none" opacity="0.65" />
+      <path d="M 60 92 Q 95 102 135 90" stroke="#ffffff" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.6" />
+      <path d="M 35 105 Q 65 125 100 118" stroke="#ffffff" stroke-width="5" stroke-linecap="round" fill="none" opacity="0.5" />
+      
+      <!-- Spherical 3D Lighting Shade -->
+      <circle cx="90" cy="90" r="62" fill="url(#earthShading)" />
+    </g>
+    <!-- Crisp Inner Rim Glow -->
+    <circle cx="90" cy="90" r="61" fill="none" stroke="#7dd3fc" stroke-width="2" opacity="0.75" />
+  </g>
+</svg>`,
+
+  'mars-3d.svg': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <defs>
+    ${commonDefs}
+    <radialGradient id="marsBody" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#fdba74" />
+      <stop offset="40%" stop-color="#ea580c" />
+      <stop offset="80%" stop-color="#9a3412" />
+      <stop offset="100%" stop-color="#431407" />
+    </radialGradient>
+    <radialGradient id="marsShade" cx="30%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.3" />
+      <stop offset="60%" stop-color="#000000" stop-opacity="0" />
+      <stop offset="100%" stop-color="#020617" stop-opacity="0.85" />
+    </radialGradient>
+    <clipPath id="marsClip">
+      <circle cx="90" cy="90" r="60" />
+    </clipPath>
+  </defs>
+  <g filter="url(#drop3d)">
+    <circle cx="90" cy="90" r="60" fill="url(#marsBody)" />
+    <g clip-path="url(#marsClip)">
+      <!-- Craters and Iron Oxide Plains -->
+      <ellipse cx="65" cy="72" rx="16" ry="12" fill="#7c2d12" opacity="0.6" />
+      <ellipse cx="112" cy="95" rx="20" ry="15" fill="#7c2d12" opacity="0.65" />
+      <circle cx="80" cy="115" r="10" fill="#7c2d12" opacity="0.5" />
+      <!-- Polar Ice Cap -->
+      <ellipse cx="90" cy="34" rx="22" ry="8" fill="#ffffff" opacity="0.85" />
+      <circle cx="90" cy="90" r="60" fill="url(#marsShade)" />
+    </g>
+    <circle cx="90" cy="90" r="59" fill="none" stroke="#fed7aa" stroke-width="2" opacity="0.65" />
+  </g>
 </svg>`
 };
 
