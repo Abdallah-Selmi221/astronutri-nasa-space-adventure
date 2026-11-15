@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { SpaceFitXState } from '../../types/game';
 import { mergeColoredParts } from './threeMergeUtils';
+import { loadCachedGlbClone } from './blenderModelLoader';
 
 export type AstronautEmote = 'none' | 'wave' | 'celebrate' | 'point';
 
@@ -216,10 +217,14 @@ export function buildSpaceFitXCharacter(options?: {
   shadow.position.y = 0.025;
   group.add(shadow);
 
+  // Instant Procedural Fallback Root (swapped cleanly once Blender astronaut_hero.glb loads)
+  const fallbackBodyRoot = new THREE.Group();
+  group.add(fallbackBodyRoot);
+
   // Articulated Skeleton Body Root
   const bodyPivot = new THREE.Group();
   bodyPivot.position.y = 1.02;
-  group.add(bodyPivot);
+  fallbackBodyRoot.add(bodyPivot);
 
   // Pelvis & Utility Belt (Matte Black + Silver Belt Buckle + Teal Trim)
   const pelvisGeom = mergeColoredParts([
@@ -544,6 +549,91 @@ export function buildSpaceFitXCharacter(options?: {
     group.add(companionGroup);
   }
 
+  interface GlbRigRefs {
+    root: THREE.Group;
+    bodyPivot: THREE.Object3D | null;
+    baseBodyY: number;
+    torsoGroup: THREE.Object3D | null;
+    headGroup: THREE.Object3D | null;
+    visor: THREE.Object3D | null;
+    eclssPack: THREE.Object3D | null;
+    thrusterPack: THREE.Object3D | null;
+    leftArm: THREE.Object3D | null;
+    rightArm: THREE.Object3D | null;
+    leftLeg: THREE.Object3D | null;
+    rightLeg: THREE.Object3D | null;
+    primaryMats: THREE.MeshStandardMaterial[];
+    accentMats: THREE.MeshStandardMaterial[];
+  }
+
+  let isDisposed = false;
+  let glbRefs: GlbRigRefs | null = null;
+
+  void loadCachedGlbClone('/models/astronaut_hero.glb').then((glbRoot) => {
+    if (!glbRoot || isDisposed) {
+      if (glbRoot) {
+        glbRoot.traverse((obj) => {
+          if (obj instanceof THREE.Mesh) {
+            obj.geometry?.dispose();
+            const ms = Array.isArray(obj.material) ? obj.material : [obj.material];
+            ms.forEach((m) => m?.dispose());
+          }
+        });
+      }
+      return;
+    }
+
+    const primaryMats: THREE.MeshStandardMaterial[] = [];
+    const accentMats: THREE.MeshStandardMaterial[] = [];
+    glbRoot.traverse((obj) => {
+      if (obj instanceof THREE.Mesh) {
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        mats.forEach((m) => {
+          if (m instanceof THREE.MeshStandardMaterial) {
+            if (m.name === 'suit_theme_primary') primaryMats.push(m);
+            else if (m.name === 'suit_theme_accent') accentMats.push(m);
+          }
+        });
+      }
+    });
+
+    const bodyNode = glbRoot.getObjectByName('BodyPivot') || null;
+    glbRefs = {
+      root: glbRoot,
+      bodyPivot: bodyNode,
+      baseBodyY: bodyNode ? bodyNode.position.y : 0.92,
+      torsoGroup: glbRoot.getObjectByName('TorsoGroup') || null,
+      headGroup: glbRoot.getObjectByName('HeadGroup') || null,
+      visor: glbRoot.getObjectByName('HelmetVisor') || null,
+      eclssPack: glbRoot.getObjectByName('BackpackECLSS') || null,
+      thrusterPack: glbRoot.getObjectByName('BackpackThruster') || null,
+      leftArm: glbRoot.getObjectByName('LeftArmPivot') || null,
+      rightArm: glbRoot.getObjectByName('RightArmPivot') || null,
+      leftLeg: glbRoot.getObjectByName('LeftLegPivot') || null,
+      rightLeg: glbRoot.getObjectByName('RightLegPivot') || null,
+      primaryMats,
+      accentMats
+    };
+
+    if (glbRefs.visor) glbRefs.visor.visible = options?.showEvaHelmet ?? true;
+    if (glbRefs.thrusterPack) glbRefs.thrusterPack.visible = false;
+
+    // Remove and dispose fallback procedural body so GPU draw calls stay < 55
+    fallbackBodyRoot.visible = false;
+    group.remove(fallbackBodyRoot);
+    fallbackBodyRoot.traverse((obj) => {
+      if (obj instanceof THREE.Mesh || obj instanceof THREE.InstancedMesh) {
+        obj.geometry?.dispose();
+        const ms = Array.isArray(obj.material) ? obj.material : [obj.material];
+        ms.forEach((m) => m?.dispose());
+      }
+    });
+
+    glbRoot.name = 'BlenderAstronautHero';
+    group.add(glbRoot);
+    group.userData.glbReady = true;
+  });
+
   const litColor = new THREE.Color(0x22d3ee);
   const greenColor = new THREE.Color(0x4ade80);
   const dimColor = new THREE.Color(0x1e293b);
@@ -571,26 +661,17 @@ export function buildSpaceFitXCharacter(options?: {
   }) => {
     // 1. Live Astronaut Customizer (EVA Visor vs IVA + 4 Suit Themes + Backpack Style)
     const helmetOn = suitState?.helmetEnabled ?? options?.showEvaHelmet ?? true;
-    evaBubble.visible = helmetOn;
-    arVisor.visible = !helmetOn;
-
     const packMode = suitState?.backpackStyle ?? 'eclss';
-    eclssPackMesh.visible = packMode === 'eclss';
-    thrusterPackMesh.visible = packMode === 'thruster';
-
     const themeKey = suitState?.suitTheme ?? 'cyan_black';
     const themeSpec =
       themeKey === 'nasa_white'
-        ? { armor: 0xf1f5f9, accent: 0x3b82f6, emissive: 0x1d4ed8, cable: 0x60a5fa }
+        ? { primary: 0xe2e8f0, armor: 0xf1f5f9, accent: 0x3b82f6, emissive: 0x1d4ed8, cable: 0x60a5fa }
         : themeKey === 'gold_emerald'
-        ? { armor: 0xd1fae5, accent: 0xfbbf24, emissive: 0x10b981, cable: 0x34d399 }
+        ? { primary: 0x065f46, armor: 0xd1fae5, accent: 0xfbbf24, emissive: 0x10b981, cable: 0x34d399 }
         : themeKey === 'mars_crimson'
-        ? { armor: 0xffe4e6, accent: 0xf43f5e, emissive: 0xe11d48, cable: 0xfb7185 }
-        : { armor: 0xdbeafe, accent: 0x22d3ee, emissive: 0x06b6d4, cable: 0x38bdf8 };
+        ? { primary: 0x881337, armor: 0xffe4e6, accent: 0xf43f5e, emissive: 0xe11d48, cable: 0xfb7185 }
+        : { primary: 0x111827, armor: 0xdbeafe, accent: 0x22d3ee, emissive: 0x06b6d4, cable: 0x38bdf8 };
 
-    matArmorVertex.color.setHex(themeSpec.armor);
-    matCompressionCyan.color.setHex(themeSpec.accent);
-    matCompressionCyan.emissive.setHex(themeSpec.emissive);
     matRoboBeacon.emissive.setHex(themeSpec.accent);
     matRoboBeacon.emissiveIntensity = 0.75 + 0.55 * Math.sin(t * 4.2);
 
@@ -601,127 +682,274 @@ export function buildSpaceFitXCharacter(options?: {
     group.scale.x += (targetSxz - group.scale.x) * 0.2;
     group.scale.z += (targetSxz - group.scale.z) * 0.2;
 
-    // 2. Expressive Facial Animation (blinking + laugh smile)
-    const blinkScale = Math.sin(t * 2.15) > 0.965 ? 0.14 : 1;
-    eyesGroup.scale.y = blinkScale;
     const isBored = !isJumping && !isZeroG && moveSpeed <= 0.1 && idleSeconds >= 8;
     const sitBlend = isBored ? Math.min(1, (idleSeconds - 8) / 0.55) : 0;
 
-    mouthMesh.scale.set(
-      emote === 'celebrate' ? 1.35 : isBored ? 0.72 : 1.0,
-      emote === 'celebrate' ? 1.6 : isBored ? 0.45 : 1.0,
-      1
-    );
+    if (glbRefs) {
+      if (glbRefs.visor) glbRefs.visor.visible = helmetOn;
+      if (glbRefs.eclssPack) glbRefs.eclssPack.visible = packMode === 'eclss';
+      if (glbRefs.thrusterPack) glbRefs.thrusterPack.visible = packMode === 'thruster';
 
-    // 3. Locomotion, Emotes & 8s Idle Sit-Down Pose
-    headGroup.rotation.set(0, Math.sin(t * 1.1) * 0.08, 0);
+      const released = suitState?.emergencyReleased ?? false;
+      const comp = suitState?.compressionLevel || 'medium';
+      const glowStrength =
+        highlightModule === 1 || highlightModule === 2
+          ? 1.9
+          : released
+          ? 0.25
+          : comp === 'high'
+          ? 1.5
+          : 0.9;
 
-    if (isZeroG) {
-      bodyPivot.position.y = 1.16 + Math.sin(t * 2.0) * 0.1;
-      torsoGroup.rotation.set(Math.sin(t * 1.4) * 0.08 + moveSpeed * 0.03, 0, 0);
-      leftArm.shoulderPivot.rotation.set(-0.35 + Math.sin(t * 1.8) * 0.25, 0, -0.25);
-      rightArm.shoulderPivot.rotation.set(-0.35 - Math.sin(t * 1.8) * 0.25, 0, 0.25);
-      leftArm.elbowPivot.rotation.x = -0.25;
-      rightArm.elbowPivot.rotation.x = -0.25;
-      leftLeg.hipPivot.rotation.x = Math.sin(t * 1.5) * 0.2;
-      rightLeg.hipPivot.rotation.x = -Math.sin(t * 1.5) * 0.2;
-      leftLeg.kneePivot.rotation.x = 0.28;
-      rightLeg.kneePivot.rotation.x = 0.18;
-    } else if (isJumping) {
-      bodyPivot.position.y = 1.06;
-      torsoGroup.rotation.set(0.12, 0, 0);
-      leftArm.shoulderPivot.rotation.set(-0.8, 0, -0.35);
-      rightArm.shoulderPivot.rotation.set(-0.8, 0, 0.35);
-      leftArm.elbowPivot.rotation.x = -0.35;
-      rightArm.elbowPivot.rotation.x = -0.35;
-      leftLeg.hipPivot.rotation.x = -0.45;
-      rightLeg.hipPivot.rotation.x = 0.3;
-      leftLeg.kneePivot.rotation.x = 0.75;
-      rightLeg.kneePivot.rotation.x = 0.45;
-    } else if (moveSpeed > 0.1) {
-      const freq = isRunning ? 13 : 8.5;
-      const amp = isRunning ? 0.65 : 0.45;
-      const swing = Math.sin(t * freq);
-      bodyPivot.position.y = 1.02 + Math.abs(swing) * 0.06;
-      torsoGroup.rotation.set(isRunning ? 0.16 : 0.08, 0, 0);
-      leftArm.shoulderPivot.rotation.set(-swing * amp, 0, -0.14);
-      rightArm.shoulderPivot.rotation.set(swing * amp, 0, 0.14);
-      leftArm.elbowPivot.rotation.x = -0.45;
-      rightArm.elbowPivot.rotation.x = -0.45;
-      leftLeg.hipPivot.rotation.x = swing * amp;
-      rightLeg.hipPivot.rotation.x = -swing * amp;
-      leftLeg.kneePivot.rotation.x = Math.max(0, -swing * 0.55);
-      rightLeg.kneePivot.rotation.x = Math.max(0, swing * 0.55);
-    } else if (isBored) {
-      // 8s Idle Boredom: Sit down on the grass, cross/rest right arm, inspect left wrist monitor!
-      bodyPivot.position.y = 1.02 - sitBlend * 0.55;
-      torsoGroup.rotation.set(sitBlend * 0.12, sitBlend * 0.18, 0);
-      headGroup.rotation.set(sitBlend * 0.28 + Math.sin(t * 1.4) * 0.06, -sitBlend * 0.25, 0);
+      glbRefs.primaryMats.forEach((m) => {
+        m.color.setHex(themeSpec.primary);
+      });
+      glbRefs.accentMats.forEach((m) => {
+        m.color.setHex(released ? 0xf59e0b : themeSpec.accent);
+        m.emissive.setHex(released ? 0xd97706 : themeSpec.emissive);
+        m.emissiveIntensity = glowStrength;
+      });
 
-      // Left arm raised checking cyan wrist monitor
-      leftArm.shoulderPivot.rotation.set(-0.92 * sitBlend, 0.2 * sitBlend, -0.15);
-      leftArm.elbowPivot.rotation.x = -1.1 * sitBlend;
-      // Right arm folded casually
-      rightArm.shoulderPivot.rotation.set(-0.42 * sitBlend, -0.25 * sitBlend, -0.18 * sitBlend);
-      rightArm.elbowPivot.rotation.x = -1.05 * sitBlend;
+      const bp = glbRefs.bodyPivot;
+      const tr = glbRefs.torsoGroup;
+      const hd = glbRefs.headGroup;
+      const la = glbRefs.leftArm;
+      const ra = glbRefs.rightArm;
+      const ll = glbRefs.leftLeg;
+      const rl = glbRefs.rightLeg;
 
-      // Seated legs stretched slightly forward onto the grass
-      leftLeg.hipPivot.rotation.x = -1.28 * sitBlend;
-      rightLeg.hipPivot.rotation.x = -1.24 * sitBlend;
-      leftLeg.kneePivot.rotation.x = 0.28 * sitBlend;
-      rightLeg.kneePivot.rotation.x = 0.34 * sitBlend;
-    } else if (emote === 'celebrate') {
-      const hop = Math.abs(Math.sin(t * 7.5)) * 0.24;
-      bodyPivot.position.y = 1.02 + hop;
-      torsoGroup.rotation.set(-0.08, Math.sin(t * 5) * 0.15, 0);
-      headGroup.rotation.x = -0.16;
-      leftArm.shoulderPivot.rotation.set(-2.3 + Math.sin(t * 8) * 0.25, 0, -0.35);
-      rightArm.shoulderPivot.rotation.set(-2.3 - Math.sin(t * 8) * 0.25, 0, 0.35);
-      leftArm.elbowPivot.rotation.x = -0.3;
-      rightArm.elbowPivot.rotation.x = -0.3;
-      leftLeg.hipPivot.rotation.x = hop * -0.8;
-      rightLeg.hipPivot.rotation.x = hop * -0.8;
-      leftLeg.kneePivot.rotation.x = hop * 1.6;
-      rightLeg.kneePivot.rotation.x = hop * 1.6;
-    } else if (emote === 'wave') {
-      bodyPivot.position.y = 1.02 + Math.sin(t * 2.5) * 0.03;
-      torsoGroup.rotation.set(0, -0.12, 0.05);
-      headGroup.rotation.z = -0.09;
-      leftArm.shoulderPivot.rotation.set(0, 0, -0.18);
-      leftArm.elbowPivot.rotation.x = -0.2;
-      // Friendly energetic right-hand overhead wave
-      rightArm.shoulderPivot.rotation.set(-0.25, 0, 2.35 + Math.sin(t * 8.5) * 0.32);
-      rightArm.elbowPivot.rotation.x = -0.32;
-      leftLeg.hipPivot.rotation.x = 0;
-      rightLeg.hipPivot.rotation.x = 0;
-      leftLeg.kneePivot.rotation.x = 0.04;
-      rightLeg.kneePivot.rotation.x = 0.04;
-    } else if (emote === 'point') {
-      bodyPivot.position.y = 1.02 + Math.sin(t * 2.2) * 0.025;
-      torsoGroup.rotation.set(0.05, -0.18, 0);
-      leftArm.shoulderPivot.rotation.set(0.06, 0, -0.16);
-      rightArm.shoulderPivot.rotation.set(-1.32 + Math.sin(t * 4) * 0.06, 0, 0.14);
-      leftArm.elbowPivot.rotation.x = -0.18;
-      rightArm.elbowPivot.rotation.x = -0.08;
-      leftLeg.hipPivot.rotation.x = 0;
-      rightLeg.hipPivot.rotation.x = 0;
+      if (hd) hd.rotation.set(0, Math.sin(t * 1.1) * 0.08, 0);
+
+      if (isZeroG) {
+        if (bp) bp.position.y = glbRefs.baseBodyY + 0.14 + Math.sin(t * 2.0) * 0.1;
+        if (tr) tr.rotation.set(Math.sin(t * 1.4) * 0.08 + moveSpeed * 0.03, 0, 0);
+        if (la) la.rotation.set(-0.35 + Math.sin(t * 1.8) * 0.25, 0, -0.25);
+        if (ra) ra.rotation.set(-0.35 - Math.sin(t * 1.8) * 0.25, 0, 0.25);
+        if (ll) ll.rotation.set(Math.sin(t * 1.5) * 0.2, 0, 0);
+        if (rl) rl.rotation.set(-Math.sin(t * 1.5) * 0.2, 0, 0);
+      } else if (isJumping) {
+        if (bp) bp.position.y = glbRefs.baseBodyY + 0.05;
+        if (tr) tr.rotation.set(0.12, 0, 0);
+        if (la) la.rotation.set(-0.85, 0, -0.35);
+        if (ra) ra.rotation.set(-0.85, 0, 0.35);
+        if (ll) ll.rotation.set(-0.42, 0, 0);
+        if (rl) rl.rotation.set(0.32, 0, 0);
+      } else if (moveSpeed > 0.1) {
+        const freq = isRunning ? 13 : 8.5;
+        const amp = isRunning ? 0.65 : 0.45;
+        const swing = Math.sin(t * freq);
+        if (bp) bp.position.y = glbRefs.baseBodyY + Math.abs(swing) * 0.06;
+        if (tr) tr.rotation.set(isRunning ? 0.16 : 0.08, 0, 0);
+        if (la) la.rotation.set(-swing * amp, 0, -0.14);
+        if (ra) ra.rotation.set(swing * amp, 0, 0.14);
+        if (ll) ll.rotation.set(swing * amp, 0, 0);
+        if (rl) rl.rotation.set(-swing * amp, 0, 0);
+      } else if (isBored) {
+        if (bp) bp.position.y = glbRefs.baseBodyY - sitBlend * 0.48;
+        if (tr) tr.rotation.set(sitBlend * 0.12, sitBlend * 0.18, 0);
+        if (hd) hd.rotation.set(sitBlend * 0.26 + Math.sin(t * 1.4) * 0.06, -sitBlend * 0.24, 0);
+        if (la) la.rotation.set(-0.95 * sitBlend, 0.2 * sitBlend, -0.15);
+        if (ra) ra.rotation.set(-0.42 * sitBlend, -0.25 * sitBlend, -0.18 * sitBlend);
+        if (ll) ll.rotation.set(-1.26 * sitBlend, 0, 0);
+        if (rl) rl.rotation.set(-1.22 * sitBlend, 0, 0);
+      } else if (emote === 'celebrate') {
+        const hop = Math.abs(Math.sin(t * 7.5)) * 0.22;
+        if (bp) bp.position.y = glbRefs.baseBodyY + hop;
+        if (tr) tr.rotation.set(-0.08, Math.sin(t * 5) * 0.15, 0);
+        if (hd) hd.rotation.x = -0.16;
+        if (la) la.rotation.set(-2.25 + Math.sin(t * 8) * 0.25, 0, -0.35);
+        if (ra) ra.rotation.set(-2.25 - Math.sin(t * 8) * 0.25, 0, 0.35);
+        if (ll) ll.rotation.set(hop * -0.75, 0, 0);
+        if (rl) rl.rotation.set(hop * -0.75, 0, 0);
+      } else if (emote === 'wave') {
+        if (bp) bp.position.y = glbRefs.baseBodyY + Math.sin(t * 2.5) * 0.03;
+        if (tr) tr.rotation.set(0, -0.12, 0.05);
+        if (hd) hd.rotation.z = -0.09;
+        if (la) la.rotation.set(0, 0, -0.18);
+        if (ra) ra.rotation.set(-0.25, 0, 2.32 + Math.sin(t * 8.5) * 0.32);
+        if (ll) ll.rotation.set(0, 0, 0);
+        if (rl) rl.rotation.set(0, 0, 0);
+      } else if (emote === 'point') {
+        if (bp) bp.position.y = glbRefs.baseBodyY + Math.sin(t * 2.2) * 0.025;
+        if (tr) tr.rotation.set(0.05, -0.18, 0);
+        if (la) la.rotation.set(0.06, 0, -0.16);
+        if (ra) ra.rotation.set(-1.32 + Math.sin(t * 4) * 0.06, 0, 0.14);
+        if (ll) ll.rotation.set(0, 0, 0);
+        if (rl) rl.rotation.set(0, 0, 0);
+      } else {
+        if (bp) bp.position.y = glbRefs.baseBodyY + Math.sin(t * 2.2) * 0.025;
+        if (tr) tr.rotation.set(0, Math.sin(t * 0.9) * 0.04, 0);
+        if (la) la.rotation.set(Math.sin(t * 1.4) * 0.04, 0, -0.16);
+        if (ra) ra.rotation.set(-Math.sin(t * 1.4) * 0.04, 0, 0.16);
+        if (ll) ll.rotation.set(0, 0, 0);
+        if (rl) rl.rotation.set(0, 0, 0);
+      }
     } else {
-      bodyPivot.position.y = 1.02 + Math.sin(t * 2.2) * 0.025;
-      torsoGroup.rotation.set(0, Math.sin(t * 0.9) * 0.04, 0);
-      leftArm.shoulderPivot.rotation.set(Math.sin(t * 1.4) * 0.04, 0, -0.16);
-      rightArm.shoulderPivot.rotation.set(-Math.sin(t * 1.4) * 0.04, 0, 0.16);
-      leftArm.elbowPivot.rotation.x = -0.18;
-      rightArm.elbowPivot.rotation.x = -0.18;
-      leftLeg.hipPivot.rotation.x = 0;
-      rightLeg.hipPivot.rotation.x = 0;
-      leftLeg.kneePivot.rotation.x = 0.04;
-      rightLeg.kneePivot.rotation.x = 0.04;
+      evaBubble.visible = helmetOn;
+      arVisor.visible = !helmetOn;
+      eclssPackMesh.visible = packMode === 'eclss';
+      thrusterPackMesh.visible = packMode === 'thruster';
+
+      matArmorVertex.color.setHex(themeSpec.armor);
+      matCompressionCyan.color.setHex(themeSpec.accent);
+      matCompressionCyan.emissive.setHex(themeSpec.emissive);
+
+      // 2. Expressive Facial Animation (blinking + laugh smile)
+      const blinkScale = Math.sin(t * 2.15) > 0.965 ? 0.14 : 1;
+      eyesGroup.scale.y = blinkScale;
+
+      mouthMesh.scale.set(
+        emote === 'celebrate' ? 1.35 : isBored ? 0.72 : 1.0,
+        emote === 'celebrate' ? 1.6 : isBored ? 0.45 : 1.0,
+        1
+      );
+
+      // 3. Locomotion, Emotes & 8s Idle Sit-Down Pose
+      headGroup.rotation.set(0, Math.sin(t * 1.1) * 0.08, 0);
+
+      if (isZeroG) {
+        bodyPivot.position.y = 1.16 + Math.sin(t * 2.0) * 0.1;
+        torsoGroup.rotation.set(Math.sin(t * 1.4) * 0.08 + moveSpeed * 0.03, 0, 0);
+        leftArm.shoulderPivot.rotation.set(-0.35 + Math.sin(t * 1.8) * 0.25, 0, -0.25);
+        rightArm.shoulderPivot.rotation.set(-0.35 - Math.sin(t * 1.8) * 0.25, 0, 0.25);
+        leftArm.elbowPivot.rotation.x = -0.25;
+        rightArm.elbowPivot.rotation.x = -0.25;
+        leftLeg.hipPivot.rotation.x = Math.sin(t * 1.5) * 0.2;
+        rightLeg.hipPivot.rotation.x = -Math.sin(t * 1.5) * 0.2;
+        leftLeg.kneePivot.rotation.x = 0.28;
+        rightLeg.kneePivot.rotation.x = 0.18;
+      } else if (isJumping) {
+        bodyPivot.position.y = 1.06;
+        torsoGroup.rotation.set(0.12, 0, 0);
+        leftArm.shoulderPivot.rotation.set(-0.8, 0, -0.35);
+        rightArm.shoulderPivot.rotation.set(-0.8, 0, 0.35);
+        leftArm.elbowPivot.rotation.x = -0.35;
+        rightArm.elbowPivot.rotation.x = -0.35;
+        leftLeg.hipPivot.rotation.x = -0.45;
+        rightLeg.hipPivot.rotation.x = 0.3;
+        leftLeg.kneePivot.rotation.x = 0.75;
+        rightLeg.kneePivot.rotation.x = 0.45;
+      } else if (moveSpeed > 0.1) {
+        const freq = isRunning ? 13 : 8.5;
+        const amp = isRunning ? 0.65 : 0.45;
+        const swing = Math.sin(t * freq);
+        bodyPivot.position.y = 1.02 + Math.abs(swing) * 0.06;
+        torsoGroup.rotation.set(isRunning ? 0.16 : 0.08, 0, 0);
+        leftArm.shoulderPivot.rotation.set(-swing * amp, 0, -0.14);
+        rightArm.shoulderPivot.rotation.set(swing * amp, 0, 0.14);
+        leftArm.elbowPivot.rotation.x = -0.45;
+        rightArm.elbowPivot.rotation.x = -0.45;
+        leftLeg.hipPivot.rotation.x = swing * amp;
+        rightLeg.hipPivot.rotation.x = -swing * amp;
+        leftLeg.kneePivot.rotation.x = Math.max(0, -swing * 0.55);
+        rightLeg.kneePivot.rotation.x = Math.max(0, swing * 0.55);
+      } else if (isBored) {
+        // 8s Idle Boredom: Sit down on the grass, cross/rest right arm, inspect left wrist monitor!
+        bodyPivot.position.y = 1.02 - sitBlend * 0.55;
+        torsoGroup.rotation.set(sitBlend * 0.12, sitBlend * 0.18, 0);
+        headGroup.rotation.set(sitBlend * 0.28 + Math.sin(t * 1.4) * 0.06, -sitBlend * 0.25, 0);
+
+        leftArm.shoulderPivot.rotation.set(-0.92 * sitBlend, 0.2 * sitBlend, -0.15);
+        leftArm.elbowPivot.rotation.x = -1.1 * sitBlend;
+        rightArm.shoulderPivot.rotation.set(-0.42 * sitBlend, -0.25 * sitBlend, -0.18 * sitBlend);
+        rightArm.elbowPivot.rotation.x = -1.05 * sitBlend;
+
+        leftLeg.hipPivot.rotation.x = -1.28 * sitBlend;
+        rightLeg.hipPivot.rotation.x = -1.24 * sitBlend;
+        leftLeg.kneePivot.rotation.x = 0.28 * sitBlend;
+        rightLeg.kneePivot.rotation.x = 0.34 * sitBlend;
+      } else if (emote === 'celebrate') {
+        const hop = Math.abs(Math.sin(t * 7.5)) * 0.24;
+        bodyPivot.position.y = 1.02 + hop;
+        torsoGroup.rotation.set(-0.08, Math.sin(t * 5) * 0.15, 0);
+        headGroup.rotation.x = -0.16;
+        leftArm.shoulderPivot.rotation.set(-2.3 + Math.sin(t * 8) * 0.25, 0, -0.35);
+        rightArm.shoulderPivot.rotation.set(-2.3 - Math.sin(t * 8) * 0.25, 0, 0.35);
+        leftArm.elbowPivot.rotation.x = -0.3;
+        rightArm.elbowPivot.rotation.x = -0.3;
+        leftLeg.hipPivot.rotation.x = hop * -0.8;
+        rightLeg.hipPivot.rotation.x = hop * -0.8;
+        leftLeg.kneePivot.rotation.x = hop * 1.6;
+        rightLeg.kneePivot.rotation.x = hop * 1.6;
+      } else if (emote === 'wave') {
+        bodyPivot.position.y = 1.02 + Math.sin(t * 2.5) * 0.03;
+        torsoGroup.rotation.set(0, -0.12, 0.05);
+        headGroup.rotation.z = -0.09;
+        leftArm.shoulderPivot.rotation.set(0, 0, -0.18);
+        leftArm.elbowPivot.rotation.x = -0.2;
+        rightArm.shoulderPivot.rotation.set(-0.25, 0, 2.35 + Math.sin(t * 8.5) * 0.32);
+        rightArm.elbowPivot.rotation.x = -0.32;
+        leftLeg.hipPivot.rotation.x = 0;
+        rightLeg.hipPivot.rotation.x = 0;
+        leftLeg.kneePivot.rotation.x = 0.04;
+        rightLeg.kneePivot.rotation.x = 0.04;
+      } else if (emote === 'point') {
+        bodyPivot.position.y = 1.02 + Math.sin(t * 2.2) * 0.025;
+        torsoGroup.rotation.set(0.05, -0.18, 0);
+        leftArm.shoulderPivot.rotation.set(0.06, 0, -0.16);
+        rightArm.shoulderPivot.rotation.set(-1.32 + Math.sin(t * 4) * 0.06, 0, 0.14);
+        leftArm.elbowPivot.rotation.x = -0.18;
+        rightArm.elbowPivot.rotation.x = -0.08;
+        leftLeg.hipPivot.rotation.x = 0;
+        rightLeg.hipPivot.rotation.x = 0;
+      } else {
+        bodyPivot.position.y = 1.02 + Math.sin(t * 2.2) * 0.025;
+        torsoGroup.rotation.set(0, Math.sin(t * 0.9) * 0.04, 0);
+        leftArm.shoulderPivot.rotation.set(Math.sin(t * 1.4) * 0.04, 0, -0.16);
+        rightArm.shoulderPivot.rotation.set(-Math.sin(t * 1.4) * 0.04, 0, 0.16);
+        leftArm.elbowPivot.rotation.x = -0.18;
+        rightArm.elbowPivot.rotation.x = -0.18;
+        leftLeg.hipPivot.rotation.x = 0;
+        rightLeg.hipPivot.rotation.x = 0;
+        leftLeg.kneePivot.rotation.x = 0.04;
+        rightLeg.kneePivot.rotation.x = 0.04;
+      }
+
+      // 4. Live 7-Module SPACE-FIT X Hardware Telemetry (Fallback Meshes)
+      const comp = suitState?.compressionLevel || 'medium';
+      matCompressionCyan.emissiveIntensity =
+        highlightModule === 1
+          ? 1.9
+          : comp === 'high'
+          ? 1.45
+          : comp === 'medium'
+          ? 0.9
+          : 0.4;
+
+      const released = suitState?.emergencyReleased ?? false;
+      const avgRes = suitState
+        ? Object.values(suitState.jointLoads).reduce((a, b) => a + b, 0) / 5 / 100
+        : 0.55;
+      matCableCyan.color.setHex(released ? 0xf59e0b : themeSpec.cable);
+      matCableCyan.emissive.setHex(released ? 0xd97706 : themeSpec.emissive);
+      matCableCyan.emissiveIntensity = highlightModule === 2 ? 1.85 : released ? 0.25 : 0.45 + avgRes * 1.1;
+      const cableScale = released ? 0.5 : 0.85 + avgRes * 0.55;
+      [leftArm.armCable, rightArm.armCable, leftLeg.legCable, rightLeg.legCable].forEach((c) => {
+        c.scale.x = cableScale;
+        c.scale.z = cableScale;
+      });
+
+      const impactOn = suitState?.impactProtectionActive ?? true;
+      matHexPad.emissiveIntensity = highlightModule === 3 ? 1.4 : impactOn ? 0.16 : 0.0;
+
+      matQuickRelease.emissiveIntensity = highlightModule === 4 || released ? 1.65 : 0.45;
+
+      const hrHz = (suitState?.heartRateBpm || 76) / 60;
+      matPhysioLed.emissiveIntensity =
+        highlightModule === 5 ? 1.95 : 0.55 + 0.6 * Math.abs(Math.sin(t * hrHz * Math.PI));
+
+      batteryPackGroup.visible = suitState?.batteryAttached ?? true;
+      const battPct = suitState?.batteryPercent ?? 94;
+      for (let b = 0; b < 4; b++) {
+        const lit = battPct >= (b + 1) * 22;
+        batteryBarsInst.setColorAt(b, highlightModule === 7 ? greenColor : lit ? litColor : dimColor);
+      }
+      if (batteryBarsInst.instanceColor) batteryBarsInst.instanceColor.needsUpdate = true;
     }
 
     // 3. Hovering Mini-Robo Companion Behavior
     if (showCompanion) {
       if (isBored) {
-        // Swoop close to seated hero & tilt inquisitively
         companionGroup.position.set(
           0.65 - sitBlend * 0.15 + Math.cos(t * 1.5) * 0.08,
           1.28 + Math.sin(t * 2.8) * 0.07,
@@ -740,50 +968,10 @@ export function buildSpaceFitXCharacter(options?: {
         companionGroup.rotation.set(moveSpeed * 0.03, Math.sin(t * 1.2) * 0.18, 0);
       }
     }
-
-    // 4. Live 7-Module SPACE-FIT X Hardware Telemetry
-    const comp = suitState?.compressionLevel || 'medium';
-    matCompressionCyan.emissiveIntensity =
-      highlightModule === 1
-        ? 1.9
-        : comp === 'high'
-        ? 1.45
-        : comp === 'medium'
-        ? 0.9
-        : 0.4;
-
-    const released = suitState?.emergencyReleased ?? false;
-    const avgRes = suitState
-      ? Object.values(suitState.jointLoads).reduce((a, b) => a + b, 0) / 5 / 100
-      : 0.55;
-    matCableCyan.color.setHex(released ? 0xf59e0b : themeSpec.cable);
-    matCableCyan.emissive.setHex(released ? 0xd97706 : themeSpec.emissive);
-    matCableCyan.emissiveIntensity = highlightModule === 2 ? 1.85 : released ? 0.25 : 0.45 + avgRes * 1.1;
-    const cableScale = released ? 0.5 : 0.85 + avgRes * 0.55;
-    [leftArm.armCable, rightArm.armCable, leftLeg.legCable, rightLeg.legCable].forEach((c) => {
-      c.scale.x = cableScale;
-      c.scale.z = cableScale;
-    });
-
-    const impactOn = suitState?.impactProtectionActive ?? true;
-    matHexPad.emissiveIntensity = highlightModule === 3 ? 1.4 : impactOn ? 0.16 : 0.0;
-
-    matQuickRelease.emissiveIntensity = highlightModule === 4 || released ? 1.65 : 0.45;
-
-    const hrHz = (suitState?.heartRateBpm || 76) / 60;
-    matPhysioLed.emissiveIntensity =
-      highlightModule === 5 ? 1.95 : 0.55 + 0.6 * Math.abs(Math.sin(t * hrHz * Math.PI));
-
-    batteryPackGroup.visible = suitState?.batteryAttached ?? true;
-    const battPct = suitState?.batteryPercent ?? 94;
-    for (let b = 0; b < 4; b++) {
-      const lit = battPct >= (b + 1) * 22;
-      batteryBarsInst.setColorAt(b, highlightModule === 7 ? greenColor : lit ? litColor : dimColor);
-    }
-    if (batteryBarsInst.instanceColor) batteryBarsInst.instanceColor.needsUpdate = true;
   };
 
   const dispose = () => {
+    isDisposed = true;
     disposableTextures.forEach((tex) => tex.dispose());
     group.traverse((obj) => {
       if (obj instanceof THREE.Mesh || obj instanceof THREE.InstancedMesh) {

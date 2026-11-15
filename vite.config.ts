@@ -277,7 +277,7 @@ export default defineConfig(({ mode }) => {
           cleanupOutdatedCaches: true,
           skipWaiting: true,
           clientsClaim: true,
-          globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,webp,woff2,mp3,mp4,json}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,webp,woff2,mp3,mp4,json,glb,gltf}'],
           globIgnores: [
             'robo-intro.mp4',
             'assets/scenes/**',

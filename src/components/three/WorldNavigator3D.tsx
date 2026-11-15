@@ -12,6 +12,11 @@ import {
   createFloatingLabelSprite,
   createSleekSpacecraftParts
 } from './archipelagoPrimitives';
+import {
+  attachBlenderEarthIsland,
+  attachBlenderSpaceship,
+  getLoadedGlbUrls
+} from './blenderModelLoader';
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
 import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
 
@@ -160,14 +165,19 @@ function getSurfaceInfoAt(x: number, z: number): {
 function addIslandLandmarkDecor(
   group: THREE.Group,
   levelId: CampaignLevelId
-): { obj: THREE.Object3D; bob: boolean }[] {
+): {
+  animated: { obj: THREE.Object3D; bob: boolean }[];
+  fallbackTrees: THREE.Object3D[];
+  fallbackRocket: THREE.Object3D | null;
+} {
   const animated: { obj: THREE.Object3D; bob: boolean }[] = [];
   const staticParts: ColoredGeometryPart[] = [];
+  const fallbackTrees: THREE.Object3D[] = [];
+  let fallbackRocket: THREE.Object3D | null = null;
 
   if (levelId === 1) {
-    // Sleek Low-Poly Spacecraft + Cozy Food Kiosk + Multi-Canopy Trees + Waterfall Chute & Radar Mast
+    // Cozy Food Kiosk + Emerald Cliff Waterfall Stream + Radar Mast
     staticParts.push(
-      ...createSleekSpacecraftParts(1.85, 0, -1.65, 0.88),
       // Mini Low-Poly Food Kiosk Booth
       { geometry: new THREE.BoxGeometry(1.35, 0.48, 0.8), color: 0xb45309, position: [-2.1, 0.24, -1.4] },
       { geometry: new THREE.ConeGeometry(1.12, 0.6, 4), color: 0xf97316, position: [-2.1, 1.38, -1.4], rotation: [0, Math.PI / 4, 0] },
@@ -179,18 +189,34 @@ function addIslandLandmarkDecor(
       // Radar Base Pedestal
       { geometry: new THREE.CylinderGeometry(0.16, 0.24, 1.35, 8), color: 0xe2e8f0, position: [-2.65, 0.68, 2.1] }
     );
+
+    // Fallback rocket (replaced smoothly when /models/spaceship_craft.glb attaches)
+    fallbackRocket = new THREE.Mesh(
+      mergeColoredParts(createSleekSpacecraftParts(1.85, 0, -1.65, 0.88)),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.25 })
+    );
+    group.add(fallbackRocket);
+
+    // Fallback trees (replaced smoothly when /models/earth_island.glb attaches)
+    const treeParts: ColoredGeometryPart[] = [];
     [
       [-2.7, 1.15],
       [2.65, 1.45],
       [-0.6, -2.75]
     ].forEach(([tx, tz]) => {
-      staticParts.push(
+      treeParts.push(
         { geometry: new THREE.CylinderGeometry(0.11, 0.15, 0.7, 7), color: 0x78350f, position: [tx, 0.35, tz] },
         { geometry: new THREE.ConeGeometry(0.68, 0.96, 7), color: 0x15803d, position: [tx, 0.96, tz] },
         { geometry: new THREE.ConeGeometry(0.52, 0.82, 7), color: 0x22c55e, position: [tx, 1.48, tz] },
         { geometry: new THREE.ConeGeometry(0.36, 0.6, 7), color: 0x4ade80, position: [tx, 1.9, tz] }
       );
     });
+    const treeMesh = new THREE.Mesh(
+      mergeColoredParts(treeParts),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, flatShading: true })
+    );
+    group.add(treeMesh);
+    fallbackTrees.push(treeMesh);
 
     // Rotating Deep-Space Radar Dish (stays planted on radar mast: bob = false)
     const dishGeom = mergeColoredParts([
@@ -256,7 +282,7 @@ function addIslandLandmarkDecor(
     group.add(landmarkMesh);
   }
 
-  return animated;
+  return { animated, fallbackTrees, fallbackRocket };
 }
 
 export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
@@ -381,6 +407,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     const disposableTextures: THREE.Texture[] = [];
     const clickTargets: { mesh: THREE.Object3D; levelId: CampaignLevelId }[] = [];
     const floatingProps: { obj: THREE.Object3D; baseY: number; phase: number; bob: boolean }[] = [];
+    let isSceneDisposed = false;
 
     const portalRingsInst = new THREE.InstancedMesh(
       new THREE.TorusGeometry(1.15, 0.15, 12, 28, Math.PI * 1.2),
@@ -413,6 +440,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         crystalColor: unlocked ? cfg.crystalColor : 0x475569,
         accentCraters: cfg.accentCraters
       });
+      const fallbackBaseTerrain = [...islandGroup.children];
       islandGroup.position.copy(cfg.center);
       scene.add(islandGroup);
       if (Array.isArray(islandGroup.userData.disposableTextures)) {
@@ -420,10 +448,28 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       }
 
       // Add landmark buildings / trees / asteroids on island
-      const props = addIslandLandmarkDecor(islandGroup, cfg.levelId);
-      props.forEach((p, pIdx) => {
+      const decor = addIslandLandmarkDecor(islandGroup, cfg.levelId);
+      decor.animated.forEach((p, pIdx) => {
         floatingProps.push({ obj: p.obj, baseY: p.obj.position.y, phase: idx * 1.4 + pIdx, bob: p.bob });
       });
+
+      if (cfg.levelId === 1) {
+        attachBlenderEarthIsland({
+          targetParent: islandGroup,
+          radius: cfg.radius,
+          depthScaleY: 0.72,
+          fallbackNodes: [...fallbackBaseTerrain, ...decor.fallbackTrees],
+          isDisposed: () => isSceneDisposed
+        });
+        attachBlenderSpaceship({
+          targetParent: islandGroup,
+          position: [1.85, 0.02, -1.65],
+          rotationY: 0.45,
+          scale: 0.86,
+          fallbackNodes: decor.fallbackRocket ? [decor.fallbackRocket] : undefined,
+          isDisposed: () => isSceneDisposed
+        });
+      }
 
       const portalColor = new THREE.Color(completed ? 0x10b981 : unlocked ? cfg.rimColor : 0x64748b);
       portalRingsInst.setColorAt(idx, portalColor);
@@ -785,11 +831,13 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       mount.dataset.drawCalls = String(renderer.info.render.calls);
       mount.dataset.idleBored = isBoredIdle ? 'true' : 'false';
       mount.dataset.idleSeconds = String(Math.floor(idleSeconds));
+      mount.dataset.glbLoaded = getLoadedGlbUrls().join(',');
     };
 
     rafId = requestAnimationFrame(animate);
 
     return () => {
+      isSceneDisposed = true;
       cancelAnimationFrame(rafId);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);

@@ -14,6 +14,11 @@ import {
   createStationBuildingMesh,
   SkyMode
 } from './archipelagoPrimitives';
+import {
+  attachBlenderEarthIsland,
+  attachBlenderSpaceship,
+  getLoadedGlbUrls
+} from './blenderModelLoader';
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
 import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
 
@@ -211,6 +216,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     mount.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
+    let isSceneDisposed = false;
     const camera = new THREE.PerspectiveCamera(50, dims.w / dims.h, 0.1, 200);
     camera.position.set(0, 5.8, 10.2);
 
@@ -253,6 +259,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     ];
 
     // Stylized Low-Poly Multi-Canopy Trees / Palms Around Outer Island Perimeter on Earth & Splashdown (1 draw call!)
+    let treeRingMesh: THREE.Mesh | null = null;
     if (levelId === 1 || levelId === 4) {
       const treeParts: ColoredGeometryPart[] = [];
       const treeCount = 10;
@@ -268,12 +275,21 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           { geometry: new THREE.ConeGeometry(0.4, 0.68, 7), color: 0x4ade80, position: [tx, 2.38, tz] }
         );
       }
-      scene.add(
-        new THREE.Mesh(
-          mergeColoredParts(treeParts),
-          new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, flatShading: true })
-        )
+      treeRingMesh = new THREE.Mesh(
+        mergeColoredParts(treeParts),
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, flatShading: true })
       );
+      scene.add(treeRingMesh);
+    }
+
+    if (levelId === 1) {
+      attachBlenderEarthIsland({
+        targetParent: scene,
+        radius: islandRadius,
+        depthScaleY: 0.45,
+        fallbackNodes: treeRingMesh ? [island, treeRingMesh] : [island],
+        isDisposed: () => isSceneDisposed
+      });
     }
 
     // Distinct Biome Landmarks & Environmental Life (+1 to +2 merged draw calls total!)
@@ -427,9 +443,26 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
     positionedRooms.forEach(({ room, pos, yawToCenter }, idx) => {
       const completed = isRoomCompleted(room);
-      const bld = createStationBuildingMesh(room, completed, { skipPortals: true, skipLabelSprite: true });
+      const ridLower = room.id.toLowerCase();
+      const useBlenderCraft =
+        (levelId === 1 || levelId === 4) &&
+        (ridLower.includes('launch') || ridLower.includes('reentry'));
+      const bld = createStationBuildingMesh(room, completed, {
+        skipPortals: true,
+        skipLabelSprite: true,
+        skipRocketCraft: useBlenderCraft
+      });
       bld.group.position.copy(pos);
       bld.group.rotation.y = yawToCenter;
+      if (useBlenderCraft) {
+        attachBlenderSpaceship({
+          targetParent: bld.group,
+          position: [0, 0.22, -0.42],
+          rotationY: 0,
+          scale: 0.92,
+          isDisposed: () => isSceneDisposed
+        });
+      }
       const archMesh = bld.group.children.find((c): c is THREE.Mesh => c instanceof THREE.Mesh);
       if (archMesh) {
         rotEuler.set(0, yawToCenter, 0);
@@ -846,11 +879,13 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       mount.dataset.drawCalls = String(renderer.info.render.calls);
       mount.dataset.idleBored = isBoredIdle ? 'true' : 'false';
       mount.dataset.idleSeconds = String(Math.floor(idleSeconds));
+      mount.dataset.glbLoaded = getLoadedGlbUrls().join(',');
     };
 
     rafId = requestAnimationFrame(animate);
 
     return () => {
+      isSceneDisposed = true;
       cancelAnimationFrame(rafId);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);

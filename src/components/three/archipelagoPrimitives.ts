@@ -722,7 +722,7 @@ export function createFloatingExclamationGeometry(): THREE.BufferGeometry {
 export function createStationBuildingMesh(
   room: SpatialRoomNode,
   completed: boolean,
-  options?: { skipPortals?: boolean; skipLabelSprite?: boolean }
+  options?: { skipPortals?: boolean; skipLabelSprite?: boolean; skipRocketCraft?: boolean }
 ): {
   group: THREE.Group;
   portalRing: THREE.Mesh;
@@ -759,8 +759,10 @@ export function createStationBuildingMesh(
       { geometry: new THREE.SphereGeometry(0.32, 10, 10), color: 0x22c55e, position: [0, 1.28, -0.4] }
     );
   } else if (rid.includes('launch') || rid.includes('reentry') || rid.includes('spaceship') || rid.includes('central')) {
-    // Sleek Aerodynamic Low-Poly Spacecraft on Launch Pad
-    parts.push(...createSleekSpacecraftParts(0, 0.15, -0.42, 0.92));
+    // Sleek Aerodynamic Low-Poly Spacecraft on Launch Pad (or clear pad when Blender GLB loads)
+    if (!options?.skipRocketCraft) {
+      parts.push(...createSleekSpacecraftParts(0, 0.15, -0.42, 0.92));
+    }
   } else if (rid.includes('equipment') || rid.includes('eva') || rid.includes('fitness')) {
     // Suit & Fitness Striped Turquoise/White Tent Pavilion
     parts.push(
