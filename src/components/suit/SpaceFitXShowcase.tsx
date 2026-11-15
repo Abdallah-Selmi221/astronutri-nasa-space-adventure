@@ -103,7 +103,11 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
       ring.position.y = 0.01;
       scene.add(ring);
 
-      const character = buildSpaceFitXCharacter({ showEvaHelmet: false, scale: 1.05 });
+      const character = buildSpaceFitXCharacter({
+        showEvaHelmet: false,
+        showCompanion: false,
+        scale: 1.05
+      });
       scene.add(character.group);
 
       const clock = new THREE.Clock();

@@ -254,29 +254,103 @@ export const CampaignHubView: React.FC = () => {
           />
         </div>
 
-        {/* Sleek Responsive Single-Row Edge HUD Bar at Top (NO horizontal overflow clipping!) */}
-        <header className="pointer-events-none fixed top-2 inset-x-2 sm:inset-x-4 z-30">
-          <div className="pointer-events-auto max-w-7xl mx-auto flex items-center justify-between gap-2 bg-slate-950/85 border-2 border-cyan-400/50 backdrop-blur-md rounded-2xl px-2.5 sm:px-4 py-1.5 shadow-xl">
-            <div className="flex items-center gap-2 min-w-0">
+        {/* Minimalist Corner Kids HUD (Level Island: Star Counter Left, NASA & Menu Right) */}
+        <header
+          dir="ltr"
+          className="pointer-events-none fixed top-2.5 inset-x-2.5 sm:inset-x-4 z-30 flex items-start justify-between gap-2"
+        >
+          {/* Physical Top-Left: Back to Archipelago + Gold Star & Mission Progress */}
+          <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleBackToWorldMap}
+              className="casual-btn-cyan px-2.5 sm:px-3 py-1.5 text-xs flex items-center gap-1 cursor-pointer shrink-0 rounded-full"
+              dir="rtl"
+            >
+              <ArrowRight className="w-3.5 h-3.5" />
+              <span>الأرخبيل</span>
+            </button>
+
+            <div
+              dir="rtl"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-slate-950/75 border-2 border-amber-300/75 backdrop-blur-md shadow-lg"
+            >
+              <img
+                src="/assets/ui/star_coin.svg"
+                alt=""
+                className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 drop-shadow"
+              />
+              <span className="font-hud font-black text-xs sm:text-sm text-amber-300 tabular-nums">
+                {totalStarsScore}
+              </span>
+              <span className="text-[11px] font-hud font-black text-white border-r border-white/20 pr-1.5 whitespace-nowrap">
+                {LEVEL_UI_META[activeLevelId].badge} {levelDoneCount}/{activeLevelSpec.miniGames.length}
+              </span>
+            </div>
+          </div>
+
+          {/* Physical Top-Right: Return Auth (when earned) + NASA Live Data + Pause/Menu Drawer */}
+          <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {activeLevelId === 3 && allLevelGamesDone && !campaign.l3ReturnAuthorized && (
               <button
                 type="button"
-                onClick={handleBackToWorldMap}
-                className="casual-btn-cyan px-2.5 sm:px-3 py-1.5 text-xs flex items-center gap-1 cursor-pointer shrink-0"
+                onClick={() => setCampaignView('minigame', 3, 'mission_control', null)}
+                className="px-2.5 py-1.5 rounded-full bg-purple-600 hover:bg-purple-500 text-white font-black text-xs border-2 border-purple-200 animate-pulse cursor-pointer whitespace-nowrap shadow-lg"
+                dir="rtl"
               >
-                <ArrowRight className="w-3.5 h-3.5" />
-                <span>الأرخبيل</span>
+                🛸 إذن العودة
               </button>
-              <div className="leading-tight min-w-0">
-                <div className="font-hud font-black text-xs sm:text-sm text-white truncate">
-                  {LEVEL_UI_META[activeLevelId].badge} {LEVEL_UI_META[activeLevelId].shortTitleAr}
-                </div>
-                <div className="text-[10px] text-emerald-300 font-bold whitespace-nowrap">
-                  ✅ {levelDoneCount}/{activeLevelSpec.miniGames.length} مهام
-                </div>
+            )}
+
+            <button
+              type="button"
+              data-testid="open-nasa-drawer-btn"
+              onClick={() => {
+                soundManager.playClick();
+                setIsMobileMenuOpen(false);
+                setIsNasaOpen(true);
+              }}
+              className="px-2.5 sm:px-3 py-1.5 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-100 font-hud font-black text-xs border-2 border-cyan-300/75 backdrop-blur-md shadow-lg flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              dir="rtl"
+            >
+              <Satellite className="w-3.5 h-3.5 text-cyan-300" />
+              <span>NASA</span>
+            </button>
+
+            <button
+              type="button"
+              data-testid="mobile-menu-toggle"
+              onClick={() => {
+                soundManager.playClick();
+                setIsMobileMenuOpen((v) => !v);
+              }}
+              className="px-2.5 sm:px-3 py-1.5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_3px_0_#b45309] flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              aria-label="فتح القائمة"
+              dir="rtl"
+            >
+              {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              <span className="hidden sm:inline">القائمة</span>
+            </button>
+          </div>
+        </header>
+
+        {/* Clean Unified Pause & Navigation Drawer (Level Hub: Desktop + Mobile) */}
+        {isMobileMenuOpen && (
+          <div
+            data-testid="mobile-menu-drawer"
+            dir="rtl"
+            className="fixed top-14 sm:top-16 right-2.5 sm:right-4 z-40 w-[calc(100vw-20px)] max-w-sm rounded-3xl bg-slate-950/95 border-2 border-cyan-300/80 p-3.5 shadow-2xl space-y-2.5"
+          >
+            <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
+              <div className="text-xs font-hud font-black text-cyan-200 truncate">
+                {LEVEL_UI_META[activeLevelId].badge} {LEVEL_UI_META[activeLevelId].shortTitleAr}
               </div>
+              <span className="text-[11px] font-bold text-emerald-300 whitespace-nowrap">
+                ✅ {levelDoneCount}/{activeLevelSpec.miniGames.length} مهام
+              </span>
             </div>
 
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 data-testid="toggle-rooms-drawer-btn"
@@ -285,9 +359,9 @@ export const CampaignHubView: React.FC = () => {
                   setIsMobileMenuOpen(false);
                   setIsRoomsDrawerOpen((v) => !v);
                 }}
-                className="px-2.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-black text-xs border border-sky-200/70 shadow-[0_3px_0_#075985] flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                className="p-2.5 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-hud font-black text-xs border-2 border-sky-200/80 shadow-[0_3px_0_#075985] flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <DoorOpen className="w-3.5 h-3.5" />
+                <DoorOpen className="w-4 h-4" />
                 <span>الغرف ({activeLevelSpec.rooms.length})</span>
               </button>
 
@@ -296,95 +370,13 @@ export const CampaignHubView: React.FC = () => {
                 data-testid="open-spacefitx-showcase"
                 onClick={() => {
                   soundManager.playClick();
-                  setIsSuitShowcaseOpen(true);
-                }}
-                className="hidden md:flex px-2.5 py-1.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-xs border border-white shadow-[0_3px_0_#0e7490] items-center gap-1 cursor-pointer whitespace-nowrap"
-              >
-                <Shield className="w-3.5 h-3.5" />
-                <span>SPACE-FIT X</span>
-              </button>
-
-              {activeLevelId <= 3 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    soundManager.playClick();
-                    setIsEcoCabinOpen((v) => !v);
-                  }}
-                  className="hidden md:flex px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs border border-emerald-100 shadow-[0_3px_0_#065f46] items-center gap-1 cursor-pointer whitespace-nowrap"
-                >
-                  <Sprout className="w-3.5 h-3.5" />
-                  <span>الزراعة المائية</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  soundManager.playClick();
-                  setIsSourcesOpen(true);
-                }}
-                className="hidden md:flex px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-200 font-black text-xs border border-sky-400/50 items-center gap-1 cursor-pointer whitespace-nowrap"
-              >
-                <BookOpen className="w-3.5 h-3.5 text-sky-300" />
-                <span>مصادر (13)</span>
-              </button>
-
-              {activeLevelId === 3 && allLevelGamesDone && !campaign.l3ReturnAuthorized && (
-                <button
-                  type="button"
-                  onClick={() => setCampaignView('minigame', 3, 'mission_control', null)}
-                  className="px-2.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs animate-pulse cursor-pointer whitespace-nowrap"
-                >
-                  🛸 إذن العودة
-                </button>
-              )}
-
-              {canEnterNextLevel && (
-                <button
-                  type="button"
-                  onClick={() => setCampaignView('level_hub', nextLevelId, null, null)}
-                  className="hidden sm:flex px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-xs items-center gap-1 cursor-pointer whitespace-nowrap"
-                >
-                  <Rocket className="w-3.5 h-3.5" />
-                  <span>المستوى {nextLevelId}</span>
-                </button>
-              )}
-
-              {/* Mobile Menu Toggle Button (< md) */}
-              <button
-                type="button"
-                data-testid="mobile-menu-toggle"
-                onClick={() => {
-                  soundManager.playClick();
-                  setIsMobileMenuOpen((v) => !v);
-                }}
-                className="md:hidden px-2.5 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_3px_0_#b45309] flex items-center gap-1 cursor-pointer"
-                aria-label="فتح القائمة"
-              >
-                {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-                <span>القائمة</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Mobile Collapsible Menu Panel (Level Hub) */}
-          {isMobileMenuOpen && (
-            <div
-              data-testid="mobile-menu-drawer"
-              className="pointer-events-auto md:hidden mt-2 rounded-3xl bg-slate-950/95 border-2 border-cyan-300/70 p-3 shadow-2xl grid grid-cols-2 gap-2"
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  soundManager.playClick();
                   setIsMobileMenuOpen(false);
                   setIsSuitShowcaseOpen(true);
                 }}
-                className="p-2.5 rounded-2xl bg-cyan-500 text-slate-950 font-black text-xs border-2 border-white shadow-[0_3px_0_#0e7490] flex items-center justify-center gap-1.5 cursor-pointer"
+                className="p-2.5 rounded-2xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_3px_0_#0e7490] flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Shield className="w-4 h-4" />
-                <span>بدلة SPACE-FIT X</span>
+                <span>SPACE-FIT X</span>
               </button>
 
               {activeLevelId <= 3 && (
@@ -395,7 +387,7 @@ export const CampaignHubView: React.FC = () => {
                     setIsMobileMenuOpen(false);
                     setIsEcoCabinOpen(true);
                   }}
-                  className="p-2.5 rounded-2xl bg-emerald-600 text-white font-black text-xs border-2 border-emerald-200 shadow-[0_3px_0_#065f46] flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="p-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-hud font-black text-xs border-2 border-emerald-200 shadow-[0_3px_0_#065f46] flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Sprout className="w-4 h-4" />
                   <span>الزراعة المائية</span>
@@ -409,10 +401,36 @@ export const CampaignHubView: React.FC = () => {
                   setIsMobileMenuOpen(false);
                   setIsSourcesOpen(true);
                 }}
-                className="p-2.5 rounded-2xl bg-slate-800 text-sky-200 font-black text-xs border-2 border-sky-400/50 flex items-center justify-center gap-1.5 cursor-pointer"
+                className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-sky-200 font-hud font-black text-xs border-2 border-sky-400/50 flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <BookOpen className="w-4 h-4 text-sky-300" />
-                <span>مصادر ناسا (13)</span>
+                <span>مصادر (13)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  soundManager.playClick();
+                  setIsMobileMenuOpen(false);
+                  setIsHowToPlayOpen(true);
+                }}
+                className="p-2.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-xs border-2 border-white flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <HelpCircle className="w-4 h-4" />
+                <span>كيف تلعب؟</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  soundManager.playClick();
+                  setIsMobileMenuOpen(false);
+                  setIsSettingsOpen(true);
+                }}
+                className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-hud font-black text-xs border-2 border-slate-500 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Settings className="w-4 h-4" />
+                <span>الإعدادات</span>
               </button>
 
               {canEnterNextLevel && (
@@ -422,15 +440,15 @@ export const CampaignHubView: React.FC = () => {
                     setIsMobileMenuOpen(false);
                     setCampaignView('level_hub', nextLevelId, null, null);
                   }}
-                  className="p-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-xs border-2 border-white flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="col-span-2 p-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-hud font-black text-xs border-2 border-white flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Rocket className="w-4 h-4" />
-                  <span>المستوى {nextLevelId}</span>
+                  <span>الانتقال إلى المستوى {nextLevelId}</span>
                 </button>
               )}
             </div>
-          )}
-        </header>
+          </div>
+        )}
 
         {/* Expandable Rooms & Sequential Missions Drawer */}
         {isRoomsDrawerOpen && (
@@ -577,41 +595,121 @@ export const CampaignHubView: React.FC = () => {
         />
       </div>
 
-      {/* Compact Non-Overflowing Top Edge HUD Bar (Zero Overlap & Clean Mobile Drawer) */}
-      <header className="pointer-events-none fixed top-2 inset-x-2 sm:inset-x-4 z-30">
-        <div className="pointer-events-auto max-w-7xl mx-auto flex items-center justify-between gap-2 bg-slate-950/85 border-2 border-cyan-400/50 backdrop-blur-md rounded-2xl px-2.5 sm:px-4 py-1.5 shadow-xl">
-          {/* Identity & Stars */}
-          <div className="flex items-center gap-2 min-w-0">
+      {/* Minimalist Corner Kids HUD (World Archipelago: Gold Stars Left, NASA & Menu Right) */}
+      <header
+        dir="ltr"
+        className="pointer-events-none fixed top-2.5 inset-x-2.5 sm:inset-x-4 z-30 flex items-start justify-between gap-2"
+      >
+        {/* Physical Top-Left: Gold Star Counter + Primary Play Button */}
+        <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div
+            dir="rtl"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-slate-950/75 border-2 border-amber-300/75 backdrop-blur-md shadow-lg"
+          >
             <img
-              src="/assets/ui/astro_badge.svg"
-              alt="AstroNutri Crest"
-              className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 drop-shadow"
+              src="/assets/ui/star_coin.svg"
+              alt=""
+              className="w-6 h-6 sm:w-7 sm:h-7 shrink-0 drop-shadow"
             />
-            <div className="leading-tight min-w-0">
-              <div className="font-hud font-black text-xs text-white truncate">
-                {state.cadetName ? state.cadetName : 'رائد الفضاء'}
-              </div>
-              <div className="text-[10px] text-amber-300 font-black whitespace-nowrap">
-                {campaign.completedMiniGames.length}/21 • ⭐ {totalStarsScore}
-              </div>
-            </div>
+            <span className="font-hud font-black text-xs sm:text-sm text-amber-300 tabular-nums">
+              {totalStarsScore}
+            </span>
+            <span className="hidden sm:inline text-[11px] font-bold text-slate-200 border-r border-white/20 pr-1.5 whitespace-nowrap">
+              {campaign.completedMiniGames.length}/21
+            </span>
           </div>
 
-          {/* Primary Action Ribbon */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                const highestUnlocked =
-                  [...campaign.unlockedLevels].sort((a, b) => b - a)[0] || 1;
-                handleSelectLevel(highestUnlocked);
-              }}
-              className="casual-btn-emerald px-3 py-1.5 text-xs cursor-pointer flex items-center gap-1 whitespace-nowrap"
-            >
-              <Play className="w-3.5 h-3.5 fill-white" />
-              <span>ابدأ</span>
-            </button>
+          <button
+            type="button"
+            onClick={() => {
+              const highestUnlocked =
+                [...campaign.unlockedLevels].sort((a, b) => b - a)[0] || 1;
+              handleSelectLevel(highestUnlocked);
+            }}
+            className="casual-btn-emerald px-3 py-1.5 text-xs cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-full"
+            dir="rtl"
+          >
+            <Play className="w-3.5 h-3.5 fill-white" />
+            <span>ابدأ</span>
+          </button>
+        </div>
 
+        {/* Physical Top-Right: Energy/NASA Observatory + Robo Voice + Pause/Menu Toggle */}
+        <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <button
+            type="button"
+            data-testid="open-nasa-drawer-btn"
+            onClick={() => {
+              soundManager.playClick();
+              setIsMobileMenuOpen(false);
+              setIsNasaOpen(true);
+            }}
+            className="px-2.5 sm:px-3 py-1.5 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-100 font-hud font-black text-xs border-2 border-cyan-300/75 backdrop-blur-md shadow-lg cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+            dir="rtl"
+          >
+            <Satellite className="w-3.5 h-3.5 text-cyan-300" />
+            <span>NASA</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClick();
+              if (isAudioPlaying) {
+                dialogueManager.stop();
+              } else {
+                dialogueManager.speak(
+                  'أهلاً يا بطل! استكشف الجزر الطائرة في الأرخبيل واضغط على جزيرة أو تحرك إليها لدخول الـ 21 تحدياً!'
+                );
+              }
+            }}
+            className="p-2 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-200 border-2 border-cyan-300/60 backdrop-blur-md shadow-lg cursor-pointer"
+            aria-label="صوت كابتن روبو"
+          >
+            <Volume2 className={`w-4 h-4 ${isAudioPlaying ? 'animate-pulse text-amber-300' : ''}`} />
+          </button>
+
+          <button
+            type="button"
+            data-testid="mobile-menu-toggle"
+            onClick={() => {
+              soundManager.playClick();
+              setIsMobileMenuOpen((v) => !v);
+            }}
+            className="px-2.5 sm:px-3 py-1.5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_3px_0_#b45309] flex items-center gap-1 cursor-pointer whitespace-nowrap"
+            aria-label="فتح القائمة"
+            dir="rtl"
+          >
+            {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            <span className="hidden sm:inline">القائمة</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Unified Pause & Arcade Menu Drawer (World Map: Desktop + Mobile) */}
+      {isMobileMenuOpen && (
+        <div
+          data-testid="mobile-menu-drawer"
+          dir="rtl"
+          className="fixed top-14 sm:top-16 right-2.5 sm:right-4 z-40 w-[calc(100vw-20px)] max-w-sm rounded-3xl bg-slate-950/95 border-2 border-cyan-300/80 p-3.5 shadow-2xl space-y-2.5"
+        >
+          <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
+            <div className="flex items-center gap-2 min-w-0">
+              <img
+                src="/assets/ui/astro_badge.svg"
+                alt="AstroNutri Crest"
+                className="w-7 h-7 shrink-0 drop-shadow"
+              />
+              <span className="font-hud font-black text-xs text-white truncate">
+                {state.cadetName ? state.cadetName : 'رائد الفضاء'}
+              </span>
+            </div>
+            <span className="text-[11px] font-hud font-black text-amber-300 whitespace-nowrap">
+              ⭐ {totalStarsScore} • {campaign.completedMiniGames.length}/21
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               data-testid="toggle-levels-drawer-btn"
@@ -620,150 +718,21 @@ export const CampaignHubView: React.FC = () => {
                 setIsMobileMenuOpen(false);
                 setIsLevelsDrawerOpen((v) => !v);
               }}
-              className="px-2.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-hud font-black text-xs border border-sky-200/70 shadow-[0_3px_0_#075985] cursor-pointer flex items-center gap-1 whitespace-nowrap"
+              className="p-2.5 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-hud font-black text-xs border-2 border-sky-200/80 shadow-[0_3px_0_#075985] flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <Layers className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">المستويات (4)</span>
-              <span className="sm:hidden">المستويات</span>
+              <Layers className="w-4 h-4" />
+              <span>المستويات (4)</span>
             </button>
 
-            {/* Desktop Secondary Action Buttons */}
-            <div className="hidden md:flex items-center gap-1.5">
-              <button
-                type="button"
-                data-testid="open-spacefitx-showcase"
-                onClick={() => {
-                  soundManager.playClick();
-                  setIsSuitShowcaseOpen(true);
-                }}
-                className="px-2.5 py-1.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-hud font-black text-xs border border-white shadow-[0_3px_0_#0e7490] cursor-pointer flex items-center gap-1 whitespace-nowrap"
-              >
-                <Shield className="w-3.5 h-3.5" />
-                <span>SPACE-FIT X</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  soundManager.playClick();
-                  setIsEcoCabinOpen((v) => !v);
-                }}
-                className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-hud font-black text-xs border border-emerald-200/70 cursor-pointer flex items-center gap-1 whitespace-nowrap"
-              >
-                <Sprout className="w-3.5 h-3.5" />
-                <span>الزراعة</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  soundManager.playClick();
-                  setLocation('SpaceScience');
-                }}
-                className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-hud font-black text-xs border border-indigo-300/60 cursor-pointer flex items-center gap-1 whitespace-nowrap"
-              >
-                <span>🪐</span>
-                <span>الكواكب</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  soundManager.playClick();
-                  setIsSourcesOpen(true);
-                }}
-                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-200 font-hud font-black text-xs border border-emerald-400/50 cursor-pointer flex items-center gap-1 whitespace-nowrap"
-              >
-                <BookOpen className="w-3.5 h-3.5 text-emerald-300" />
-                <span>مصادر (13)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  soundManager.playClick();
-                  setIsNasaOpen(true);
-                }}
-                className="px-2.5 py-1.5 rounded-xl bg-cyan-950/90 hover:bg-cyan-900 text-cyan-200 font-hud font-black text-xs border border-cyan-400/50 cursor-pointer flex items-center gap-1 whitespace-nowrap"
-              >
-                <Satellite className="w-3.5 h-3.5 text-cyan-300" />
-                <span className="hidden lg:inline">NASA</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  soundManager.playClick();
-                  if (isAudioPlaying) {
-                    dialogueManager.stop();
-                  } else {
-                    dialogueManager.speak(
-                      'أهلاً يا بطل! استكشف الجزر الطائرة في الأرخبيل واضغط على جزيرة أو تحرك إليها لدخول الـ 21 تحدياً!'
-                    );
-                  }
-                }}
-                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-200 border border-cyan-400/40 cursor-pointer"
-                aria-label="صوت كابتن روبو"
-              >
-                <Volume2 className={`w-4 h-4 ${isAudioPlaying ? 'animate-pulse text-amber-300' : ''}`} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  soundManager.playClick();
-                  setIsHowToPlayOpen(true);
-                }}
-                className="p-1.5 rounded-xl bg-amber-400/90 hover:bg-amber-300 text-slate-950 border border-amber-100 cursor-pointer"
-                aria-label="كيف تلعب"
-              >
-                <HelpCircle className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  soundManager.playClick();
-                  setIsSettingsOpen(true);
-                }}
-                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 cursor-pointer"
-                aria-label="الإعدادات"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Mobile Collapsible Menu Button (< md) */}
             <button
               type="button"
-              data-testid="mobile-menu-toggle"
-              onClick={() => {
-                soundManager.playClick();
-                setIsMobileMenuOpen((v) => !v);
-              }}
-              className="md:hidden px-2.5 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_3px_0_#b45309] flex items-center gap-1 cursor-pointer"
-              aria-label="فتح القائمة"
-            >
-              {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-              <span>القائمة</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile Collapsible Menu Drawer (World Map) */}
-        {isMobileMenuOpen && (
-          <div
-            data-testid="mobile-menu-drawer"
-            className="pointer-events-auto md:hidden mt-2 rounded-3xl bg-slate-950/95 border-2 border-cyan-300/70 p-3 shadow-2xl grid grid-cols-2 gap-2"
-          >
-            <button
-              type="button"
+              data-testid="open-spacefitx-showcase"
               onClick={() => {
                 soundManager.playClick();
                 setIsMobileMenuOpen(false);
                 setIsSuitShowcaseOpen(true);
               }}
-              className="p-2.5 rounded-2xl bg-cyan-400 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_3px_0_#0e7490] flex items-center justify-center gap-1.5 cursor-pointer"
+              className="p-2.5 rounded-2xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_3px_0_#0e7490] flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Shield className="w-4 h-4" />
               <span>SPACE-FIT X</span>
@@ -776,7 +745,7 @@ export const CampaignHubView: React.FC = () => {
                 setIsMobileMenuOpen(false);
                 setIsEcoCabinOpen(true);
               }}
-              className="p-2.5 rounded-2xl bg-emerald-600 text-white font-hud font-black text-xs border-2 border-emerald-200 shadow-[0_3px_0_#065f46] flex items-center justify-center gap-1.5 cursor-pointer"
+              className="p-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-hud font-black text-xs border-2 border-emerald-200 shadow-[0_3px_0_#065f46] flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Sprout className="w-4 h-4" />
               <span>الزراعة المائية</span>
@@ -789,7 +758,7 @@ export const CampaignHubView: React.FC = () => {
                 setIsMobileMenuOpen(false);
                 setLocation('SpaceScience');
               }}
-              className="p-2.5 rounded-2xl bg-indigo-600 text-white font-hud font-black text-xs border-2 border-indigo-200/70 flex items-center justify-center gap-1.5 cursor-pointer"
+              className="p-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-hud font-black text-xs border-2 border-indigo-200/70 flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <span>🪐</span>
               <span>الكواكب والجاذبية</span>
@@ -802,39 +771,10 @@ export const CampaignHubView: React.FC = () => {
                 setIsMobileMenuOpen(false);
                 setIsSourcesOpen(true);
               }}
-              className="p-2.5 rounded-2xl bg-slate-800 text-emerald-200 font-hud font-black text-xs border-2 border-emerald-400/50 flex items-center justify-center gap-1.5 cursor-pointer"
+              className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-emerald-200 font-hud font-black text-xs border-2 border-emerald-400/50 flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <BookOpen className="w-4 h-4 text-emerald-300" />
-              <span>مصادر ناسا (13)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                soundManager.playClick();
-                setIsMobileMenuOpen(false);
-                setIsNasaOpen(true);
-              }}
-              className="p-2.5 rounded-2xl bg-cyan-950 text-cyan-200 font-hud font-black text-xs border-2 border-cyan-400/50 flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <Satellite className="w-4 h-4 text-cyan-300" />
-              <span>بيانات NASA</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                soundManager.playClick();
-                if (isAudioPlaying) dialogueManager.stop();
-                else
-                  dialogueManager.speak(
-                    'أهلاً يا بطل! استكشف الجزر الطائرة في الأرخبيل واضغط على جزيرة أو تحرك إليها لدخول الـ 21 تحدياً!'
-                  );
-              }}
-              className="p-2.5 rounded-2xl bg-slate-800 text-cyan-200 font-hud font-black text-xs border-2 border-cyan-400/40 flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <Volume2 className="w-4 h-4" />
-              <span>اسمع روبو</span>
+              <span>مصادر (13)</span>
             </button>
 
             <button
@@ -844,7 +784,7 @@ export const CampaignHubView: React.FC = () => {
                 setIsMobileMenuOpen(false);
                 setIsHowToPlayOpen(true);
               }}
-              className="p-2.5 rounded-2xl bg-amber-400 text-slate-950 font-hud font-black text-xs border-2 border-white flex items-center justify-center gap-1.5 cursor-pointer"
+              className="p-2.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-xs border-2 border-white flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <HelpCircle className="w-4 h-4" />
               <span>كيف تلعب؟</span>
@@ -857,14 +797,14 @@ export const CampaignHubView: React.FC = () => {
                 setIsMobileMenuOpen(false);
                 setIsSettingsOpen(true);
               }}
-              className="p-2.5 rounded-2xl bg-slate-800 text-white font-hud font-black text-xs border-2 border-slate-500 flex items-center justify-center gap-1.5 cursor-pointer"
+              className="col-span-2 p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-hud font-black text-xs border-2 border-slate-500 flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Settings className="w-4 h-4" />
               <span>الإعدادات</span>
             </button>
           </div>
-        )}
-      </header>
+        </div>
+      )}
 
       {/* Expandable 4-Level Sequential Overview Modal Drawer */}
       {isLevelsDrawerOpen && (

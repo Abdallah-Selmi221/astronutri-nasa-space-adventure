@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="exclGold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="60%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="26" fill="#0f172a" opacity="0.6" />
+  <circle cx="32" cy="30" r="24" fill="url(#exclGold)" stroke="#ffffff" stroke-width="3" />
+  <rect x="27.5" y="14" width="9" height="20" rx="4.5" fill="#1e293b" />
+  <circle cx="32" cy="42" r="4.8" fill="#1e293b" />
+  <ellipse cx="23" cy="18" rx="5" ry="2" transform="rotate(-28 23 18)" fill="#ffffff" opacity="0.7" />
+</svg>

@@ -3,12 +3,15 @@ import * as THREE from 'three';
 import { CampaignLevelId, CampaignProgressState, SpaceFitXState } from '../../types/game';
 import { CAMPAIGN_LEVELS } from '../../data/campaignLevels';
 import { soundManager } from '../../utils/sound';
-import { CheckCircle2, Lock, Rocket } from 'lucide-react';
-import { buildSpaceFitXCharacter } from './buildSpaceFitXCharacter';
+import { dialogueManager } from '../../utils/geminiTTS';
+import { CheckCircle2, Lock } from 'lucide-react';
+import { AstronautEmote, buildSpaceFitXCharacter } from './buildSpaceFitXCharacter';
 import {
   createCosmicSkyBackdrop,
+  createFloatingExclamationGeometry,
   createFloatingIslandMesh,
-  createFloatingLabelSprite
+  createFloatingLabelSprite,
+  createSleekSpacecraftParts
 } from './archipelagoPrimitives';
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
 import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
@@ -48,17 +51,17 @@ const ISLAND_CONFIGS: IslandConfig[] = [
   {
     levelId: 1,
     center: new THREE.Vector3(-19.5, 0.0, 1.4),
-    radius: 5.5,
-    topColor: 0x15803d,
+    radius: 5.7,
+    topColor: 0x22c55e,
     rimColor: 0x38bdf8,
-    rockColor: 0x78350f,
+    rockColor: 0xb45309,
     crystalColor: 0x22d3ee,
     accentHex: '#38bdf8'
   },
   {
     levelId: 2,
     center: new THREE.Vector3(-6.5, 0.85, -2.2),
-    radius: 5.3,
+    radius: 5.4,
     topColor: 0x1e293b,
     rimColor: 0x818cf8,
     rockColor: 0x334155,
@@ -68,10 +71,10 @@ const ISLAND_CONFIGS: IslandConfig[] = [
   {
     levelId: 3,
     center: new THREE.Vector3(6.5, 0.55, 2.0),
-    radius: 5.5,
+    radius: 5.6,
     topColor: 0x64748b,
     rimColor: 0xf59e0b,
-    rockColor: 0x334155,
+    rockColor: 0x475569,
     crystalColor: 0xfbbf24,
     accentHex: '#f59e0b',
     accentCraters: true
@@ -79,11 +82,11 @@ const ISLAND_CONFIGS: IslandConfig[] = [
   {
     levelId: 4,
     center: new THREE.Vector3(19.5, -0.15, -1.4),
-    radius: 5.3,
-    topColor: 0x0369a1,
-    rimColor: 0x34d399,
+    radius: 5.5,
+    topColor: 0x0284c7,
+    rimColor: 0x10b981,
     rockColor: 0x0f766e,
-    crystalColor: 0x10b981,
+    crystalColor: 0x34d399,
     accentHex: '#10b981'
   }
 ];
@@ -160,27 +163,32 @@ function addIslandLandmarkDecor(group: THREE.Group, levelId: CampaignLevelId): T
   const staticParts: ColoredGeometryPart[] = [];
 
   if (levelId === 1) {
-    // Launch Pad Rocket + Pine Trees merged into 1 draw call
+    // Sleek Low-Poly Spacecraft + Cozy Food Kiosk Booth + Layered Pine Trees + Toadstools
     staticParts.push(
-      { geometry: new THREE.CylinderGeometry(1.4, 1.6, 0.2, 8), color: 0x334155, position: [1.8, 0.1, -1.6] },
-      { geometry: new THREE.CylinderGeometry(0.42, 0.52, 2.2, 16), color: 0xf8fafc, position: [1.8, 1.3, -1.6] },
-      { geometry: new THREE.ConeGeometry(0.42, 0.9, 16), color: 0xf97316, position: [1.8, 2.85, -1.6] }
+      ...createSleekSpacecraftParts(1.85, 0, -1.65, 0.88),
+      // Mini Low-Poly Food Kiosk Booth
+      { geometry: new THREE.BoxGeometry(1.35, 0.48, 0.8), color: 0xb45309, position: [-2.1, 0.24, -1.4] },
+      { geometry: new THREE.ConeGeometry(1.12, 0.6, 4), color: 0xf97316, position: [-2.1, 1.38, -1.4], rotation: [0, Math.PI / 4, 0] },
+      { geometry: new THREE.CylinderGeometry(0.06, 0.06, 0.85, 6), color: 0x78350f, position: [-2.6, 0.72, -1.4] },
+      { geometry: new THREE.CylinderGeometry(0.06, 0.06, 0.85, 6), color: 0x78350f, position: [-1.6, 0.72, -1.4] }
     );
     [
-      [-2.3, -1.9],
-      [-2.8, 1.2],
-      [2.4, 1.8]
+      [-2.7, 1.3],
+      [2.6, 1.85],
+      [-0.6, -2.7]
     ].forEach(([tx, tz]) => {
       staticParts.push(
-        { geometry: new THREE.CylinderGeometry(0.11, 0.14, 0.65, 8), color: 0x78350f, position: [tx, 0.32, tz] },
-        { geometry: new THREE.ConeGeometry(0.55, 1.25, 10), color: 0x22c55e, position: [tx, 1.1, tz] }
+        { geometry: new THREE.CylinderGeometry(0.11, 0.14, 0.65, 7), color: 0x78350f, position: [tx, 0.32, tz] },
+        { geometry: new THREE.ConeGeometry(0.62, 0.95, 7), color: 0x16a34a, position: [tx, 0.96, tz] },
+        { geometry: new THREE.ConeGeometry(0.46, 0.78, 7), color: 0x22c55e, position: [tx, 1.48, tz] }
       );
     });
   } else if (levelId === 2) {
-    // Solar Array Wing merged + Orbiting NASA 2010 PK Asteroid
+    // Solar Array Wing + Cupola Pod + Orbiting NASA 2010 PK Asteroid
     staticParts.push(
       { geometry: new THREE.CylinderGeometry(0.16, 0.2, 2.1, 10), color: 0x94a3b8, position: [-2.1, 1.05, -1.8] },
-      { geometry: new THREE.BoxGeometry(2.8, 0.08, 1.2), color: 0x0284c7, position: [-2.1, 2.1, -1.8], rotation: [0.35, 0, 0] }
+      { geometry: new THREE.BoxGeometry(2.8, 0.08, 1.2), color: 0x0284c7, position: [-2.1, 2.1, -1.8], rotation: [0.35, 0, 0] },
+      { geometry: new THREE.CylinderGeometry(0.85, 0.95, 0.75, 8), color: 0xe2e8f0, position: [1.9, 0.38, 1.6] }
     );
 
     const asteroid = new THREE.Mesh(
@@ -191,19 +199,19 @@ function addIslandLandmarkDecor(group: THREE.Group, levelId: CampaignLevelId): T
     group.add(asteroid);
     animated.push(asteroid);
   } else if (levelId === 3) {
-    // Lunar Habitat Domes + Dish merged into 1 draw call
+    // Lunar Habitat Domes + Deep-Space Dish
     staticParts.push(
-      { geometry: new THREE.SphereGeometry(0.95, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), color: 0xe2e8f0, position: [-2.0, 0.02, -1.8] },
-      { geometry: new THREE.SphereGeometry(0.95, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), color: 0x4ade80, position: [2.0, 0.02, -1.8] },
-      { geometry: new THREE.ConeGeometry(0.55, 0.38, 14), color: 0xfbbf24, position: [2.2, 1.3, 1.9], rotation: [0, 0, -0.6] }
+      { geometry: new THREE.SphereGeometry(0.95, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), color: 0xe2e8f0, position: [-2.0, 0.02, -1.8] },
+      { geometry: new THREE.SphereGeometry(0.95, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), color: 0x4ade80, position: [2.0, 0.02, -1.8] },
+      { geometry: new THREE.ConeGeometry(0.55, 0.38, 12), color: 0xfbbf24, position: [2.2, 1.3, 1.9], rotation: [0, 0, -0.6] }
     );
   } else {
-    // Earth Ocean Recovery Buoy + Floating Golden Victory Crest
-    staticParts.push({
-      geometry: new THREE.CylinderGeometry(0.45, 0.65, 1.1, 12),
-      color: 0xf97316,
-      position: [-2.1, 0.55, -1.6]
-    });
+    // Splashdown Capsule + Tropical Palm + Floating Golden Victory Crest
+    staticParts.push(
+      { geometry: new THREE.ConeGeometry(0.75, 1.05, 10), color: 0xf97316, position: [-2.05, 0.52, -1.55] },
+      { geometry: new THREE.CylinderGeometry(0.11, 0.16, 1.45, 7), color: 0x92400e, position: [-2.4, 0.72, 1.55], rotation: [0, 0, 0.15] },
+      { geometry: new THREE.ConeGeometry(0.85, 0.45, 7), color: 0x22c55e, position: [-2.55, 1.48, 1.55] }
+    );
     const crest = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.75, 0),
       new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xd97706, emissiveIntensity: 0.65, metalness: 0.7 })
@@ -237,6 +245,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
   const [focusedLevel, setFocusedLevel] = useState<CampaignLevelId>(initialLevel);
   const focusedLevelRef = useRef<CampaignLevelId>(initialLevel);
+  const [idleSpeechAr, setIdleSpeechAr] = useState<string | null>(null);
 
   const playerPosRef = useRef(new THREE.Vector3(initialCenter.x, initialCenter.y, initialCenter.z + 2.2));
   const playerVelYRef = useRef(0);
@@ -246,6 +255,18 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   const isSprintingRef = useRef(false);
   const cameraOrbitYawRef = useRef(0.18);
   const cameraOrbitPitchRef = useRef(0.44);
+  const lastActivityMsRef = useRef(performance.now());
+  const waveUntilMsRef = useRef(performance.now() + 2600);
+  const celebrateUntilMsRef = useRef(0);
+  const boredVoiceFiredRef = useRef(false);
+
+  const markPlayerActive = () => {
+    lastActivityMsRef.current = performance.now();
+    if (boredVoiceFiredRef.current) {
+      boredVoiceFiredRef.current = false;
+      setIdleSpeechAr(null);
+    }
+  };
 
   const suitStateRef = useRef(suitState);
   suitStateRef.current = suitState;
@@ -258,6 +279,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   unlockedSetRef.current = unlockedSet;
 
   const triggerJump = () => {
+    markPlayerActive();
     if (isGroundedRef.current) {
       playerVelYRef.current = 8.4;
       isGroundedRef.current = false;
@@ -266,6 +288,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   };
 
   const handleEnterFocusedIsland = () => {
+    markPlayerActive();
     const lid = focusedLevelRef.current;
     if (unlockedSetRef.current.has(lid)) {
       soundManager.playClick();
@@ -276,6 +299,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   };
 
   const focusOrOpenLevelPill = (lid: CampaignLevelId) => {
+    markPlayerActive();
     const unlocked = unlockedSet.has(lid);
     if (!unlocked) {
       soundManager.playCautionBeep();
@@ -314,34 +338,40 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     const camera = new THREE.PerspectiveCamera(48, dims.w / dims.h, 0.1, 180);
     camera.position.set(playerPosRef.current.x, playerPosRef.current.y + 6.5, playerPosRef.current.z + 11.5);
 
-    const skyHandle = createCosmicSkyBackdrop(scene);
+    const skyHandle = createCosmicSkyBackdrop(scene, 'sunny');
 
-    // Rich Cosmic Studio Lighting
-    const hemi = new THREE.HemisphereLight(0xe0f2fe, 0x0f172a, 1.35);
+    // Bright Vibrant Sunlit Studio Lighting (Super Bear Adventure aesthetic)
+    const hemi = new THREE.HemisphereLight(0xf0f9ff, 0x9a4618, 1.48);
     scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xffffff, 1.75);
+    const dir = new THREE.DirectionalLight(0xfffbeb, 1.9);
     dir.position.set(16, 28, 18);
     scene.add(dir);
-    const rim = new THREE.DirectionalLight(0x38bdf8, 0.85);
+    const rim = new THREE.DirectionalLight(0x38bdf8, 0.65);
     rim.position.set(-18, 10, -16);
     scene.add(rim);
 
-    // Build 4 Floating Islands + Instanced Portals + In-World Labels
+    // Build 4 Floating Islands + Instanced Portals + Bouncing Golden ! Markers + In-World Labels
     const disposableTextures: THREE.Texture[] = [];
     const clickTargets: { mesh: THREE.Object3D; levelId: CampaignLevelId }[] = [];
     const floatingProps: { obj: THREE.Object3D; baseY: number; phase: number }[] = [];
 
     const portalRingsInst = new THREE.InstancedMesh(
-      new THREE.TorusGeometry(1.15, 0.15, 14, 34, Math.PI * 1.2),
+      new THREE.TorusGeometry(1.15, 0.15, 12, 28, Math.PI * 1.2),
       new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.45, roughness: 0.25 }),
       ISLAND_CONFIGS.length
     );
     const portalCurtainsInst = new THREE.InstancedMesh(
-      new THREE.CircleGeometry(1.05, 24),
+      new THREE.CircleGeometry(1.05, 22),
       new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.26, side: THREE.DoubleSide }),
       ISLAND_CONFIGS.length
     );
+    const exclInst = new THREE.InstancedMesh(
+      createFloatingExclamationGeometry(),
+      new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xf59e0b, emissiveIntensity: 0.55, roughness: 0.25 }),
+      ISLAND_CONFIGS.length
+    );
     const portalBasePositions: THREE.Vector3[] = [];
+    const exclFlags: boolean[] = [];
 
     ISLAND_CONFIGS.forEach((cfg, idx) => {
       const unlocked = campaign.unlockedLevels.includes(cfg.levelId);
@@ -372,6 +402,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       portalRingsInst.setColorAt(idx, portalColor);
       portalCurtainsInst.setColorAt(idx, portalColor);
       portalBasePositions.push(new THREE.Vector3(cfg.center.x, cfg.center.y + 1.2, cfg.center.z - 0.4));
+      exclFlags.push(unlocked && !completed);
 
       // In-world Sprite Label cleanly hovering above island (ZERO duplicate prefix!)
       const statusBadge = completed ? '✓' : unlocked ? LEVEL_UI_META[cfg.levelId].badge : '🔒';
@@ -391,7 +422,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
     if (portalRingsInst.instanceColor) portalRingsInst.instanceColor.needsUpdate = true;
     if (portalCurtainsInst.instanceColor) portalCurtainsInst.instanceColor.needsUpdate = true;
-    scene.add(portalRingsInst, portalCurtainsInst);
+    scene.add(portalRingsInst, portalCurtainsInst, exclInst);
 
     // Glowing Sky-Bridges Connecting Islands 1<->2<->3<->4 Merged into 1 Draw Call!
     const bridgeParts: ColoredGeometryPart[] = [];
@@ -445,6 +476,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     // Keyboard & Orbit Pointer Input
     const keysDown = new Set<string>();
     const onKeyDown = (e: KeyboardEvent) => {
+      markPlayerActive();
       const k = e.key.toLowerCase();
       if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) {
         if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
@@ -473,6 +505,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
     const domEl = renderer.domElement;
     const onPointerDown = (e: PointerEvent) => {
+      markPlayerActive();
       dragOrbiting = true;
       pointerDownPos = { x: e.clientX, y: e.clientY };
       prevPointerPos = { x: e.clientX, y: e.clientY };
@@ -570,9 +603,21 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         portalDummy.scale.set(pulse, pulse, 1);
         portalDummy.updateMatrix();
         portalCurtainsInst.setMatrixAt(idx, portalDummy.matrix);
+
+        if (exclFlags[idx]) {
+          portalDummy.position.set(bPos.x, bPos.y + 1.55 + Math.abs(Math.sin(elapsed * 3.8 + idx)) * 0.28, bPos.z);
+          portalDummy.rotation.set(0, elapsed * 1.8 + idx, 0);
+          portalDummy.scale.setScalar(1.0);
+        } else {
+          portalDummy.position.set(bPos.x, -100, bPos.z);
+          portalDummy.scale.setScalar(0);
+        }
+        portalDummy.updateMatrix();
+        exclInst.setMatrixAt(idx, portalDummy.matrix);
       });
       portalRingsInst.instanceMatrix.needsUpdate = true;
       portalCurtainsInst.instanceMatrix.needsUpdate = true;
+      exclInst.instanceMatrix.needsUpdate = true;
 
       // Compute Horizontal Movement Relative to Camera Yaw
       let ix = joystickVecRef.current.x;
@@ -581,6 +626,10 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       if (keysDown.has('d') || keysDown.has('arrowright')) ix += 1;
       if (keysDown.has('w') || keysDown.has('arrowup')) iz -= 1;
       if (keysDown.has('s') || keysDown.has('arrowdown')) iz += 1;
+
+      if (Math.abs(ix) > 0.08 || Math.abs(iz) > 0.08) {
+        markPlayerActive();
+      }
 
       let moveSpeed = 0;
       const yaw = cameraOrbitYawRef.current;
@@ -662,13 +711,32 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         setFocusedLevel(surf.nearestLevelId);
       }
 
+      const idleSeconds = (now - lastActivityMsRef.current) / 1000;
+      const isBoredIdle =
+        idleSeconds >= 8 && isGroundedRef.current && moveSpeed <= 0.1 && !walkTargetRef.current;
+
+      if (isBoredIdle && !boredVoiceFiredRef.current) {
+        boredVoiceFiredRef.current = true;
+        setIdleSpeechAr('يلا يا بطل مستنيينك نكمل مغامرة الفضاء! 🚀');
+        void dialogueManager.speak('يلا يا بطل مستنيينك نكمل مغامرة الفضاء!');
+      }
+
+      const activeEmote: AstronautEmote =
+        now < celebrateUntilMsRef.current
+          ? 'celebrate'
+          : now < waveUntilMsRef.current && moveSpeed <= 0.1
+          ? 'wave'
+          : 'none';
+
       hero.group.position.copy(pos);
       hero.update({
         t: elapsed,
         moveSpeed,
         isRunning: sprint && moveSpeed > 0.1,
         isJumping: !isGroundedRef.current,
-        suitState: suitStateRef.current
+        suitState: suitStateRef.current,
+        idleSeconds,
+        emote: activeEmote
       });
 
       // Smooth Third-Person Follow Camera with Orbit Yaw/Pitch
@@ -686,6 +754,8 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
       renderer.render(scene, camera);
       mount.dataset.drawCalls = String(renderer.info.render.calls);
+      mount.dataset.idleBored = isBoredIdle ? 'true' : 'false';
+      mount.dataset.idleSeconds = String(Math.floor(idleSeconds));
     };
 
     rafId = requestAnimationFrame(animate);
@@ -757,7 +827,6 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   }
 
   const focusedSpec = CAMPAIGN_LEVELS[focusedLevel];
-  const focusedMeta = LEVEL_UI_META[focusedLevel];
   const focusedUnlocked = unlockedSet.has(focusedLevel);
 
   return (
@@ -769,12 +838,12 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         className="w-full h-full cursor-grab active:cursor-grabbing"
       />
 
-      {/* Top-Center Compact Edge Pill Selector (Non-Overlapping, keeps data-testid="level-node-*") */}
+      {/* Minimalist Compact Level Hop Pills (Tucked Cleanly at Top-Center Between Corner HUDs) */}
       <div
         dir="rtl"
-        className="pointer-events-none fixed top-20 inset-x-0 z-20 flex justify-center px-3"
+        className="pointer-events-none fixed top-16 sm:top-3.5 inset-x-0 z-20 flex justify-center px-3"
       >
-        <div className="pointer-events-auto inline-flex flex-wrap items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-slate-950/75 border border-cyan-500/35 backdrop-blur-md shadow-xl max-w-full">
+        <div className="pointer-events-auto inline-flex flex-wrap items-center justify-center gap-1 px-2 py-1 rounded-full bg-slate-950/55 border border-white/30 backdrop-blur-md shadow-lg max-w-full">
           {([1, 2, 3, 4] as CampaignLevelId[]).map((lid) => {
             const meta = LEVEL_UI_META[lid];
             const unlocked = unlockedSet.has(lid);
@@ -786,48 +855,58 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
                 type="button"
                 data-testid={`level-node-${lid}`}
                 onClick={() => focusOrOpenLevelPill(lid)}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-full border text-[11px] font-hud font-black flex items-center gap-1 transition-all cursor-pointer ${
                   !unlocked
-                    ? 'bg-slate-900/70 border-slate-700 text-slate-500 opacity-65'
+                    ? 'bg-slate-900/55 border-white/15 text-slate-400 opacity-65'
                     : isFocused
-                      ? 'bg-gradient-to-r from-cyan-500/40 to-sky-500/35 border-cyan-300 text-white shadow-[0_0_12px_rgba(34,211,238,0.35)]'
-                      : 'bg-slate-900/80 border-slate-700 text-slate-200 hover:border-cyan-400/60'
+                      ? 'bg-amber-400 text-slate-950 border-white shadow-md'
+                      : 'bg-slate-900/65 border-white/25 text-white hover:bg-slate-800/80'
                 }`}
               >
                 <span>{meta.badge}</span>
-                <span className="hidden sm:inline">{meta.shortTitleAr}</span>
-                <span className="sm:hidden">م{lid}</span>
-                {completed ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                ) : !unlocked ? (
-                  <Lock className="w-3 h-3 text-slate-500" />
-                ) : (
-                  <Rocket className="w-3 h-3 text-cyan-300" />
-                )}
+                <span className="hidden lg:inline">{meta.shortTitleAr}</span>
+                <span className="lg:hidden">{lid}</span>
+                {completed && <CheckCircle2 className="w-3 h-3 text-emerald-500" />}
+                {!unlocked && <Lock className="w-2.5 h-2.5 text-slate-400" />}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Bottom Edge Third-Person Controls (Joystick + Single Enter Prompt + Sprint/Jump) */}
+      {/* Playful Speech Bubble when Astronaut gets Bored after 8s Idle */}
+      {idleSpeechAr && (
+        <div
+          dir="rtl"
+          data-testid="idle-speech-bubble"
+          className="pointer-events-none fixed bottom-32 sm:bottom-24 inset-x-0 z-30 flex justify-center px-4"
+        >
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-slate-900 border-[3px] border-sky-400 shadow-2xl font-hud font-black text-xs sm:text-sm animate-bounce">
+            <img src="/assets/ui/speech_bubble.svg" alt="" className="w-6 h-6 shrink-0" />
+            <span>{idleSpeechAr}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Minimalist Arcade Controls (Left Thumbstick + Right B Interact & A Jump) */}
       <ThirdPersonControlsOverlay
         promptLabelAr={
           focusedUnlocked
-            ? `ادخل جزيرة المستوى ${focusedLevel}: ${focusedSpec.titleAr}`
-            : `الجزيرة ${focusedLevel} مقفلة (${focusedMeta.shortTitleAr})`
+            ? `ادخل جزيرة ${focusedLevel}: ${LEVEL_UI_META[focusedLevel].shortTitleAr}`
+            : `الجزيرة ${focusedLevel} مقفلة`
         }
-        promptSubAr={focusedUnlocked ? focusedSpec.subtitleAr : 'أكمل الجزيرة السابقة لفتح الجسر الجوي'}
+        promptSubAr={focusedUnlocked ? focusedSpec.titleAr.split('•')[0] : undefined}
         onInteract={handleEnterFocusedIsland}
         onJoystickMove={(vec) => {
+          markPlayerActive();
           joystickVecRef.current = vec;
         }}
         onJump={triggerJump}
         onSprintChange={(s) => {
+          markPlayerActive();
           isSprintingRef.current = s;
         }}
-        gravityLabelAr="جاذبية الأرخبيل 1G"
-        hintAr="WASD / الأسهم للمشي • Space للقفز • اسحب الشاشة لتدوير الكاميرا • E لدخول الجزيرة"
+        hintAr="WASD / الأسهم للمشي • Space (A) للقفز • E (B) للدخول"
       />
     </div>
   );

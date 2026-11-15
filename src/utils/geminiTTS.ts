@@ -445,6 +445,9 @@ export class DialogueManager {
     if (text.includes('عاش') || text.includes('أحسنت') || text.includes('برافو') || text.includes('ممتاز') || text.includes('اختيار ذكي') || text.includes('الله عليك')) {
       return '/audio/robo/sample/sample_success.mp3';
     }
+    if (text.includes('مستنيينك') || text.includes('يلا يا بطل') || text.includes('مغامرة الفضاء')) {
+      return '/audio/robo/campaign/island_hop_welcome.mp3';
+    }
     if (text.includes('أهلًا') || text.includes('أهلاً') || text.includes('أهلا') || text.includes('مرحباً') || text.includes('الأرخبيل') || text.includes('روبو')) {
       return '/audio/robo/pilot/pilot_01_welcome.mp3';
     }

@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { SpaceFitXState } from '../../types/game';
 import { mergeColoredParts } from './threeMergeUtils';
 
+export type AstronautEmote = 'none' | 'wave' | 'celebrate' | 'point';
+
 export interface SpaceFitXCharacterHandle {
   group: THREE.Group;
   update: (opts: {
@@ -12,6 +14,8 @@ export interface SpaceFitXCharacterHandle {
     isZeroG?: boolean;
     suitState?: SpaceFitXState;
     highlightModule?: number | null;
+    idleSeconds?: number;
+    emote?: AstronautEmote;
   }) => void;
   dispose: () => void;
 }
@@ -32,7 +36,6 @@ function createAstroNutriBadgeTexture(backVariant = false): THREE.CanvasTexture 
     ctx.lineWidth = 6;
     ctx.strokeRect(6, 6, 244, 116);
 
-    // Stylized emblem icon on left
     ctx.fillStyle = '#22d3ee';
     ctx.beginPath();
     ctx.moveTo(44, 30);
@@ -105,9 +108,8 @@ function createSuitWeaveTexture(): THREE.CanvasTexture {
   canvas.height = 128;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    ctx.fillStyle = '#dcdcdc';
+    ctx.fillStyle = '#e5e7eb';
     ctx.fillRect(0, 0, 128, 128);
-    // Subtle micro hex / carbon-weave grid for PBR surface breakup
     ctx.strokeStyle = 'rgba(255,255,255,0.22)';
     ctx.lineWidth = 1.5;
     for (let y = 0; y < 128; y += 16) {
@@ -115,8 +117,8 @@ function createSuitWeaveTexture(): THREE.CanvasTexture {
         ctx.strokeRect(x + ((y / 16) % 2) * 8, y, 8, 8);
       }
     }
-    ctx.fillStyle = 'rgba(0,0,0,0.08)';
-    for (let i = 0; i < 160; i++) {
+    ctx.fillStyle = 'rgba(0,0,0,0.07)';
+    for (let i = 0; i < 140; i++) {
       ctx.fillRect((i * 29) % 128, (i * 47) % 128, 2, 2);
     }
   }
@@ -129,12 +131,14 @@ function createSuitWeaveTexture(): THREE.CanvasTexture {
 }
 
 /**
- * Builds the articulated 3D Robo-Astronaut wearing the SPACE-FIT X (Prototype 1.0)
- * IVA Countermeasure Suit branded with AstroNutri (no bulky EVA helmet inside IVA).
- * Uses merged vertex-colored assemblies and instanced HUD LEDs so draw calls stay low (< 28).
+ * Builds an expressive stylized Low-Poly Human Astronaut wearing the
+ * SPACE-FIT X (Prototype 1.0) IVA Countermeasure Suit branded with AstroNutri
+ * (matte black compression base, metallic silver armor, dark graphite joints,
+ * electric cyan resistance cables, NO bulky EVA helmet) + hovering Mini-Robo companion.
  */
 export function buildSpaceFitXCharacter(options?: {
   showEvaHelmet?: boolean;
+  showCompanion?: boolean;
   scale?: number;
 }): SpaceFitXCharacterHandle {
   const group = new THREE.Group();
@@ -148,15 +152,21 @@ export function buildSpaceFitXCharacter(options?: {
   const weaveTex = createSuitWeaveTexture();
   disposableTextures.push(frontBadgeTex, backBadgeTex, dosimeterTex, weaveTex);
 
-  // Materials — SPACE-FIT X Studio Palette (Vertex-Colored Armor, Hex-TPU, Electric Cyan)
+  // Materials — SPACE-FIT X Matte Black + Metallic Silver + Graphite + Electric Cyan
   const matArmorVertex = new THREE.MeshStandardMaterial({
     vertexColors: true,
     map: weaveTex,
-    roughness: 0.38,
-    metalness: 0.42
+    roughness: 0.4,
+    metalness: 0.36
+  });
+  const matSkinHair = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.58,
+    metalness: 0.06,
+    flatShading: true
   });
   const matHexPad = new THREE.MeshStandardMaterial({
-    color: 0x26344b,
+    color: 0x1f2937,
     roughness: 0.46,
     metalness: 0.35,
     emissive: 0x0ea5e9,
@@ -172,14 +182,14 @@ export function buildSpaceFitXCharacter(options?: {
   const matCableCyan = new THREE.MeshStandardMaterial({
     color: 0x38bdf8,
     emissive: 0x0284c7,
-    emissiveIntensity: 0.78,
+    emissiveIntensity: 0.8,
     roughness: 0.28,
     metalness: 0.55
   });
   const matQuickRelease = new THREE.MeshStandardMaterial({
     color: 0xf43f5e,
     emissive: 0xe11d48,
-    emissiveIntensity: 0.5,
+    emissiveIntensity: 0.52,
     roughness: 0.3,
     metalness: 0.45
   });
@@ -192,117 +202,117 @@ export function buildSpaceFitXCharacter(options?: {
 
   // Ground Shadow Disc
   const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(0.58, 24),
-    new THREE.MeshBasicMaterial({ color: 0x020617, transparent: true, opacity: 0.38 })
+    new THREE.CircleGeometry(0.62, 24),
+    new THREE.MeshBasicMaterial({ color: 0x020617, transparent: true, opacity: 0.34 })
   );
   shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.02;
+  shadow.position.y = 0.025;
   group.add(shadow);
 
   // Articulated Skeleton Body Root
   const bodyPivot = new THREE.Group();
-  bodyPivot.position.y = 1.03;
+  bodyPivot.position.y = 1.02;
   group.add(bodyPivot);
 
-  // Pelvis & Utility Belt Assembly (1 draw call)
+  // Pelvis & Utility Belt (Matte Black + Silver Belt Buckle + Teal Trim)
   const pelvisGeom = mergeColoredParts([
-    { geometry: new THREE.CylinderGeometry(0.24, 0.21, 0.25, 18), color: 0x121b2d, position: [0, -0.18, 0] },
-    { geometry: new THREE.BoxGeometry(0.54, 0.11, 0.38), color: 0xdbe5f2, position: [0, -0.11, 0] },
-    { geometry: new THREE.BoxGeometry(0.16, 0.08, 0.06), color: 0x22d3ee, position: [0, -0.11, 0.2] }
+    { geometry: new THREE.CylinderGeometry(0.22, 0.2, 0.23, 14), color: 0x111827, position: [0, -0.17, 0] },
+    { geometry: new THREE.BoxGeometry(0.5, 0.1, 0.34), color: 0xdbe5f2, position: [0, -0.1, 0] },
+    { geometry: new THREE.BoxGeometry(0.15, 0.08, 0.06), color: 0x22d3ee, position: [0, -0.1, 0.18] }
   ]);
   bodyPivot.add(new THREE.Mesh(pelvisGeom, matArmorVertex));
 
-  // Module 04: Quick-Release Hip Dials + Emergency Pouch merged into 1 draw call
+  // Module 04: Quick-Release Hip Dials + Emergency Med Pouch
   const quickReleaseGeom = mergeColoredParts([
-    { geometry: new THREE.CylinderGeometry(0.085, 0.085, 0.075, 16), color: 0xf43f5e, position: [-0.29, -0.11, 0.04], rotation: [0, 0, Math.PI / 2] },
-    { geometry: new THREE.CylinderGeometry(0.085, 0.085, 0.075, 16), color: 0xf43f5e, position: [0.29, -0.11, 0.04], rotation: [0, 0, Math.PI / 2] },
-    { geometry: new THREE.BoxGeometry(0.11, 0.18, 0.14), color: 0xe11d48, position: [-0.31, -0.27, 0.02] }
+    { geometry: new THREE.CylinderGeometry(0.08, 0.08, 0.07, 14), color: 0xf43f5e, position: [-0.27, -0.1, 0.04], rotation: [0, 0, Math.PI / 2] },
+    { geometry: new THREE.CylinderGeometry(0.08, 0.08, 0.07, 14), color: 0xf43f5e, position: [0.27, -0.1, 0.04], rotation: [0, 0, Math.PI / 2] },
+    { geometry: new THREE.BoxGeometry(0.1, 0.16, 0.13), color: 0xe11d48, position: [-0.29, -0.25, 0.02] }
   ]);
   bodyPivot.add(new THREE.Mesh(quickReleaseGeom, matQuickRelease));
 
-  // Torso Assembly (Tapered V-Shaped Hero Silhouette + Metallic Chest Sternum Armor)
+  // Torso Assembly (Heroic V-Tapered Matte Black Compression + Metallic Silver Plates)
   const torsoGroup = new THREE.Group();
   torsoGroup.position.y = 0.12;
   bodyPivot.add(torsoGroup);
 
   const torsoArmorGeom = mergeColoredParts([
-    // Undersuit compression core
-    { geometry: new THREE.CylinderGeometry(0.32, 0.22, 0.62, 18), color: 0x1b2436, scale: [1.08, 1, 0.74] },
-    // Sculpted silver thoracic chest plate & abdominal flexor plates
-    { geometry: new THREE.BoxGeometry(0.58, 0.36, 0.41), color: 0xe2e8f0, position: [0, 0.13, 0.02] },
-    { geometry: new THREE.BoxGeometry(0.38, 0.2, 0.36), color: 0xcbd5e1, position: [0, -0.12, 0.02] },
-    // Left & right stylized clavicle armor blades
-    { geometry: new THREE.BoxGeometry(0.24, 0.09, 0.44), color: 0x94a3b8, position: [-0.22, 0.31, 0], rotation: [0, 0, -0.18] },
-    { geometry: new THREE.BoxGeometry(0.24, 0.09, 0.44), color: 0x94a3b8, position: [0.22, 0.31, 0], rotation: [0, 0, 0.18] },
-    // Back exo-frame spine bridge
-    { geometry: new THREE.BoxGeometry(0.34, 0.44, 0.14), color: 0x1e293b, position: [0, 0.08, -0.18] }
+    // Matte Black compression core
+    { geometry: new THREE.CylinderGeometry(0.3, 0.21, 0.58, 16), color: 0x111827, scale: [1.06, 1, 0.72] },
+    // Metallic Silver thoracic sternum plate & abs plate
+    { geometry: new THREE.BoxGeometry(0.54, 0.34, 0.38), color: 0xe2e8f0, position: [0, 0.12, 0.02] },
+    { geometry: new THREE.BoxGeometry(0.35, 0.18, 0.33), color: 0xcbd5e1, position: [0, -0.12, 0.02] },
+    // Clavicle shoulder armor blades
+    { geometry: new THREE.BoxGeometry(0.22, 0.08, 0.41), color: 0x94a3b8, position: [-0.2, 0.29, 0], rotation: [0, 0, -0.16] },
+    { geometry: new THREE.BoxGeometry(0.22, 0.08, 0.41), color: 0x94a3b8, position: [0.2, 0.29, 0], rotation: [0, 0, 0.16] },
+    // Dark Graphite spine frame
+    { geometry: new THREE.BoxGeometry(0.32, 0.42, 0.13), color: 0x1f2937, position: [0, 0.08, -0.17] }
   ]);
   torsoGroup.add(new THREE.Mesh(torsoArmorGeom, matArmorVertex));
 
   // Front & Back AstroNutri Branded Emblem Plates
   const frontLogoPlane = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.38, 0.19),
+    new THREE.PlaneGeometry(0.36, 0.18),
     new THREE.MeshBasicMaterial({ map: frontBadgeTex })
   );
-  frontLogoPlane.position.set(0, 0.15, 0.232);
+  frontLogoPlane.position.set(0, 0.14, 0.216);
   torsoGroup.add(frontLogoPlane);
 
   const backLogoPlane = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.36, 0.18),
+    new THREE.PlaneGeometry(0.34, 0.17),
     new THREE.MeshBasicMaterial({ map: backBadgeTex })
   );
   backLogoPlane.rotation.y = Math.PI;
-  backLogoPlane.position.set(0, 0.14, -0.256);
+  backLogoPlane.position.set(0, 0.13, -0.242);
   torsoGroup.add(backLogoPlane);
 
-  // Module 01: Smart Compression Cyan Seams + Collar Halo merged (1 draw call)
+  // Module 01: Smart Compression Cyan Seams + Collar Ring
   const compTorsoGeom = mergeColoredParts([
-    { geometry: new THREE.BoxGeometry(0.042, 0.52, 0.42), color: 0x22d3ee, position: [-0.2, 0.05, 0.01] },
-    { geometry: new THREE.BoxGeometry(0.042, 0.52, 0.42), color: 0x22d3ee, position: [0.2, 0.05, 0.01] },
-    { geometry: new THREE.TorusGeometry(0.175, 0.034, 10, 24), color: 0x22d3ee, position: [0, 0.35, 0], rotation: [Math.PI / 2, 0, 0] }
+    { geometry: new THREE.BoxGeometry(0.038, 0.48, 0.39), color: 0x22d3ee, position: [-0.19, 0.05, 0.01] },
+    { geometry: new THREE.BoxGeometry(0.038, 0.48, 0.39), color: 0x22d3ee, position: [0.19, 0.05, 0.01] },
+    { geometry: new THREE.TorusGeometry(0.165, 0.03, 10, 22), color: 0x22d3ee, position: [0, 0.33, 0], rotation: [Math.PI / 2, 0, 0] }
   ]);
   torsoGroup.add(new THREE.Mesh(compTorsoGeom, matCompressionCyan));
 
-  // Module 03: Spine Impact Guard Hex-TPU Segments (1 draw call)
+  // Module 03: Spine Impact Guard Hex-TPU Segments
   const hexSpineGeom = mergeColoredParts([
-    { geometry: new THREE.BoxGeometry(0.16, 0.12, 0.07), color: 0x26344b, position: [0, 0.22, -0.25] },
-    { geometry: new THREE.BoxGeometry(0.15, 0.12, 0.07), color: 0x26344b, position: [0, 0.06, -0.25] },
-    { geometry: new THREE.BoxGeometry(0.14, 0.12, 0.07), color: 0x26344b, position: [0, -0.1, -0.25] }
+    { geometry: new THREE.BoxGeometry(0.15, 0.11, 0.06), color: 0x1f2937, position: [0, 0.21, -0.235] },
+    { geometry: new THREE.BoxGeometry(0.14, 0.11, 0.06), color: 0x1f2937, position: [0, 0.06, -0.235] },
+    { geometry: new THREE.BoxGeometry(0.13, 0.11, 0.06), color: 0x1f2937, position: [0, -0.09, -0.235] }
   ]);
   torsoGroup.add(new THREE.Mesh(hexSpineGeom, matHexPad));
 
   // Module 06: Chest Personal Radiation Dosimeter Badge
   const dosimeterBox = new THREE.Mesh(
-    new THREE.BoxGeometry(0.13, 0.13, 0.05),
-    new THREE.MeshStandardMaterial({ map: dosimeterTex, emissive: 0x1e293b, emissiveIntensity: 0.45 })
+    new THREE.BoxGeometry(0.12, 0.12, 0.045),
+    new THREE.MeshStandardMaterial({ map: dosimeterTex, emissive: 0x1e293b, emissiveIntensity: 0.4 })
   );
-  dosimeterBox.position.set(0.17, -0.05, 0.238);
+  dosimeterBox.position.set(0.16, -0.05, 0.22);
   torsoGroup.add(dosimeterBox);
 
   // Module 05: Heart/Physio Sensor Node on Chest
-  const chestSensor = new THREE.Mesh(new THREE.SphereGeometry(0.044, 12, 12), matPhysioLed);
-  chestSensor.position.set(-0.17, -0.05, 0.238);
+  const chestSensor = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 12), matPhysioLed);
+  chestSensor.position.set(-0.16, -0.05, 0.22);
   torsoGroup.add(chestSensor);
 
-  // Module 07: Rear Waist Removable Power Battery Pack + 4 Instanced Charge LEDs (2 draw calls total!)
+  // Module 07: Rear Waist Power & Kinetic Harvesting Battery + 4 Instanced Charge LEDs
   const batteryPackGroup = new THREE.Group();
-  batteryPackGroup.position.set(0, -0.14, -0.24);
+  batteryPackGroup.position.set(0, -0.13, -0.23);
   bodyPivot.add(batteryPackGroup);
 
   const batteryHousingGeom = mergeColoredParts([
-    { geometry: new THREE.BoxGeometry(0.3, 0.22, 0.12), color: 0xdbe5f2 },
-    { geometry: new THREE.BoxGeometry(0.24, 0.14, 0.03), color: 0x0f172a, position: [0, 0, -0.052] }
+    { geometry: new THREE.BoxGeometry(0.28, 0.2, 0.11), color: 0xdbe5f2 },
+    { geometry: new THREE.BoxGeometry(0.22, 0.13, 0.025), color: 0x0f172a, position: [0, 0, -0.048] }
   ]);
   batteryPackGroup.add(new THREE.Mesh(batteryHousingGeom, matArmorVertex));
 
   const batteryBarsInst = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(0.038, 0.11, 0.024),
+    new THREE.BoxGeometry(0.036, 0.1, 0.022),
     new THREE.MeshBasicMaterial({ color: 0xffffff }),
     4
   );
   const barMat4 = new THREE.Matrix4();
   for (let b = 0; b < 4; b++) {
-    barMat4.makeTranslation(-0.075 + b * 0.05, 0, -0.068);
+    barMat4.makeTranslation(-0.069 + b * 0.046, 0, -0.063);
     batteryBarsInst.setMatrixAt(b, barMat4);
     batteryBarsInst.setColorAt(b, new THREE.Color(0x22d3ee));
   }
@@ -310,129 +320,168 @@ export function buildSpaceFitXCharacter(options?: {
   if (batteryBarsInst.instanceColor) batteryBarsInst.instanceColor.needsUpdate = true;
   batteryPackGroup.add(batteryBarsInst);
 
-  // Head Group — Expressive Robo-Astronaut IVA Head (Merged Metallic Helmet + Curved Optic Visor + Eyes)
+  // ==================== HUMAN ASTRONAUT HEAD (LOW-POLY EXPRESSIVE FACE + HAIR + AR VISOR) ====================
   const headGroup = new THREE.Group();
-  headGroup.position.set(0, 0.47, 0);
+  headGroup.position.set(0, 0.44, 0);
   torsoGroup.add(headGroup);
 
-  const headShellGeom = mergeColoredParts([
-    { geometry: new THREE.SphereGeometry(0.245, 24, 18), color: 0xe2e8f0, position: [0, 0.12, 0], scale: [1.03, 0.96, 1.0] },
-    // Forehead brow rim for expressive silhouette
-    { geometry: new THREE.BoxGeometry(0.36, 0.055, 0.2), color: 0x94a3b8, position: [0, 0.22, 0.11] },
-    // Chin guard
-    { geometry: new THREE.BoxGeometry(0.26, 0.06, 0.16), color: 0x1e293b, position: [0, 0.01, 0.14] },
-    // Comms Earpieces
-    { geometry: new THREE.CylinderGeometry(0.075, 0.075, 0.055, 16), color: 0x0f172a, position: [-0.255, 0.13, 0], rotation: [0, 0, Math.PI / 2] },
-    { geometry: new THREE.CylinderGeometry(0.075, 0.075, 0.055, 16), color: 0x0f172a, position: [0.255, 0.13, 0], rotation: [0, 0, Math.PI / 2] },
-    // Micro Comms Antenna
-    { geometry: new THREE.CylinderGeometry(0.012, 0.016, 0.18, 8), color: 0x38bdf8, position: [0.265, 0.24, -0.02] }
+  const humanHeadGeom = mergeColoredParts([
+    // Warm Neck Collar + Neck
+    { geometry: new THREE.CylinderGeometry(0.09, 0.11, 0.1, 12), color: 0xfdba8c, position: [0, 0.02, 0] },
+    // Stylized Low-Poly Human Head
+    { geometry: new THREE.SphereGeometry(0.23, 18, 14), color: 0xfdc59f, position: [0, 0.21, 0], scale: [1.0, 1.03, 0.96] },
+    // Friendly Nose
+    { geometry: new THREE.ConeGeometry(0.032, 0.065, 8), color: 0xf59e78, position: [0, 0.19, 0.225], rotation: [Math.PI * 0.42, 0, 0] },
+    // Left & Right Ears
+    { geometry: new THREE.SphereGeometry(0.046, 8, 8), color: 0xf5ad82, position: [-0.22, 0.19, 0], scale: [0.55, 0.9, 0.7] },
+    { geometry: new THREE.SphereGeometry(0.046, 8, 8), color: 0xf5ad82, position: [0.22, 0.19, 0], scale: [0.55, 0.9, 0.7] },
+    // Low-Poly Stylized Hair Crown + Heroic Forward Tuft & Sideburns
+    { geometry: new THREE.SphereGeometry(0.245, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.56), color: 0x241934, position: [0, 0.23, -0.02], rotation: [-0.25, 0, 0] },
+    { geometry: new THREE.ConeGeometry(0.095, 0.17, 7), color: 0x312347, position: [0.04, 0.42, 0.13], rotation: [0.85, 0.15, -0.3] },
+    { geometry: new THREE.ConeGeometry(0.075, 0.13, 7), color: 0x3b2c54, position: [-0.08, 0.4, 0.15], rotation: [0.75, -0.2, 0.35] },
+    { geometry: new THREE.BoxGeometry(0.06, 0.13, 0.11), color: 0x241934, position: [-0.215, 0.24, 0.05] },
+    { geometry: new THREE.BoxGeometry(0.06, 0.13, 0.11), color: 0x241934, position: [0.215, 0.24, 0.05] },
+    // Comms Headset Earpiece + Micro Boom Mic
+    { geometry: new THREE.CylinderGeometry(0.055, 0.055, 0.04, 12), color: 0x1e293b, position: [-0.245, 0.19, 0.02], rotation: [0, 0, Math.PI / 2] },
+    { geometry: new THREE.CylinderGeometry(0.055, 0.055, 0.04, 12), color: 0x1e293b, position: [0.245, 0.19, 0.02], rotation: [0, 0, Math.PI / 2] },
+    { geometry: new THREE.CylinderGeometry(0.01, 0.012, 0.17, 8), color: 0x22d3ee, position: [0.255, 0.31, -0.01] },
+    // Rosy Cheeks
+    { geometry: new THREE.SphereGeometry(0.032, 8, 8), color: 0xfb7185, position: [-0.12, 0.15, 0.185], scale: [1.1, 0.65, 0.35] },
+    { geometry: new THREE.SphereGeometry(0.032, 8, 8), color: 0xfb7185, position: [0.12, 0.15, 0.185], scale: [1.1, 0.65, 0.35] }
   ]);
-  headGroup.add(new THREE.Mesh(headShellGeom, matArmorVertex));
+  headGroup.add(new THREE.Mesh(humanHeadGeom, matSkinHair));
 
-  // Sleek Curved Optic Visor Faceplate
-  const visorFace = new THREE.Mesh(
-    new THREE.SphereGeometry(0.215, 22, 16, -Math.PI * 0.36, Math.PI * 0.72, Math.PI * 0.3, Math.PI * 0.36),
+  // Animated Expressive Eyes + Brows (scale.y blinks cleanly!)
+  const eyesGroup = new THREE.Group();
+  eyesGroup.position.set(0, 0.22, 0.212);
+  headGroup.add(eyesGroup);
+
+  const eyesGeom = mergeColoredParts([
+    // Left & Right Sclera Whites
+    { geometry: new THREE.SphereGeometry(0.042, 10, 10), color: 0xffffff, position: [-0.075, 0, 0], scale: [0.95, 1.15, 0.38] },
+    { geometry: new THREE.SphereGeometry(0.042, 10, 10), color: 0xffffff, position: [0.075, 0, 0], scale: [0.95, 1.15, 0.38] },
+    // Sky-Blue Irises
+    { geometry: new THREE.SphereGeometry(0.026, 10, 10), color: 0x0ea5e9, position: [-0.072, 0, 0.012], scale: [0.95, 1.1, 0.4] },
+    { geometry: new THREE.SphereGeometry(0.026, 10, 10), color: 0x0ea5e9, position: [0.072, 0, 0.012], scale: [0.95, 1.1, 0.4] },
+    // Deep Pupils
+    { geometry: new THREE.SphereGeometry(0.015, 8, 8), color: 0x0f172a, position: [-0.072, 0, 0.019], scale: [0.9, 1.0, 0.4] },
+    { geometry: new THREE.SphereGeometry(0.015, 8, 8), color: 0x0f172a, position: [0.072, 0, 0.019], scale: [0.9, 1.0, 0.4] },
+    // Eyebrows
+    { geometry: new THREE.BoxGeometry(0.072, 0.018, 0.02), color: 0x241934, position: [-0.075, 0.06, 0.005], rotation: [0, 0, 0.08] },
+    { geometry: new THREE.BoxGeometry(0.072, 0.018, 0.02), color: 0x241934, position: [0.075, 0.06, 0.005], rotation: [0, 0, -0.08] }
+  ]);
+  const eyesMesh = new THREE.Mesh(eyesGeom, new THREE.MeshBasicMaterial({ vertexColors: true }));
+  eyesGroup.add(eyesMesh);
+
+  // Expressive Mouth / Smile (animates open when laughing/celebrating!)
+  const mouthMesh = new THREE.Mesh(
+    new THREE.TorusGeometry(0.044, 0.011, 8, 14, Math.PI),
+    new THREE.MeshBasicMaterial({ color: 0xbe123c })
+  );
+  mouthMesh.position.set(0, 0.125, 0.214);
+  mouthMesh.rotation.z = Math.PI;
+  headGroup.add(mouthMesh);
+
+  // Sleek Transparent Cyan AR Smart-Visor Band across forehead/eyes (No bulky EVA helmet!)
+  const arVisor = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.248, 0.248, 0.095, 20, 1, true, -Math.PI * 0.28, Math.PI * 0.56),
     new THREE.MeshStandardMaterial({
-      color: 0x071426,
+      color: 0x38bdf8,
       emissive: 0x0ea5e9,
-      emissiveIntensity: 0.65,
-      roughness: 0.1,
-      metalness: 0.85
+      emissiveIntensity: 0.45,
+      transparent: true,
+      opacity: 0.34,
+      side: THREE.DoubleSide,
+      roughness: 0.08,
+      metalness: 0.6
     })
   );
-  visorFace.rotation.y = Math.PI / 2;
-  visorFace.position.set(0, 0.12, 0.042);
-  headGroup.add(visorFace);
+  arVisor.position.set(0, 0.228, 0.012);
+  headGroup.add(arVisor);
 
-  // Expressive Glowing Optic Eyes + Telemetry Smile Bar (1 draw call)
-  const opticEyesMat = new THREE.MeshBasicMaterial({ color: 0x67e8f9 });
-  const opticEyesGeom = mergeColoredParts([
-    { geometry: new THREE.SphereGeometry(0.036, 12, 10), color: 0x67e8f9, position: [-0.078, 0.135, 0.244], scale: [1.1, 0.85, 0.6] },
-    { geometry: new THREE.SphereGeometry(0.036, 12, 10), color: 0x67e8f9, position: [0.078, 0.135, 0.244], scale: [1.1, 0.85, 0.6] },
-    { geometry: new THREE.BoxGeometry(0.09, 0.014, 0.015), color: 0x38bdf8, position: [0, 0.078, 0.242] }
-  ]);
-  const opticEyesMesh = new THREE.Mesh(opticEyesGeom, opticEyesMat);
-  headGroup.add(opticEyesMesh);
-
-  // Optional outer EVA bubble helmet (strictly ONLY when explicitly toggled on during outside EVA!)
   if (options?.showEvaHelmet) {
     const evaBubble = new THREE.Mesh(
-      new THREE.SphereGeometry(0.34, 24, 18),
+      new THREE.SphereGeometry(0.33, 22, 16),
       new THREE.MeshStandardMaterial({
         color: 0xe0f2fe,
         transparent: true,
-        opacity: 0.28,
+        opacity: 0.26,
         roughness: 0.08,
         metalness: 0.22
       })
     );
-    evaBubble.position.y = 0.13;
+    evaBubble.position.y = 0.21;
     headGroup.add(evaBubble);
   }
 
-  // Arms & Resistance Cables (3 draw calls per arm)
-  const createArm = (side: -1 | 1) => {
+  // Arms & Resistance Cables + Integrated Left Wrist Telemetry Monitor
+  const createArm = (side: -1 | 1, includeWristMonitor: boolean) => {
     const shoulderPivot = new THREE.Group();
-    shoulderPivot.position.set(side * 0.39, 0.24, 0);
+    shoulderPivot.position.set(side * 0.37, 0.22, 0);
     torsoGroup.add(shoulderPivot);
 
     const upperArmGeom = mergeColoredParts([
-      { geometry: new THREE.SphereGeometry(0.12, 14, 12), color: 0x26344b },
-      { geometry: new THREE.CylinderGeometry(0.09, 0.076, 0.34, 14), color: 0x1b2436, position: [0, -0.18, 0] },
-      { geometry: new THREE.TorusGeometry(0.086, 0.016, 8, 16), color: 0x22d3ee, position: [0, -0.18, 0], rotation: [Math.PI / 2, 0, 0] }
+      { geometry: new THREE.SphereGeometry(0.11, 12, 10), color: 0x1f2937 },
+      { geometry: new THREE.CylinderGeometry(0.084, 0.072, 0.32, 12), color: 0x111827, position: [0, -0.17, 0] },
+      { geometry: new THREE.TorusGeometry(0.082, 0.015, 8, 16), color: 0x22d3ee, position: [0, -0.17, 0], rotation: [Math.PI / 2, 0, 0] }
     ]);
     shoulderPivot.add(new THREE.Mesh(upperArmGeom, matArmorVertex));
 
     const elbowPivot = new THREE.Group();
-    elbowPivot.position.y = -0.36;
+    elbowPivot.position.y = -0.34;
     shoulderPivot.add(elbowPivot);
 
-    const forearmGeom = mergeColoredParts([
-      { geometry: new THREE.SphereGeometry(0.084, 12, 10), color: 0x26344b },
-      { geometry: new THREE.CylinderGeometry(0.076, 0.064, 0.32, 14), color: 0xe2e8f0, position: [0, -0.16, 0] },
-      { geometry: new THREE.BoxGeometry(0.115, 0.125, 0.135), color: 0x0f172a, position: [0, -0.35, 0] }
-    ]);
+    const forearmParts: Parameters<typeof mergeColoredParts>[0] = [
+      { geometry: new THREE.SphereGeometry(0.078, 10, 10), color: 0x1f2937 },
+      { geometry: new THREE.CylinderGeometry(0.072, 0.06, 0.3, 12), color: 0xe2e8f0, position: [0, -0.15, 0] },
+      { geometry: new THREE.SphereGeometry(0.072, 10, 10), color: 0xfdc59f, position: [0, -0.32, 0] }
+    ];
+    if (includeWristMonitor) {
+      forearmParts.push(
+        { geometry: new THREE.BoxGeometry(0.04, 0.11, 0.085), color: 0x0f172a, position: [0.068, -0.22, 0.02] },
+        { geometry: new THREE.BoxGeometry(0.015, 0.085, 0.065), color: 0x22d3ee, position: [0.088, -0.22, 0.02] }
+      );
+    }
+    const forearmGeom = mergeColoredParts(forearmParts);
     elbowPivot.add(new THREE.Mesh(forearmGeom, matArmorVertex));
 
-    // Module 02: Dynamic Independent Resistance Cable along outer arm
-    const armCable = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.62, 8), matCableCyan);
-    armCable.position.set(side * 0.1, -0.34, 0);
+    const armCable = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.58, 8), matCableCyan);
+    armCable.position.set(side * 0.095, -0.32, 0);
     shoulderPivot.add(armCable);
 
     return { shoulderPivot, elbowPivot, armCable };
   };
 
-  const leftArm = createArm(-1);
-  const rightArm = createArm(1);
+  const leftArm = createArm(-1, true);
+  const rightArm = createArm(1, false);
 
-  // Legs & Resistance Cables (3 draw calls per leg)
+  // Legs & Resistance Cables
   const createLeg = (side: -1 | 1) => {
     const hipPivot = new THREE.Group();
-    hipPivot.position.set(side * 0.165, -0.22, 0);
+    hipPivot.position.set(side * 0.155, -0.21, 0);
     bodyPivot.add(hipPivot);
 
     const thighGeom = mergeColoredParts([
-      { geometry: new THREE.CylinderGeometry(0.066, 0.066, 0.06, 12), color: 0x22d3ee, position: [side * 0.09, 0, 0], rotation: [0, 0, Math.PI / 2] },
-      { geometry: new THREE.CylinderGeometry(0.114, 0.092, 0.38, 14), color: 0x1b2436, position: [0, -0.2, 0] },
-      { geometry: new THREE.TorusGeometry(0.108, 0.018, 8, 18), color: 0x22d3ee, position: [0, -0.2, 0], rotation: [Math.PI / 2, 0, 0] }
+      { geometry: new THREE.CylinderGeometry(0.062, 0.062, 0.055, 10), color: 0x22d3ee, position: [side * 0.085, 0, 0], rotation: [0, 0, Math.PI / 2] },
+      { geometry: new THREE.CylinderGeometry(0.106, 0.088, 0.36, 12), color: 0x111827, position: [0, -0.19, 0] },
+      { geometry: new THREE.TorusGeometry(0.102, 0.016, 8, 16), color: 0x22d3ee, position: [0, -0.19, 0], rotation: [Math.PI / 2, 0, 0] }
     ]);
     hipPivot.add(new THREE.Mesh(thighGeom, matArmorVertex));
 
     const kneePivot = new THREE.Group();
-    kneePivot.position.y = -0.4;
+    kneePivot.position.y = -0.38;
     hipPivot.add(kneePivot);
 
     const shinGeom = mergeColoredParts([
-      { geometry: new THREE.CylinderGeometry(0.095, 0.095, 0.1, 6), color: 0x26344b, position: [0, 0, 0.04], rotation: [0, 0, Math.PI / 2] },
-      { geometry: new THREE.CylinderGeometry(0.088, 0.074, 0.34, 14), color: 0xe2e8f0, position: [0, -0.18, 0] },
-      { geometry: new THREE.BoxGeometry(0.155, 0.11, 0.25), color: 0x0f172a, position: [0, -0.37, 0.04] },
-      { geometry: new THREE.BoxGeometry(0.165, 0.032, 0.26), color: 0x38bdf8, position: [0, -0.425, 0.04] }
+      { geometry: new THREE.CylinderGeometry(0.09, 0.09, 0.095, 6), color: 0x1f2937, position: [0, 0, 0.038], rotation: [0, 0, Math.PI / 2] },
+      { geometry: new THREE.CylinderGeometry(0.084, 0.07, 0.33, 12), color: 0xe2e8f0, position: [0, -0.17, 0] },
+      { geometry: new THREE.BoxGeometry(0.145, 0.105, 0.24), color: 0x111827, position: [0, -0.355, 0.04] },
+      { geometry: new THREE.BoxGeometry(0.155, 0.03, 0.25), color: 0x38bdf8, position: [0, -0.41, 0.04] }
     ]);
     kneePivot.add(new THREE.Mesh(shinGeom, matArmorVertex));
 
-    // Module 02: Dynamic Resistance Cable along outer leg
-    const legCable = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.68, 8), matCableCyan);
-    legCable.position.set(side * 0.115, -0.36, 0);
+    const legCable = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.65, 8), matCableCyan);
+    legCable.position.set(side * 0.11, -0.34, 0);
     hipPivot.add(legCable);
 
     return { hipPivot, kneePivot, legCable };
@@ -440,6 +489,28 @@ export function buildSpaceFitXCharacter(options?: {
 
   const leftLeg = createLeg(-1);
   const rightLeg = createLeg(1);
+
+  // ==================== HOVERING MINI-ROBO COMPANION GUIDE ====================
+  const showCompanion = options?.showCompanion !== false;
+  const companionGroup = new THREE.Group();
+  companionGroup.position.set(0.84, 1.9, -0.15);
+  if (showCompanion) {
+    const botBodyGeom = mergeColoredParts([
+      { geometry: new THREE.SphereGeometry(0.22, 16, 12), color: 0xf8fafc },
+      { geometry: new THREE.TorusGeometry(0.22, 0.028, 8, 22), color: 0x0ea5e9, rotation: [Math.PI / 2, 0, 0] },
+      { geometry: new THREE.CylinderGeometry(0.014, 0.018, 0.14, 8), color: 0x64748b, position: [0, 0.26, 0] },
+      { geometry: new THREE.SphereGeometry(0.042, 10, 10), color: 0xfbbf24, position: [0, 0.34, 0] },
+      { geometry: new THREE.BoxGeometry(0.24, 0.07, 0.12), color: 0x1e293b, position: [0, 0.02, 0.16] }
+    ]);
+    companionGroup.add(new THREE.Mesh(botBodyGeom, matArmorVertex));
+
+    const botEyesGeom = mergeColoredParts([
+      { geometry: new THREE.SphereGeometry(0.026, 8, 8), color: 0x22d3ee, position: [-0.055, 0.025, 0.222] },
+      { geometry: new THREE.SphereGeometry(0.026, 8, 8), color: 0x22d3ee, position: [0.055, 0.025, 0.222] }
+    ]);
+    companionGroup.add(new THREE.Mesh(botEyesGeom, matCompressionCyan));
+    group.add(companionGroup);
+  }
 
   const litColor = new THREE.Color(0x22d3ee);
   const greenColor = new THREE.Color(0x4ade80);
@@ -452,7 +523,9 @@ export function buildSpaceFitXCharacter(options?: {
     isJumping = false,
     isZeroG = false,
     suitState,
-    highlightModule = null
+    highlightModule = null,
+    idleSeconds = 0,
+    emote = 'none'
   }: {
     t: number;
     moveSpeed?: number;
@@ -461,30 +534,42 @@ export function buildSpaceFitXCharacter(options?: {
     isZeroG?: boolean;
     suitState?: SpaceFitXState;
     highlightModule?: number | null;
+    idleSeconds?: number;
+    emote?: AstronautEmote;
   }) => {
-    // 1. Locomotion & Zero-G animation
-    headGroup.rotation.y = Math.sin(t * 1.1) * 0.08;
-    const eyeScaleY = Math.sin(t * 2.3) > 0.97 ? 0.18 : 1;
-    opticEyesMesh.scale.y = eyeScaleY;
+    // 1. Expressive Facial Animation (blinking + laugh smile)
+    const blinkScale = Math.sin(t * 2.15) > 0.965 ? 0.14 : 1;
+    eyesGroup.scale.y = blinkScale;
+    const isBored = !isJumping && !isZeroG && moveSpeed <= 0.1 && idleSeconds >= 8;
+    const sitBlend = isBored ? Math.min(1, (idleSeconds - 8) / 0.55) : 0;
+
+    mouthMesh.scale.set(
+      emote === 'celebrate' ? 1.35 : isBored ? 0.72 : 1.0,
+      emote === 'celebrate' ? 1.6 : isBored ? 0.45 : 1.0,
+      1
+    );
+
+    // 2. Locomotion, Emotes & 8s Idle Sit-Down Pose
+    headGroup.rotation.set(0, Math.sin(t * 1.1) * 0.08, 0);
 
     if (isZeroG) {
       bodyPivot.position.y = 1.16 + Math.sin(t * 2.0) * 0.1;
-      torsoGroup.rotation.x = Math.sin(t * 1.4) * 0.08 + moveSpeed * 0.03;
-      leftArm.shoulderPivot.rotation.x = -0.35 + Math.sin(t * 1.8) * 0.25;
-      rightArm.shoulderPivot.rotation.x = -0.35 - Math.sin(t * 1.8) * 0.25;
-      leftArm.shoulderPivot.rotation.z = -0.25;
-      rightArm.shoulderPivot.rotation.z = 0.25;
+      torsoGroup.rotation.set(Math.sin(t * 1.4) * 0.08 + moveSpeed * 0.03, 0, 0);
+      leftArm.shoulderPivot.rotation.set(-0.35 + Math.sin(t * 1.8) * 0.25, 0, -0.25);
+      rightArm.shoulderPivot.rotation.set(-0.35 - Math.sin(t * 1.8) * 0.25, 0, 0.25);
+      leftArm.elbowPivot.rotation.x = -0.25;
+      rightArm.elbowPivot.rotation.x = -0.25;
       leftLeg.hipPivot.rotation.x = Math.sin(t * 1.5) * 0.2;
       rightLeg.hipPivot.rotation.x = -Math.sin(t * 1.5) * 0.2;
       leftLeg.kneePivot.rotation.x = 0.28;
       rightLeg.kneePivot.rotation.x = 0.18;
     } else if (isJumping) {
-      bodyPivot.position.y = 1.07;
-      torsoGroup.rotation.x = 0.12;
-      leftArm.shoulderPivot.rotation.x = -0.8;
-      rightArm.shoulderPivot.rotation.x = -0.8;
-      leftArm.shoulderPivot.rotation.z = -0.35;
-      rightArm.shoulderPivot.rotation.z = 0.35;
+      bodyPivot.position.y = 1.06;
+      torsoGroup.rotation.set(0.12, 0, 0);
+      leftArm.shoulderPivot.rotation.set(-0.8, 0, -0.35);
+      rightArm.shoulderPivot.rotation.set(-0.8, 0, 0.35);
+      leftArm.elbowPivot.rotation.x = -0.35;
+      rightArm.elbowPivot.rotation.x = -0.35;
       leftLeg.hipPivot.rotation.x = -0.45;
       rightLeg.hipPivot.rotation.x = 0.3;
       leftLeg.kneePivot.rotation.x = 0.75;
@@ -493,25 +578,74 @@ export function buildSpaceFitXCharacter(options?: {
       const freq = isRunning ? 13 : 8.5;
       const amp = isRunning ? 0.65 : 0.45;
       const swing = Math.sin(t * freq);
-      bodyPivot.position.y = 1.03 + Math.abs(swing) * 0.06;
-      torsoGroup.rotation.x = isRunning ? 0.16 : 0.08;
-      leftArm.shoulderPivot.rotation.x = -swing * amp;
-      rightArm.shoulderPivot.rotation.x = swing * amp;
-      leftArm.shoulderPivot.rotation.z = -0.14;
-      rightArm.shoulderPivot.rotation.z = 0.14;
+      bodyPivot.position.y = 1.02 + Math.abs(swing) * 0.06;
+      torsoGroup.rotation.set(isRunning ? 0.16 : 0.08, 0, 0);
+      leftArm.shoulderPivot.rotation.set(-swing * amp, 0, -0.14);
+      rightArm.shoulderPivot.rotation.set(swing * amp, 0, 0.14);
       leftArm.elbowPivot.rotation.x = -0.45;
       rightArm.elbowPivot.rotation.x = -0.45;
       leftLeg.hipPivot.rotation.x = swing * amp;
       rightLeg.hipPivot.rotation.x = -swing * amp;
       leftLeg.kneePivot.rotation.x = Math.max(0, -swing * 0.55);
       rightLeg.kneePivot.rotation.x = Math.max(0, swing * 0.55);
+    } else if (isBored) {
+      // 8s Idle Boredom: Sit down on the grass, cross/rest right arm, inspect left wrist monitor!
+      bodyPivot.position.y = 1.02 - sitBlend * 0.55;
+      torsoGroup.rotation.set(sitBlend * 0.12, sitBlend * 0.18, 0);
+      headGroup.rotation.set(sitBlend * 0.28 + Math.sin(t * 1.4) * 0.06, -sitBlend * 0.25, 0);
+
+      // Left arm raised checking cyan wrist monitor
+      leftArm.shoulderPivot.rotation.set(-0.92 * sitBlend, 0.2 * sitBlend, -0.15);
+      leftArm.elbowPivot.rotation.x = -1.1 * sitBlend;
+      // Right arm folded casually
+      rightArm.shoulderPivot.rotation.set(-0.42 * sitBlend, -0.25 * sitBlend, -0.18 * sitBlend);
+      rightArm.elbowPivot.rotation.x = -1.05 * sitBlend;
+
+      // Seated legs stretched slightly forward onto the grass
+      leftLeg.hipPivot.rotation.x = -1.28 * sitBlend;
+      rightLeg.hipPivot.rotation.x = -1.24 * sitBlend;
+      leftLeg.kneePivot.rotation.x = 0.28 * sitBlend;
+      rightLeg.kneePivot.rotation.x = 0.34 * sitBlend;
+    } else if (emote === 'celebrate') {
+      const hop = Math.abs(Math.sin(t * 7.5)) * 0.24;
+      bodyPivot.position.y = 1.02 + hop;
+      torsoGroup.rotation.set(-0.08, Math.sin(t * 5) * 0.15, 0);
+      headGroup.rotation.x = -0.16;
+      leftArm.shoulderPivot.rotation.set(-2.3 + Math.sin(t * 8) * 0.25, 0, -0.35);
+      rightArm.shoulderPivot.rotation.set(-2.3 - Math.sin(t * 8) * 0.25, 0, 0.35);
+      leftArm.elbowPivot.rotation.x = -0.3;
+      rightArm.elbowPivot.rotation.x = -0.3;
+      leftLeg.hipPivot.rotation.x = hop * -0.8;
+      rightLeg.hipPivot.rotation.x = hop * -0.8;
+      leftLeg.kneePivot.rotation.x = hop * 1.6;
+      rightLeg.kneePivot.rotation.x = hop * 1.6;
+    } else if (emote === 'wave') {
+      bodyPivot.position.y = 1.02 + Math.sin(t * 2.5) * 0.03;
+      torsoGroup.rotation.set(0, -0.12, 0.05);
+      headGroup.rotation.z = -0.09;
+      leftArm.shoulderPivot.rotation.set(0, 0, -0.18);
+      leftArm.elbowPivot.rotation.x = -0.2;
+      // Friendly energetic right-hand overhead wave
+      rightArm.shoulderPivot.rotation.set(-0.25, 0, 2.35 + Math.sin(t * 8.5) * 0.32);
+      rightArm.elbowPivot.rotation.x = -0.32;
+      leftLeg.hipPivot.rotation.x = 0;
+      rightLeg.hipPivot.rotation.x = 0;
+      leftLeg.kneePivot.rotation.x = 0.04;
+      rightLeg.kneePivot.rotation.x = 0.04;
+    } else if (emote === 'point') {
+      bodyPivot.position.y = 1.02 + Math.sin(t * 2.2) * 0.025;
+      torsoGroup.rotation.set(0.05, -0.18, 0);
+      leftArm.shoulderPivot.rotation.set(0.06, 0, -0.16);
+      rightArm.shoulderPivot.rotation.set(-1.32 + Math.sin(t * 4) * 0.06, 0, 0.14);
+      leftArm.elbowPivot.rotation.x = -0.18;
+      rightArm.elbowPivot.rotation.x = -0.08;
+      leftLeg.hipPivot.rotation.x = 0;
+      rightLeg.hipPivot.rotation.x = 0;
     } else {
-      bodyPivot.position.y = 1.03 + Math.sin(t * 2.2) * 0.025;
-      torsoGroup.rotation.x = 0;
-      leftArm.shoulderPivot.rotation.x = Math.sin(t * 1.4) * 0.04;
-      rightArm.shoulderPivot.rotation.x = -Math.sin(t * 1.4) * 0.04;
-      leftArm.shoulderPivot.rotation.z = -0.16;
-      rightArm.shoulderPivot.rotation.z = 0.16;
+      bodyPivot.position.y = 1.02 + Math.sin(t * 2.2) * 0.025;
+      torsoGroup.rotation.set(0, Math.sin(t * 0.9) * 0.04, 0);
+      leftArm.shoulderPivot.rotation.set(Math.sin(t * 1.4) * 0.04, 0, -0.16);
+      rightArm.shoulderPivot.rotation.set(-Math.sin(t * 1.4) * 0.04, 0, 0.16);
       leftArm.elbowPivot.rotation.x = -0.18;
       rightArm.elbowPivot.rotation.x = -0.18;
       leftLeg.hipPivot.rotation.x = 0;
@@ -520,7 +654,30 @@ export function buildSpaceFitXCharacter(options?: {
       rightLeg.kneePivot.rotation.x = 0.04;
     }
 
-    // 2. Live 7-Module Visual Telemetry
+    // 3. Hovering Mini-Robo Companion Behavior
+    if (showCompanion) {
+      if (isBored) {
+        // Swoop close to seated hero & tilt inquisitively
+        companionGroup.position.set(
+          0.65 - sitBlend * 0.15 + Math.cos(t * 1.5) * 0.08,
+          1.28 + Math.sin(t * 2.8) * 0.07,
+          0.35 * sitBlend
+        );
+        companionGroup.rotation.set(0.18, -0.55, Math.sin(t * 2.5) * 0.12);
+      } else if (emote === 'celebrate') {
+        companionGroup.position.set(Math.cos(t * 4.2) * 0.95, 2.05 + Math.sin(t * 6) * 0.14, Math.sin(t * 4.2) * 0.6);
+        companionGroup.rotation.set(0, t * 4.2, 0);
+      } else {
+        companionGroup.position.set(
+          0.84 + Math.cos(t * 1.6) * 0.07,
+          1.86 + Math.sin(t * 2.6) * 0.1,
+          -0.14 + Math.sin(t * 1.4) * 0.06
+        );
+        companionGroup.rotation.set(moveSpeed * 0.03, Math.sin(t * 1.2) * 0.18, 0);
+      }
+    }
+
+    // 4. Live 7-Module SPACE-FIT X Hardware Telemetry
     const comp = suitState?.compressionLevel || 'medium';
     matCompressionCyan.emissiveIntensity =
       highlightModule === 1

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { DoorOpen, ArrowUpCircle, Sparkles } from 'lucide-react';
+import { DoorOpen, Sparkles, Zap } from 'lucide-react';
 import { soundManager } from '../../utils/sound';
 
 interface ThirdPersonControlsOverlayProps {
@@ -56,8 +56,11 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
   };
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-3 z-30 px-2.5 sm:px-6 flex items-end justify-between gap-2">
-      {/* Bottom-Left: Ergonomic Analog Thumbstick */}
+    <div
+      dir="ltr"
+      className="pointer-events-none fixed inset-x-0 bottom-3 z-30 px-3 sm:px-6 flex items-end justify-between gap-2"
+    >
+      {/* Bottom-Left: Minimalist Transparent Circular Analog Thumbstick */}
       <div className="pointer-events-auto flex flex-col items-start gap-1.5 shrink-0">
         <div
           ref={padRef}
@@ -73,24 +76,78 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
           }}
           onPointerUp={resetJoystick}
           onPointerCancel={resetJoystick}
-          className="relative w-20 h-20 sm:w-28 sm:h-28 rounded-full bg-slate-950/85 border-[3px] border-cyan-300/80 backdrop-blur-md shadow-[0_6px_0_rgba(8,47,73,0.9),0_0_24px_rgba(34,211,238,0.32)] flex items-center justify-center touch-none cursor-grab active:cursor-grabbing"
+          className="relative w-20 h-20 sm:w-28 sm:h-28 rounded-full bg-slate-900/45 border-[3px] border-white/55 backdrop-blur-md shadow-[0_6px_18px_rgba(15,23,42,0.45)] flex items-center justify-center touch-none cursor-grab active:cursor-grabbing"
           aria-label="عصا التحكم الثلاثية الأبعاد"
         >
-          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border border-cyan-400/35 pointer-events-none" />
+          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border border-white/30 pointer-events-none" />
           <div
             style={{ transform: `translate(${knobOffset.x}px, ${knobOffset.y}px)` }}
-            className="absolute w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-cyan-200 via-sky-400 to-blue-600 border-2 border-white shadow-lg pointer-events-none transition-transform duration-75"
+            className="absolute w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-white via-cyan-200 to-sky-400 border-2 border-white shadow-lg pointer-events-none transition-transform duration-75"
           />
         </div>
-        <span className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950/80 border border-slate-700 text-[11px] font-bold text-slate-300 backdrop-blur-md">
-          <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
+        <span
+          dir="rtl"
+          className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950/60 border border-white/25 text-[11px] font-hud font-bold text-white/90 backdrop-blur-md"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
           <span>{hintAr}</span>
         </span>
       </div>
 
-      {/* Desktop Center Floating Interact Pill */}
-      <div className="pointer-events-none hidden sm:flex flex-1 flex-col items-center justify-end pb-1 min-w-0">
+      {/* Bottom-Right: Super Bear Adventure Circular Arcade Buttons (B Interact + A Jump + Sprint) */}
+      <div className="pointer-events-auto flex flex-col items-end gap-2 max-w-[65vw] sm:max-w-none shrink-0">
+        {/* Contextual Target Pill Floating Cleanly Above A/B */}
         {promptLabelAr && (
+          <button
+            type="button"
+            dir="rtl"
+            onClick={() => {
+              soundManager.playClick();
+              onInteract();
+            }}
+            className="casual-btn-primary px-3.5 py-1.5 text-xs sm:text-sm flex items-center gap-1.5 max-w-[240px] sm:max-w-[380px] cursor-pointer shadow-xl"
+          >
+            <DoorOpen className="w-4 h-4 shrink-0" />
+            <span className="truncate">{promptLabelAr}</span>
+            {promptSubAr && (
+              <span className="hidden lg:inline px-2 py-0.5 rounded-full bg-slate-950/15 text-[10px] font-bold">
+                {promptSubAr}
+              </span>
+            )}
+          </button>
+        )}
+
+        <div className="flex items-end gap-2.5">
+          {gravityLabelAr && (
+            <span
+              dir="rtl"
+              className="hidden sm:inline-flex px-2.5 py-1 rounded-full bg-slate-950/60 border border-white/30 text-[10px] font-hud font-bold text-cyan-100 backdrop-blur-md whitespace-nowrap mb-2"
+            >
+              {gravityLabelAr}
+            </span>
+          )}
+
+          {onSprintChange && (
+            <button
+              type="button"
+              data-testid="third-person-sprint-btn"
+              onClick={() => {
+                const next = !sprinting;
+                setSprinting(next);
+                onSprintChange(next);
+              }}
+              aria-label="جري سريع"
+              className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full border-2 border-b-4 flex items-center justify-center cursor-pointer backdrop-blur-md transition-all active:translate-y-0.5 ${
+                sprinting
+                  ? 'bg-cyan-400 text-slate-950 border-white shadow-[0_0_16px_rgba(34,211,238,0.65)]'
+                  : 'bg-slate-900/55 text-cyan-200 border-white/60 hover:bg-slate-800/75'
+              }`}
+            >
+              <Zap className="w-5 h-5" />
+            </button>
+          )}
+
+          {/* B = Interact (Transparent Glossy Golden Arcade Circle) */}
           <button
             type="button"
             data-testid="third-person-interact-btn"
@@ -98,75 +155,23 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
               soundManager.playClick();
               onInteract();
             }}
-            className="pointer-events-auto casual-btn-primary px-5 py-2.5 text-sm md:text-base cursor-pointer flex items-center gap-2 max-w-[440px]"
+            aria-label="B - دخول وتفاعل"
+            className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-b from-amber-300/95 via-amber-400/95 to-orange-500/95 border-[3px] border-white shadow-[0_5px_0_rgba(146,64,14,0.9),0_8px_20px_rgba(245,158,11,0.45)] flex flex-col items-center justify-center font-hud font-black text-slate-950 cursor-pointer active:translate-y-1 transition-all"
           >
-            <DoorOpen className="w-5 h-5 shrink-0" />
-            <span className="truncate">[E] • {promptLabelAr}</span>
-            {promptSubAr && (
-              <span className="hidden lg:inline px-2 py-0.5 rounded-full bg-slate-950/15 text-[11px] font-bold">
-                {promptSubAr}
-              </span>
-            )}
+            <span className="text-lg sm:text-xl leading-none">B</span>
+            <span className="text-[8px] sm:text-[9px] leading-none mt-0.5">تفاعل</span>
           </button>
-        )}
-      </div>
 
-      {/* Bottom-Right: Grouped Ergonomic Mobile & Desktop Action Cluster (Interact + Gravity + Sprint + Jump) */}
-      <div className="pointer-events-auto flex flex-col items-end gap-1.5 max-w-[66vw] sm:max-w-none shrink-0">
-        {/* On < sm mobile viewports, keep the Interact [E] CTA cleanly grouped right above Jump! */}
-        {promptLabelAr && (
-          <button
-            type="button"
-            data-testid="third-person-interact-mobile-btn"
-            onClick={() => {
-              soundManager.playClick();
-              onInteract();
-            }}
-            className="sm:hidden casual-btn-primary px-3 py-1.5 text-[11px] flex items-center gap-1.5 max-w-full cursor-pointer"
-          >
-            <DoorOpen className="w-4 h-4 shrink-0" />
-            <span className="truncate">{promptLabelAr}</span>
-          </button>
-        )}
-
-        <div className="flex items-end gap-2">
-          <div className="flex flex-col items-end gap-1">
-            {gravityLabelAr && (
-              <span className="px-2 sm:px-2.5 py-0.5 rounded-full bg-slate-950/85 border border-cyan-400/50 text-[9px] sm:text-[10px] font-mono font-bold text-cyan-200 backdrop-blur-md whitespace-nowrap">
-                {gravityLabelAr}
-              </span>
-            )}
-            {onSprintChange && (
-              <button
-                type="button"
-                data-testid="third-person-sprint-btn"
-                onClick={() => {
-                  const next = !sprinting;
-                  setSprinting(next);
-                  onSprintChange(next);
-                }}
-                className={`px-3 py-2 rounded-2xl border-2 border-b-4 font-hud font-black text-[11px] sm:text-xs cursor-pointer backdrop-blur-md transition-all active:translate-y-0.5 ${
-                  sprinting
-                    ? 'bg-cyan-400 text-slate-950 border-white shadow-[0_0_16px_rgba(34,211,238,0.5)]'
-                    : 'bg-slate-950/85 text-cyan-200 border-cyan-400/60'
-                }`}
-              >
-                ⚡ جري
-              </button>
-            )}
-          </div>
-
+          {/* A = Jump (Transparent Glossy Emerald Arcade Circle) */}
           <button
             type="button"
             data-testid="third-person-jump-btn"
-            onClick={() => {
-              soundManager.playClick();
-              onJump();
-            }}
-            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-b from-sky-300 via-sky-500 to-indigo-600 text-white border-[3px] border-white shadow-[0_5px_0_#1e3a8a,0_0_24px_rgba(56,189,248,0.45)] active:translate-y-0.5 flex flex-col items-center justify-center font-hud font-black text-xs cursor-pointer shrink-0"
+            onClick={onJump}
+            aria-label="A - قفز"
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-b from-emerald-300/95 via-emerald-500/95 to-teal-600/95 border-[3px] border-white shadow-[0_6px_0_rgba(6,95,70,0.9),0_8px_20px_rgba(16,185,129,0.45)] flex flex-col items-center justify-center font-hud font-black text-white cursor-pointer active:translate-y-1 transition-all"
           >
-            <ArrowUpCircle className="w-6 h-6 mb-0.5" />
-            <span>قفز</span>
+            <span className="text-xl sm:text-2xl leading-none drop-shadow">A</span>
+            <span className="text-[9px] sm:text-[10px] leading-none mt-0.5">قفز</span>
           </button>
         </div>
       </div>

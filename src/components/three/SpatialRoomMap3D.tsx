@@ -4,12 +4,16 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { CAMPAIGN_LEVELS, SpatialRoomNode } from '../../data/campaignLevels';
 import { CampaignLevelId, CampaignProgressState, SpaceFitXState } from '../../types/game';
 import { soundManager } from '../../utils/sound';
-import { CheckCircle2, DoorOpen } from 'lucide-react';
-import { buildSpaceFitXCharacter } from './buildSpaceFitXCharacter';
+import { dialogueManager } from '../../utils/geminiTTS';
+import { CheckCircle2 } from 'lucide-react';
+import { AstronautEmote, buildSpaceFitXCharacter } from './buildSpaceFitXCharacter';
 import {
   createCosmicSkyBackdrop,
+  createCourtyardSignboardsMesh,
+  createFloatingExclamationGeometry,
   createFloatingIslandMesh,
-  createStationBuildingMesh
+  createStationBuildingMesh,
+  SkyMode
 } from './archipelagoPrimitives';
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
 import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
@@ -27,14 +31,28 @@ interface PositionedRoom {
   yawToCenter: number;
 }
 
-function getBiomeTheme(levelId: CampaignLevelId) {
+function getBiomeTheme(levelId: CampaignLevelId): {
+  topColor: number;
+  rimColor: number;
+  rockColor: number;
+  crystalColor: number;
+  walkwayColor: number;
+  skyMode: SkyMode;
+  gravity: number;
+  jumpVel: number;
+  gravityLabelAr: string;
+  isZeroG: boolean;
+  accentCraters: boolean;
+} {
   switch (levelId) {
     case 1:
       return {
-        topColor: 0x15803d,
+        topColor: 0x22c55e,
         rimColor: 0x38bdf8,
-        rockColor: 0x78350f,
+        rockColor: 0xb45309,
         crystalColor: 0x22d3ee,
+        walkwayColor: 0xd99b52,
+        skyMode: 'sunny',
         gravity: 21,
         jumpVel: 8.4,
         gravityLabelAr: 'جاذبية الأرض 1G',
@@ -47,6 +65,8 @@ function getBiomeTheme(levelId: CampaignLevelId) {
         rimColor: 0x818cf8,
         rockColor: 0x334155,
         crystalColor: 0x60a5fa,
+        walkwayColor: 0x818cf8,
+        skyMode: 'nebula',
         gravity: 5.8,
         jumpVel: 5.8,
         gravityLabelAr: 'انعدام الوزن 0G — طفو حر',
@@ -57,8 +77,10 @@ function getBiomeTheme(levelId: CampaignLevelId) {
       return {
         topColor: 0x64748b,
         rimColor: 0xf59e0b,
-        rockColor: 0x334155,
+        rockColor: 0x475569,
         crystalColor: 0xfbbf24,
+        walkwayColor: 0xf59e0b,
+        skyMode: 'lunar',
         gravity: 7.4,
         jumpVel: 7.6,
         gravityLabelAr: 'جاذبية القمر 0.16G — قفزة عالية',
@@ -68,10 +90,12 @@ function getBiomeTheme(levelId: CampaignLevelId) {
     case 4:
     default:
       return {
-        topColor: 0x0369a1,
-        rimColor: 0x34d399,
+        topColor: 0x0284c7,
+        rimColor: 0x10b981,
         rockColor: 0x0f766e,
-        crystalColor: 0x10b981,
+        crystalColor: 0x34d399,
+        walkwayColor: 0xfde047,
+        skyMode: 'tropical',
         gravity: 21,
         jumpVel: 8.4,
         gravityLabelAr: 'جاذبية العودة للأرض 1G',
@@ -94,6 +118,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
   const [nearbyRoom, setNearbyRoom] = useState<SpatialRoomNode | null>(levelSpec.rooms[0] || null);
   const nearbyRoomRef = useRef<SpatialRoomNode | null>(nearbyRoom);
+  const [idleSpeechAr, setIdleSpeechAr] = useState<string | null>(null);
 
   const playerPosRef = useRef(new THREE.Vector3(0, 0, 0));
   const playerVelYRef = useRef(0);
@@ -104,6 +129,18 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
   const isSprintingRef = useRef(false);
   const cameraOrbitYawRef = useRef(0);
   const cameraOrbitPitchRef = useRef(0.38);
+  const lastActivityMsRef = useRef(performance.now());
+  const waveUntilMsRef = useRef(performance.now() + 2500);
+  const celebrateUntilMsRef = useRef(0);
+  const boredVoiceFiredRef = useRef(false);
+
+  const markPlayerActive = () => {
+    lastActivityMsRef.current = performance.now();
+    if (boredVoiceFiredRef.current) {
+      boredVoiceFiredRef.current = false;
+      setIdleSpeechAr(null);
+    }
+  };
 
   const suitStateRef = useRef(suitState);
   suitStateRef.current = suitState;
@@ -118,6 +155,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
   };
 
   const triggerJump = () => {
+    markPlayerActive();
     if (isGroundedRef.current || theme.isZeroG) {
       playerVelYRef.current = theme.jumpVel;
       isGroundedRef.current = false;
@@ -126,6 +164,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
   };
 
   const enterCurrentRoom = () => {
+    markPlayerActive();
     const target = nearbyRoomRef.current || levelSpec.rooms[0];
     if (target) {
       soundManager.playClick();
@@ -140,6 +179,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     isGroundedRef.current = true;
     walkTargetRef.current = null;
     pendingRoomRef.current = null;
+    waveUntilMsRef.current = performance.now() + 2500;
+    lastActivityMsRef.current = performance.now();
+    boredVoiceFiredRef.current = false;
+    setIdleSpeechAr(null);
     setNearbyRoom(levelSpec.rooms[0] || null);
     nearbyRoomRef.current = levelSpec.rooms[0] || null;
   }, [levelId]);
@@ -172,23 +215,27 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     const camera = new THREE.PerspectiveCamera(50, dims.w / dims.h, 0.1, 200);
     camera.position.set(0, 5.8, 10.2);
 
-    const skyHandle = createCosmicSkyBackdrop(scene);
+    const skyHandle = createCosmicSkyBackdrop(scene, theme.skyMode);
 
-    // Biome Lighting
-    const hemi = new THREE.HemisphereLight(0xe0f2fe, 0x0f172a, 1.35);
+    // Bright Biome Lighting (warm daylight sun for Earth & Splashdown, crisp lunar/orbital lights)
+    const hemi = new THREE.HemisphereLight(
+      theme.skyMode === 'sunny' || theme.skyMode === 'tropical' ? 0xf0f9ff : 0xe0f2fe,
+      theme.rockColor,
+      theme.skyMode === 'sunny' ? 1.5 : 1.35
+    );
     scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xffffff, 1.8);
+    const dir = new THREE.DirectionalLight(0xfffbeb, 1.85);
     dir.position.set(16, 26, 18);
     scene.add(dir);
-    const fill = new THREE.DirectionalLight(theme.rimColor, 0.75);
+    const fill = new THREE.DirectionalLight(theme.rimColor, 0.72);
     fill.position.set(-16, 8, -14);
     scene.add(fill);
 
     // Compute Spacious Radial Courtyard Ring Layout (ZERO collisions even at 12 rooms)
     const rooms = levelSpec.rooms;
     const roomCount = Math.max(1, rooms.length);
-    const ringRadius = Math.max(9.8, roomCount * 1.48);
-    const islandRadius = ringRadius + 5.8;
+    const ringRadius = Math.max(10.2, roomCount * 1.48);
+    const islandRadius = ringRadius + 6.2;
 
     // Floating Island Terrain Platform
     const island = createFloatingIslandMesh({
@@ -206,14 +253,38 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       ...((island.userData.disposableTextures as THREE.Texture[] | undefined) || [])
     ];
 
-    // Central Emblem Landing Beacon in Courtyard Center
-    const centerBeacon = new THREE.Mesh(
-      new THREE.TorusGeometry(2.2, 0.1, 10, 40),
-      new THREE.MeshBasicMaterial({ color: theme.rimColor })
-    );
-    centerBeacon.rotation.x = Math.PI / 2;
-    centerBeacon.position.y = 0.06;
-    scene.add(centerBeacon);
+    // Stylized Low-Poly Trees / Palms Around Outer Island Perimeter on Earth & Splashdown (1 draw call!)
+    if (levelId === 1 || levelId === 4) {
+      const treeParts: ColoredGeometryPart[] = [];
+      const treeCount = 8;
+      for (let t = 0; t < treeCount; t++) {
+        const ang = (t / treeCount) * Math.PI * 2 + 0.25;
+        const dist = islandRadius - 1.55;
+        const tx = Math.cos(ang) * dist;
+        const tz = Math.sin(ang) * dist;
+        treeParts.push(
+          { geometry: new THREE.CylinderGeometry(0.14, 0.2, 0.85, 7), color: 0x78350f, position: [tx, 0.42, tz] },
+          { geometry: new THREE.ConeGeometry(0.78, 1.15, 7), color: levelId === 4 ? 0x10b981 : 0x16a34a, position: [tx, 1.25, tz] },
+          { geometry: new THREE.ConeGeometry(0.56, 0.92, 7), color: 0x22c55e, position: [tx, 1.88, tz] }
+        );
+      }
+      scene.add(
+        new THREE.Mesh(
+          mergeColoredParts(treeParts),
+          new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, flatShading: true })
+        )
+      );
+    }
+
+    // Central Plaza Ring Beacon
+    const walkwayParts: ColoredGeometryPart[] = [
+      {
+        geometry: new THREE.TorusGeometry(2.2, 0.09, 8, 32),
+        color: theme.rimColor,
+        position: [0, 0.06, 0],
+        rotation: [Math.PI / 2, 0, 0]
+      }
+    ];
 
     // Microgravity floating orbital props around perimeter in Level 2 (1 InstancedMesh!)
     const orbitSatelliteTransforms: { angle: number; y: number }[] = [];
@@ -230,9 +301,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       scene.add(orbitSatellitesInst);
     }
 
-    // Build Sculpted Station Buildings & Merged Walkways Along Courtyard Ring (Low Draw Calls)
+    // Build Sculpted Station Booths, Batched Signboards & Bouncing ! Indicators (1 draw call each!)
     const clickTargets: { group: THREE.Group; room: SpatialRoomNode; entrySpot: THREE.Vector3; pos: THREE.Vector3 }[] = [];
-    const walkwayParts: ColoredGeometryPart[] = [];
 
     const positionedRooms: PositionedRoom[] = rooms.map((room, idx) => {
       const theta = (idx / roomCount) * Math.PI * 2 - Math.PI / 2;
@@ -246,18 +316,23 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       };
     });
 
-    // 2 InstancedMesh objects handle ALL room portals & curtains across the courtyard (2 draw calls!)
     const portalRingsInst = new THREE.InstancedMesh(
-      new THREE.TorusGeometry(0.72, 0.11, 12, 28, Math.PI * 1.15),
+      new THREE.TorusGeometry(0.72, 0.11, 10, 24, Math.PI * 1.15),
       new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.42, roughness: 0.25 }),
       roomCount
     );
     const curtainsInst = new THREE.InstancedMesh(
-      new THREE.CircleGeometry(0.65, 24),
+      new THREE.CircleGeometry(0.65, 20),
       new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.32, side: THREE.DoubleSide }),
       roomCount
     );
-    const portalMeta: { basePos: THREE.Vector3; yaw: number; completed: boolean }[] = [];
+    const exclInst = new THREE.InstancedMesh(
+      createFloatingExclamationGeometry(),
+      new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xf59e0b, emissiveIntensity: 0.58, roughness: 0.25 }),
+      roomCount
+    );
+    const portalMeta: { basePos: THREE.Vector3; exclPos: THREE.Vector3; yaw: number; completed: boolean }[] = [];
+    const signboardItems: Parameters<typeof createCourtyardSignboardsMesh>[0] = [];
     const courtyardBuildingGeoms: THREE.BufferGeometry[] = [];
     const rotEuler = new THREE.Euler();
     const rotQuat = new THREE.Quaternion();
@@ -266,7 +341,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
     positionedRooms.forEach(({ room, pos, yawToCenter }, idx) => {
       const completed = isRoomCompleted(room);
-      const bld = createStationBuildingMesh(room, completed, { skipPortals: true });
+      const bld = createStationBuildingMesh(room, completed, { skipPortals: true, skipLabelSprite: true });
       bld.group.position.copy(pos);
       bld.group.rotation.y = yawToCenter;
       const archMesh = bld.group.children.find((c): c is THREE.Mesh => c instanceof THREE.Mesh);
@@ -296,18 +371,27 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       const portalWorldPos = new THREE.Vector3(0, 0.88, 1.15)
         .applyAxisAngle(new THREE.Vector3(0, 1, 0), yawToCenter)
         .add(pos);
-      portalMeta.push({ basePos: portalWorldPos, yaw: yawToCenter, completed });
+      const exclPos = new THREE.Vector3(pos.x, 4.35, pos.z);
+      portalMeta.push({ basePos: portalWorldPos, exclPos, yaw: yawToCenter, completed });
       const ringCol = new THREE.Color(completed ? '#10b981' : room.accentHex);
       portalRingsInst.setColorAt(idx, ringCol);
       curtainsInst.setColorAt(idx, ringCol);
 
-      // Promenade Walkway part merged into one courtyard walkway mesh
+      signboardItems.push({
+        pos,
+        yawToCenter,
+        titleAr: room.nameAr,
+        icon: room.icon,
+        accentHex: room.accentHex,
+        completed
+      });
+
       const dirToRoom = pos.clone().normalize();
       const pathLen = Math.max(2, ringRadius - 3.6);
       const pathCenter = dirToRoom.clone().multiplyScalar(2.1 + pathLen / 2);
       walkwayParts.push({
-        geometry: new THREE.BoxGeometry(1.1, 0.05, pathLen),
-        color: completed ? 0x10b981 : theme.rimColor,
+        geometry: new THREE.BoxGeometry(1.15, 0.05, pathLen),
+        color: completed ? 0x10b981 : theme.walkwayColor,
         position: [pathCenter.x, 0.03, pathCenter.z],
         rotation: [0, yawToCenter, 0]
       });
@@ -318,7 +402,11 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
     if (portalRingsInst.instanceColor) portalRingsInst.instanceColor.needsUpdate = true;
     if (curtainsInst.instanceColor) curtainsInst.instanceColor.needsUpdate = true;
-    scene.add(portalRingsInst, curtainsInst);
+    scene.add(portalRingsInst, curtainsInst, exclInst);
+
+    const signboardsBatch = createCourtyardSignboardsMesh(signboardItems);
+    scene.add(signboardsBatch.mesh);
+    disposableTextures.push(signboardsBatch.texture);
 
     let courtyardBuildingsMesh: THREE.Mesh | null = null;
     if (courtyardBuildingGeoms.length > 0) {
@@ -326,7 +414,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       if (mergedBuildingsGeom) {
         courtyardBuildingsMesh = new THREE.Mesh(
           mergedBuildingsGeom,
-          new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.38, metalness: 0.36 })
+          new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.22, flatShading: true })
         );
         scene.add(courtyardBuildingsMesh);
       }
@@ -336,7 +424,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     if (walkwayParts.length > 0) {
       const walkwaysMesh = new THREE.Mesh(
         mergeColoredParts(walkwayParts),
-        new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.42 })
+        new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.72 })
       );
       scene.add(walkwaysMesh);
     }
@@ -350,6 +438,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     // Keyboard & Pointer Controls
     const keysDown = new Set<string>();
     const onKeyDown = (e: KeyboardEvent) => {
+      markPlayerActive();
       const k = e.key.toLowerCase();
       if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) {
         if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
@@ -377,6 +466,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     const domEl = renderer.domElement;
 
     const onPointerDown = (e: PointerEvent) => {
+      markPlayerActive();
       dragOrbiting = true;
       pointerDownPos = { x: e.clientX, y: e.clientY };
       prevPointerPos = { x: e.clientX, y: e.clientY };
@@ -401,6 +491,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
       const intersectables: THREE.Object3D[] = clickTargets.map((ct) => ct.group);
       if (courtyardBuildingsMesh) intersectables.push(courtyardBuildingsMesh);
+      intersectables.push(signboardsBatch.mesh);
       const hits = raycaster.intersectObjects(intersectables, true);
       if (hits.length > 0) {
         const hitObj = hits[0].object;
@@ -412,7 +503,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           }
           return false;
         });
-        if (!found && courtyardBuildingsMesh && hitObj === courtyardBuildingsMesh) {
+        if (!found && (hitObj === courtyardBuildingsMesh || hitObj === signboardsBatch.mesh)) {
           const hitPt = hits[0].point;
           let bestDist = Infinity;
           for (const ct of clickTargets) {
@@ -479,9 +570,21 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         portalDummy.scale.set(pulse, pulse, 1);
         portalDummy.updateMatrix();
         curtainsInst.setMatrixAt(idx, portalDummy.matrix);
+
+        if (!pm.completed) {
+          portalDummy.position.set(pm.exclPos.x, pm.exclPos.y + Math.abs(Math.sin(elapsed * 3.8 + idx)) * 0.3, pm.exclPos.z);
+          portalDummy.rotation.set(0, elapsed * 1.9 + idx, 0);
+          portalDummy.scale.setScalar(1.0);
+        } else {
+          portalDummy.position.set(pm.exclPos.x, -100, pm.exclPos.z);
+          portalDummy.scale.setScalar(0);
+        }
+        portalDummy.updateMatrix();
+        exclInst.setMatrixAt(idx, portalDummy.matrix);
       });
       portalRingsInst.instanceMatrix.needsUpdate = true;
       curtainsInst.instanceMatrix.needsUpdate = true;
+      exclInst.instanceMatrix.needsUpdate = true;
 
       if (orbitSatellitesInst) {
         orbitSatelliteTransforms.forEach((tr, idx) => {
@@ -505,6 +608,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       if (keysDown.has('d') || keysDown.has('arrowright')) ix += 1;
       if (keysDown.has('w') || keysDown.has('arrowup')) iz -= 1;
       if (keysDown.has('s') || keysDown.has('arrowdown')) iz += 1;
+
+      if (Math.abs(ix) > 0.08 || Math.abs(iz) > 0.08) {
+        markPlayerActive();
+      }
 
       const yaw = cameraOrbitYawRef.current;
       const forwardX = -Math.sin(yaw);
@@ -585,6 +692,29 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         setNearbyRoom(closestRoom);
       }
 
+      const idleSeconds = (now - lastActivityMsRef.current) / 1000;
+      const isBoredIdle =
+        idleSeconds >= 8 &&
+        isGroundedRef.current &&
+        !theme.isZeroG &&
+        moveSpeed <= 0.1 &&
+        !walkTargetRef.current;
+
+      if (isBoredIdle && !boredVoiceFiredRef.current) {
+        boredVoiceFiredRef.current = true;
+        setIdleSpeechAr('يلا يا بطل مستنيينك نكمل مغامرة الفضاء! 🚀');
+        void dialogueManager.speak('يلا يا بطل مستنيينك نكمل مغامرة الفضاء!');
+      }
+
+      const activeEmote: AstronautEmote =
+        now < celebrateUntilMsRef.current
+          ? 'celebrate'
+          : now < waveUntilMsRef.current && moveSpeed <= 0.1
+          ? 'wave'
+          : closestDist < 4.5 && closestRoom && !isRoomCompleted(closestRoom) && moveSpeed <= 0.1
+          ? 'point'
+          : 'none';
+
       hero.group.position.copy(pos);
       hero.update({
         t: elapsed,
@@ -592,7 +722,9 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         isRunning: sprint && moveSpeed > 0.1,
         isJumping: !isGroundedRef.current,
         isZeroG: theme.isZeroG,
-        suitState: suitStateRef.current
+        suitState: suitStateRef.current,
+        idleSeconds,
+        emote: activeEmote
       });
 
       // Third-Person Follow Camera
@@ -610,6 +742,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
       renderer.render(scene, camera);
       mount.dataset.drawCalls = String(renderer.info.render.calls);
+      mount.dataset.idleBored = isBoredIdle ? 'true' : 'false';
+      mount.dataset.idleSeconds = String(Math.floor(idleSeconds));
     };
 
     rafId = requestAnimationFrame(animate);
@@ -674,8 +808,6 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     );
   }
 
-  const nearbyCompleted = nearbyRoom ? isRoomCompleted(nearbyRoom) : false;
-
   return (
     <div
       data-testid={`spatial-room-map-3d-l${levelId}`}
@@ -688,42 +820,36 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         className="w-full h-full cursor-grab active:cursor-grabbing"
       />
 
-      {/* Compact Non-Overlapping Top-Center Target Indicator */}
-      {nearbyRoom && (
+      {/* Playful Speech Bubble when Astronaut sits down bored after 8s */}
+      {idleSpeechAr && (
         <div
           dir="rtl"
-          className="pointer-events-none fixed top-20 inset-x-0 z-20 flex justify-center px-3"
+          data-testid="idle-speech-bubble"
+          className="pointer-events-none fixed bottom-32 sm:bottom-24 inset-x-0 z-30 flex justify-center px-4"
         >
-          <div className="pointer-events-auto inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-2xl bg-slate-950/80 border border-cyan-400/40 backdrop-blur-md shadow-xl">
-            <span className="text-lg">{nearbyRoom.icon}</span>
-            <span className="text-xs font-bold text-white">{nearbyRoom.nameAr}</span>
-            {nearbyCompleted && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-            <button
-              type="button"
-              onClick={enterCurrentRoom}
-              className="px-2.5 py-1 rounded-lg bg-cyan-500/25 hover:bg-cyan-500/40 border border-cyan-400/60 text-[11px] font-bold text-cyan-100 flex items-center gap-1 cursor-pointer"
-            >
-              <DoorOpen className="w-3.5 h-3.5" />
-              <span>دخول</span>
-            </button>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-slate-900 border-[3px] border-sky-400 shadow-2xl font-hud font-black text-xs sm:text-sm animate-bounce">
+            <img src="/assets/ui/speech_bubble.svg" alt="" className="w-6 h-6 shrink-0" />
+            <span>{idleSpeechAr}</span>
           </div>
         </div>
       )}
 
-      {/* Bottom Edge Third-Person Controls */}
+      {/* Bottom Minimalist Arcade Controls */}
       <ThirdPersonControlsOverlay
         promptLabelAr={nearbyRoom ? `دخول ${nearbyRoom.icon} ${nearbyRoom.nameAr}` : null}
         promptSubAr={nearbyRoom?.shortObjectiveAr}
         onInteract={enterCurrentRoom}
         onJoystickMove={(vec) => {
+          markPlayerActive();
           joystickVecRef.current = vec;
         }}
         onJump={triggerJump}
         onSprintChange={(s) => {
+          markPlayerActive();
           isSprintingRef.current = s;
         }}
         gravityLabelAr={theme.gravityLabelAr}
-        hintAr="WASD / الأسهم للمشي • Space للقفز • اضغط أي بوابة ثلاثية الأبعاد للدخول"
+        hintAr="WASD / الأسهم للمشي • Space (A) للقفز • E (B) للدخول"
       />
     </div>
   );
