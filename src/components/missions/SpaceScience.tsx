@@ -4,6 +4,7 @@ import { useGameState } from '../../context/GameContext';
 import { AsteroidRadarModal } from './AsteroidRadarModal';
 import { PlanetIllustration } from './PlanetIllustration';
 import { InteractiveQuizDeck } from '../common/InteractiveQuizDeck';
+import { SpaceFlight3DViewport } from '../three/SpaceFlight3DViewport';
 import { SPACE_SCIENCE_QUESTIONS } from '../../data/questionBanks';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { soundManager } from '../../utils/sound';
@@ -263,7 +264,7 @@ export interface SpaceScienceProps {
 export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onComplete }) => {
   const { state, setLocation } = useGameState();
   const [activeWorld, setActiveWorld] = useState<CelestialWorld>(CELESTIAL_WORLDS[2]); // Start warmly on Earth
-  const [scienceTab, setScienceTab] = useState<'explore' | 'quiz'>('explore');
+  const [scienceTab, setScienceTab] = useState<'explore' | 'flight' | 'quiz'>('explore');
   const [isRadarOpen, setIsRadarOpen] = useState<boolean>(false);
   const [roboPosX, setRoboPosX] = useState<number>(50);
   const [isJumping, setIsJumping] = useState<boolean>(false);
@@ -439,6 +440,21 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
             type="button"
             onClick={() => {
               soundManager.playClick();
+              setScienceTab('flight');
+            }}
+            className={`px-5 py-2.5 rounded-2xl font-hud font-black text-xs sm:text-sm transition-all cursor-pointer flex items-center gap-2 ${
+              scienceTab === 'flight'
+                ? 'casual-btn-cyan'
+                : 'bg-slate-900/80 text-slate-200 border-2 border-white/20 hover:bg-slate-800'
+            }`}
+          >
+            <Rocket className="w-4 h-4" />
+            <span>🛸 الطيران الحر بين الكواكب 3D</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClick();
               setScienceTab('quiz');
             }}
             className={`px-5 py-2.5 rounded-2xl font-hud font-black text-xs sm:text-sm transition-all cursor-pointer flex items-center gap-2 ${
@@ -454,7 +470,7 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
         </div>
 
         {/* INTERACTIVE TRANSPARENT PLANET SELECTOR MAP (8 CELESTIAL BODIES, ZERO BOXES, RESPONSIVE GRID) */}
-        {scienceTab === 'explore' && (
+        {scienceTab !== 'quiz' && (
           <div className="relative py-2 px-1">
             <div className="grid grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-3 items-end relative">
               {/* Soft Orbit Line Behind Transparent Planets */}
@@ -517,12 +533,22 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
         </div>
       ) : (
         <div className="relative z-10 w-full max-w-6xl mx-auto flex flex-col gap-4">
-          {/* 2. UNCLUTTERED 2.5D CARTOON SURFACE VIEWPORT WITH TOUCH + KEYBOARD PAD */}
-          <div
-            ref={terrainRef}
-            onClick={handleTerrainClick}
-            className="relative w-full h-[340px] sm:h-[400px] rounded-3xl border-4 border-cyan-300/80 overflow-hidden shadow-[0_0_40px_rgba(6,182,212,0.28)] bg-gradient-to-b from-transparent via-black/35 to-black/80 flex flex-col justify-end cursor-pointer"
-          >
+          {scienceTab === 'flight' ? (
+            <SpaceFlight3DViewport
+              activePlanetId={activeWorld.id}
+              onSelectPlanetId={(pid) => {
+                const match = CELESTIAL_WORLDS.find((w) => w.id === pid);
+                if (match) handleSelectWorld(match);
+              }}
+            />
+          ) : (
+            <>
+              {/* 2. UNCLUTTERED 2.5D CARTOON SURFACE VIEWPORT WITH TOUCH + KEYBOARD PAD */}
+              <div
+                ref={terrainRef}
+                onClick={handleTerrainClick}
+                className="relative w-full h-[340px] sm:h-[400px] rounded-3xl border-4 border-cyan-300/80 overflow-hidden shadow-[0_0_40px_rgba(6,182,212,0.28)] bg-gradient-to-b from-transparent via-black/35 to-black/80 flex flex-col justify-end cursor-pointer"
+              >
             {/* Top-Right Compact Gravity Weight Comparator Badge */}
             <div className="absolute top-4 right-4 z-20 casual-pill px-4 py-2 flex items-center gap-2 text-xs sm:text-sm font-hud font-black text-amber-200 pointer-events-none">
               <Scale className="w-4 h-4 text-amber-300 shrink-0" />
@@ -622,6 +648,8 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
               </div>
             </div>
           </div>
+            </>
+          )}
 
           {/* 3. FOCUSED PER-PLANET LESSON + INTERACTIVE CHALLENGE (MAX 2 CARDS, GENEROUS GAP-4) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">

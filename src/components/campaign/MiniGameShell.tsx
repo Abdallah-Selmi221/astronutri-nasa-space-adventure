@@ -4,6 +4,7 @@ import { MiniGameId } from '../../types/game';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { soundManager } from '../../utils/sound';
 import { ArrowRight, Volume2, Satellite, CheckCircle2 } from 'lucide-react';
+import { openNasaDrawer } from '../common/NasaMissionControlDrawer';
 
 interface MiniGameShellProps {
   miniGameId: MiniGameId;
@@ -62,10 +63,19 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="px-3 py-1.5 rounded-full bg-sky-950/90 border border-cyan-400/60 text-cyan-200 font-hud font-black text-xs flex items-center gap-1.5">
+          <button
+            type="button"
+            data-testid="open-nasa-drawer-btn"
+            onClick={() => {
+              soundManager.playClick();
+              openNasaDrawer();
+            }}
+            className="px-3 py-1.5 rounded-full bg-sky-950/90 hover:bg-sky-900 border-2 border-cyan-400/75 text-cyan-100 font-hud font-black text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+            title="بيانات ناسا الحية والمقايضات"
+          >
             <Satellite className="w-3.5 h-3.5 text-amber-300" />
-            <span>{spec.nasaBadge}</span>
-          </span>
+            <span>{spec.nasaBadge} • NASA</span>
+          </button>
           <button
             type="button"
             onClick={() => {

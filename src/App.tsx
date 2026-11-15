@@ -1,10 +1,14 @@
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameProvider, useGameState } from './context/GameContext';
 import { HeaderHUD } from './components/common/HeaderHUD';
 import { HomeWorldScreen } from './components/home/HomeWorldScreen';
 import { IntroVideoPlayer } from './components/common/IntroVideoPlayer';
 import { GameErrorBoundary } from './components/common/GameErrorBoundary';
+import {
+  NasaMissionControlDrawer,
+  NASA_DRAWER_OPEN_EVENT
+} from './components/common/NasaMissionControlDrawer';
 
 function lazyWithRetry<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T }>,
@@ -63,12 +67,19 @@ const MissionLoadingFallback: React.FC = () => (
 
 const GameRouter: React.FC = () => {
   const { state, setLocation } = useGameState();
+  const [isNasaOpen, setIsNasaOpen] = useState(false);
   const [hasWatchedIntro, setHasWatchedIntro] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       return sessionStorage.getItem('astronutri_intro_played') === 'true';
     }
     return false;
   });
+
+  useEffect(() => {
+    const onOpenNasa = () => setIsNasaOpen(true);
+    window.addEventListener(NASA_DRAWER_OPEN_EVENT, onOpenNasa);
+    return () => window.removeEventListener(NASA_DRAWER_OPEN_EVENT, onOpenNasa);
+  }, []);
 
   const handleIntroComplete = () => {
     if (typeof window !== 'undefined') {
@@ -211,6 +222,9 @@ const GameRouter: React.FC = () => {
           </Suspense>
         </GameErrorBoundary>
       </div>
+
+      {/* Global NASA Live Data & Trade-offs Drawer (accessible from World, Levels 1-4, Rooms & Mini-Games) */}
+      <NasaMissionControlDrawer isOpen={isNasaOpen} onClose={() => setIsNasaOpen(false)} />
     </div>
   );
 };

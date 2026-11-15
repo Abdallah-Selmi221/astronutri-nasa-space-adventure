@@ -10,14 +10,24 @@ import {
   createFloatingExclamationGeometry,
   createFloatingIslandMesh,
   createFloatingLabelSprite,
-  createSleekSpacecraftParts
+  createSleekSpacecraftParts,
+  SkyMode
 } from './archipelagoPrimitives';
 import {
+  animateBlenderEnvironmentGlb,
   attachBlenderEarthIsland,
+  attachBlenderLunarIsland,
+  attachBlenderOrbitalStation,
+  attachBlenderPlanetsFromPack,
   attachBlenderSpaceship,
   getLoadedGlbUrls
 } from './blenderModelLoader';
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
+import {
+  createDustPuffSystem,
+  lerpAngle,
+  stepSmoothHorizontalVelocity
+} from './thirdPersonPhysics';
 import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
 
 interface WorldNavigator3DProps {
@@ -167,28 +177,33 @@ function addIslandLandmarkDecor(
   levelId: CampaignLevelId
 ): {
   animated: { obj: THREE.Object3D; bob: boolean }[];
-  fallbackTrees: THREE.Object3D[];
+  fallbackNodes: THREE.Object3D[];
   fallbackRocket: THREE.Object3D | null;
 } {
   const animated: { obj: THREE.Object3D; bob: boolean }[] = [];
   const staticParts: ColoredGeometryPart[] = [];
-  const fallbackTrees: THREE.Object3D[] = [];
+  const fallbackNodes: THREE.Object3D[] = [];
   let fallbackRocket: THREE.Object3D | null = null;
 
   if (levelId === 1) {
-    // Cozy Food Kiosk + Emerald Cliff Waterfall Stream + Radar Mast
+    // Cozy Food Kiosk + Radar Mast (Waterfall moved into fallback so earth_island.glb OasisWaterPond replaces it cleanly)
     staticParts.push(
-      // Mini Low-Poly Food Kiosk Booth
       { geometry: new THREE.BoxGeometry(1.35, 0.48, 0.8), color: 0xb45309, position: [-2.1, 0.24, -1.4] },
       { geometry: new THREE.ConeGeometry(1.12, 0.6, 4), color: 0xf97316, position: [-2.1, 1.38, -1.4], rotation: [0, Math.PI / 4, 0] },
       { geometry: new THREE.CylinderGeometry(0.06, 0.06, 0.85, 6), color: 0x78350f, position: [-2.6, 0.72, -1.4] },
       { geometry: new THREE.CylinderGeometry(0.06, 0.06, 0.85, 6), color: 0x78350f, position: [-1.6, 0.72, -1.4] },
-      // Emerald Cliff Waterfall Stream + Sparkling Basin
-      { geometry: new THREE.CylinderGeometry(0.85, 0.92, 0.14, 12), color: 0x0ea5e9, position: [2.85, 0.06, 2.35] },
-      { geometry: new THREE.BoxGeometry(0.85, 3.2, 0.28), color: 0x38bdf8, position: [3.2, -1.4, 2.75], rotation: [0.18, 0.72, 0] },
-      // Radar Base Pedestal
       { geometry: new THREE.CylinderGeometry(0.16, 0.24, 1.35, 8), color: 0xe2e8f0, position: [-2.65, 0.68, 2.1] }
     );
+
+    const fallbackWaterfallMesh = new THREE.Mesh(
+      mergeColoredParts([
+        { geometry: new THREE.CylinderGeometry(0.85, 0.92, 0.14, 12), color: 0x0ea5e9, position: [2.85, 0.06, 2.35] },
+        { geometry: new THREE.BoxGeometry(0.85, 3.2, 0.28), color: 0x38bdf8, position: [3.2, -1.4, 2.75], rotation: [0.18, 0.72, 0] }
+      ]),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35 })
+    );
+    group.add(fallbackWaterfallMesh);
+    fallbackNodes.push(fallbackWaterfallMesh);
 
     // Fallback rocket (replaced smoothly when /models/spaceship_craft.glb attaches)
     fallbackRocket = new THREE.Mesh(
@@ -216,7 +231,7 @@ function addIslandLandmarkDecor(
       new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, flatShading: true })
     );
     group.add(treeMesh);
-    fallbackTrees.push(treeMesh);
+    fallbackNodes.push(treeMesh);
 
     // Rotating Deep-Space Radar Dish (stays planted on radar mast: bob = false)
     const dishGeom = mergeColoredParts([
@@ -231,13 +246,18 @@ function addIslandLandmarkDecor(
     group.add(radarDish);
     animated.push({ obj: radarDish, bob: false });
   } else if (levelId === 2) {
-    // Solar Array Wing + Cupola Pod + Orbital Ring + Rotating Asteroid 2010 PK
-    staticParts.push(
-      { geometry: new THREE.CylinderGeometry(0.16, 0.2, 2.1, 10), color: 0x94a3b8, position: [-2.1, 1.05, -1.8] },
-      { geometry: new THREE.BoxGeometry(2.8, 0.08, 1.2), color: 0x0284c7, position: [-2.1, 2.1, -1.8], rotation: [0.35, 0, 0] },
-      { geometry: new THREE.CylinderGeometry(0.85, 0.95, 0.75, 8), color: 0xe2e8f0, position: [1.9, 0.38, 1.6] },
-      { geometry: new THREE.TorusGeometry(4.35, 0.08, 8, 36), color: 0x818cf8, position: [0, 0.22, 0], rotation: [Math.PI / 2, 0.14, 0] }
+    // Fallback Orbital decor (replaced cleanly when /models/orbital_station.glb attaches)
+    const orbFallback = new THREE.Mesh(
+      mergeColoredParts([
+        { geometry: new THREE.CylinderGeometry(0.16, 0.2, 2.1, 10), color: 0x94a3b8, position: [-2.1, 1.05, -1.8] },
+        { geometry: new THREE.BoxGeometry(2.8, 0.08, 1.2), color: 0x0284c7, position: [-2.1, 2.1, -1.8], rotation: [0.35, 0, 0] },
+        { geometry: new THREE.CylinderGeometry(0.85, 0.95, 0.75, 8), color: 0xe2e8f0, position: [1.9, 0.38, 1.6] },
+        { geometry: new THREE.TorusGeometry(4.35, 0.08, 8, 36), color: 0x818cf8, position: [0, 0.22, 0], rotation: [Math.PI / 2, 0.14, 0] }
+      ]),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.25 })
     );
+    group.add(orbFallback);
+    fallbackNodes.push(orbFallback);
 
     const asteroid = new THREE.Mesh(
       new THREE.DodecahedronGeometry(0.75, 0),
@@ -245,23 +265,28 @@ function addIslandLandmarkDecor(
     );
     asteroid.position.set(2.5, 2.35, -1.2);
     group.add(asteroid);
+    fallbackNodes.push(asteroid);
     animated.push({ obj: asteroid, bob: true });
   } else if (levelId === 3) {
-    // Lunar Habitat Domes + ECLSS Water Tower + 0.16G Dish Beacon
-    staticParts.push(
-      { geometry: new THREE.SphereGeometry(0.95, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), color: 0xe2e8f0, position: [-2.0, 0.02, -1.8] },
-      { geometry: new THREE.SphereGeometry(0.95, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), color: 0x4ade80, position: [2.0, 0.02, -1.8] },
-      { geometry: new THREE.CylinderGeometry(0.28, 0.34, 1.45, 10), color: 0x38bdf8, position: [-2.35, 0.72, 1.7] },
-      { geometry: new THREE.SphereGeometry(0.32, 10, 8), color: 0xf8fafc, position: [-2.35, 1.5, 1.7] },
-      { geometry: new THREE.ConeGeometry(0.55, 0.38, 12), color: 0xfbbf24, position: [2.2, 1.3, 1.9], rotation: [0, 0, -0.6] }
+    // Fallback Lunar decor (replaced cleanly when /models/lunar_island.glb attaches)
+    const lunarFallback = new THREE.Mesh(
+      mergeColoredParts([
+        { geometry: new THREE.SphereGeometry(0.95, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), color: 0xe2e8f0, position: [-2.0, 0.02, -1.8] },
+        { geometry: new THREE.SphereGeometry(0.95, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), color: 0x4ade80, position: [2.0, 0.02, -1.8] },
+        { geometry: new THREE.CylinderGeometry(0.28, 0.34, 1.45, 10), color: 0x38bdf8, position: [-2.35, 0.72, 1.7] },
+        { geometry: new THREE.SphereGeometry(0.32, 10, 8), color: 0xf8fafc, position: [-2.35, 1.5, 1.7] },
+        { geometry: new THREE.ConeGeometry(0.55, 0.38, 12), color: 0xfbbf24, position: [2.2, 1.3, 1.9], rotation: [0, 0, -0.6] }
+      ]),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.25 })
     );
+    group.add(lunarFallback);
+    fallbackNodes.push(lunarFallback);
   } else {
     // Splashdown Capsule + Moored White Oceanic Recovery Ship + Tropical Palm + Floating Golden Victory Crest
     staticParts.push(
       { geometry: new THREE.ConeGeometry(0.75, 1.05, 10), color: 0xf97316, position: [-2.05, 0.52, -1.55] },
       { geometry: new THREE.CylinderGeometry(0.11, 0.16, 1.45, 7), color: 0x92400e, position: [-2.4, 0.72, 1.55], rotation: [0, 0, 0.15] },
       { geometry: new THREE.ConeGeometry(0.85, 0.45, 7), color: 0x22c55e, position: [-2.55, 1.48, 1.55] },
-      // Recovery Ship Hull + Bridge
       { geometry: new THREE.BoxGeometry(1.75, 0.34, 0.68), color: 0xf8fafc, position: [1.95, 0.22, 2.05], rotation: [0, -0.45, 0] },
       { geometry: new THREE.BoxGeometry(0.58, 0.42, 0.52), color: 0xf97316, position: [2.15, 0.56, 2.15], rotation: [0, -0.45, 0] }
     );
@@ -282,7 +307,7 @@ function addIslandLandmarkDecor(
     group.add(landmarkMesh);
   }
 
-  return { animated, fallbackTrees, fallbackRocket };
+  return { animated, fallbackNodes, fallbackRocket };
 }
 
 export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
@@ -299,13 +324,21 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   const [focusedLevel, setFocusedLevel] = useState<CampaignLevelId>(initialLevel);
   const focusedLevelRef = useRef<CampaignLevelId>(initialLevel);
   const [idleSpeechAr, setIdleSpeechAr] = useState<string | null>(null);
+  const [isFlightMode, setIsFlightMode] = useState(false);
+  const isFlightModeRef = useRef(false);
+  const [activeBiomeAr, setActiveBiomeAr] = useState<string>('1.0G 🌍 الأرض');
+  const activeBiomeRef = useRef<string>('earth');
 
   const playerPosRef = useRef(new THREE.Vector3(initialCenter.x, initialCenter.y, initialCenter.z + 2.2));
   const playerVelYRef = useRef(0);
+  const horizVelRef = useRef({ x: 0, z: 0 });
   const isGroundedRef = useRef(true);
+  const lastGroundedMsRef = useRef(performance.now());
+  const sprintDustTimerRef = useRef(0);
   const walkTargetRef = useRef<THREE.Vector3 | null>(null);
   const joystickVecRef = useRef({ x: 0, z: 0 });
   const isSprintingRef = useRef(false);
+  const toggleFlightRef = useRef<() => void>(() => {});
   const cameraOrbitYawRef = useRef(0.18);
   const cameraOrbitPitchRef = useRef(0.44);
   const lastActivityMsRef = useRef(performance.now());
@@ -331,13 +364,31 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   const unlockedSetRef = useRef(unlockedSet);
   unlockedSetRef.current = unlockedSet;
 
+  const currentGravityRef = useRef<{ gravity: number; jumpVel: number; dustColor: number }>({
+    gravity: 21,
+    jumpVel: 8.4,
+    dustColor: 0xfef3c7
+  });
+
   const triggerJump = () => {
     markPlayerActive();
-    if (isGroundedRef.current) {
-      playerVelYRef.current = 8.4;
+    if (isFlightModeRef.current) {
+      playerVelYRef.current = 7.4;
+      isGroundedRef.current = false;
+      soundManager.playClick();
+      return;
+    }
+    const withinCoyote = performance.now() - lastGroundedMsRef.current <= 130;
+    if (isGroundedRef.current || withinCoyote) {
+      playerVelYRef.current = currentGravityRef.current.jumpVel;
       isGroundedRef.current = false;
       soundManager.playClick();
     }
+  };
+
+  const toggleFlight = () => {
+    markPlayerActive();
+    toggleFlightRef.current();
   };
 
   const handleEnterFocusedIsland = () => {
@@ -407,6 +458,8 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     const disposableTextures: THREE.Texture[] = [];
     const clickTargets: { mesh: THREE.Object3D; levelId: CampaignLevelId }[] = [];
     const floatingProps: { obj: THREE.Object3D; baseY: number; phase: number; bob: boolean }[] = [];
+    const animatedGlbRoots: THREE.Object3D[] = [];
+    const planetSpinNodes: { obj: THREE.Object3D; speed: number; baseY: number; phase: number }[] = [];
     let isSceneDisposed = false;
 
     const portalRingsInst = new THREE.InstancedMesh(
@@ -458,8 +511,11 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
           targetParent: islandGroup,
           radius: cfg.radius,
           depthScaleY: 0.72,
-          fallbackNodes: [...fallbackBaseTerrain, ...decor.fallbackTrees],
-          isDisposed: () => isSceneDisposed
+          fallbackNodes: [...fallbackBaseTerrain, ...decor.fallbackNodes],
+          isDisposed: () => isSceneDisposed,
+          onLoaded: (g) => {
+            animatedGlbRoots.push(g);
+          }
         });
         attachBlenderSpaceship({
           targetParent: islandGroup,
@@ -468,6 +524,28 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
           scale: 0.86,
           fallbackNodes: decor.fallbackRocket ? [decor.fallbackRocket] : undefined,
           isDisposed: () => isSceneDisposed
+        });
+      } else if (cfg.levelId === 2) {
+        attachBlenderOrbitalStation({
+          targetParent: islandGroup,
+          radius: cfg.radius,
+          depthScaleY: 0.72,
+          fallbackNodes: [...fallbackBaseTerrain, ...decor.fallbackNodes],
+          isDisposed: () => isSceneDisposed,
+          onLoaded: (g) => {
+            animatedGlbRoots.push(g);
+          }
+        });
+      } else if (cfg.levelId === 3) {
+        attachBlenderLunarIsland({
+          targetParent: islandGroup,
+          radius: cfg.radius,
+          depthScaleY: 0.72,
+          fallbackNodes: [...fallbackBaseTerrain, ...decor.fallbackNodes],
+          isDisposed: () => isSceneDisposed,
+          onLoaded: (g) => {
+            animatedGlbRoots.push(g);
+          }
         });
       }
 
@@ -546,6 +624,132 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     hero.group.position.copy(playerPosRef.current);
     scene.add(hero.group);
 
+    // Player-Piloted Blender Spaceship Rig for Free Planetary Flight (hidden until Flight Mode toggled)
+    const flightRig = new THREE.Group();
+    flightRig.visible = isFlightModeRef.current;
+    scene.add(flightRig);
+    attachBlenderSpaceship({
+      targetParent: flightRig,
+      position: [0, 0, 0],
+      rotationY: 0,
+      scale: 0.82,
+      isDisposed: () => isSceneDisposed
+    });
+
+    // Sculpted Blender Planets in Orbit (planet_pack.glb -> 5 draw calls for Earth, Mars, Moon, Saturn)
+    const celestialZones: {
+      id: string;
+      badgeAr: string;
+      pos: THREE.Vector3;
+      radius: number;
+      sky: SkyMode;
+      gravity: number;
+      jumpVel: number;
+      dustColor: number;
+      hemiSky: number;
+      hemiGround: number;
+      dirColor: number;
+    }[] = [
+      {
+        id: 'mars',
+        badgeAr: '0.38G 🔴 المريخ',
+        pos: new THREE.Vector3(-4, 5.8, -16),
+        radius: 11,
+        sky: 'mars',
+        gravity: 10.5,
+        jumpVel: 7.2,
+        dustColor: 0xfb923c,
+        hemiSky: 0xfed7aa,
+        hemiGround: 0x7c2d12,
+        dirColor: 0xffedd5
+      },
+      {
+        id: 'saturn',
+        badgeAr: '1.06G 🪐 زحل',
+        pos: new THREE.Vector3(21, 6.2, -14),
+        radius: 12,
+        sky: 'nebula',
+        gravity: 16,
+        jumpVel: 7.4,
+        dustColor: 0xfde047,
+        hemiSky: 0xfef3c7,
+        hemiGround: 0x3b2f1e,
+        dirColor: 0xfef08a
+      },
+      {
+        id: 'earth_orbit',
+        badgeAr: '1.0G 🌍 الأرض',
+        pos: new THREE.Vector3(-19, 6.4, -14),
+        radius: 12,
+        sky: 'sunny',
+        gravity: 21,
+        jumpVel: 8.4,
+        dustColor: 0xfef3c7,
+        hemiSky: 0xf0f9ff,
+        hemiGround: 0x9a4618,
+        dirColor: 0xfffbeb
+      },
+      {
+        id: 'moon_orbit',
+        badgeAr: '0.16G 🌙 القمر',
+        pos: new THREE.Vector3(8, 6.8, -15),
+        radius: 11,
+        sky: 'lunar',
+        gravity: 7.4,
+        jumpVel: 7.6,
+        dustColor: 0xe2e8f0,
+        hemiSky: 0xdbeafe,
+        hemiGround: 0x334155,
+        dirColor: 0xf8fafc
+      }
+    ];
+
+    attachBlenderPlanetsFromPack({
+      targetParent: scene,
+      placements: [
+        { nodeName: 'PlanetEarth', id: 'OrbitalPlanetEarth', position: [-19, 6.4, -14], scale: 2.9 },
+        { nodeName: 'PlanetMars', id: 'OrbitalPlanetMars', position: [-4, 5.8, -16], scale: 2.5 },
+        { nodeName: 'PlanetMoon', id: 'OrbitalPlanetMoon', position: [8, 6.8, -15], scale: 2.1 },
+        { nodeName: 'PlanetSaturn', id: 'OrbitalPlanetSaturn', position: [21, 6.2, -14], scale: 2.6 }
+      ],
+      isDisposed: () => isSceneDisposed,
+      onLoaded: (planets) => {
+        Object.entries(planets).forEach(([, obj], pIdx) => {
+          planetSpinNodes.push({
+            obj,
+            speed: 0.14 + pIdx * 0.04,
+            baseY: obj.position.y,
+            phase: pIdx * 1.5
+          });
+        });
+      }
+    });
+
+    const dustSystem = createDustPuffSystem(scene, 24);
+
+    toggleFlightRef.current = () => {
+      const next = !isFlightModeRef.current;
+      isFlightModeRef.current = next;
+      setIsFlightMode(next);
+      flightRig.visible = next;
+      hero.group.visible = !next;
+      soundManager.playClick();
+      if (next) {
+        playerPosRef.current.y += 2.6;
+        playerVelYRef.current = 3.8;
+        flightRig.position.copy(playerPosRef.current);
+        isGroundedRef.current = false;
+        dustSystem.emit(playerPosRef.current.x, playerPosRef.current.y, playerPosRef.current.z, 0x38bdf8, 8, 2.2);
+      } else {
+        const landing = getSurfaceInfoAt(playerPosRef.current.x, playerPosRef.current.z);
+        if (!landing.supported) {
+          playerPosRef.current.set(landing.nearestCenter.x, landing.nearestCenter.y + 1.2, landing.nearestCenter.z + 1.5);
+        }
+        playerVelYRef.current = -1.5;
+        isGroundedRef.current = false;
+      }
+    };
+
     // Keyboard & Orbit Pointer Input
     const keysDown = new Set<string>();
     const onKeyDown = (e: KeyboardEvent) => {
@@ -559,6 +763,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       keysDown.add(k);
       if (k === ' ' || e.code === 'Space') triggerJump();
       if (k === 'e' || k === 'enter') handleEnterFocusedIsland();
+      if (k === 'f') toggleFlightRef.current();
       if (k === 'shift') isSprintingRef.current = true;
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -658,6 +863,11 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       const elapsed = (now - startTime) / 1000;
 
       skyHandle.update(elapsed);
+      animatedGlbRoots.forEach((root) => animateBlenderEnvironmentGlb(root, elapsed));
+      planetSpinNodes.forEach((p) => {
+        p.obj.rotation.y = elapsed * p.speed + p.phase;
+        p.obj.position.y = p.baseY + Math.sin(elapsed * 0.65 + p.phase) * 0.45;
+      });
 
       // Gentle cosmic bob on floating props & rotating radar dishes
       floatingProps.forEach((fp) => {
@@ -715,6 +925,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
       const pos = playerPosRef.current;
       const sprint = isSprintingRef.current || keysDown.has('shift');
+      const isFlying = isFlightModeRef.current;
 
       if (Math.abs(ix) > 0.08 || Math.abs(iz) > 0.08) {
         walkTargetRef.current = null;
@@ -723,63 +934,184 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         const nz = iz / len;
         const worldDirX = rightX * nx + forwardX * (-nz);
         const worldDirZ = rightZ * nx + forwardZ * (-nz);
-        const spd = sprint ? 11.2 : 7.2;
+        const spd = isFlying ? (sprint ? 19.5 : 13.2) : (sprint ? 11.2 : 7.4);
 
-        const nextX = pos.x + worldDirX * spd * dt;
-        const nextZ = pos.z + worldDirZ * spd * dt;
-        const probe = getSurfaceInfoAt(nextX, nextZ);
-        if (probe.supported) {
-          pos.x = nextX;
-          pos.z = nextZ;
+        const { speed } = stepSmoothHorizontalVelocity(
+          horizVelRef.current,
+          worldDirX * spd,
+          worldDirZ * spd,
+          dt,
+          isFlying ? 9 : 14,
+          isFlying ? 4.5 : 11
+        );
+
+        const nextX = pos.x + horizVelRef.current.x * dt;
+        const nextZ = pos.z + horizVelRef.current.z * dt;
+        if (isFlying) {
+          pos.x = Math.max(-34, Math.min(34, nextX));
+          pos.z = Math.max(-32, Math.min(20, nextZ));
         } else {
-          // Gently slide or steer toward nearest supported ground
-          const toCenterX = probe.nearestCenter.x - pos.x;
-          const toCenterZ = probe.nearestCenter.z - pos.z;
-          const d = Math.hypot(toCenterX, toCenterZ) || 1;
-          pos.x += (toCenterX / d) * 2.5 * dt;
-          pos.z += (toCenterZ / d) * 2.5 * dt;
+          const probe = getSurfaceInfoAt(nextX, nextZ);
+          if (probe.supported) {
+            pos.x = nextX;
+            pos.z = nextZ;
+          } else {
+            const toCenterX = probe.nearestCenter.x - pos.x;
+            const toCenterZ = probe.nearestCenter.z - pos.z;
+            const d = Math.hypot(toCenterX, toCenterZ) || 1;
+            pos.x += (toCenterX / d) * 2.5 * dt;
+            pos.z += (toCenterZ / d) * 2.5 * dt;
+          }
         }
-        moveSpeed = spd;
-        hero.group.rotation.y = Math.atan2(worldDirX, worldDirZ);
-      } else if (walkTargetRef.current) {
+        moveSpeed = speed;
+        const targetYaw = Math.atan2(worldDirX, worldDirZ);
+        hero.group.rotation.y = lerpAngle(hero.group.rotation.y, targetYaw, 1 - Math.exp(-15 * dt));
+        flightRig.rotation.y = hero.group.rotation.y;
+      } else if (walkTargetRef.current && !isFlying) {
         const dx = walkTargetRef.current.x - pos.x;
         const dz = walkTargetRef.current.z - pos.z;
         const dist = Math.hypot(dx, dz);
         if (dist > 0.35) {
           const spd = 9.0;
           const step = Math.min(dist, spd * dt);
-          const nextX = pos.x + (dx / dist) * step;
-          const nextZ = pos.z + (dz / dist) * step;
-          const probe = getSurfaceInfoAt(nextX, nextZ);
-          if (probe.supported) {
-            pos.x = nextX;
-            pos.z = nextZ;
-          } else {
-            // Hop straight onto target island if bridge path angled slightly off
-            pos.x = nextX;
-            pos.z = nextZ;
-          }
+          pos.x += (dx / dist) * step;
+          pos.z += (dz / dist) * step;
+          horizVelRef.current = { x: (dx / dist) * spd, z: (dz / dist) * spd };
           moveSpeed = spd;
-          hero.group.rotation.y = Math.atan2(dx, dz);
+          const targetYaw = Math.atan2(dx, dz);
+          hero.group.rotation.y = lerpAngle(hero.group.rotation.y, targetYaw, 1 - Math.exp(-15 * dt));
         } else {
           walkTargetRef.current = null;
+          horizVelRef.current = { x: 0, z: 0 };
+        }
+      } else {
+        const { speed } = stepSmoothHorizontalVelocity(
+          horizVelRef.current,
+          0,
+          0,
+          dt,
+          14,
+          isFlying ? 3.5 : 11
+        );
+        if (isFlying) {
+          pos.x = Math.max(-34, Math.min(34, pos.x + horizVelRef.current.x * dt));
+          pos.z = Math.max(-32, Math.min(20, pos.z + horizVelRef.current.z * dt));
+        } else if (speed > 0.05) {
+          const probe = getSurfaceInfoAt(pos.x + horizVelRef.current.x * dt, pos.z + horizVelRef.current.z * dt);
+          if (probe.supported) {
+            pos.x += horizVelRef.current.x * dt;
+            pos.z += horizVelRef.current.z * dt;
+          }
+        }
+        moveSpeed = speed;
+      }
+
+      // Dynamic Planetary Atmosphere, Lighting & Gravity Resolution
+      const surf = getSurfaceInfoAt(pos.x, pos.z);
+      let zoneId = `island_${surf.nearestLevelId}`;
+      let targetSky: SkyMode =
+        surf.nearestLevelId === 1
+          ? 'sunny'
+          : surf.nearestLevelId === 2
+          ? 'nebula'
+          : surf.nearestLevelId === 3
+          ? 'lunar'
+          : 'tropical';
+      let targetBadge =
+        surf.nearestLevelId === 1
+          ? '1.0G 🌍 الأرض'
+          : surf.nearestLevelId === 2
+          ? '0.0G 🛸 المدار'
+          : surf.nearestLevelId === 3
+          ? '0.16G 🌙 القمر'
+          : '1.0G 🪂 المحيط';
+      let targetGravity = surf.nearestLevelId === 3 ? 7.4 : surf.nearestLevelId === 2 ? 6.2 : 21;
+      let targetJumpVel = surf.nearestLevelId === 3 ? 7.6 : surf.nearestLevelId === 2 ? 5.8 : 8.4;
+      let targetDustHex = surf.nearestLevelId === 3 ? 0xe2e8f0 : surf.nearestLevelId === 2 ? 0x818cf8 : 0xfef3c7;
+      let hemiSkyHex = surf.nearestLevelId === 3 ? 0xdbeafe : surf.nearestLevelId === 2 ? 0xc7d2fe : 0xf0f9ff;
+      let hemiGroundHex = surf.nearestLevelId === 3 ? 0x334155 : surf.nearestLevelId === 2 ? 0x312e81 : 0x9a4618;
+      let dirHex = surf.nearestLevelId === 2 ? 0xe0e7ff : 0xfffbeb;
+
+      for (const cz of celestialZones) {
+        if (pos.distanceTo(cz.pos) < cz.radius) {
+          zoneId = cz.id;
+          targetSky = cz.sky;
+          targetBadge = cz.badgeAr;
+          targetGravity = cz.gravity;
+          targetJumpVel = cz.jumpVel;
+          targetDustHex = cz.dustColor;
+          hemiSkyHex = cz.hemiSky;
+          hemiGroundHex = cz.hemiGround;
+          dirHex = cz.dirColor;
+          break;
         }
       }
 
-      // Vertical Jump & Island Surface Elevation
-      const surf = getSurfaceInfoAt(pos.x, pos.z);
-      const targetGroundY = surf.groundY;
-      if (!isGroundedRef.current || pos.y > targetGroundY + 0.02) {
-        playerVelYRef.current -= 21 * dt;
-        pos.y += playerVelYRef.current * dt;
-        if (pos.y <= targetGroundY) {
-          pos.y = targetGroundY;
-          playerVelYRef.current = 0;
-          isGroundedRef.current = true;
+      currentGravityRef.current = {
+        gravity: targetGravity,
+        jumpVel: targetJumpVel,
+        dustColor: targetDustHex
+      };
+      skyHandle.setAtmosphere(targetSky, 0.06);
+      hemi.color.lerp(new THREE.Color(hemiSkyHex), 0.05);
+      hemi.groundColor.lerp(new THREE.Color(hemiGroundHex), 0.05);
+      dir.color.lerp(new THREE.Color(dirHex), 0.05);
+
+      if (activeBiomeRef.current !== zoneId) {
+        activeBiomeRef.current = zoneId;
+        setActiveBiomeAr(targetBadge);
+      }
+
+      // Vertical Physics: Free 3D Spaceship Flight vs. Planet-Gravity Ground Walking + Coyote Time
+      if (isFlying) {
+        const hoverFloor = surf.supported ? surf.groundY + 1.6 : -1.5;
+        if (keysDown.has(' ') || keysDown.has('r')) {
+          playerVelYRef.current += 16 * dt;
+        } else if (keysDown.has('c') || keysDown.has('control')) {
+          playerVelYRef.current -= 16 * dt;
+        } else {
+          playerVelYRef.current *= Math.exp(-3.8 * dt);
+        }
+        playerVelYRef.current = Math.max(-10, Math.min(10, playerVelYRef.current));
+        pos.y = Math.max(hoverFloor, Math.min(20, pos.y + playerVelYRef.current * dt));
+        isGroundedRef.current = false;
+
+        flightRig.position.set(pos.x, pos.y + Math.sin(elapsed * 3.2) * 0.14, pos.z);
+        flightRig.rotation.x = Math.min(0.32, moveSpeed * 0.018);
+        flightRig.rotation.z = -horizVelRef.current.x * 0.012;
+
+        sprintDustTimerRef.current += dt;
+        if (sprintDustTimerRef.current >= (sprint ? 0.07 : 0.14)) {
+          sprintDustTimerRef.current = 0;
+          dustSystem.emit(pos.x, pos.y - 0.15, pos.z, sprint ? 0x22d3ee : 0xfbbf24, sprint ? 3 : 1, 1.1);
         }
       } else {
-        pos.y += (targetGroundY - pos.y) * 0.25;
+        const targetGroundY = surf.groundY;
+        if (!isGroundedRef.current || pos.y > targetGroundY + 0.02) {
+          playerVelYRef.current -= targetGravity * dt;
+          pos.y += playerVelYRef.current * dt;
+          if (pos.y <= targetGroundY) {
+            if (!isGroundedRef.current) {
+              dustSystem.emit(pos.x, targetGroundY, pos.z, targetDustHex, surf.nearestLevelId === 3 ? 8 : 5, 1.7);
+            }
+            pos.y = targetGroundY;
+            playerVelYRef.current = 0;
+            isGroundedRef.current = true;
+            lastGroundedMsRef.current = now;
+          }
+        } else {
+          pos.y += (targetGroundY - pos.y) * 0.25;
+          lastGroundedMsRef.current = now;
+          if (sprint && moveSpeed > 3.5) {
+            sprintDustTimerRef.current += dt;
+            if (sprintDustTimerRef.current >= 0.14) {
+              sprintDustTimerRef.current = 0;
+              dustSystem.emit(pos.x, pos.y, pos.z, targetDustHex, 2, 0.9);
+            }
+          }
+        }
       }
+      dustSystem.update(dt);
 
       if (surf.nearestLevelId !== focusedLevelRef.current) {
         focusedLevelRef.current = surf.nearestLevelId;
@@ -815,9 +1147,9 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       });
 
       // Smooth Third-Person Follow Camera with Orbit Yaw/Pitch
-      const camDist = 11.5;
+      const camDist = isFlying ? 14.2 : 11.5;
       const horizDist = camDist * Math.cos(cameraOrbitPitchRef.current);
-      const camHeight = 2.4 + camDist * Math.sin(cameraOrbitPitchRef.current);
+      const camHeight = (isFlying ? 3.2 : 2.4) + camDist * Math.sin(cameraOrbitPitchRef.current);
       const desiredCamX = pos.x + Math.sin(yaw) * horizDist;
       const desiredCamZ = pos.z + Math.cos(yaw) * horizDist;
       const desiredCamY = pos.y + camHeight;
@@ -831,6 +1163,8 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       mount.dataset.drawCalls = String(renderer.info.render.calls);
       mount.dataset.idleBored = isBoredIdle ? 'true' : 'false';
       mount.dataset.idleSeconds = String(Math.floor(idleSeconds));
+      mount.dataset.flightMode = isFlying ? 'true' : 'false';
+      mount.dataset.activeBiome = zoneId;
       mount.dataset.glbLoaded = getLoadedGlbUrls().join(',');
     };
 
@@ -848,6 +1182,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       if (resizeObs) resizeObs.disconnect();
 
       skyHandle.dispose();
+      dustSystem.dispose();
       hero.dispose();
       disposableTextures.forEach((tex) => tex.dispose());
       scene.traverse((obj) => {
@@ -948,6 +1283,26 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
               </button>
             );
           })}
+
+          <button
+            type="button"
+            data-testid="toggle-flight-btn"
+            onClick={toggleFlight}
+            className={`px-2.5 py-1 rounded-full border text-[11px] font-hud font-black flex items-center gap-1 transition-all cursor-pointer ${
+              isFlightMode
+                ? 'bg-cyan-400 text-slate-950 border-white shadow-[0_0_12px_rgba(34,211,238,0.75)]'
+                : 'bg-indigo-950/75 border-cyan-300/65 text-cyan-100 hover:bg-indigo-900'
+            }`}
+          >
+            <span>{isFlightMode ? '🛬 هبوط' : '🚀 طيران'}</span>
+          </button>
+
+          <span
+            data-testid="active-biome-badge"
+            className="hidden sm:inline-flex px-2 py-1 rounded-full bg-slate-900/70 border border-white/20 text-[10px] font-hud font-bold text-cyan-200 whitespace-nowrap"
+          >
+            {activeBiomeAr}
+          </span>
         </div>
       </div>
 
@@ -983,7 +1338,12 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
           markPlayerActive();
           isSprintingRef.current = s;
         }}
-        hintAr="WASD / الأسهم للمشي • Space (A) للقفز • E (B) للدخول"
+        gravityLabelAr={isFlightMode ? `وضع الطيران الحر (${activeBiomeAr})` : activeBiomeAr}
+        hintAr={
+          isFlightMode
+            ? 'WASD للقيادة • Space للارتفاع • Shift تسريع • F للهبوط'
+            : 'WASD للمشي • Space للقفز • F للطيران الحر • E للدخول'
+        }
       />
     </div>
   );

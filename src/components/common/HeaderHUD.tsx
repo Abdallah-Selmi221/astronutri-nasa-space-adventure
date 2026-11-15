@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useGameState } from '../../context/GameContext';
 import { SettingsMenu } from './SettingsMenu';
-import { NasaMissionControlDrawer } from './NasaMissionControlDrawer';
+import { openNasaDrawer } from './NasaMissionControlDrawer';
 import { soundManager } from '../../utils/sound';
 import { geminiTTS } from '../../utils/geminiTTS';
 import { Settings, Home, Satellite } from 'lucide-react';
@@ -10,7 +10,6 @@ import { Settings, Home, Satellite } from 'lucide-react';
 export const HeaderHUD: React.FC = () => {
   const { state, setLocation, setCampaignView } = useGameState();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isNasaOpen, setIsNasaOpen] = useState(false);
 
   // Synchronized star score across Campaign Hub & SpaceScience
   const campaignCompletedCount = state.campaign?.completedMiniGames.length || 0;
@@ -49,11 +48,12 @@ export const HeaderHUD: React.FC = () => {
             {/* NASA Live Data Button */}
             <motion.button
               type="button"
+              data-testid="open-nasa-drawer-btn"
               whileHover={{ scale: 1.06 }}
               whileTap={{ scale: 0.94 }}
               onClick={() => {
                 soundManager.playClick();
-                setIsNasaOpen(true);
+                openNasaDrawer();
               }}
               className="casual-pill w-11 h-11 sm:w-13 sm:h-13 flex items-center justify-center relative cursor-pointer hover:brightness-110"
               aria-label="بيانات ناسا الحية"
@@ -91,11 +91,6 @@ export const HeaderHUD: React.FC = () => {
       <SettingsMenu
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-      />
-
-      <NasaMissionControlDrawer
-        isOpen={isNasaOpen}
-        onClose={() => setIsNasaOpen(false)}
       />
     </>
   );

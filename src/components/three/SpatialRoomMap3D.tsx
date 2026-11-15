@@ -15,11 +15,19 @@ import {
   SkyMode
 } from './archipelagoPrimitives';
 import {
+  animateBlenderEnvironmentGlb,
   attachBlenderEarthIsland,
+  attachBlenderLunarIsland,
+  attachBlenderOrbitalStation,
   attachBlenderSpaceship,
   getLoadedGlbUrls
 } from './blenderModelLoader';
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
+import {
+  createDustPuffSystem,
+  lerpAngle,
+  stepSmoothHorizontalVelocity
+} from './thirdPersonPhysics';
 import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
 
 interface SpatialRoomMap3DProps {
@@ -126,7 +134,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
   const playerPosRef = useRef(new THREE.Vector3(0, 0, 0));
   const playerVelYRef = useRef(0);
+  const horizVelRef = useRef({ x: 0, z: 0 });
   const isGroundedRef = useRef(true);
+  const lastGroundedMsRef = useRef(performance.now());
+  const sprintDustTimerRef = useRef(0);
   const walkTargetRef = useRef<THREE.Vector3 | null>(null);
   const pendingRoomRef = useRef<SpatialRoomNode | null>(null);
   const joystickVecRef = useRef({ x: 0, z: 0 });
@@ -160,7 +171,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
   const triggerJump = () => {
     markPlayerActive();
-    if (isGroundedRef.current || theme.isZeroG) {
+    const withinCoyote = performance.now() - lastGroundedMsRef.current <= 130;
+    if (isGroundedRef.current || withinCoyote || theme.isZeroG) {
       playerVelYRef.current = theme.jumpVel;
       isGroundedRef.current = false;
       soundManager.playClick();
@@ -180,7 +192,9 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     // Reset astronaut to central courtyard plaza when switching level islands
     playerPosRef.current.set(0, 0, 0);
     playerVelYRef.current = 0;
+    horizVelRef.current = { x: 0, z: 0 };
     isGroundedRef.current = true;
+    lastGroundedMsRef.current = performance.now();
     walkTargetRef.current = null;
     pendingRoomRef.current = null;
     waveUntilMsRef.current = performance.now() + 2500;
@@ -282,13 +296,42 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       scene.add(treeRingMesh);
     }
 
+    let blenderEnvGroup: THREE.Group | null = null;
     if (levelId === 1) {
       attachBlenderEarthIsland({
         targetParent: scene,
         radius: islandRadius,
         depthScaleY: 0.45,
         fallbackNodes: treeRingMesh ? [island, treeRingMesh] : [island],
-        isDisposed: () => isSceneDisposed
+        isDisposed: () => isSceneDisposed,
+        onLoaded: (g) => {
+          g.rotation.y = -0.52;
+          blenderEnvGroup = g;
+        }
+      });
+    } else if (levelId === 2) {
+      attachBlenderOrbitalStation({
+        targetParent: scene,
+        radius: islandRadius,
+        depthScaleY: 0.46,
+        fallbackNodes: [island],
+        isDisposed: () => isSceneDisposed,
+        onLoaded: (g) => {
+          g.rotation.y = -0.52;
+          blenderEnvGroup = g;
+        }
+      });
+    } else if (levelId === 3) {
+      attachBlenderLunarIsland({
+        targetParent: scene,
+        radius: islandRadius,
+        depthScaleY: 0.46,
+        fallbackNodes: [island],
+        isDisposed: () => isSceneDisposed,
+        onLoaded: (g) => {
+          g.rotation.y = -0.52;
+          blenderEnvGroup = g;
+        }
       });
     }
 
@@ -298,21 +341,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       const radarPedestalParts: ColoredGeometryPart[] = [
         { geometry: new THREE.CylinderGeometry(0.22, 0.34, 2.4, 8), color: 0xe2e8f0, position: [ringRadius + 2.8, 1.2, -3.5] }
       ];
-      if (levelId === 1) {
-        // Earth Waterfall Chute & Rocky Splash Basin
+      if (levelId === 3) {
+        // Lunar Artemis: 0.16G Central Orbit Beacon elevated clear above center plaza
         radarPedestalParts.push(
-          { geometry: new THREE.CylinderGeometry(1.75, 1.9, 0.22, 16), color: 0x0ea5e9, position: [islandRadius - 3.0, 0.08, 3.1] },
-          { geometry: new THREE.BoxGeometry(1.4, 4.6, 0.45), color: 0x38bdf8, position: [islandRadius - 1.5, -2.0, 3.6], rotation: [0.16, 0.72, 0] }
-        );
-      } else if (levelId === 3) {
-        // Lunar Artemis: Twin ECLSS Water Towers + Solar Array + 0.16G Gravity Beacon
-        radarPedestalParts.push(
-          { geometry: new THREE.CylinderGeometry(0.65, 0.75, 3.1, 10), color: 0x38bdf8, position: [-ringRadius - 2.2, 1.55, -2.4] },
-          { geometry: new THREE.SphereGeometry(0.75, 12, 10), color: 0xf8fafc, position: [-ringRadius - 2.2, 3.25, -2.4] },
-          { geometry: new THREE.CylinderGeometry(0.55, 0.65, 2.5, 10), color: 0x0ea5e9, position: [-ringRadius - 3.6, 1.25, -1.2] },
-          { geometry: new THREE.SphereGeometry(0.64, 12, 10), color: 0xe2e8f0, position: [-ringRadius - 3.6, 2.65, -1.2] },
-          { geometry: new THREE.BoxGeometry(3.4, 0.1, 1.6), color: 0x1d4ed8, position: [ringRadius + 1.8, 1.4, 2.8], rotation: [0.35, -0.4, 0] },
-          { geometry: new THREE.OctahedronGeometry(0.65, 0), color: 0xfbbf24, position: [0, 3.2, 0] }
+          { geometry: new THREE.OctahedronGeometry(0.65, 0), color: 0xfbbf24, position: [0, 4.45, 0] }
         );
       } else if (levelId === 4) {
         // Oceanic Recovery Ship + Golden AstroNutri Victory Monument + Tropical Beacon
@@ -342,16 +374,16 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       scene.add(radarDishMesh);
     }
 
-    // L1 Falling Waterfall Particle Ribbon (1 Points draw call!)
+    // L1 Falling Waterfall Mist Ribbon aligned to Blender OasisWaterPond cliff spillway (1 Points draw call!)
     let waterfallGeo: THREE.BufferGeometry | null = null;
     if (levelId === 1) {
-      const wfCount = 96;
+      const wfCount = 84;
       const wfPos = new Float32Array(wfCount * 3);
       for (let i = 0; i < wfCount; i++) {
-        const dropPhase = (i / wfCount) * 4.5;
-        wfPos[i * 3] = islandRadius - 1.9 + ((i % 7) - 3) * 0.18 + dropPhase * 0.15;
-        wfPos[i * 3 + 1] = 0.2 - dropPhase;
-        wfPos[i * 3 + 2] = 3.2 + ((i % 5) - 2) * 0.18 + dropPhase * 0.15;
+        const dropPhase = (i / wfCount) * 4.2;
+        wfPos[i * 3] = islandRadius * 1.02 + ((i % 7) - 3) * 0.14 + dropPhase * 0.12;
+        wfPos[i * 3 + 1] = 0.05 - dropPhase;
+        wfPos[i * 3 + 2] = islandRadius * 0.02 + ((i % 5) - 2) * 0.14;
       }
       waterfallGeo = new THREE.BufferGeometry();
       waterfallGeo.setAttribute('position', new THREE.BufferAttribute(wfPos, 3));
@@ -664,6 +696,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
     const portalDummy = new THREE.Object3D();
     const satDummy = new THREE.Object3D();
+    const dustSystem = createDustPuffSystem(scene, 20);
+    const biomeDustColor = levelId === 3 ? 0xe2e8f0 : levelId === 2 ? 0x818cf8 : 0xfef3c7;
     let rafId = 0;
     let lastTime = performance.now();
     const startTime = lastTime;
@@ -675,6 +709,9 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       const elapsed = (now - startTime) / 1000;
 
       skyHandle.update(elapsed);
+      if (blenderEnvGroup) {
+        animateBlenderEnvironmentGlb(blenderEnvGroup, elapsed);
+      }
 
       portalMeta.forEach((pm, idx) => {
         portalDummy.position.copy(pm.basePos);
@@ -769,10 +806,17 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         const worldDirZ = rightZ * nx + forwardZ * (-nz);
         const spd = sprint ? 11.4 : 7.4;
 
-        pos.x += worldDirX * spd * dt;
-        pos.z += worldDirZ * spd * dt;
-        moveSpeed = spd;
-        hero.group.rotation.y = Math.atan2(worldDirX, worldDirZ);
+        const { speed } = stepSmoothHorizontalVelocity(
+          horizVelRef.current,
+          worldDirX * spd,
+          worldDirZ * spd,
+          dt
+        );
+        pos.x += horizVelRef.current.x * dt;
+        pos.z += horizVelRef.current.z * dt;
+        moveSpeed = speed;
+        const targetYaw = Math.atan2(worldDirX, worldDirZ);
+        hero.group.rotation.y = lerpAngle(hero.group.rotation.y, targetYaw, 1 - Math.exp(-15 * dt));
       } else if (walkTargetRef.current) {
         const dx = walkTargetRef.current.x - pos.x;
         const dz = walkTargetRef.current.z - pos.z;
@@ -782,14 +826,22 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           const step = Math.min(dist, spd * dt);
           pos.x += (dx / dist) * step;
           pos.z += (dz / dist) * step;
+          horizVelRef.current = { x: (dx / dist) * spd, z: (dz / dist) * spd };
           moveSpeed = spd;
-          hero.group.rotation.y = Math.atan2(dx, dz);
+          const targetYaw = Math.atan2(dx, dz);
+          hero.group.rotation.y = lerpAngle(hero.group.rotation.y, targetYaw, 1 - Math.exp(-15 * dt));
         } else {
           walkTargetRef.current = null;
+          horizVelRef.current = { x: 0, z: 0 };
           const enterRoom = pendingRoomRef.current;
           pendingRoomRef.current = null;
           if (enterRoom) onEnterRoomRef.current(enterRoom);
         }
+      } else {
+        const { speed } = stepSmoothHorizontalVelocity(horizVelRef.current, 0, 0, dt);
+        pos.x += horizVelRef.current.x * dt;
+        pos.z += horizVelRef.current.z * dt;
+        moveSpeed = speed;
       }
 
       // Soft Circular Island Perimeter Containment
@@ -800,16 +852,30 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         pos.z *= scale;
       }
 
-      // Level-Specific Gravity Physics (1G / 0G / 0.16G)
+      // Level-Specific Gravity Physics (1G / 0G / 0.16G) + Coyote Time + Landing Dust Puffs
       if (!isGroundedRef.current || pos.y > 0.02) {
         playerVelYRef.current -= theme.gravity * dt;
         pos.y += playerVelYRef.current * dt;
         if (pos.y <= 0) {
+          if (!isGroundedRef.current) {
+            dustSystem.emit(pos.x, 0, pos.z, biomeDustColor, levelId === 3 ? 8 : 5, 1.8);
+          }
           pos.y = 0;
           playerVelYRef.current = 0;
           isGroundedRef.current = true;
+          lastGroundedMsRef.current = now;
+        }
+      } else {
+        lastGroundedMsRef.current = now;
+        if (sprint && moveSpeed > 3.5) {
+          sprintDustTimerRef.current += dt;
+          if (sprintDustTimerRef.current >= 0.14) {
+            sprintDustTimerRef.current = 0;
+            dustSystem.emit(pos.x, 0, pos.z, biomeDustColor, 2, 0.9);
+          }
         }
       }
+      dustSystem.update(dt);
 
       // Find Nearest Station Building Portal
       let closestRoom: SpatialRoomNode | null = null;
@@ -896,6 +962,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       if (resizeObs) resizeObs.disconnect();
 
       skyHandle.dispose();
+      dustSystem.dispose();
       hero.dispose();
       disposableTextures.forEach((tex) => tex.dispose());
       scene.traverse((obj) => {

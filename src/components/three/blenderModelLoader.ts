@@ -69,6 +69,33 @@ export function loadCachedGlbClone(url: string): Promise<THREE.Group | null> {
   });
 }
 
+function attachGlbScene(opts: {
+  url: string;
+  name: string;
+  targetParent: THREE.Object3D;
+  scale?: [number, number, number];
+  position?: [number, number, number];
+  rotationY?: number;
+  fallbackNodes?: THREE.Object3D[];
+  isDisposed: () => boolean;
+  onLoaded?: (glb: THREE.Group) => void;
+}): void {
+  void loadCachedGlbClone(opts.url).then((glb) => {
+    if (!glb) return;
+    if (opts.isDisposed()) {
+      disposeObject3D(glb);
+      return;
+    }
+    glb.name = opts.name;
+    if (opts.scale) glb.scale.set(...opts.scale);
+    if (opts.position) glb.position.set(...opts.position);
+    if (opts.rotationY !== undefined) glb.rotation.y = opts.rotationY;
+    opts.fallbackNodes?.forEach((node) => disposeObject3D(node));
+    opts.targetParent.add(glb);
+    opts.onLoaded?.(glb);
+  });
+}
+
 export function attachBlenderEarthIsland(opts: {
   targetParent: THREE.Object3D;
   radius: number;
@@ -77,19 +104,58 @@ export function attachBlenderEarthIsland(opts: {
   isDisposed: () => boolean;
   onLoaded?: (islandGlb: THREE.Group) => void;
 }): void {
-  void loadCachedGlbClone('/models/earth_island.glb').then((islandGlb) => {
-    if (!islandGlb) return;
-    if (opts.isDisposed()) {
-      disposeObject3D(islandGlb);
-      return;
-    }
-    const sy = opts.radius * (opts.depthScaleY ?? 0.52);
-    islandGlb.name = 'BlenderEarthIsland';
-    islandGlb.scale.set(opts.radius, sy, opts.radius);
-    islandGlb.position.set(0, 0, 0);
-    opts.fallbackNodes?.forEach((node) => disposeObject3D(node));
-    opts.targetParent.add(islandGlb);
-    opts.onLoaded?.(islandGlb);
+  const sy = opts.radius * (opts.depthScaleY ?? 0.52);
+  attachGlbScene({
+    url: '/models/earth_island.glb',
+    name: 'BlenderEarthIsland',
+    targetParent: opts.targetParent,
+    scale: [opts.radius, sy, opts.radius],
+    position: [0, 0, 0],
+    fallbackNodes: opts.fallbackNodes,
+    isDisposed: opts.isDisposed,
+    onLoaded: opts.onLoaded
+  });
+}
+
+export function attachBlenderLunarIsland(opts: {
+  targetParent: THREE.Object3D;
+  radius: number;
+  depthScaleY?: number;
+  fallbackNodes?: THREE.Object3D[];
+  isDisposed: () => boolean;
+  onLoaded?: (islandGlb: THREE.Group) => void;
+}): void {
+  const sy = opts.radius * (opts.depthScaleY ?? 0.52);
+  attachGlbScene({
+    url: '/models/lunar_island.glb',
+    name: 'BlenderLunarIsland',
+    targetParent: opts.targetParent,
+    scale: [opts.radius, sy, opts.radius],
+    position: [0, 0, 0],
+    fallbackNodes: opts.fallbackNodes,
+    isDisposed: opts.isDisposed,
+    onLoaded: opts.onLoaded
+  });
+}
+
+export function attachBlenderOrbitalStation(opts: {
+  targetParent: THREE.Object3D;
+  radius: number;
+  depthScaleY?: number;
+  fallbackNodes?: THREE.Object3D[];
+  isDisposed: () => boolean;
+  onLoaded?: (stationGlb: THREE.Group) => void;
+}): void {
+  const sy = opts.radius * (opts.depthScaleY ?? 0.52);
+  attachGlbScene({
+    url: '/models/orbital_station.glb',
+    name: 'BlenderOrbitalStation',
+    targetParent: opts.targetParent,
+    scale: [opts.radius, sy, opts.radius],
+    position: [0, 0, 0],
+    fallbackNodes: opts.fallbackNodes,
+    isDisposed: opts.isDisposed,
+    onLoaded: opts.onLoaded
   });
 }
 
@@ -102,20 +168,103 @@ export function attachBlenderSpaceship(opts: {
   isDisposed: () => boolean;
   onLoaded?: (craftGlb: THREE.Group) => void;
 }): void {
-  void loadCachedGlbClone('/models/spaceship_craft.glb').then((craftGlb) => {
-    if (!craftGlb) return;
+  const s = opts.scale ?? 1;
+  attachGlbScene({
+    url: '/models/spaceship_craft.glb',
+    name: 'BlenderSpaceshipCraft',
+    targetParent: opts.targetParent,
+    scale: [s, s, s],
+    position: opts.position,
+    rotationY: opts.rotationY ?? 0,
+    fallbackNodes: opts.fallbackNodes,
+    isDisposed: opts.isDisposed,
+    onLoaded: opts.onLoaded
+  });
+}
+
+export interface PlanetPlacement {
+  nodeName: 'PlanetEarth' | 'PlanetMoon' | 'PlanetMars' | 'PlanetSaturn';
+  id: string;
+  position: [number, number, number];
+  scale: number;
+}
+
+/**
+ * Loads /models/planet_pack.glb once and places each named celestial body cleanly in orbit.
+ */
+export function attachBlenderPlanetsFromPack(opts: {
+  targetParent: THREE.Object3D;
+  placements: PlanetPlacement[];
+  isDisposed: () => boolean;
+  onLoaded?: (planetGroups: Record<string, THREE.Object3D>) => void;
+}): void {
+  void loadCachedGlbClone('/models/planet_pack.glb').then((packGlb) => {
+    if (!packGlb) return;
     if (opts.isDisposed()) {
-      disposeObject3D(craftGlb);
+      disposeObject3D(packGlb);
       return;
     }
-    craftGlb.name = 'BlenderSpaceshipCraft';
-    craftGlb.position.set(...opts.position);
-    craftGlb.rotation.y = opts.rotationY ?? 0;
-    craftGlb.scale.setScalar(opts.scale ?? 1);
-    opts.fallbackNodes?.forEach((node) => disposeObject3D(node));
-    opts.targetParent.add(craftGlb);
-    opts.onLoaded?.(craftGlb);
+    const mounted: Record<string, THREE.Object3D> = {};
+    const wantedNames = new Set<string>(opts.placements.map((p) => p.nodeName));
+
+    opts.placements.forEach((p) => {
+      const match = packGlb.getObjectByName(p.nodeName);
+      if (match) {
+        const clone = match.clone(true);
+        clone.traverse((node) => {
+          if (node instanceof THREE.Mesh) {
+            if (node.geometry) node.geometry = node.geometry.clone();
+            if (Array.isArray(node.material)) node.material = node.material.map((m) => m.clone());
+            else if (node.material) node.material = node.material.clone();
+          }
+        });
+        clone.position.set(...p.position);
+        clone.scale.setScalar(p.scale);
+        clone.name = p.id;
+        opts.targetParent.add(clone);
+        mounted[p.id] = clone;
+      }
+    });
+
+    // Dispose unused pack container so no extra geometries linger
+    packGlb.traverse((node) => {
+      if (!wantedNames.has(node.name)) {
+        // leave to disposeObject3D below
+      }
+    });
+    disposeObject3D(packGlb);
+    opts.onLoaded?.(mounted);
   });
+}
+
+/**
+ * Animates named sub-meshes exported inside environment GLB scenes
+ * (OasisWaterPond shimmer/ripple, SolarWingSpin sun-tracking, Asteroid2010PK tumble).
+ */
+export function animateBlenderEnvironmentGlb(root: THREE.Object3D, elapsed: number): void {
+  const pond = root.getObjectByName('OasisWaterPond');
+  if (pond) {
+    pond.position.y = Math.sin(elapsed * 2.4) * 0.004;
+    const ripple = 1 + Math.sin(elapsed * 1.9) * 0.012;
+    pond.scale.set(ripple, 1, ripple);
+    pond.traverse((n) => {
+      if (n instanceof THREE.Mesh && n.material instanceof THREE.MeshStandardMaterial) {
+        n.material.emissiveIntensity = 0.36 + Math.sin(elapsed * 3.1) * 0.14;
+      }
+    });
+  }
+
+  const solarWing = root.getObjectByName('SolarWingSpin');
+  if (solarWing) {
+    solarWing.rotation.x = Math.sin(elapsed * 0.45) * 0.38 + 0.2;
+  }
+
+  const asteroid = root.getObjectByName('Asteroid2010PK');
+  if (asteroid) {
+    asteroid.rotation.y = elapsed * 0.48;
+    asteroid.rotation.x = elapsed * 0.31;
+    asteroid.position.y = 0.26 + Math.sin(elapsed * 1.25) * 0.06;
+  }
 }
 
 export function getLoadedGlbUrls(): string[] {

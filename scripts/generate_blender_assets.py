@@ -565,7 +565,7 @@ def generate_astronaut_hero():
 
 
 # ==============================================================================
-# 2. FLOATING EARTH ISLAND (earth_island.glb) — ONLY 2 DRAW CALLS TOTAL!
+# 2. FLOATING EARTH ISLAND WITH 3D WATER POND & WATERFALL (earth_island.glb) — 3 DRAW CALLS TOTAL!
 # ==============================================================================
 def generate_earth_island():
     reset_scene()
@@ -580,22 +580,42 @@ def generate_earth_island():
         emission_color=(0.15, 0.72, 0.96, 1.0),
         emission_strength=0.65,
     )
+    mat_pond_water = make_material(
+        "earth_pond_water",
+        (0.08, 0.78, 0.96, 1.0),
+        roughness=0.08,
+        metallic=0.12,
+        emission_color=(0.05, 0.56, 0.84, 1.0),
+        emission_strength=0.38,
+        alpha=0.82,
+    )
 
     C_GRASS = (0.14, 0.72, 0.34)
     C_SAND = (0.86, 0.72, 0.48)
     C_ROCK_WARM = (0.56, 0.34, 0.20)
     C_ROCK_DEEP = (0.38, 0.22, 0.14)
+    C_PEBBLE_LIGHT = (0.64, 0.68, 0.74)
+    C_PEBBLE_DARK = (0.42, 0.48, 0.56)
+    C_POND_BED = (0.06, 0.32, 0.44)
     C_BARK = (0.42, 0.22, 0.09)
     C_LEAF = (0.10, 0.56, 0.24)
     C_LEAF_HI = (0.28, 0.82, 0.42)
     C_FLOWER = (0.98, 0.78, 0.22)
+    C_LOTUS = (0.98, 0.44, 0.68)
+    C_FOAM = (0.86, 0.97, 1.00)
     C_PAD = (0.20, 0.26, 0.36)
 
+    pond_cx, pond_cy = 0.56, 0.34
+
     terrain_parts = [
-        {"type": "cylinder", "mat_idx": 0, "vcolor": C_GRASS, "loc": (0, 0, -0.025), "radius": 0.99, "radius2": 1.00, "depth": 0.05, "segments": 28},
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_GRASS, "loc": (0, 0, -0.025), "radius": 0.99, "radius2": 1.00, "depth": 0.05, "segments": 32},
         {"type": "cylinder", "mat_idx": 0, "vcolor": C_SAND, "loc": (0, 0, -0.018), "radius": 0.36, "depth": 0.04, "segments": 24},
         {"type": "cube", "mat_idx": 0, "vcolor": C_SAND, "loc": (0, 0, -0.018), "scale": (1.52, 0.14, 0.04)},
         {"type": "cube", "mat_idx": 0, "vcolor": C_SAND, "loc": (0, 0, -0.018), "scale": (0.14, 1.52, 0.04)},
+        # Recessed Oasis Lagoon Bed & Sandy Shore Margin
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_SAND, "loc": (pond_cx, pond_cy, -0.016), "radius": 0.25, "depth": 0.036, "segments": 22},
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_POND_BED, "loc": (pond_cx, pond_cy, -0.022), "radius": 0.20, "depth": 0.028, "segments": 20},
+        # Rocky strata underneath
         {"type": "cylinder", "mat_idx": 0, "vcolor": C_ROCK_WARM, "loc": (0, 0, -0.14), "radius": 0.76, "radius2": 0.95, "depth": 0.18, "segments": 18},
         {"type": "cylinder", "mat_idx": 0, "vcolor": C_ROCK_DEEP, "loc": (0, 0, -0.31), "radius": 0.44, "radius2": 0.74, "depth": 0.18, "segments": 14},
         {"type": "cone", "mat_idx": 0, "vcolor": C_ROCK_DEEP, "loc": (0, 0, -0.50), "r1": 0.08, "r2": 0.42, "depth": 0.22, "segments": 10},
@@ -606,24 +626,83 @@ def generate_earth_island():
         {"type": "icosphere", "mat_idx": 0, "vcolor": C_ROCK_WARM, "loc": (0.46, -0.50, -0.48), "radius": 0.07, "subdiv": 1},
     ]
 
+    # Shore pebbles & grass tufts + lotus pads around the Oasis Water Pond
+    for i in range(14):
+        pang = (i / 14.0) * math.pi * 2.0
+        pr = 0.215 + (i % 3) * 0.015
+        px, py = pond_cx + math.cos(pang) * pr, pond_cy + math.sin(pang) * pr
+        # Leave slight spillway channel toward cliff edge (pang around 0.55 rad)
+        if abs(((pang - 0.55 + math.pi) % (2 * math.pi)) - math.pi) < 0.35:
+            continue
+        terrain_parts.append({
+            "type": "icosphere",
+            "mat_idx": 0,
+            "vcolor": C_PEBBLE_LIGHT if i % 2 == 0 else C_PEBBLE_DARK,
+            "loc": (px, py, 0.008),
+            "radius": 0.028 + (i % 2) * 0.009,
+            "subdiv": 1,
+            "scale": (1.2, 0.95, 0.55),
+        })
+        if i % 3 == 0:
+            terrain_parts.append({
+                "type": "cone",
+                "mat_idx": 0,
+                "vcolor": C_LEAF_HI,
+                "loc": (px * 0.98 + 0.02 * math.cos(pang), py * 0.98 + 0.02 * math.sin(pang), 0.035),
+                "r1": 0.020,
+                "r2": 0.002,
+                "depth": 0.065,
+                "segments": 5,
+            })
+
+    # Two charming floating lily pads + pink lotus blossoms on the pond
+    for lx, ly, has_lotus in ((pond_cx - 0.06, pond_cy + 0.04, True), (pond_cx + 0.07, pond_cy - 0.05, False)):
+        terrain_parts.append({
+            "type": "cylinder",
+            "mat_idx": 0,
+            "vcolor": C_LEAF_HI,
+            "loc": (lx, ly, 0.008),
+            "radius": 0.036,
+            "depth": 0.008,
+            "segments": 8,
+        })
+        if has_lotus:
+            terrain_parts.append({
+                "type": "icosphere",
+                "mat_idx": 0,
+                "vcolor": C_LOTUS,
+                "loc": (lx, ly, 0.020),
+                "radius": 0.017,
+                "subdiv": 1,
+                "scale": (1.0, 1.0, 0.72),
+            })
+
+    # Lush grass hillocks around island rim
     for i in range(10):
         ang = (i / 10.0) * math.pi * 2.0 + 0.18
         r = 0.84 + rng.uniform(0.0, 0.08)
+        gx, gy = math.cos(ang) * r, math.sin(ang) * r
+        if math.hypot(gx - pond_cx, gy - pond_cy) < 0.28:
+            continue
         terrain_parts.append({
             "type": "sphere",
             "mat_idx": 0,
             "vcolor": C_GRASS,
-            "loc": (math.cos(ang) * r, math.sin(ang) * r, -0.01),
+            "loc": (gx, gy, -0.01),
             "radius": 0.12,
             "scale": (1.3, 1.1, 0.32),
             "u_seg": 10,
             "v_seg": 6,
         })
 
+    # Pine & oasis trees around outer edge (keep pond open & visible)
     for i in range(6):
         ang = (i / 6.0) * math.pi * 2.0 + 0.52
         r = 0.87
         tx, ty = math.cos(ang) * r, math.sin(ang) * r
+        if math.hypot(tx - pond_cx, ty - pond_cy) < 0.30:
+            ang += 0.35
+            tx, ty = math.cos(ang) * r, math.sin(ang) * r
         terrain_parts.extend([
             {"type": "cylinder", "mat_idx": 0, "vcolor": C_BARK, "loc": (tx, ty, 0.055), "radius": 0.022, "radius2": 0.016, "depth": 0.11, "segments": 7},
             {"type": "cone", "mat_idx": 0, "vcolor": C_LEAF, "loc": (tx, ty, 0.14), "r1": 0.095, "r2": 0.01, "depth": 0.13, "segments": 7},
@@ -635,6 +714,8 @@ def generate_earth_island():
         ang = (i / 12.0) * math.pi * 2.0 + 0.25
         r = 0.82 + (i % 2) * 0.09
         fx, fy = math.cos(ang) * r, math.sin(ang) * r
+        if math.hypot(fx - pond_cx, fy - pond_cy) < 0.26:
+            continue
         if i % 3 == 0:
             terrain_parts.append({
                 "type": "cone",
@@ -657,15 +738,11 @@ def generate_earth_island():
                 "scale": (1.1, 1.1, 0.55),
             })
 
-    terrain_parts.append({
-        "type": "cylinder",
-        "mat_idx": 0,
-        "vcolor": C_PAD,
-        "loc": (-0.70, -0.42, 0.004),
-        "radius": 0.14,
-        "depth": 0.012,
-        "segments": 12,
-    })
+    # Cascading waterfall foam puff at cliff bottom + launchpad disc
+    terrain_parts.extend([
+        {"type": "icosphere", "mat_idx": 0, "vcolor": C_FOAM, "loc": (0.94, 0.54, -0.34), "radius": 0.065, "subdiv": 1, "scale": (1.2, 1.2, 0.6)},
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_PAD, "loc": (-0.70, -0.42, 0.004), "radius": 0.14, "depth": 0.012, "segments": 12},
+    ])
 
     island_obj = build_mesh_object("EarthIslandTerrain", terrain_parts, [mat_terrain, mat_crystal], smooth_auto=False)
     bm = bmesh.new()
@@ -679,6 +756,16 @@ def generate_earth_island():
     bm.to_mesh(island_obj.data)
     bm.free()
     ensure_uvs_box(island_obj)
+
+    # Named Oasis Water Pond + Cliff Spillway Stream (1 single translucent animated draw call)
+    water_parts = [
+        {"type": "cylinder", "mat_idx": 0, "loc": (pond_cx, pond_cy, 0.003), "radius": 0.195, "depth": 0.012, "segments": 24},
+        # Spillway stream heading to outer cliff rim
+        {"type": "bevel_cube", "mat_idx": 0, "loc": (0.76, 0.44, 0.002), "scale": (0.28, 0.085, 0.012), "rot": (0, 0, 0.48), "bevel": 0.004},
+        # Cascading vertical waterfall ribbon over the cliff edge
+        {"type": "bevel_cube", "mat_idx": 0, "loc": (0.93, 0.53, -0.17), "scale": (0.045, 0.085, 0.34), "rot": (0, 0.12, 0.48), "bevel": 0.008},
+    ]
+    build_mesh_object("OasisWaterPond", water_parts, [mat_pond_water], smooth_auto=True)
 
     export_glb("earth_island.glb")
 
@@ -733,8 +820,255 @@ def generate_spaceship_craft():
     export_glb("spaceship_craft.glb")
 
 
+# ==============================================================================
+# 4. LUNAR CRATER COLONY ISLAND (lunar_island.glb) — ONLY 2 DRAW CALLS TOTAL!
+# ==============================================================================
+def generate_lunar_island():
+    reset_scene()
+    rng = random.Random(108)
+
+    mat_lunar = make_material("lunar_terrain_pbr", (1.0, 1.0, 1.0, 1.0), roughness=0.86, metallic=0.06, use_vertex_color=True)
+    mat_glow = make_material(
+        "lunar_beacon_glow",
+        (0.28, 0.85, 0.99, 1.0),
+        roughness=0.16,
+        metallic=0.25,
+        emission_color=(0.14, 0.78, 0.98, 1.0),
+        emission_strength=1.25,
+    )
+
+    C_REGOLITH = (0.78, 0.81, 0.86)
+    C_REGOLITH_MID = (0.58, 0.62, 0.70)
+    C_BASALT = (0.34, 0.37, 0.44)
+    C_DOME = (0.94, 0.96, 0.99)
+    C_SOLAR = (0.10, 0.24, 0.58)
+    C_GOLD_FOIL = (0.95, 0.68, 0.14)
+    C_ECLSS_TANK = (0.74, 0.86, 0.95)
+
+    lunar_parts = [
+        # Main Moon regolith plateau (dense subdivisions around edge for crater rim sculpting)
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_REGOLITH, "loc": (0, 0, -0.025), "radius": 0.99, "radius2": 1.00, "depth": 0.05, "segments": 32},
+        # Center rover / landing plaza (crisp dark titanium grey, flat at Z=0)
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_BASALT, "loc": (0, 0, -0.018), "radius": 0.35, "depth": 0.04, "segments": 24},
+        {"type": "cube", "mat_idx": 0, "vcolor": C_REGOLITH_MID, "loc": (0, 0, -0.018), "scale": (1.46, 0.13, 0.04)},
+        {"type": "cube", "mat_idx": 0, "vcolor": C_REGOLITH_MID, "loc": (0, 0, -0.018), "scale": (0.13, 1.46, 0.04)},
+        # Rocky lunar basalt crust underneath
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_REGOLITH_MID, "loc": (0, 0, -0.14), "radius": 0.74, "radius2": 0.95, "depth": 0.18, "segments": 18},
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_BASALT, "loc": (0, 0, -0.31), "radius": 0.42, "radius2": 0.72, "depth": 0.18, "segments": 14},
+        {"type": "cone", "mat_idx": 0, "vcolor": C_BASALT, "loc": (0, 0, -0.50), "r1": 0.07, "r2": 0.40, "depth": 0.22, "segments": 10},
+        # Pressurized Artemis Habitat Dome & Airlock at (-0.64, -0.44)
+        {"type": "sphere", "mat_idx": 0, "vcolor": C_DOME, "loc": (-0.64, -0.44, 0.01), "radius": 0.18, "scale": (1.0, 1.0, 0.78), "u_seg": 14, "v_seg": 10},
+        {"type": "torus", "mat_idx": 1, "loc": (-0.64, -0.44, 0.02), "major": 0.185, "minor": 0.014, "seg_u": 18, "seg_v": 6},
+        {"type": "bevel_cube", "mat_idx": 0, "vcolor": C_BASALT, "loc": (-0.48, -0.34, 0.055), "scale": (0.14, 0.11, 0.10), "rot": (0, 0, 0.6), "bevel": 0.015},
+        {"type": "bevel_cube", "mat_idx": 1, "loc": (-0.64, -0.60, 0.08), "scale": (0.09, 0.02, 0.05), "bevel": 0.005},
+        # ECLSS Water Recovery Tower at (+0.66, -0.22)
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_ECLSS_TANK, "loc": (0.64, -0.22, 0.13), "radius": 0.065, "depth": 0.24, "segments": 12},
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_GOLD_FOIL, "loc": (0.76, -0.18, 0.10), "radius": 0.05, "depth": 0.18, "segments": 10},
+        {"type": "cylinder", "mat_idx": 1, "loc": (0.64, -0.22, 0.18), "radius": 0.069, "depth": 0.03, "segments": 12},
+        # Solar Power Wing Array at (-0.16, +0.74)
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_BASALT, "loc": (-0.16, 0.74, 0.09), "radius": 0.025, "depth": 0.16, "segments": 8},
+        {"type": "bevel_cube", "mat_idx": 0, "vcolor": C_SOLAR, "loc": (-0.16, 0.74, 0.18), "scale": (0.34, 0.14, 0.016), "rot": (0.45, 0, 0.15), "bevel": 0.005},
+    ]
+
+    # 3 Distinct Impact Craters with raised rim rings + dark basalt crater floor!
+    crater_specs = [(0.56, 0.44, 0.17), (-0.64, 0.36, 0.14), (0.44, -0.64, 0.15)]
+    for cx, cy, cr in crater_specs:
+        lunar_parts.extend([
+            {"type": "torus", "mat_idx": 0, "vcolor": C_REGOLITH, "loc": (cx, cy, 0.018), "major": cr, "minor": 0.032, "seg_u": 16, "seg_v": 6},
+            {"type": "cylinder", "mat_idx": 0, "vcolor": C_BASALT, "loc": (cx, cy, -0.004), "radius": cr * 0.85, "depth": 0.016, "segments": 14},
+        ])
+
+    # Lunar rocks, regolith hills & glowing helium-3/water-ice indicator beacons
+    for i in range(9):
+        ang = (i / 9.0) * math.pi * 2.0 + 0.3
+        r = 0.84 + rng.uniform(0.0, 0.09)
+        rx, ry = math.cos(ang) * r, math.sin(ang) * r
+        lunar_parts.append({
+            "type": "icosphere",
+            "mat_idx": 0,
+            "vcolor": C_REGOLITH_MID if i % 2 == 0 else C_BASALT,
+            "loc": (rx, ry, 0.025),
+            "radius": 0.048 + (i % 3) * 0.018,
+            "subdiv": 1,
+            "scale": (1.2, 0.9, 0.7),
+        })
+        if i % 3 == 0:
+            lunar_parts.append({
+                "type": "cone",
+                "mat_idx": 1,
+                "loc": (rx * 0.90, ry * 0.90, 0.045),
+                "r1": 0.024,
+                "r2": 0.003,
+                "depth": 0.085,
+                "segments": 5,
+            })
+
+    lunar_obj = build_mesh_object("LunarIslandTerrain", lunar_parts, [mat_lunar, mat_glow], smooth_auto=False)
+    bm = bmesh.new()
+    bm.from_mesh(lunar_obj.data)
+    for v in bm.verts:
+        if v.co.z < -0.06:
+            jitter = 1.0 + 0.11 * math.sin(v.co.x * 10.0 + v.co.z * 6.0) + 0.08 * math.cos(v.co.y * 9.0)
+            v.co.x *= jitter
+            v.co.y *= jitter
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(lunar_obj.data)
+    bm.free()
+    ensure_uvs_box(lunar_obj)
+
+    export_glb("lunar_island.glb")
+
+
+# ==============================================================================
+# 5. ZERO-G ORBITAL STATION & ASTEROID 2010 PK (orbital_station.glb) — 4 DRAW CALLS TOTAL!
+# ==============================================================================
+def generate_orbital_station():
+    reset_scene()
+
+    mat_station = make_material("orbital_station_pbr", (1.0, 1.0, 1.0, 1.0), roughness=0.38, metallic=0.32, use_vertex_color=True)
+    mat_glow = make_material(
+        "orbital_station_glow",
+        (0.20, 0.86, 0.99, 1.0),
+        roughness=0.14,
+        metallic=0.35,
+        emission_color=(0.12, 0.78, 0.98, 1.0),
+        emission_strength=1.35,
+    )
+
+    C_HULL_WHITE = (0.93, 0.96, 1.00)
+    C_TITANIUM = (0.30, 0.36, 0.48)
+    C_DARK_DECK = (0.16, 0.21, 0.32)
+    C_SOLAR_BLUE = (0.09, 0.24, 0.62)
+    C_GOLD = (0.96, 0.70, 0.12)
+    C_ASTEROID = (0.42, 0.34, 0.56)
+
+    station_parts = [
+        # Main flat titanium Zero-G Station Deck (Z=0 crisp platform for walking/floating in Level 2)
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_DARK_DECK, "loc": (0, 0, -0.025), "radius": 0.98, "radius2": 1.00, "depth": 0.05, "segments": 24},
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_TITANIUM, "loc": (0, 0, -0.016), "radius": 0.40, "depth": 0.036, "segments": 20},
+        # Glowing outer docking ring halo
+        {"type": "torus", "mat_idx": 1, "loc": (0, 0, 0.012), "major": 0.96, "minor": 0.020, "seg_u": 28, "seg_v": 6},
+        # Structural under-truss + keel pod
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_TITANIUM, "loc": (0, 0, -0.16), "radius": 0.54, "radius2": 0.88, "depth": 0.20, "segments": 16},
+        {"type": "cone", "mat_idx": 0, "vcolor": C_DARK_DECK, "loc": (0, 0, -0.36), "r1": 0.14, "r2": 0.44, "depth": 0.22, "segments": 12},
+        # Pressurized Orbital Habitat Cupola & Research Modules around perimeter
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_HULL_WHITE, "loc": (-0.68, -0.44, 0.08), "radius": 0.13, "depth": 0.16, "segments": 12},
+        {"type": "sphere", "mat_idx": 1, "loc": (-0.68, -0.44, 0.16), "radius": 0.10, "scale": (1.0, 1.0, 0.65), "u_seg": 12, "v_seg": 8},
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_HULL_WHITE, "loc": (0.68, 0.42, 0.075), "radius": 0.11, "depth": 0.14, "segments": 12},
+        {"type": "torus", "mat_idx": 0, "vcolor": C_GOLD, "loc": (0.68, 0.42, 0.14), "major": 0.11, "minor": 0.015, "seg_u": 14, "seg_v": 6},
+        # Comm Relay Dish at (-0.28, 0.78)
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_TITANIUM, "loc": (-0.28, 0.78, 0.10), "radius": 0.022, "depth": 0.18, "segments": 8},
+        {"type": "cone", "mat_idx": 0, "vcolor": C_HULL_WHITE, "loc": (-0.28, 0.78, 0.21), "r1": 0.02, "r2": 0.13, "depth": 0.06, "rot": (0.5, 0, 0.4), "segments": 12},
+    ]
+
+    # 4 radial pressurized airlock collars
+    for k in range(4):
+        ang = (k / 4.0) * math.pi * 2.0 + math.pi / 4.0
+        station_parts.append({
+            "type": "bevel_cube",
+            "mat_idx": 0,
+            "vcolor": C_HULL_WHITE,
+            "loc": (math.cos(ang) * 0.86, math.sin(ang) * 0.86, 0.055),
+            "scale": (0.16, 0.12, 0.10),
+            "rot": (0, 0, ang),
+            "bevel": 0.015,
+        })
+
+    build_mesh_object("OrbitalStationCore", station_parts, [mat_station, mat_glow], smooth_auto=True)
+
+    # Named Animated Solar Wing Array (tilts cleanly in animate())
+    solar_parts = [
+        {"type": "cylinder", "mat_idx": 0, "vcolor": C_GOLD, "loc": (0, 0, 0), "radius": 0.024, "depth": 1.35, "rot": (0, math.pi / 2.0, 0), "segments": 10},
+        {"type": "bevel_cube", "mat_idx": 0, "vcolor": C_SOLAR_BLUE, "loc": (-0.40, 0, 0), "scale": (0.48, 0.24, 0.018), "bevel": 0.004},
+        {"type": "bevel_cube", "mat_idx": 0, "vcolor": C_SOLAR_BLUE, "loc": (0.40, 0, 0), "scale": (0.48, 0.24, 0.018), "bevel": 0.004},
+        {"type": "cube", "mat_idx": 1, "loc": (0, 0, 0.02), "scale": (0.95, 0.02, 0.012)},
+    ]
+    build_mesh_object("SolarWingSpin", solar_parts, [mat_station, mat_glow], location=(0.0, 0.88, 0.22), smooth_auto=False)
+
+    # Named Asteroid 2010 PK tumbling nearby
+    asteroid_parts = [
+        {"type": "icosphere", "mat_idx": 0, "vcolor": C_ASTEROID, "loc": (0, 0, 0), "radius": 0.22, "subdiv": 1, "scale": (1.28, 0.92, 0.86)},
+        {"type": "cone", "mat_idx": 1, "loc": (0.14, 0.06, 0.12), "r1": 0.025, "r2": 0.003, "depth": 0.08, "rot": (0.4, 0.5, 0), "segments": 5},
+    ]
+    ast_obj = build_mesh_object("Asteroid2010PK", asteroid_parts, [mat_station, mat_glow], location=(1.18, 0.82, 0.26), smooth_auto=False)
+    bm_a = bmesh.new()
+    bm_a.from_mesh(ast_obj.data)
+    for v in bm_a.verts:
+        k = 1.0 + 0.14 * math.sin(v.co.x * 16.0) * math.cos(v.co.y * 14.0)
+        v.co *= k
+    bmesh.ops.recalc_face_normals(bm_a, faces=bm_a.faces)
+    bm_a.to_mesh(ast_obj.data)
+    bm_a.free()
+    ensure_uvs_box(ast_obj)
+
+    export_glb("orbital_station.glb")
+
+
+# ==============================================================================
+# 6. PLANETARY FLIGHT PACK (planet_pack.glb) — Sculpted Earth, Moon, Mars & Saturn!
+# ==============================================================================
+def generate_planet_pack():
+    reset_scene()
+
+    mat_planet = make_material("planet_pack_pbr", (1.0, 1.0, 1.0, 1.0), roughness=0.58, metallic=0.08, use_vertex_color=True)
+    mat_halo = make_material(
+        "planet_atmosphere_glow",
+        (0.28, 0.86, 1.00, 1.0),
+        roughness=0.18,
+        metallic=0.05,
+        emission_color=(0.15, 0.72, 0.98, 1.0),
+        emission_strength=0.65,
+        alpha=0.26,
+    )
+
+    # 1) PlanetEarth (Origin at 0,0,0 — radius 1.0)
+    earth_parts = [
+        {"type": "sphere", "mat_idx": 0, "vcolor": (0.10, 0.45, 0.92), "loc": (0, 0, 0), "radius": 1.0, "u_seg": 20, "v_seg": 14},
+        # Low-poly green continent patches hugging sphere surface
+        {"type": "icosphere", "mat_idx": 0, "vcolor": (0.18, 0.74, 0.36), "loc": (0.36, -0.52, 0.56), "radius": 0.42, "subdiv": 1, "scale": (1.1, 0.8, 0.9)},
+        {"type": "icosphere", "mat_idx": 0, "vcolor": (0.24, 0.78, 0.40), "loc": (-0.54, 0.36, 0.48), "radius": 0.38, "subdiv": 1, "scale": (0.95, 1.15, 0.8)},
+        {"type": "icosphere", "mat_idx": 0, "vcolor": (0.88, 0.78, 0.50), "loc": (0.48, 0.45, 0.25), "radius": 0.34, "subdiv": 1, "scale": (0.85, 0.9, 0.7)},
+        # White polar cap & wispy clouds
+        {"type": "sphere", "mat_idx": 0, "vcolor": (0.96, 0.98, 1.0), "loc": (0, 0, 0.82), "radius": 0.32, "u_seg": 12, "v_seg": 8, "scale": (1.3, 1.3, 0.5)},
+        # Translucent cyan atmosphere shell
+        {"type": "sphere", "mat_idx": 1, "loc": (0, 0, 0), "radius": 1.08, "u_seg": 18, "v_seg": 12},
+    ]
+    build_mesh_object("PlanetEarth", earth_parts, [mat_planet, mat_halo], location=(0, 0, 0), smooth_auto=True)
+
+    # 2) PlanetMoon (Radius 1.0)
+    moon_parts = [
+        {"type": "sphere", "mat_idx": 0, "vcolor": (0.76, 0.79, 0.84), "loc": (0, 0, 0), "radius": 1.0, "u_seg": 18, "v_seg": 12},
+        {"type": "icosphere", "mat_idx": 0, "vcolor": (0.50, 0.54, 0.62), "loc": (0.42, -0.58, 0.38), "radius": 0.34, "subdiv": 1, "scale": (1.0, 0.6, 1.0)},
+        {"type": "torus", "mat_idx": 0, "vcolor": (0.84, 0.86, 0.90), "loc": (-0.50, -0.64, 0.30), "major": 0.24, "minor": 0.055, "rot": (1.1, 0.2, 0.5), "seg_u": 14, "seg_v": 6},
+        {"type": "torus", "mat_idx": 0, "vcolor": (0.68, 0.72, 0.78), "loc": (0.35, -0.50, -0.60), "major": 0.20, "minor": 0.045, "rot": (-0.9, 0.4, 0.2), "seg_u": 14, "seg_v": 6},
+    ]
+    build_mesh_object("PlanetMoon", moon_parts, [mat_planet], location=(0, 0, 0), smooth_auto=False)
+
+    # 3) PlanetMars (Radius 1.0)
+    mars_parts = [
+        {"type": "sphere", "mat_idx": 0, "vcolor": (0.86, 0.36, 0.16), "loc": (0, 0, 0), "radius": 1.0, "u_seg": 18, "v_seg": 12},
+        {"type": "icosphere", "mat_idx": 0, "vcolor": (0.60, 0.22, 0.12), "loc": (-0.42, -0.52, -0.18), "radius": 0.44, "subdiv": 1, "scale": (1.1, 0.75, 0.9)},
+        {"type": "cone", "mat_idx": 0, "vcolor": (0.92, 0.46, 0.22), "loc": (0.46, -0.76, 0.22), "r1": 0.24, "r2": 0.04, "depth": 0.24, "rot": (1.3, 0, -0.5), "segments": 10},
+        {"type": "sphere", "mat_idx": 0, "vcolor": (0.98, 0.96, 0.95), "loc": (0, 0, 0.86), "radius": 0.26, "u_seg": 12, "v_seg": 8, "scale": (1.25, 1.25, 0.45)},
+    ]
+    build_mesh_object("PlanetMars", mars_parts, [mat_planet], location=(0, 0, 0), smooth_auto=True)
+
+    # 4) PlanetSaturn (Radius 1.0 sphere + wide sculpted multi-band ice ring to ~2.1)
+    saturn_parts = [
+        {"type": "sphere", "mat_idx": 0, "vcolor": (0.95, 0.78, 0.44), "loc": (0, 0, 0), "radius": 1.0, "u_seg": 18, "v_seg": 12, "scale": (1.0, 1.0, 0.90)},
+        {"type": "torus", "mat_idx": 0, "vcolor": (0.98, 0.88, 0.62), "loc": (0, 0, 0), "major": 1.55, "minor": 0.12, "scale": (1.0, 1.0, 0.14), "rot": (0.36, 0.18, 0), "seg_u": 28, "seg_v": 6},
+        {"type": "torus", "mat_idx": 0, "vcolor": (0.84, 0.68, 0.42), "loc": (0, 0, 0), "major": 1.92, "minor": 0.09, "scale": (1.0, 1.0, 0.12), "rot": (0.36, 0.18, 0), "seg_u": 28, "seg_v": 6},
+    ]
+    build_mesh_object("PlanetSaturn", saturn_parts, [mat_planet], location=(0, 0, 0), smooth_auto=True)
+
+    export_glb("planet_pack.glb")
+
+
 if __name__ == "__main__":
     generate_astronaut_hero()
     generate_earth_island()
     generate_spaceship_craft()
-    print("[Blender Pipeline] All 3 GLB assets exported cleanly.")
+    generate_lunar_island()
+    generate_orbital_station()
+    generate_planet_pack()
+    print("[Blender Pipeline] All 6 GLB assets exported cleanly.")

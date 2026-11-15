@@ -5,6 +5,14 @@ import { NASA_OSDR_METRICS, NASA_ENGINEERING_TRADEOFFS } from '../../services/na
 import { soundManager } from '../../utils/sound';
 import { X, Satellite, Sun, Sparkles, Orbit, ShieldCheck, Activity } from 'lucide-react';
 
+export const NASA_DRAWER_OPEN_EVENT = 'astronutri:open-nasa-drawer';
+
+export function openNasaDrawer(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(NASA_DRAWER_OPEN_EVENT));
+  }
+}
+
 interface NasaMissionControlDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -46,7 +54,7 @@ export const NasaMissionControlDrawer: React.FC<NasaMissionControlDrawerProps> =
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={handleClose}
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm"
           />
 
           {/* Drawer Panel — Child-Friendly Space Observatory Storytelling */}
@@ -56,7 +64,7 @@ export const NasaMissionControlDrawer: React.FC<NasaMissionControlDrawerProps> =
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 26, stiffness: 280 }}
             data-testid="nasa-observatory-drawer"
-            className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-md sm:max-w-lg bg-gradient-to-b from-indigo-950 via-slate-900 to-sky-950 border-l-[3px] border-cyan-300/80 shadow-[0_0_50px_rgba(34,211,238,0.45)] flex flex-col overflow-hidden text-right"
+            className="fixed top-0 right-0 bottom-0 z-[90] w-full max-w-md sm:max-w-lg bg-gradient-to-b from-indigo-950 via-slate-900 to-sky-950 border-l-[3px] border-cyan-300/80 shadow-[0_0_50px_rgba(34,211,238,0.45)] flex flex-col overflow-hidden text-right"
             dir="rtl"
           >
             {/* Header */}

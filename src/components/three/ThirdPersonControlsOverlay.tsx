@@ -11,6 +11,7 @@ interface ThirdPersonControlsOverlayProps {
   onSprintChange?: (sprinting: boolean) => void;
   gravityLabelAr?: string;
   hintAr: string;
+  embedded?: boolean;
 }
 
 export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProps> = ({
@@ -21,7 +22,8 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
   onJump,
   onSprintChange,
   gravityLabelAr,
-  hintAr
+  hintAr,
+  embedded = false
 }) => {
   const padRef = useRef<HTMLDivElement | null>(null);
   const [knobOffset, setKnobOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -58,7 +60,7 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
   return (
     <div
       dir="ltr"
-      className="pointer-events-none fixed inset-x-0 bottom-4 sm:bottom-5 z-30 px-3.5 sm:px-6 flex items-end justify-between gap-2"
+      className={`pointer-events-none ${embedded ? 'absolute bottom-2.5 sm:bottom-3' : 'fixed bottom-4 sm:bottom-5'} inset-x-0 z-30 px-3.5 sm:px-6 flex items-end justify-between gap-2`}
     >
       {/* Bottom-Left: Minimalist Transparent Circular Analog Thumbstick */}
       <div className="pointer-events-auto flex flex-col items-start gap-1.5 shrink-0">

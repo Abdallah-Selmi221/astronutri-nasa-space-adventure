@@ -4,11 +4,12 @@ import { mergeColoredParts, ColoredGeometryPart } from './threeMergeUtils';
 
 export interface CosmicSkyHandle {
   update: (t: number) => void;
+  setAtmosphere: (mode: SkyMode, blendAlpha?: number) => void;
   dispose: () => void;
 }
 
 export type IslandSurfaceMode = 'grass' | 'lunar' | 'orbit' | 'ocean';
-export type SkyMode = 'sunny' | 'nebula' | 'lunar' | 'tropical';
+export type SkyMode = 'sunny' | 'nebula' | 'lunar' | 'tropical' | 'mars';
 
 function createRadialNebulaTexture(innerColor: string, midColor: string): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
@@ -180,21 +181,24 @@ export function createIslandSurfaceTexture(
  * 'nebula' Zero-G cosmos, 'lunar' horizon + Earth crescent, or 'tropical' golden hour)
  * with low-poly clouds, combined starfield, and an orbiting telemetry satellite (3-4 draw calls).
  */
+const SKY_THEME_PALETTE: Record<SkyMode, { bg: number; fog: number; density: number }> = {
+  sunny: { bg: 0x0f3275, fog: 0x164494, density: 0.0034 },
+  tropical: { bg: 0x09517f, fog: 0x0e6a9e, density: 0.0036 },
+  lunar: { bg: 0x050918, fog: 0x09112b, density: 0.0044 },
+  nebula: { bg: 0x0a1438, fog: 0x111f54, density: 0.0048 },
+  mars: { bg: 0x45160c, fog: 0x6b2210, density: 0.0042 }
+};
+
 export function createCosmicSkyBackdrop(scene: THREE.Scene, skyMode: SkyMode = 'nebula'): CosmicSkyHandle {
   const isDaylight = skyMode === 'sunny' || skyMode === 'tropical';
-  if (skyMode === 'sunny') {
-    scene.background = new THREE.Color(0x0f3275);
-    scene.fog = new THREE.FogExp2(0x164494, 0.0034);
-  } else if (skyMode === 'tropical') {
-    scene.background = new THREE.Color(0x09517f);
-    scene.fog = new THREE.FogExp2(0x0e6a9e, 0.0036);
-  } else if (skyMode === 'lunar') {
-    scene.background = new THREE.Color(0x071230);
-    scene.fog = new THREE.FogExp2(0x0b1c47, 0.005);
-  } else {
-    scene.background = new THREE.Color(0x0a1438);
-    scene.fog = new THREE.FogExp2(0x111f54, 0.0055);
-  }
+  const initTheme = SKY_THEME_PALETTE[skyMode] ?? SKY_THEME_PALETTE.nebula;
+  const bgColor = new THREE.Color(initTheme.bg);
+  const fogColor = new THREE.Color(initTheme.fog);
+  const targetBgColor = new THREE.Color(initTheme.bg);
+  const targetFogColor = new THREE.Color(initTheme.fog);
+  scene.background = bgColor;
+  const fog = new THREE.FogExp2(initTheme.fog, initTheme.density);
+  scene.fog = fog;
 
   const disposableTextures: THREE.Texture[] = [];
   const disposableObjects: THREE.Object3D[] = [];
@@ -343,6 +347,16 @@ export function createCosmicSkyBackdrop(scene: THREE.Scene, skyMode: SkyMode = '
     satMesh.rotation.y = -t * 0.22 + Math.PI / 2;
   };
 
+  const setAtmosphere = (mode: SkyMode, blendAlpha = 0.08) => {
+    const theme = SKY_THEME_PALETTE[mode] ?? SKY_THEME_PALETTE.sunny;
+    targetBgColor.setHex(theme.bg);
+    targetFogColor.setHex(theme.fog);
+    bgColor.lerp(targetBgColor, blendAlpha);
+    fogColor.lerp(targetFogColor, blendAlpha);
+    fog.color.copy(fogColor);
+    fog.density += (theme.density - fog.density) * blendAlpha;
+  };
+
   const dispose = () => {
     disposableTextures.forEach((tex) => tex.dispose());
     disposableObjects.forEach((obj) => {
@@ -357,7 +371,7 @@ export function createCosmicSkyBackdrop(scene: THREE.Scene, skyMode: SkyMode = '
     });
   };
 
-  return { update, dispose };
+  return { update, setAtmosphere, dispose };
 }
 
 /**

@@ -14,7 +14,7 @@ import { Level4MiniGames } from './Level4MiniGames';
 import { EcoBioCabin } from './EcoBioCabin';
 import { ScientificSourcesModal } from './ScientificSourcesModal';
 import { SettingsMenu } from '../common/SettingsMenu';
-import { NasaMissionControlDrawer } from '../common/NasaMissionControlDrawer';
+import { openNasaDrawer } from '../common/NasaMissionControlDrawer';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { nasaCache } from '../../services/nasa/nasaCache';
@@ -63,7 +63,6 @@ export const CampaignHubView: React.FC = () => {
   const activeLevelSpec = CAMPAIGN_LEVELS[activeLevelId];
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isNasaOpen, setIsNasaOpen] = useState(false);
   const [isSourcesOpen, setIsSourcesOpen] = useState(false);
   const [isEcoCabinOpen, setIsEcoCabinOpen] = useState(false);
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
@@ -131,6 +130,45 @@ export const CampaignHubView: React.FC = () => {
     setCampaignView('world_map', activeLevelId, null, null);
   };
 
+  const renderHowToPlayModal = () =>
+    isHowToPlayOpen ? (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md"
+        dir="rtl"
+      >
+        <div className="w-full max-w-lg rounded-3xl bg-slate-900 border-2 border-amber-400/70 p-5 space-y-3 text-white shadow-2xl">
+          <div className="flex items-center justify-between">
+            <h3 className="font-hud font-black text-lg text-amber-300">
+              🎮 كيف تلعب في أسترونوتري؟ (How To Play)
+            </h3>
+            <button
+              type="button"
+              onClick={() => setIsHowToPlayOpen(false)}
+              className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <ul className="space-y-2 text-xs sm:text-sm text-slate-200 leading-relaxed">
+            <li>1️⃣ <strong>تجول في الأرخبيل الـ 3D:</strong> تحرك بمفاتيح WASD / الأسهم أو عصا التحكم واقفز بزر Space عبر الجزر الأربع والجسور السماوية!</li>
+            <li>2️⃣ <strong>بدلة SPACE-FIT X الذكية:</strong> افتح عارض البدلة واستخدم الـ 7 وحدات للضغط الذكي والمقاومة والحصاد الحركي للطاقة.</li>
+            <li>3️⃣ <strong>الأكلات المصرية والسيناوية وعسل النحل:</strong> جهّز عسل النحل الجبلي السيناوي والمش والعجوة والطحينة والجرجير والكابوتشا بلا فتات.</li>
+            <li>4️⃣ <strong>المصداقية العلمية:</strong> كل حقيقة تحمل شارة صريحة تميّز بين المثبت على ISS ✅ والتجريبي 🧪 والتخطيطي 📐 وتبسيط اللعبة 🎮.</li>
+          </ul>
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClick();
+              setIsHowToPlayOpen(false);
+            }}
+            className="w-full py-2.5 rounded-2xl bg-amber-400 text-slate-950 font-hud font-black text-sm cursor-pointer"
+          >
+            فهمت! هيا نبدأ 🚀
+          </button>
+        </div>
+      </div>
+    ) : null;
+
   // ==================== VIEW 3: ACTIVE MINI-GAME OR L3 AUTH CONSOLE ====================
   if (campaign.viewMode === 'minigame') {
     const isL3ReturnConsole =
@@ -140,14 +178,28 @@ export const CampaignHubView: React.FC = () => {
       return (
         <div className="min-h-screen w-full pt-24 pb-10 px-4 sm:px-6 max-w-4xl mx-auto space-y-4" dir="rtl">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/95 border-2 border-purple-400/60 rounded-3xl p-4 shadow-xl">
-            <button
-              type="button"
-              onClick={handleBackToLevel}
-              className="px-4 py-2 rounded-2xl bg-slate-800 hover:bg-purple-700 text-white font-hud font-black text-xs sm:text-sm border border-purple-400/50 flex items-center gap-1.5 cursor-pointer"
-            >
-              <ArrowRight className="w-4 h-4" />
-              <span>خريطة المستوى 3 (12 غرفة)</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleBackToLevel}
+                className="px-4 py-2 rounded-2xl bg-slate-800 hover:bg-purple-700 text-white font-hud font-black text-xs sm:text-sm border border-purple-400/50 flex items-center gap-1.5 cursor-pointer"
+              >
+                <ArrowRight className="w-4 h-4" />
+                <span>خريطة المستوى 3 (12 غرفة)</span>
+              </button>
+              <button
+                type="button"
+                data-testid="open-nasa-drawer-btn"
+                onClick={() => {
+                  soundManager.playClick();
+                  openNasaDrawer();
+                }}
+                className="px-3 py-2 rounded-2xl bg-slate-950/90 hover:bg-slate-800 text-cyan-100 font-hud font-black text-xs border border-cyan-300/75 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Satellite className="w-3.5 h-3.5 text-cyan-300" />
+                <span>NASA</span>
+              </button>
+            </div>
             <div className="text-right">
               <div className="font-hud font-black text-base sm:text-lg text-white">
                 🛸 مركز قيادة القمر — إذن العودة للأرض
@@ -331,7 +383,7 @@ export const CampaignHubView: React.FC = () => {
               onClick={() => {
                 soundManager.playClick();
                 setIsMobileMenuOpen(false);
-                setIsNasaOpen(true);
+                openNasaDrawer();
               }}
               className="px-2.5 sm:px-3 py-1.5 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-100 font-hud font-black text-xs border-2 border-cyan-300/75 backdrop-blur-md shadow-lg flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
               dir="rtl"
@@ -599,6 +651,8 @@ export const CampaignHubView: React.FC = () => {
           onClose={() => setIsSuitShowcaseOpen(false)}
         />
         <ScientificSourcesModal isOpen={isSourcesOpen} onClose={() => setIsSourcesOpen(false)} />
+        <SettingsMenu isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+        {renderHowToPlayModal()}
       </div>
     );
   }
@@ -665,7 +719,7 @@ export const CampaignHubView: React.FC = () => {
             onClick={() => {
               soundManager.playClick();
               setIsMobileMenuOpen(false);
-              setIsNasaOpen(true);
+              openNasaDrawer();
             }}
             className="px-2.5 sm:px-3 py-1.5 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-100 font-hud font-black text-xs border-2 border-cyan-300/75 backdrop-blur-md shadow-lg cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             dir="rtl"
@@ -979,47 +1033,8 @@ export const CampaignHubView: React.FC = () => {
         onClose={() => setIsSuitShowcaseOpen(false)}
       />
       <SettingsMenu isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-      <NasaMissionControlDrawer isOpen={isNasaOpen} onClose={() => setIsNasaOpen(false)} />
       <ScientificSourcesModal isOpen={isSourcesOpen} onClose={() => setIsSourcesOpen(false)} />
-
-      {/* HOW TO PLAY Modal */}
-      {isHowToPlayOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md"
-          dir="rtl"
-        >
-          <div className="w-full max-w-lg rounded-3xl bg-slate-900 border-2 border-amber-400/70 p-5 space-y-3 text-white shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h3 className="font-hud font-black text-lg text-amber-300">
-                🎮 كيف تلعب في أسترونوتري؟ (How To Play)
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsHowToPlayOpen(false)}
-                className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <ul className="space-y-2 text-xs sm:text-sm text-slate-200 leading-relaxed">
-              <li>1️⃣ <strong>تجول في الأرخبيل الـ 3D:</strong> تحرك بمفاتيح WASD / الأسهم أو عصا التحكم واقفز بزر Space عبر الجزر الأربع والجسور السماوية!</li>
-              <li>2️⃣ <strong>بدلة SPACE-FIT X الذكية:</strong> افتح عارض البدلة واستخدم الـ 7 وحدات للضغط الذكي والمقاومة والحصاد الحركي للطاقة.</li>
-              <li>3️⃣ <strong>الأكلات المصرية والسيناوية وعسل النحل:</strong> جهّز عسل النحل الجبلي السيناوي والمش والعجوة والطحينة والجرجير والكابوتشا بلا فتات.</li>
-              <li>4️⃣ <strong>المصداقية العلمية:</strong> كل حقيقة تحمل شارة صريحة تميّز بين المثبت على ISS ✅ والتجريبي 🧪 والتخطيطي 📐 وتبسيط اللعبة 🎮.</li>
-            </ul>
-            <button
-              type="button"
-              onClick={() => {
-                soundManager.playClick();
-                setIsHowToPlayOpen(false);
-              }}
-              className="w-full py-2.5 rounded-2xl bg-amber-400 text-slate-950 font-hud font-black text-sm cursor-pointer"
-            >
-              فهمت! هيا نبدأ 🚀
-            </button>
-          </div>
-        </div>
-      )}
+      {renderHowToPlayModal()}
     </div>
   );
 };
