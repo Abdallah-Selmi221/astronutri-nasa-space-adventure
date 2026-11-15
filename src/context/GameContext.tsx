@@ -755,6 +755,51 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'UNLOCK_ALL_DEMO_LEVELS': {
+      const curr = state.campaign || initialCampaignState;
+      const allRooms: RoomLocation[] = [
+        'Map',
+        'NutritionLab',
+        'SpaceScience',
+        'HumanHealth',
+        'SuitRoom',
+        'EngineRoom',
+        'LaunchPad',
+        'LunarDashboard',
+        'ReturnToEarth'
+      ];
+      return {
+        ...state,
+        unlockedRooms: allRooms,
+        isNutritionMissionComplete: true,
+        isHumanHealthComplete: true,
+        isSuitMissionComplete: true,
+        isEngineMissionComplete: true,
+        campaign: {
+          ...curr,
+          unlockedLevels: [1, 2, 3, 4],
+          l1SelectedFoodIds:
+            curr.l1SelectedFoodIds.length > 0
+              ? curr.l1SelectedFoodIds
+              : ['sinai_honey', 'egy_mish_pouch', 'sinai_date_bars', 'egy_tahini_pouch', 'egy_space_arugula'],
+          l1FoodWeightKg: Math.max(curr.l1FoodWeightKg || 0, 75),
+          l1EquipmentPacked:
+            curr.l1EquipmentPacked.length > 0
+              ? curr.l1EquipmentPacked
+              : ['med_kit', 'comms_headset', 'o2_monitor', 'safety_tethers'],
+          l1MedicalCleared: true,
+          l1SpaceshipInspected: true,
+          l3EvaSuitAssembled: true,
+          l3PackedTools: ['gripper', 'scoop', 'hammer', 'collection_bag'],
+          l3CollectedSamples:
+            curr.l3CollectedSamples.length >= 3
+              ? curr.l3CollectedSamples
+              : ['basalt_rock', 'regolith_dust', 'crater_pebbles'],
+          l3ReturnAuthorized: true
+        }
+      };
+    }
+
     case 'OPEN_VICTORY_MODAL': {
       soundManager.playFanfare();
       return {
@@ -945,6 +990,7 @@ interface GameContextType {
   completeHumanHealth: () => void;
   completeReturnMission: () => void;
   unlockAllRooms: () => void;
+  unlockAllDemoLevels: () => void;
   canCompleteMission: boolean;
   setO2Pressure: (pressure: number) => void;
   toggleSuitEquipment: (key: keyof Omit<SuitCheckState, 'o2PressurePSI' | 'isO2Calibrated'>) => void;
@@ -1147,6 +1193,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     dispatch({ type: 'UNLOCK_ALL_ROOMS' });
   };
 
+  const unlockAllDemoLevels = () => {
+    soundManager.playFanfare();
+    dispatch({ type: 'UNLOCK_ALL_DEMO_LEVELS' });
+  };
+
   const setO2Pressure = (pressure: number) => {
     soundManager.playPressurizeHiss();
     dispatch({ type: 'SET_O2_PRESSURE', payload: pressure });
@@ -1315,6 +1366,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         completeHumanHealth,
         completeReturnMission,
         unlockAllRooms,
+        unlockAllDemoLevels,
         canCompleteMission,
         setO2Pressure,
         toggleSuitEquipment,

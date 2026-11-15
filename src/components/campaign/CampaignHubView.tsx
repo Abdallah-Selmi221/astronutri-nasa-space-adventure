@@ -497,6 +497,7 @@ export const CampaignHubView: React.FC = () => {
 
               <button
                 type="button"
+                data-testid="open-settings-btn"
                 onClick={() => {
                   soundManager.playClick();
                   setIsMobileMenuOpen(false);
@@ -869,6 +870,7 @@ export const CampaignHubView: React.FC = () => {
 
             <button
               type="button"
+              data-testid="open-settings-btn"
               onClick={() => {
                 soundManager.playClick();
                 setIsMobileMenuOpen(false);

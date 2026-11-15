@@ -16,7 +16,9 @@ import {
   Music,
   PlayCircle,
   AlertTriangle,
-  Info
+  Info,
+  Rocket,
+  Lock
 } from 'lucide-react';
 
 interface SettingsMenuProps {
@@ -26,7 +28,7 @@ interface SettingsMenuProps {
 }
 
 export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onReplayIntro }) => {
-  const { state, toggleSound, resetGameFull, unlockAllRooms, dispatch, storageStatus } = useGameState();
+  const { state, toggleSound, resetGameFull, unlockAllDemoLevels, dispatch, storageStatus } = useGameState();
 
   const [volume, setVolume] = useState<number>(() => soundManager.getVolume());
   const [bgmVolume, setBgmVolume] = useState<number>(() => soundManager.getBgmVolume());
@@ -42,6 +44,13 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
   const [cadetInput, setCadetInput] = useState<string>(state.cadetName);
   const [confirmReset, setConfirmReset] = useState<boolean>(false);
   const [resetNotice, setResetNotice] = useState<boolean>(false);
+  const [demoUnlockNotice, setDemoUnlockNotice] = useState<boolean>(false);
+
+  const isAllDemoUnlocked =
+    (state.campaign?.unlockedLevels.length ?? 1) >= 4 &&
+    state.unlockedRooms.length >= 9 &&
+    Boolean(state.campaign?.l3ReturnAuthorized) &&
+    (state.campaign?.l3PackedTools.length ?? 0) >= 4;
 
   useEffect(() => {
     setCadetInput(state.cadetName);
@@ -117,6 +126,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
 
     resetGameFull();
     setConfirmReset(false);
+    setDemoUnlockNotice(false);
     setResetNotice(true);
     setTimeout(() => {
       setResetNotice(false);
@@ -124,10 +134,27 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
     }, 1100);
   };
 
+  const handleUnlockAllDemo = () => {
+    unlockAllDemoLevels();
+    setDemoUnlockNotice(true);
+    setResetNotice(false);
+  };
+
+  const handleResetToLevelOne = () => {
+    resetGameFull();
+    setDemoUnlockNotice(false);
+    setConfirmReset(false);
+    setResetNotice(true);
+    setTimeout(() => setResetNotice(false), 1800);
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md">
+        <div
+          data-testid="settings-modal"
+          className="fixed inset-0 z-[95] flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md"
+        >
           {/* Backdrop Click to Close */}
           <div className="absolute inset-0" onClick={onClose} />
 
@@ -178,6 +205,52 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
             </div>
 
             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+              {/* 0. JURY DEMO MODE: UNLOCK ALL 4 LEVELS / 33 ROOMS / 21 MINI-GAMES */}
+              <div className="p-4 rounded-3xl bg-gradient-to-br from-emerald-950/90 via-cyan-950/85 to-slate-950 border-2 border-amber-400/80 shadow-[0_0_24px_rgba(251,191,36,0.22)] space-y-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-hud font-black text-sm sm:text-base text-amber-300 flex items-center gap-2">
+                      <Rocket className="w-5 h-5 text-emerald-300 shrink-0" />
+                      <span>🚀 وضع لجنة التحكيم: فتح كل المراحل (21 مهمة)</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-200 font-bold mt-1 leading-relaxed">
+                      يفتح المستويات الـ 4 وجميع الغرف (33 غرفة / 21 مهمة) مع تجهيز أدوات وعينات القمر لتجربة أي مستوى فوراً دون توقف.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    data-testid="unlock-all-demo-btn"
+                    onClick={handleUnlockAllDemo}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-emerald-400 hover:brightness-110 text-slate-950 font-hud font-black text-xs sm:text-sm border-2 border-white shadow-lg active:scale-95 transition-all shrink-0 cursor-pointer"
+                  >
+                    فتح كل المراحل للتجربة 🔓
+                  </button>
+                </div>
+
+                {(demoUnlockNotice || isAllDemoUnlocked) && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-emerald-500/30">
+                    <span
+                      data-testid="demo-unlocked-badge"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400 text-emerald-200 font-hud font-black text-xs"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+                      <span>✓ تم فتح جميع المستويات للتجربة</span>
+                    </span>
+
+                    <button
+                      type="button"
+                      data-testid="reset-to-level1-btn"
+                      onClick={handleResetToLevelOne}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-700 text-rose-200 hover:text-white font-hud font-bold text-[11px] border border-rose-400/50 transition-all cursor-pointer"
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>إعادة التقدم للمستوى 1</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* 1. MASTER VOLUME SLIDER & MUTE TOGGLE */}
               <div className="p-4 rounded-3xl bg-space-950/90 border-2 border-cyan-500/40 shadow-inner">
                 <div className="flex items-center justify-between gap-3 mb-3">
@@ -415,27 +488,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                 </div>
               </div>
 
-              {/* 4B. TEACHER / EVALUATOR SANDBOX MODE */}
-              <div className="p-4 rounded-3xl bg-space-950/90 border-2 border-indigo-500/40 shadow-inner flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div>
-                  <h3 className="font-hud font-black text-sm text-indigo-200">
-                    وضع الاستكشاف المفتوح (للمعلمين والتقييم)
-                  </h3>
-                  <p className="text-[11px] text-slate-300 font-bold mt-0.5">
-                    فتح جميع المراحل الثماني مباشرة لتجربة أي مهمة بدون انتظار التدرج.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    unlockAllRooms();
-                    onClose();
-                  }}
-                  className="px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-md active:scale-95 transition-all shrink-0 cursor-pointer"
-                >
-                  {state.unlockedRooms.length >= 9 ? 'جميع المراحل مفتوحة ✅' : 'فتح جميع المراحل 🔓'}
-                </button>
-              </div>
+              {/* 4B. QUICK RE-LOCK / RESET DEMO PROGRESSION NOTE */}
 
               {/* 5. RESET GAME (CLEAR LOCALSTORAGE & RESTART FROM LEVEL 1) */}
               <div className="p-4 rounded-3xl bg-rose-950/50 border-2 border-rose-500/50 shadow-inner">

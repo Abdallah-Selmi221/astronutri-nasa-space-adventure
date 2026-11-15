@@ -677,10 +677,11 @@ const MissionControlLaunchScene: React.FC<{
     };
   }, []);
 
-  const reqFood = campaign.completedMiniGames.includes('l1_food_prep');
-  const reqEquip = campaign.completedMiniGames.includes('l1_equipment_prep');
-  const reqMed = campaign.completedMiniGames.includes('l1_medical_check');
-  const reqShip = campaign.completedMiniGames.includes('l1_spaceship_inspect');
+  const isDemoUnlocked = campaign.unlockedLevels.length >= 4;
+  const reqFood = campaign.completedMiniGames.includes('l1_food_prep') || isDemoUnlocked;
+  const reqEquip = campaign.completedMiniGames.includes('l1_equipment_prep') || isDemoUnlocked;
+  const reqMed = campaign.completedMiniGames.includes('l1_medical_check') || isDemoUnlocked;
+  const reqShip = campaign.completedMiniGames.includes('l1_spaceship_inspect') || isDemoUnlocked;
   const canLaunch = reqFood && reqEquip && reqMed && reqShip && navSynced;
 
   const startCountdown = () => {
@@ -856,7 +857,8 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
   }
 
   if (miniGameId === 'l1_medical_check') {
-    const nutritionReady = campaign.completedMiniGames.includes('l1_food_prep');
+    const nutritionReady =
+      campaign.completedMiniGames.includes('l1_food_prep') || campaign.unlockedLevels.length >= 4;
     const allClear = nutritionReady && hydrationFixed && sleepFixed;
 
     return (

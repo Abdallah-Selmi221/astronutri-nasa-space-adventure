@@ -274,6 +274,7 @@ export type GameAction =
   | { type: 'COMPLETE_SUIT_MISSION' }
   | { type: 'COMPLETE_RETURN_MISSION' }
   | { type: 'UNLOCK_ALL_ROOMS' }
+  | { type: 'UNLOCK_ALL_DEMO_LEVELS' }
   | { type: 'PUMP_O2_SCRUBBER'; payload?: number }
   | { type: 'FILL_FUEL_CELL_TICK'; payload: { amount: number; heatIncrease: number } }
   | { type: 'COOL_FUEL_CELL_TICK' }
