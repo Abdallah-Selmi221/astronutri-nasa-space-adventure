@@ -767,9 +767,10 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
             <button
               type="button"
               onClick={onNextLevel}
-              className="px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 font-hud font-black text-base border-2 border-white cursor-pointer"
+              data-testid="mission-next-level-btn"
+              className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-300 via-teal-300 to-cyan-300 text-slate-950 font-hud font-black text-base border-2 border-white shadow-[0_0_26px_rgba(52,211,153,0.75)] cursor-pointer hover:scale-105 transition-transform animate-pulse"
             >
-              ابدأ المستوى 4: رحلة العودة للأرض 🌍
+              المهمة اكتملت! انطلق للمرحلة التالية 🚀
             </button>
             <button
               type="button"

@@ -9,6 +9,7 @@ interface MiniGameShellProps {
   miniGameId: MiniGameId;
   isCompleted: boolean;
   onBackToLevel: () => void;
+  onContinueNext?: () => void;
   children: React.ReactNode;
 }
 
@@ -16,6 +17,7 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
   miniGameId,
   isCompleted,
   onBackToLevel,
+  onContinueNext,
   children
 }) => {
   const spec = MINI_GAME_SPECS[miniGameId];
@@ -68,7 +70,9 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
             type="button"
             onClick={() => {
               soundManager.playClick();
-              void dialogueManager.speak(spec.roboPromptAr);
+              void dialogueManager.speak(spec.roboPromptAr, undefined, undefined, undefined, {
+                force: true
+              });
             }}
             className="casual-btn-primary px-3.5 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer"
           >
@@ -80,6 +84,32 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
 
       {/* Main Playable Body */}
       <div className="flex-1 flex flex-col gap-4">{children}</div>
+
+      {isCompleted && (
+        <div
+          data-testid="minigame-completed-banner"
+          className="p-4 rounded-3xl bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-950 border-2 border-emerald-400 flex flex-wrap items-center justify-between gap-3 shadow-[0_0_28px_rgba(52,211,153,0.35)]"
+        >
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-6 h-6 text-emerald-300 shrink-0" />
+            <span className="font-hud font-black text-sm sm:text-base text-emerald-100">
+              أحسنت يا بطل! تم حفظ إنجاز المهمة بنجاح.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClick();
+              dialogueManager.stopCurrentSpeech();
+              if (onContinueNext) onContinueNext();
+              else onBackToLevel();
+            }}
+            className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-300 via-yellow-300 to-emerald-300 text-slate-950 font-hud font-black text-sm border-2 border-white shadow-[0_0_20px_rgba(251,191,36,0.65)] cursor-pointer hover:scale-105 transition-transform"
+          >
+            المهمة اكتملت! انطلق للمرحلة التالية 🚀
+          </button>
+        </div>
+      )}
     </div>
   );
 };

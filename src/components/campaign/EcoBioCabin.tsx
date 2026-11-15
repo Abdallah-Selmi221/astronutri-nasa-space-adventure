@@ -44,16 +44,38 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
   const [nutrientOn, setNutrientOn] = useState<boolean>(Boolean(campaign.ecoNutrientOk));
   const [waterLoopOn, setWaterLoopOn] = useState<boolean>(Boolean(campaign.ecoWaterRecyclingOk));
   const [harvested, setHarvested] = useState<string[]>(campaign.ecoCropsHarvested || []);
-  const [showSpirulinaLab, setShowSpirulinaLab] = useState(false);
+  const [showSpirulinaLab, setShowSpirulinaLab] = useState(true);
   const [spirulinaParams, setSpirulinaParams] = useState({
-    light: true,
-    co2: true,
-    phOk: true
+    lightIntensity: 78,
+    co2Flow: 72,
+    phLevel: 7.0
   });
 
+  const spirulinaPhOptimal = spirulinaParams.phLevel >= 6.5 && spirulinaParams.phLevel <= 7.5;
+  const spirulinaBiomassPct = Math.round(
+    (spirulinaParams.lightIntensity * 0.4 +
+      spirulinaParams.co2Flow * 0.4 +
+      (spirulinaPhOptimal ? 20 : 6))
+  );
+  const spirulinaO2LitersPerHour = Number((spirulinaBiomassPct * 0.045).toFixed(1));
+
   // Shared refs for live 3D reactive updates without recreating renderer
-  const liveStateRef = useRef({ ledOn, nutrientOn, waterLoopOn, spectrumRatio });
-  liveStateRef.current = { ledOn, nutrientOn, waterLoopOn, spectrumRatio };
+  const liveStateRef = useRef({
+    ledOn,
+    nutrientOn,
+    waterLoopOn,
+    spectrumRatio,
+    spirulinaBiomassPct,
+    spirulinaPhOptimal
+  });
+  liveStateRef.current = {
+    ledOn,
+    nutrientOn,
+    waterLoopOn,
+    spectrumRatio,
+    spirulinaBiomassPct,
+    spirulinaPhOptimal
+  };
 
   const optimalSpectrum = spectrumRatio >= 55 && spectrumRatio <= 85;
   const growthScore =
@@ -77,7 +99,7 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
     let renderer: THREE.WebGLRenderer | null = null;
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
       renderer.setSize(container.clientWidth || 640, container.clientHeight || 280);
       renderer.shadowMap.enabled = false;
       container.innerHTML = '';
@@ -232,6 +254,30 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
     tankFluid.position.set(3.25, 0.7, 0);
     scene.add(tankFluid);
 
+    // Left-Side Experimental Spirulina Photobioreactor Cylinder Column (ESA/MELiSSA)
+    const reactorShell = new THREE.Mesh(
+      trackGeo(new THREE.CylinderGeometry(0.46, 0.46, 1.85, 16)),
+      trackMat(new THREE.MeshStandardMaterial({ color: 0xa7f3d0, transparent: true, opacity: 0.24 }))
+    );
+    reactorShell.position.set(-3.45, 0.9, -0.15);
+    scene.add(reactorShell);
+
+    const spirulinaMat = trackMat(
+      new THREE.MeshStandardMaterial({
+        color: 0x10b981,
+        emissive: 0x059669,
+        emissiveIntensity: 0.95,
+        transparent: true,
+        opacity: 0.88
+      })
+    );
+    const spirulinaCore = new THREE.Mesh(
+      trackGeo(new THREE.CylinderGeometry(0.36, 0.36, 1.45, 16)),
+      spirulinaMat
+    );
+    spirulinaCore.position.set(-3.45, 0.72, -0.15);
+    scene.add(spirulinaCore);
+
     // Closed-Loop Water Flow Droplet Ring
     const dropletMat = trackMat(
       new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0ea5e9, emissiveIntensity: 0.8 })
@@ -256,10 +302,16 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
       ledPointLight.intensity = s.ledOn ? 1.8 : 0.15;
       ledPointLight.color.setHex(s.spectrumRatio >= 55 ? 0xe879f9 : 0x38bdf8);
 
-      // Tank fluid feedback
+      // Tank fluid & Spirulina Photobioreactor feedback
       tankFluidMat.color.setHex(s.nutrientOn ? 0x10b981 : 0x38bdf8);
       tankFluid.scale.y = s.nutrientOn ? 1.0 : 0.45;
       tankFluid.position.y = s.nutrientOn ? 0.72 : 0.38;
+
+      const bioFactor = Math.max(0.2, Math.min(1, s.spirulinaBiomassPct / 100));
+      spirulinaCore.scale.y = bioFactor;
+      spirulinaCore.position.y = 0.72 * bioFactor;
+      spirulinaMat.emissiveIntensity = (s.spirulinaPhOptimal ? 0.9 : 0.35) + Math.sin(t * 3.1) * 0.25;
+      spirulinaMat.color.setHex(s.spirulinaPhOptimal ? 0x10b981 : 0xf59e0b);
 
       // Plants smoothly grow according to subsystem health
       const targetScale =
@@ -539,7 +591,10 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
       </div>
 
       {/* Optional Spirulina Photobioreactor Experimental Lab Card */}
-      <div className="rounded-2xl bg-purple-950/35 border border-purple-400/50 p-3.5 space-y-2.5">
+      <div
+        data-testid="spirulina-bioreactor-card"
+        className="rounded-2xl bg-purple-950/35 border border-purple-400/50 p-3.5 space-y-3"
+      >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"
@@ -549,41 +604,94 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
             }}
             className="flex items-center gap-2 font-hud font-black text-xs sm:text-sm text-purple-200 cursor-pointer"
           >
-            <FlaskConical className="w-4 h-4 text-purple-300" />
-            <span>تجربة مستقبلية: مفاعل السبيرولينا الحيوي (ESA MELiSSA) 🧪</span>
+            <FlaskConical className="w-4 h-4 text-emerald-300" />
+            <span>مفاعل السبيرولينا الضوئي التفاعلي (ESA/MELiSSA) 🌿</span>
           </button>
-          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-900 border border-purple-400 text-purple-200">
-            {SCIENCE_BADGES.EXPERIMENTAL.labelAr}
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-900 border border-purple-400 text-purple-100">
+            🧪 تجريبية — أبحاث ESA/MELiSSA (وحدة مساعدة وليست غذاءً أساسياً)
           </span>
         </div>
 
         {showSpirulinaLab && (
-          <div className="space-y-2.5 pt-1 text-xs">
+          <div className="space-y-3 pt-1 text-xs">
             <p className="text-purple-100/90 leading-relaxed">
-              تدرس أبحاث ESA/MELiSSA (مثل ARTHROSPIRA-C) زراعة طحالب السبيرولينا لإنتاج كتلة حيوية غنية بالبروتين وبعض الأكسجين، لكنها <strong>وحدة بحث تجريبية مساعدة وليست مصدراً أساسياً مضموناً</strong> حسب مقياس TRL.
+              تدرس أبحاث ESA/MELiSSA (مثل ARTHROSPIRA-C) استزراع طحالب السبيرولينا لدعم توليد الأكسجين والكتلة الحيوية المكملة، وتظل <strong>تجربة بحثية مساعدة (TRL)</strong> بجانب مخزون الطعام الأساسي.
             </p>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { key: 'light' as const, label: 'ضوء + حرارة مستقرة 💡' },
-                { key: 'co2' as const, label: 'تغذية CO2 + محلول مغذٍ 🫧' },
-                { key: 'phOk' as const, label: 'ضبط درجة الحموضة pH ⚖️' }
-              ].map((ctrl) => (
-                <button
-                  key={ctrl.key}
-                  type="button"
-                  onClick={() => {
-                    soundManager.playClick();
-                    setSpirulinaParams((p) => ({ ...p, [ctrl.key]: !p[ctrl.key] }));
-                  }}
-                  className={`px-3 py-1.5 rounded-xl border text-[11px] font-black cursor-pointer ${
-                    spirulinaParams[ctrl.key]
-                      ? 'bg-purple-600/60 border-purple-300 text-white'
-                      : 'bg-slate-900 border-slate-700 text-slate-400'
-                  }`}
-                >
-                  {ctrl.label} {spirulinaParams[ctrl.key] ? '✅' : ''}
-                </button>
-              ))}
+
+            {/* Live Numeric Photobioreactor Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <label className="p-2.5 rounded-xl bg-slate-950/80 border border-emerald-400/35 space-y-1">
+                <div className="flex justify-between font-black text-[11px] text-amber-200">
+                  <span>شدة الإضاءة 💡</span>
+                  <span>{spirulinaParams.lightIntensity}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={20}
+                  max={100}
+                  value={spirulinaParams.lightIntensity}
+                  data-testid="spirulina-light-slider"
+                  onChange={(e) =>
+                    setSpirulinaParams((p) => ({ ...p, lightIntensity: Number(e.target.value) }))
+                  }
+                  className="w-full accent-amber-400 cursor-pointer"
+                />
+              </label>
+
+              <label className="p-2.5 rounded-xl bg-slate-950/80 border border-cyan-400/35 space-y-1">
+                <div className="flex justify-between font-black text-[11px] text-cyan-200">
+                  <span>تدفق فقاعات CO₂ 🫧</span>
+                  <span>{spirulinaParams.co2Flow}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={20}
+                  max={100}
+                  value={spirulinaParams.co2Flow}
+                  data-testid="spirulina-co2-slider"
+                  onChange={(e) =>
+                    setSpirulinaParams((p) => ({ ...p, co2Flow: Number(e.target.value) }))
+                  }
+                  className="w-full accent-cyan-400 cursor-pointer"
+                />
+              </label>
+
+              <label className="p-2.5 rounded-xl bg-slate-950/80 border border-purple-400/35 space-y-1">
+                <div className="flex justify-between font-black text-[11px] text-purple-200">
+                  <span>درجة الحموضة pH ⚖️</span>
+                  <span className={spirulinaPhOptimal ? 'text-emerald-300' : 'text-amber-300'}>
+                    {spirulinaParams.phLevel.toFixed(1)} {spirulinaPhOptimal ? '(مثالي)' : '(خارج 6.5-7.5)'}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={5.5}
+                  max={8.5}
+                  step={0.1}
+                  value={spirulinaParams.phLevel}
+                  data-testid="spirulina-ph-slider"
+                  onChange={(e) =>
+                    setSpirulinaParams((p) => ({ ...p, phLevel: Number(e.target.value) }))
+                  }
+                  className="w-full accent-emerald-400 cursor-pointer"
+                />
+              </label>
+            </div>
+
+            {/* Biomass & Supplemental Oxygen Readout */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="p-2.5 rounded-xl bg-emerald-950/60 border border-emerald-400/45 flex items-center justify-between">
+                <span className="font-bold text-emerald-200">نمو الكتلة الحيوية الخضراء:</span>
+                <span data-testid="spirulina-biomass-pct" className="font-mono font-black text-emerald-300 text-sm">
+                  {spirulinaBiomassPct}%
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-sky-950/60 border border-cyan-400/45 flex items-center justify-between">
+                <span className="font-bold text-cyan-200">أكسجين O₂ تكميلي مساعد:</span>
+                <span className="font-mono font-black text-cyan-300 text-sm">
+                  +{spirulinaO2LitersPerHour} L/h
+                </span>
+              </div>
             </div>
           </div>
         )}

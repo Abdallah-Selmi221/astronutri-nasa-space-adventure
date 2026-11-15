@@ -120,6 +120,13 @@ class SpaceSoundManager {
     return this.bgmVolume;
   }
 
+  public duckBGM(ducked: boolean) {
+    if (this.bgmGainNode && this.ctx) {
+      const target = this.scaleBgmGain(ducked ? 0.022 : 0.08);
+      this.bgmGainNode.gain.setTargetAtTime(target, this.ctx.currentTime, 0.08);
+    }
+  }
+
   private scaleGain(baseGain: number): number {
     if (!this.enabled || this.volume <= 0) return 0.0001;
     return Math.max(0.001, baseGain * (this.volume / 100));

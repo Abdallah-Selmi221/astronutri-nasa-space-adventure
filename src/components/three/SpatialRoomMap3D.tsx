@@ -4,7 +4,6 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { CAMPAIGN_LEVELS, SpatialRoomNode } from '../../data/campaignLevels';
 import { CampaignLevelId, CampaignProgressState, SpaceFitXState } from '../../types/game';
 import { soundManager } from '../../utils/sound';
-import { dialogueManager } from '../../utils/geminiTTS';
 import { CheckCircle2 } from 'lucide-react';
 import { AstronautEmote, buildSpaceFitXCharacter } from './buildSpaceFitXCharacter';
 import {
@@ -205,7 +204,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     });
 
     const dims = getDims();
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.setSize(dims.w, dims.h);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     mount.innerHTML = '';
@@ -253,19 +252,20 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       ...((island.userData.disposableTextures as THREE.Texture[] | undefined) || [])
     ];
 
-    // Stylized Low-Poly Trees / Palms Around Outer Island Perimeter on Earth & Splashdown (1 draw call!)
+    // Stylized Low-Poly Multi-Canopy Trees / Palms Around Outer Island Perimeter on Earth & Splashdown (1 draw call!)
     if (levelId === 1 || levelId === 4) {
       const treeParts: ColoredGeometryPart[] = [];
-      const treeCount = 8;
+      const treeCount = 10;
       for (let t = 0; t < treeCount; t++) {
         const ang = (t / treeCount) * Math.PI * 2 + 0.25;
         const dist = islandRadius - 1.55;
         const tx = Math.cos(ang) * dist;
         const tz = Math.sin(ang) * dist;
         treeParts.push(
-          { geometry: new THREE.CylinderGeometry(0.14, 0.2, 0.85, 7), color: 0x78350f, position: [tx, 0.42, tz] },
-          { geometry: new THREE.ConeGeometry(0.78, 1.15, 7), color: levelId === 4 ? 0x10b981 : 0x16a34a, position: [tx, 1.25, tz] },
-          { geometry: new THREE.ConeGeometry(0.56, 0.92, 7), color: 0x22c55e, position: [tx, 1.88, tz] }
+          { geometry: new THREE.CylinderGeometry(0.14, 0.2, 0.92, 7), color: 0x78350f, position: [tx, 0.46, tz] },
+          { geometry: new THREE.ConeGeometry(0.84, 1.18, 7), color: levelId === 4 ? 0x059669 : 0x15803d, position: [tx, 1.28, tz] },
+          { geometry: new THREE.ConeGeometry(0.62, 0.95, 7), color: levelId === 4 ? 0x10b981 : 0x22c55e, position: [tx, 1.92, tz] },
+          { geometry: new THREE.ConeGeometry(0.4, 0.68, 7), color: 0x4ade80, position: [tx, 2.38, tz] }
         );
       }
       scene.add(
@@ -276,27 +276,113 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       );
     }
 
-    // Central Plaza Ring Beacon
+    // Distinct Biome Landmarks & Environmental Life (+1 to +2 merged draw calls total!)
+    let radarDishMesh: THREE.Mesh | null = null;
+    if (levelId === 1 || levelId === 3 || levelId === 4) {
+      const radarPedestalParts: ColoredGeometryPart[] = [
+        { geometry: new THREE.CylinderGeometry(0.22, 0.34, 2.4, 8), color: 0xe2e8f0, position: [ringRadius + 2.8, 1.2, -3.5] }
+      ];
+      if (levelId === 1) {
+        // Earth Waterfall Chute & Rocky Splash Basin
+        radarPedestalParts.push(
+          { geometry: new THREE.CylinderGeometry(1.75, 1.9, 0.22, 16), color: 0x0ea5e9, position: [islandRadius - 3.0, 0.08, 3.1] },
+          { geometry: new THREE.BoxGeometry(1.4, 4.6, 0.45), color: 0x38bdf8, position: [islandRadius - 1.5, -2.0, 3.6], rotation: [0.16, 0.72, 0] }
+        );
+      } else if (levelId === 3) {
+        // Lunar Artemis: Twin ECLSS Water Towers + Solar Array + 0.16G Gravity Beacon
+        radarPedestalParts.push(
+          { geometry: new THREE.CylinderGeometry(0.65, 0.75, 3.1, 10), color: 0x38bdf8, position: [-ringRadius - 2.2, 1.55, -2.4] },
+          { geometry: new THREE.SphereGeometry(0.75, 12, 10), color: 0xf8fafc, position: [-ringRadius - 2.2, 3.25, -2.4] },
+          { geometry: new THREE.CylinderGeometry(0.55, 0.65, 2.5, 10), color: 0x0ea5e9, position: [-ringRadius - 3.6, 1.25, -1.2] },
+          { geometry: new THREE.SphereGeometry(0.64, 12, 10), color: 0xe2e8f0, position: [-ringRadius - 3.6, 2.65, -1.2] },
+          { geometry: new THREE.BoxGeometry(3.4, 0.1, 1.6), color: 0x1d4ed8, position: [ringRadius + 1.8, 1.4, 2.8], rotation: [0.35, -0.4, 0] },
+          { geometry: new THREE.OctahedronGeometry(0.65, 0), color: 0xfbbf24, position: [0, 3.2, 0] }
+        );
+      } else if (levelId === 4) {
+        // Oceanic Recovery Ship + Golden AstroNutri Victory Monument + Tropical Beacon
+        radarPedestalParts.push(
+          { geometry: new THREE.BoxGeometry(3.8, 0.75, 1.45), color: 0xf8fafc, position: [-ringRadius - 1.9, 0.42, 3.4], rotation: [0, 0.55, 0] },
+          { geometry: new THREE.BoxGeometry(1.15, 0.95, 1.1), color: 0xf97316, position: [-ringRadius - 1.4, 1.22, 3.1], rotation: [0, 0.55, 0] },
+          { geometry: new THREE.CylinderGeometry(0.08, 0.1, 1.4, 6), color: 0x38bdf8, position: [-ringRadius - 1.4, 2.2, 3.1] },
+          { geometry: new THREE.CylinderGeometry(0.85, 1.05, 0.55, 8), color: 0xe2e8f0, position: [0, 0.28, 0] },
+          { geometry: new THREE.OctahedronGeometry(0.75, 0), color: 0xfacc15, position: [0, 1.35, 0] }
+        );
+      }
+      scene.add(
+        new THREE.Mesh(
+          mergeColoredParts(radarPedestalParts),
+          new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.48, metalness: 0.25 })
+        )
+      );
+
+      radarDishMesh = new THREE.Mesh(
+        mergeColoredParts([
+          { geometry: new THREE.ConeGeometry(0.92, 0.4, 14), color: 0xf8fafc, rotation: [0, 0, Math.PI * 0.65] },
+          { geometry: new THREE.CylinderGeometry(0.05, 0.05, 0.45, 6), color: 0x22d3ee, position: [0.35, 0.18, 0], rotation: [0, 0, -Math.PI * 0.35] }
+        ]),
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32, metalness: 0.45 })
+      );
+      radarDishMesh.position.set(ringRadius + 2.8, 2.55, -3.5);
+      scene.add(radarDishMesh);
+    }
+
+    // L1 Falling Waterfall Particle Ribbon (1 Points draw call!)
+    let waterfallGeo: THREE.BufferGeometry | null = null;
+    if (levelId === 1) {
+      const wfCount = 96;
+      const wfPos = new Float32Array(wfCount * 3);
+      for (let i = 0; i < wfCount; i++) {
+        const dropPhase = (i / wfCount) * 4.5;
+        wfPos[i * 3] = islandRadius - 1.9 + ((i % 7) - 3) * 0.18 + dropPhase * 0.15;
+        wfPos[i * 3 + 1] = 0.2 - dropPhase;
+        wfPos[i * 3 + 2] = 3.2 + ((i % 5) - 2) * 0.18 + dropPhase * 0.15;
+      }
+      waterfallGeo = new THREE.BufferGeometry();
+      waterfallGeo.setAttribute('position', new THREE.BufferAttribute(wfPos, 3));
+      scene.add(
+        new THREE.Points(
+          waterfallGeo,
+          new THREE.PointsMaterial({ color: 0xbae6fd, size: 0.28, transparent: true, opacity: 0.85 })
+        )
+      );
+    }
+
+    // Central Plaza Ring Beacon (+ Giant Orbital Station Halo Ring on Level 2, 0 extra draw calls)
     const walkwayParts: ColoredGeometryPart[] = [
       {
         geometry: new THREE.TorusGeometry(2.2, 0.09, 8, 32),
         color: theme.rimColor,
         position: [0, 0.06, 0],
         rotation: [Math.PI / 2, 0, 0]
-      }
+      },
+      ...(levelId === 2
+        ? [
+            {
+              geometry: new THREE.TorusGeometry(islandRadius + 1.25, 0.16, 10, 48),
+              color: 0x818cf8,
+              position: [0, 0.65, 0] as [number, number, number],
+              rotation: [Math.PI / 2 + 0.14, 0.08, 0] as [number, number, number]
+            }
+          ]
+        : [])
     ];
 
-    // Microgravity floating orbital props around perimeter in Level 2 (1 InstancedMesh!)
-    const orbitSatelliteTransforms: { angle: number; y: number }[] = [];
+    // Microgravity Floating Asteroid 2010 PK Belt around Level 2 (1 InstancedMesh!)
+    const orbitSatelliteTransforms: { angle: number; y: number; radOffset: number; scale: number }[] = [];
     let orbitSatellitesInst: THREE.InstancedMesh | null = null;
     if (theme.isZeroG) {
       orbitSatellitesInst = new THREE.InstancedMesh(
-        new THREE.DodecahedronGeometry(0.65, 0),
-        new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.4, roughness: 0.35 }),
-        4
+        new THREE.DodecahedronGeometry(0.55, 0),
+        new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.35, roughness: 0.65, flatShading: true }),
+        14
       );
-      for (let k = 0; k < 4; k++) {
-        orbitSatelliteTransforms.push({ angle: (k / 4) * Math.PI * 2, y: 2.5 + k * 0.4 });
+      for (let k = 0; k < 14; k++) {
+        orbitSatelliteTransforms.push({
+          angle: (k / 14) * Math.PI * 2,
+          y: 1.4 + Math.sin(k * 1.3) * 1.4,
+          radOffset: (k % 3) * 1.2,
+          scale: 0.65 + (k % 4) * 0.28
+        });
       }
       scene.add(orbitSatellitesInst);
     }
@@ -586,15 +672,31 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       curtainsInst.instanceMatrix.needsUpdate = true;
       exclInst.instanceMatrix.needsUpdate = true;
 
+      if (radarDishMesh) {
+        radarDishMesh.rotation.y = Math.sin(elapsed * 0.85) * 1.1;
+      }
+
+      if (waterfallGeo) {
+        const wfAttr = waterfallGeo.getAttribute('position') as THREE.BufferAttribute;
+        const wfArr = wfAttr.array as Float32Array;
+        for (let i = 0; i < wfAttr.count; i++) {
+          let y = wfArr[i * 3 + 1] - 0.065;
+          if (y < -4.2) y = 0.2;
+          wfArr[i * 3 + 1] = y;
+        }
+        wfAttr.needsUpdate = true;
+      }
+
       if (orbitSatellitesInst) {
         orbitSatelliteTransforms.forEach((tr, idx) => {
+          const orbAng = tr.angle + elapsed * 0.14;
           satDummy.position.set(
-            Math.cos(tr.angle) * (islandRadius + 2.8),
-            tr.y + Math.sin(elapsed * 1.1 + idx) * 0.45,
-            Math.sin(tr.angle) * (islandRadius + 2.8)
+            Math.cos(orbAng) * (islandRadius + 2.2 + tr.radOffset),
+            tr.y + Math.sin(elapsed * 1.1 + idx) * 0.4,
+            Math.sin(orbAng) * (islandRadius + 2.2 + tr.radOffset)
           );
           satDummy.rotation.set(elapsed * 0.4 + idx, elapsed * 0.55, 0);
-          satDummy.scale.setScalar(1);
+          satDummy.scale.setScalar(tr.scale);
           satDummy.updateMatrix();
           orbitSatellitesInst?.setMatrixAt(idx, satDummy.matrix);
         });
@@ -702,8 +804,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
       if (isBoredIdle && !boredVoiceFiredRef.current) {
         boredVoiceFiredRef.current = true;
+        // 8s idle triggers silent visual speech bubble + animation only (no unprompted passive voice)
         setIdleSpeechAr('يلا يا بطل مستنيينك نكمل مغامرة الفضاء! 🚀');
-        void dialogueManager.speak('يلا يا بطل مستنيينك نكمل مغامرة الفضاء!');
       }
 
       const activeEmote: AstronautEmote =
@@ -762,7 +864,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       hero.dispose();
       disposableTextures.forEach((tex) => tex.dispose());
       scene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh || obj instanceof THREE.InstancedMesh) {
+        if (obj instanceof THREE.Mesh || obj instanceof THREE.InstancedMesh || obj instanceof THREE.Points) {
           obj.geometry?.dispose();
           const m = obj.material;
           if (Array.isArray(m)) m.forEach((x) => x.dispose());

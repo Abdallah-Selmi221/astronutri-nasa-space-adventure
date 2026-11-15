@@ -18,6 +18,7 @@ import {
 } from '../types/game';
 import { SolarStormData } from '../utils/nasaApi';
 import { TARGET_NUTRITION_REQUIREMENTS } from '../data/foodItems';
+import { CAMPAIGN_LEVELS } from '../data/campaignLevels';
 import { soundManager } from '../utils/sound';
 import { 
   hydrateGameState, 
@@ -97,7 +98,10 @@ export const initialSpaceFitXState: SpaceFitXState = {
   batteryAttached: true,
   batteryPercent: 94,
   powerDrawWatts: 6.4,
-  harvestedWh: 0
+  harvestedWh: 0,
+  helmetEnabled: true,
+  suitTheme: 'cyan_black',
+  backpackStyle: 'eclss'
 };
 
 export const initialCampaignState: CampaignProgressState = {
@@ -857,14 +861,21 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         isEngineMissionComplete = true;
         unlockedRooms = Array.from(new Set([...unlockedRooms, 'EngineRoom', 'LaunchPad']));
       }
-      if (miniGameId === 'l1_mission_launch') {
+      const allL1Done = CAMPAIGN_LEVELS[1].miniGames.every((id) => completedMiniGames.includes(id));
+      if (miniGameId === 'l1_mission_launch' || allL1Done) {
         unlockedLevels = Array.from(new Set([...unlockedLevels, 2])) as CampaignLevelId[];
         unlockedRooms = Array.from(new Set([...unlockedRooms, 'LunarDashboard']));
         launchPadState = { ...launchPadState, isLevel1Complete: true };
         level2State = { ...level2State, isLevel2Active: true };
       }
-      if (miniGameId === 'l2_systems_neows') {
+      const allL2Done = CAMPAIGN_LEVELS[2].miniGames.every((id) => completedMiniGames.includes(id));
+      if (miniGameId === 'l2_systems_neows' || allL2Done) {
         unlockedLevels = Array.from(new Set([...unlockedLevels, 3])) as CampaignLevelId[];
+      }
+      const allL3Done = CAMPAIGN_LEVELS[3].miniGames.every((id) => completedMiniGames.includes(id));
+      const returnAuth = Boolean(patch?.l3ReturnAuthorized ?? curr.l3ReturnAuthorized);
+      if (returnAuth && allL3Done) {
+        unlockedLevels = Array.from(new Set([...unlockedLevels, 4])) as CampaignLevelId[];
       }
       if (miniGameId === 'l3_eva_prep') {
         isSuitMissionComplete = true;
@@ -1050,6 +1061,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     state.engineCoreState.fuelCellProgress,
     state.engineCoreState.isEngineComplete,
     state.campaign
+  ]);
+
+  // Synchronous immediate save on mission completions, level unlocks & suit customization
+  useEffect(() => {
+    if (isAutoSaveDisabled()) return;
+    saveProgress(state);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    state.campaign?.completedMiniGames,
+    state.campaign?.unlockedLevels,
+    state.campaign?.l3ReturnAuthorized,
+    state.campaign?.spaceFitX?.helmetEnabled,
+    state.campaign?.spaceFitX?.suitTheme,
+    state.campaign?.spaceFitX?.backpackStyle
   ]);
 
   useEffect(() => {

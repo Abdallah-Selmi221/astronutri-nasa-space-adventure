@@ -3,7 +3,6 @@ import * as THREE from 'three';
 import { CampaignLevelId, CampaignProgressState, SpaceFitXState } from '../../types/game';
 import { CAMPAIGN_LEVELS } from '../../data/campaignLevels';
 import { soundManager } from '../../utils/sound';
-import { dialogueManager } from '../../utils/geminiTTS';
 import { CheckCircle2, Lock } from 'lucide-react';
 import { AstronautEmote, buildSpaceFitXCharacter } from './buildSpaceFitXCharacter';
 import {
@@ -158,37 +157,60 @@ function getSurfaceInfoAt(x: number, z: number): {
   };
 }
 
-function addIslandLandmarkDecor(group: THREE.Group, levelId: CampaignLevelId): THREE.Object3D[] {
-  const animated: THREE.Object3D[] = [];
+function addIslandLandmarkDecor(
+  group: THREE.Group,
+  levelId: CampaignLevelId
+): { obj: THREE.Object3D; bob: boolean }[] {
+  const animated: { obj: THREE.Object3D; bob: boolean }[] = [];
   const staticParts: ColoredGeometryPart[] = [];
 
   if (levelId === 1) {
-    // Sleek Low-Poly Spacecraft + Cozy Food Kiosk Booth + Layered Pine Trees + Toadstools
+    // Sleek Low-Poly Spacecraft + Cozy Food Kiosk + Multi-Canopy Trees + Waterfall Chute & Radar Mast
     staticParts.push(
       ...createSleekSpacecraftParts(1.85, 0, -1.65, 0.88),
       // Mini Low-Poly Food Kiosk Booth
       { geometry: new THREE.BoxGeometry(1.35, 0.48, 0.8), color: 0xb45309, position: [-2.1, 0.24, -1.4] },
       { geometry: new THREE.ConeGeometry(1.12, 0.6, 4), color: 0xf97316, position: [-2.1, 1.38, -1.4], rotation: [0, Math.PI / 4, 0] },
       { geometry: new THREE.CylinderGeometry(0.06, 0.06, 0.85, 6), color: 0x78350f, position: [-2.6, 0.72, -1.4] },
-      { geometry: new THREE.CylinderGeometry(0.06, 0.06, 0.85, 6), color: 0x78350f, position: [-1.6, 0.72, -1.4] }
+      { geometry: new THREE.CylinderGeometry(0.06, 0.06, 0.85, 6), color: 0x78350f, position: [-1.6, 0.72, -1.4] },
+      // Emerald Cliff Waterfall Stream + Sparkling Basin
+      { geometry: new THREE.CylinderGeometry(0.85, 0.92, 0.14, 12), color: 0x0ea5e9, position: [2.85, 0.06, 2.35] },
+      { geometry: new THREE.BoxGeometry(0.85, 3.2, 0.28), color: 0x38bdf8, position: [3.2, -1.4, 2.75], rotation: [0.18, 0.72, 0] },
+      // Radar Base Pedestal
+      { geometry: new THREE.CylinderGeometry(0.16, 0.24, 1.35, 8), color: 0xe2e8f0, position: [-2.65, 0.68, 2.1] }
     );
     [
-      [-2.7, 1.3],
-      [2.6, 1.85],
-      [-0.6, -2.7]
+      [-2.7, 1.15],
+      [2.65, 1.45],
+      [-0.6, -2.75]
     ].forEach(([tx, tz]) => {
       staticParts.push(
-        { geometry: new THREE.CylinderGeometry(0.11, 0.14, 0.65, 7), color: 0x78350f, position: [tx, 0.32, tz] },
-        { geometry: new THREE.ConeGeometry(0.62, 0.95, 7), color: 0x16a34a, position: [tx, 0.96, tz] },
-        { geometry: new THREE.ConeGeometry(0.46, 0.78, 7), color: 0x22c55e, position: [tx, 1.48, tz] }
+        { geometry: new THREE.CylinderGeometry(0.11, 0.15, 0.7, 7), color: 0x78350f, position: [tx, 0.35, tz] },
+        { geometry: new THREE.ConeGeometry(0.68, 0.96, 7), color: 0x15803d, position: [tx, 0.96, tz] },
+        { geometry: new THREE.ConeGeometry(0.52, 0.82, 7), color: 0x22c55e, position: [tx, 1.48, tz] },
+        { geometry: new THREE.ConeGeometry(0.36, 0.6, 7), color: 0x4ade80, position: [tx, 1.9, tz] }
       );
     });
+
+    // Rotating Deep-Space Radar Dish (stays planted on radar mast: bob = false)
+    const dishGeom = mergeColoredParts([
+      { geometry: new THREE.ConeGeometry(0.48, 0.22, 12), color: 0xf8fafc, rotation: [0, 0, Math.PI * 0.68] },
+      { geometry: new THREE.CylinderGeometry(0.03, 0.03, 0.25, 6), color: 0x22d3ee, position: [0.18, 0.08, 0], rotation: [0, 0, -Math.PI * 0.32] }
+    ]);
+    const radarDish = new THREE.Mesh(
+      dishGeom,
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.45 })
+    );
+    radarDish.position.set(-2.65, 1.42, 2.1);
+    group.add(radarDish);
+    animated.push({ obj: radarDish, bob: false });
   } else if (levelId === 2) {
-    // Solar Array Wing + Cupola Pod + Orbiting NASA 2010 PK Asteroid
+    // Solar Array Wing + Cupola Pod + Orbital Ring + Rotating Asteroid 2010 PK
     staticParts.push(
       { geometry: new THREE.CylinderGeometry(0.16, 0.2, 2.1, 10), color: 0x94a3b8, position: [-2.1, 1.05, -1.8] },
       { geometry: new THREE.BoxGeometry(2.8, 0.08, 1.2), color: 0x0284c7, position: [-2.1, 2.1, -1.8], rotation: [0.35, 0, 0] },
-      { geometry: new THREE.CylinderGeometry(0.85, 0.95, 0.75, 8), color: 0xe2e8f0, position: [1.9, 0.38, 1.6] }
+      { geometry: new THREE.CylinderGeometry(0.85, 0.95, 0.75, 8), color: 0xe2e8f0, position: [1.9, 0.38, 1.6] },
+      { geometry: new THREE.TorusGeometry(4.35, 0.08, 8, 36), color: 0x818cf8, position: [0, 0.22, 0], rotation: [Math.PI / 2, 0.14, 0] }
     );
 
     const asteroid = new THREE.Mesh(
@@ -197,20 +219,25 @@ function addIslandLandmarkDecor(group: THREE.Group, levelId: CampaignLevelId): T
     );
     asteroid.position.set(2.5, 2.35, -1.2);
     group.add(asteroid);
-    animated.push(asteroid);
+    animated.push({ obj: asteroid, bob: true });
   } else if (levelId === 3) {
-    // Lunar Habitat Domes + Deep-Space Dish
+    // Lunar Habitat Domes + ECLSS Water Tower + 0.16G Dish Beacon
     staticParts.push(
       { geometry: new THREE.SphereGeometry(0.95, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), color: 0xe2e8f0, position: [-2.0, 0.02, -1.8] },
       { geometry: new THREE.SphereGeometry(0.95, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), color: 0x4ade80, position: [2.0, 0.02, -1.8] },
+      { geometry: new THREE.CylinderGeometry(0.28, 0.34, 1.45, 10), color: 0x38bdf8, position: [-2.35, 0.72, 1.7] },
+      { geometry: new THREE.SphereGeometry(0.32, 10, 8), color: 0xf8fafc, position: [-2.35, 1.5, 1.7] },
       { geometry: new THREE.ConeGeometry(0.55, 0.38, 12), color: 0xfbbf24, position: [2.2, 1.3, 1.9], rotation: [0, 0, -0.6] }
     );
   } else {
-    // Splashdown Capsule + Tropical Palm + Floating Golden Victory Crest
+    // Splashdown Capsule + Moored White Oceanic Recovery Ship + Tropical Palm + Floating Golden Victory Crest
     staticParts.push(
       { geometry: new THREE.ConeGeometry(0.75, 1.05, 10), color: 0xf97316, position: [-2.05, 0.52, -1.55] },
       { geometry: new THREE.CylinderGeometry(0.11, 0.16, 1.45, 7), color: 0x92400e, position: [-2.4, 0.72, 1.55], rotation: [0, 0, 0.15] },
-      { geometry: new THREE.ConeGeometry(0.85, 0.45, 7), color: 0x22c55e, position: [-2.55, 1.48, 1.55] }
+      { geometry: new THREE.ConeGeometry(0.85, 0.45, 7), color: 0x22c55e, position: [-2.55, 1.48, 1.55] },
+      // Recovery Ship Hull + Bridge
+      { geometry: new THREE.BoxGeometry(1.75, 0.34, 0.68), color: 0xf8fafc, position: [1.95, 0.22, 2.05], rotation: [0, -0.45, 0] },
+      { geometry: new THREE.BoxGeometry(0.58, 0.42, 0.52), color: 0xf97316, position: [2.15, 0.56, 2.15], rotation: [0, -0.45, 0] }
     );
     const crest = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.75, 0),
@@ -218,7 +245,7 @@ function addIslandLandmarkDecor(group: THREE.Group, levelId: CampaignLevelId): T
     );
     crest.position.set(2.1, 1.75, -1.4);
     group.add(crest);
-    animated.push(crest);
+    animated.push({ obj: crest, bob: true });
   }
 
   if (staticParts.length > 0) {
@@ -328,7 +355,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     });
 
     const dims = getDims();
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.setSize(dims.w, dims.h);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     mount.innerHTML = '';
@@ -353,7 +380,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     // Build 4 Floating Islands + Instanced Portals + Bouncing Golden ! Markers + In-World Labels
     const disposableTextures: THREE.Texture[] = [];
     const clickTargets: { mesh: THREE.Object3D; levelId: CampaignLevelId }[] = [];
-    const floatingProps: { obj: THREE.Object3D; baseY: number; phase: number }[] = [];
+    const floatingProps: { obj: THREE.Object3D; baseY: number; phase: number; bob: boolean }[] = [];
 
     const portalRingsInst = new THREE.InstancedMesh(
       new THREE.TorusGeometry(1.15, 0.15, 12, 28, Math.PI * 1.2),
@@ -394,8 +421,8 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
       // Add landmark buildings / trees / asteroids on island
       const props = addIslandLandmarkDecor(islandGroup, cfg.levelId);
-      props.forEach((obj, pIdx) => {
-        floatingProps.push({ obj, baseY: obj.position.y, phase: idx * 1.4 + pIdx });
+      props.forEach((p, pIdx) => {
+        floatingProps.push({ obj: p.obj, baseY: p.obj.position.y, phase: idx * 1.4 + pIdx, bob: p.bob });
       });
 
       const portalColor = new THREE.Color(completed ? 0x10b981 : unlocked ? cfg.rimColor : 0x64748b);
@@ -586,10 +613,12 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
       skyHandle.update(elapsed);
 
-      // Gentle cosmic bob on floating props & instanced portals
+      // Gentle cosmic bob on floating props & rotating radar dishes
       floatingProps.forEach((fp) => {
-        fp.obj.position.y = fp.baseY + Math.sin(elapsed * 1.4 + fp.phase) * 0.14;
-        fp.obj.rotation.y = elapsed * 0.45 + fp.phase;
+        if (fp.bob) {
+          fp.obj.position.y = fp.baseY + Math.sin(elapsed * 1.4 + fp.phase) * 0.14;
+        }
+        fp.obj.rotation.y = elapsed * (fp.bob ? 0.45 : 0.9) + fp.phase;
       });
       portalBasePositions.forEach((bPos, idx) => {
         portalDummy.position.copy(bPos);
@@ -717,8 +746,8 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
       if (isBoredIdle && !boredVoiceFiredRef.current) {
         boredVoiceFiredRef.current = true;
+        // 8s idle triggers silent visual speech bubble + animation only (no unprompted passive voice)
         setIdleSpeechAr('يلا يا بطل مستنيينك نكمل مغامرة الفضاء! 🚀');
-        void dialogueManager.speak('يلا يا بطل مستنيينك نكمل مغامرة الفضاء!');
       }
 
       const activeEmote: AstronautEmote =
@@ -774,7 +803,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       hero.dispose();
       disposableTextures.forEach((tex) => tex.dispose());
       scene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh || obj instanceof THREE.InstancedMesh) {
+        if (obj instanceof THREE.Mesh || obj instanceof THREE.InstancedMesh || obj instanceof THREE.Points) {
           obj.geometry?.dispose();
           const m = obj.material;
           if (Array.isArray(m)) m.forEach((x) => x.dispose());

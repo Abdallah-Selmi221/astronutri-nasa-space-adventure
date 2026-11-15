@@ -24,28 +24,21 @@ export const RoboIntroModal: React.FC = () => {
 
   useEffect(() => {
     if (!state.showIntroModal) {
-      dialogueManager.stop();
+      dialogueManager.stopCurrentSpeech();
       return;
     }
 
-    const timer = window.setTimeout(() => {
-      if (state.soundEnabled) {
-        void dialogueManager.speak(WELCOME_SPEECH_AR);
-      }
-    }, 150);
-
     return () => {
-      window.clearTimeout(timer);
-      dialogueManager.stop();
+      dialogueManager.stopCurrentSpeech();
     };
-  }, [state.showIntroModal, state.soundEnabled]);
+  }, [state.showIntroModal]);
 
   const handleReplaySpeech = () => {
     soundManager.playClick();
     if (isSpeaking || isLoadingTTS) {
-      dialogueManager.stop();
+      dialogueManager.stopCurrentSpeech();
     } else {
-      void dialogueManager.speak(WELCOME_SPEECH_AR);
+      void dialogueManager.speak(WELCOME_SPEECH_AR, undefined, undefined, undefined, { force: true });
     }
   };
 

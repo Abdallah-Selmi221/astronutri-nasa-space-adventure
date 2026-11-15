@@ -183,6 +183,29 @@ export const CampaignHubView: React.FC = () => {
           miniGameId={mgId}
           isCompleted={isCompleted}
           onBackToLevel={handleBackToLevel}
+          onContinueNext={() => {
+            const specs = activeLevelSpec.miniGames;
+            const idx = specs.indexOf(mgId);
+            const nextMg =
+              specs.slice(idx + 1).find((id) => !campaign.completedMiniGames.includes(id)) ??
+              specs.find((id) => id !== mgId && !campaign.completedMiniGames.includes(id));
+            if (nextMg) {
+              const targetRoom = activeLevelSpec.rooms.find((r) => r.miniGameId === nextMg);
+              setCampaignView(
+                'minigame',
+                activeLevelId,
+                targetRoom?.id ?? campaign.activeRoomId,
+                nextMg
+              );
+              return;
+            }
+            const nextLvl = (activeLevelId + 1) as CampaignLevelId;
+            if (activeLevelId < 4 && campaign.unlockedLevels.includes(nextLvl)) {
+              setCampaignView('level_hub', nextLvl, null, null);
+              return;
+            }
+            handleBackToLevel();
+          }}
         >
           {activeLevelId === 1 && (
             <Level1MiniGames

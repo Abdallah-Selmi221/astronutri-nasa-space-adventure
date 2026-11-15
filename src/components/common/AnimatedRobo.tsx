@@ -28,7 +28,7 @@ interface AnimatedRoboProps {
 export const AnimatedRobo: React.FC<AnimatedRoboProps> = ({
   state = 'IDLE',
   spokenText,
-  autoSpeak = false,
+  autoSpeak: _autoSpeak = false,
   size = 'md',
   showSpeechBubble = true,
   hideCharacterImage = false,
@@ -69,26 +69,12 @@ export const AnimatedRobo: React.FC<AnimatedRoboProps> = ({
     return () => unsubscribe();
   }, [state]);
 
-  // Auto-speak when spokenText changes and autoSpeak is true
-  useEffect(() => {
-    if (!autoSpeak || !spokenText) return;
-
-    dialogueManager.stop();
-    const timer = window.setTimeout(() => {
-      void dialogueManager.speak(spokenText);
-    }, 60);
-
-    return () => {
-      window.clearTimeout(timer);
-      dialogueManager.stop();
-    };
-  }, [spokenText, autoSpeak]);
-
+  // Voice stays quiet on mount/passive prop changes; only plays on explicit click (with single-channel force)
   const handleSpeakClick = () => {
     if (isTTSActive || isLoadingAudio) {
-      dialogueManager.stop();
+      dialogueManager.stopCurrentSpeech();
     } else if (spokenText) {
-      void dialogueManager.speak(spokenText);
+      void dialogueManager.speak(spokenText, undefined, undefined, undefined, { force: true });
     }
     if (onBubbleClick) onBubbleClick();
   };

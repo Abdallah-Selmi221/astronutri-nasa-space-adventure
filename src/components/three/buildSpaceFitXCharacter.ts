@@ -154,20 +154,21 @@ export function buildSpaceFitXCharacter(options?: {
 
   // Materials — SPACE-FIT X Matte Black + Metallic Silver + Graphite + Electric Cyan
   const matArmorVertex = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
     vertexColors: true,
     map: weaveTex,
-    roughness: 0.4,
-    metalness: 0.36
+    roughness: 0.36,
+    metalness: 0.34
   });
   const matSkinHair = new THREE.MeshStandardMaterial({
     vertexColors: true,
-    roughness: 0.58,
-    metalness: 0.06,
+    roughness: 0.56,
+    metalness: 0.05,
     flatShading: true
   });
   const matHexPad = new THREE.MeshStandardMaterial({
     color: 0x1f2937,
-    roughness: 0.46,
+    roughness: 0.44,
     metalness: 0.35,
     emissive: 0x0ea5e9,
     emissiveIntensity: 0.1
@@ -185,6 +186,12 @@ export function buildSpaceFitXCharacter(options?: {
     emissiveIntensity: 0.8,
     roughness: 0.28,
     metalness: 0.55
+  });
+  const matRoboBeacon = new THREE.MeshStandardMaterial({
+    color: 0xfbbf24,
+    emissive: 0x22d3ee,
+    emissiveIntensity: 1.1,
+    roughness: 0.2
   });
   const matQuickRelease = new THREE.MeshStandardMaterial({
     color: 0xf43f5e,
@@ -320,6 +327,26 @@ export function buildSpaceFitXCharacter(options?: {
   if (batteryBarsInst.instanceColor) batteryBarsInst.instanceColor.needsUpdate = true;
   batteryPackGroup.add(batteryBarsInst);
 
+  // Switchable Backpack Gear: ECLSS Life-Support Pack vs Zero-G Thruster Pack (1 merged mesh each)
+  const eclssPackGeom = mergeColoredParts([
+    { geometry: new THREE.BoxGeometry(0.36, 0.42, 0.16), color: 0xe2e8f0, position: [0, 0.12, -0.28] },
+    { geometry: new THREE.CylinderGeometry(0.065, 0.065, 0.36, 10), color: 0x0ea5e9, position: [-0.09, 0.12, -0.35] },
+    { geometry: new THREE.CylinderGeometry(0.065, 0.065, 0.36, 10), color: 0x10b981, position: [0.09, 0.12, -0.35] },
+    { geometry: new THREE.BoxGeometry(0.24, 0.06, 0.06), color: 0x38bdf8, position: [0, 0.27, -0.35] }
+  ]);
+  const eclssPackMesh = new THREE.Mesh(eclssPackGeom, matArmorVertex);
+  torsoGroup.add(eclssPackMesh);
+
+  const thrusterPackGeom = mergeColoredParts([
+    { geometry: new THREE.BoxGeometry(0.4, 0.34, 0.18), color: 0x334155, position: [0, 0.14, -0.29] },
+    { geometry: new THREE.ConeGeometry(0.09, 0.18, 10), color: 0xfbbf24, position: [-0.14, -0.04, -0.34], rotation: [Math.PI, 0, -0.15] },
+    { geometry: new THREE.ConeGeometry(0.09, 0.18, 10), color: 0xfbbf24, position: [0.14, -0.04, -0.34], rotation: [Math.PI, 0, 0.15] },
+    { geometry: new THREE.CylinderGeometry(0.05, 0.05, 0.12, 8), color: 0xf43f5e, position: [0, 0.29, -0.34] }
+  ]);
+  const thrusterPackMesh = new THREE.Mesh(thrusterPackGeom, matArmorVertex);
+  thrusterPackMesh.visible = false;
+  torsoGroup.add(thrusterPackMesh);
+
   // ==================== HUMAN ASTRONAUT HEAD (LOW-POLY EXPRESSIVE FACE + HAIR + AR VISOR) ====================
   const headGroup = new THREE.Group();
   headGroup.position.set(0, 0.44, 0);
@@ -357,32 +384,35 @@ export function buildSpaceFitXCharacter(options?: {
   headGroup.add(eyesGroup);
 
   const eyesGeom = mergeColoredParts([
-    // Left & Right Sclera Whites
-    { geometry: new THREE.SphereGeometry(0.042, 10, 10), color: 0xffffff, position: [-0.075, 0, 0], scale: [0.95, 1.15, 0.38] },
-    { geometry: new THREE.SphereGeometry(0.042, 10, 10), color: 0xffffff, position: [0.075, 0, 0], scale: [0.95, 1.15, 0.38] },
-    // Sky-Blue Irises
-    { geometry: new THREE.SphereGeometry(0.026, 10, 10), color: 0x0ea5e9, position: [-0.072, 0, 0.012], scale: [0.95, 1.1, 0.4] },
-    { geometry: new THREE.SphereGeometry(0.026, 10, 10), color: 0x0ea5e9, position: [0.072, 0, 0.012], scale: [0.95, 1.1, 0.4] },
-    // Deep Pupils
-    { geometry: new THREE.SphereGeometry(0.015, 8, 8), color: 0x0f172a, position: [-0.072, 0, 0.019], scale: [0.9, 1.0, 0.4] },
-    { geometry: new THREE.SphereGeometry(0.015, 8, 8), color: 0x0f172a, position: [0.072, 0, 0.019], scale: [0.9, 1.0, 0.4] },
-    // Eyebrows
-    { geometry: new THREE.BoxGeometry(0.072, 0.018, 0.02), color: 0x241934, position: [-0.075, 0.06, 0.005], rotation: [0, 0, 0.08] },
-    { geometry: new THREE.BoxGeometry(0.072, 0.018, 0.02), color: 0x241934, position: [0.075, 0.06, 0.005], rotation: [0, 0, -0.08] }
+    // Left & Right Sclera Whites (friendly heroic child-astronaut proportions)
+    { geometry: new THREE.SphereGeometry(0.048, 12, 10), color: 0xffffff, position: [-0.078, 0.005, 0], scale: [1.0, 1.2, 0.38] },
+    { geometry: new THREE.SphereGeometry(0.048, 12, 10), color: 0xffffff, position: [0.078, 0.005, 0], scale: [1.0, 1.2, 0.38] },
+    // Warm Teal-Blue Irises
+    { geometry: new THREE.SphereGeometry(0.031, 10, 10), color: 0x0ea5e9, position: [-0.074, 0.003, 0.012], scale: [0.98, 1.15, 0.4] },
+    { geometry: new THREE.SphereGeometry(0.031, 10, 10), color: 0x0ea5e9, position: [0.074, 0.003, 0.012], scale: [0.98, 1.15, 0.4] },
+    // Deep Expressive Pupils
+    { geometry: new THREE.SphereGeometry(0.018, 8, 8), color: 0x0f172a, position: [-0.074, 0.003, 0.02], scale: [0.92, 1.04, 0.4] },
+    { geometry: new THREE.SphereGeometry(0.018, 8, 8), color: 0x0f172a, position: [0.074, 0.003, 0.02], scale: [0.92, 1.04, 0.4] },
+    // Crisp White Eye Catchlights (brings instant warmth & Pixar-like charm)
+    { geometry: new THREE.SphereGeometry(0.009, 6, 6), color: 0xffffff, position: [-0.064, 0.016, 0.024], scale: [1, 1, 0.5] },
+    { geometry: new THREE.SphereGeometry(0.009, 6, 6), color: 0xffffff, position: [0.084, 0.016, 0.024], scale: [1, 1, 0.5] },
+    // Soft Raised Friendly Eyebrows
+    { geometry: new THREE.BoxGeometry(0.076, 0.018, 0.02), color: 0x241934, position: [-0.078, 0.068, 0.006], rotation: [0, 0, 0.12] },
+    { geometry: new THREE.BoxGeometry(0.076, 0.018, 0.02), color: 0x241934, position: [0.078, 0.068, 0.006], rotation: [0, 0, -0.12] }
   ]);
   const eyesMesh = new THREE.Mesh(eyesGeom, new THREE.MeshBasicMaterial({ vertexColors: true }));
   eyesGroup.add(eyesMesh);
 
-  // Expressive Mouth / Smile (animates open when laughing/celebrating!)
+  // Expressive Warm Smile (animates open when laughing/celebrating!)
   const mouthMesh = new THREE.Mesh(
-    new THREE.TorusGeometry(0.044, 0.011, 8, 14, Math.PI),
+    new THREE.TorusGeometry(0.052, 0.013, 8, 16, Math.PI),
     new THREE.MeshBasicMaterial({ color: 0xbe123c })
   );
-  mouthMesh.position.set(0, 0.125, 0.214);
+  mouthMesh.position.set(0, 0.128, 0.214);
   mouthMesh.rotation.z = Math.PI;
   headGroup.add(mouthMesh);
 
-  // Sleek Transparent Cyan AR Smart-Visor Band across forehead/eyes (No bulky EVA helmet!)
+  // Sleek Transparent Cyan AR Smart-Visor Band across forehead/eyes (IVA Mode)
   const arVisor = new THREE.Mesh(
     new THREE.CylinderGeometry(0.248, 0.248, 0.095, 20, 1, true, -Math.PI * 0.28, Math.PI * 0.56),
     new THREE.MeshStandardMaterial({
@@ -399,20 +429,22 @@ export function buildSpaceFitXCharacter(options?: {
   arVisor.position.set(0, 0.228, 0.012);
   headGroup.add(arVisor);
 
-  if (options?.showEvaHelmet) {
-    const evaBubble = new THREE.Mesh(
-      new THREE.SphereGeometry(0.33, 22, 16),
-      new THREE.MeshStandardMaterial({
-        color: 0xe0f2fe,
-        transparent: true,
-        opacity: 0.26,
-        roughness: 0.08,
-        metalness: 0.22
-      })
-    );
-    evaBubble.position.y = 0.21;
-    headGroup.add(evaBubble);
-  }
+  // Toggleable Glossy Translucent Bubble EVA Visor Helmet (Face clearly visible inside!)
+  const evaBubble = new THREE.Mesh(
+    new THREE.SphereGeometry(0.325, 22, 16),
+    new THREE.MeshStandardMaterial({
+      color: 0xe0f2fe,
+      emissive: 0x0ea5e9,
+      emissiveIntensity: 0.12,
+      transparent: true,
+      opacity: 0.28,
+      roughness: 0.06,
+      metalness: 0.25
+    })
+  );
+  evaBubble.position.y = 0.215;
+  evaBubble.visible = options?.showEvaHelmet ?? true;
+  headGroup.add(evaBubble);
 
   // Arms & Resistance Cables + Integrated Left Wrist Telemetry Monitor
   const createArm = (side: -1 | 1, includeWristMonitor: boolean) => {
@@ -499,16 +531,16 @@ export function buildSpaceFitXCharacter(options?: {
       { geometry: new THREE.SphereGeometry(0.22, 16, 12), color: 0xf8fafc },
       { geometry: new THREE.TorusGeometry(0.22, 0.028, 8, 22), color: 0x0ea5e9, rotation: [Math.PI / 2, 0, 0] },
       { geometry: new THREE.CylinderGeometry(0.014, 0.018, 0.14, 8), color: 0x64748b, position: [0, 0.26, 0] },
-      { geometry: new THREE.SphereGeometry(0.042, 10, 10), color: 0xfbbf24, position: [0, 0.34, 0] },
-      { geometry: new THREE.BoxGeometry(0.24, 0.07, 0.12), color: 0x1e293b, position: [0, 0.02, 0.16] }
+      { geometry: new THREE.BoxGeometry(0.24, 0.075, 0.12), color: 0x0f172a, position: [0, 0.02, 0.16] }
     ]);
     companionGroup.add(new THREE.Mesh(botBodyGeom, matArmorVertex));
 
     const botEyesGeom = mergeColoredParts([
-      { geometry: new THREE.SphereGeometry(0.026, 8, 8), color: 0x22d3ee, position: [-0.055, 0.025, 0.222] },
-      { geometry: new THREE.SphereGeometry(0.026, 8, 8), color: 0x22d3ee, position: [0.055, 0.025, 0.222] }
+      { geometry: new THREE.SphereGeometry(0.03, 10, 10), color: 0x22d3ee, position: [-0.056, 0.025, 0.222] },
+      { geometry: new THREE.SphereGeometry(0.03, 10, 10), color: 0x22d3ee, position: [0.056, 0.025, 0.222] },
+      { geometry: new THREE.SphereGeometry(0.044, 10, 10), color: 0xfbbf24, position: [0, 0.34, 0] }
     ]);
-    companionGroup.add(new THREE.Mesh(botEyesGeom, matCompressionCyan));
+    companionGroup.add(new THREE.Mesh(botEyesGeom, matRoboBeacon));
     group.add(companionGroup);
   }
 
@@ -537,7 +569,39 @@ export function buildSpaceFitXCharacter(options?: {
     idleSeconds?: number;
     emote?: AstronautEmote;
   }) => {
-    // 1. Expressive Facial Animation (blinking + laugh smile)
+    // 1. Live Astronaut Customizer (EVA Visor vs IVA + 4 Suit Themes + Backpack Style)
+    const helmetOn = suitState?.helmetEnabled ?? options?.showEvaHelmet ?? true;
+    evaBubble.visible = helmetOn;
+    arVisor.visible = !helmetOn;
+
+    const packMode = suitState?.backpackStyle ?? 'eclss';
+    eclssPackMesh.visible = packMode === 'eclss';
+    thrusterPackMesh.visible = packMode === 'thruster';
+
+    const themeKey = suitState?.suitTheme ?? 'cyan_black';
+    const themeSpec =
+      themeKey === 'nasa_white'
+        ? { armor: 0xf1f5f9, accent: 0x3b82f6, emissive: 0x1d4ed8, cable: 0x60a5fa }
+        : themeKey === 'gold_emerald'
+        ? { armor: 0xd1fae5, accent: 0xfbbf24, emissive: 0x10b981, cable: 0x34d399 }
+        : themeKey === 'mars_crimson'
+        ? { armor: 0xffe4e6, accent: 0xf43f5e, emissive: 0xe11d48, cable: 0xfb7185 }
+        : { armor: 0xdbeafe, accent: 0x22d3ee, emissive: 0x06b6d4, cable: 0x38bdf8 };
+
+    matArmorVertex.color.setHex(themeSpec.armor);
+    matCompressionCyan.color.setHex(themeSpec.accent);
+    matCompressionCyan.emissive.setHex(themeSpec.emissive);
+    matRoboBeacon.emissive.setHex(themeSpec.accent);
+    matRoboBeacon.emissiveIntensity = 0.75 + 0.55 * Math.sin(t * 4.2);
+
+    // Subtle Squash-and-Stretch Juice on Jump
+    const targetSy = isJumping ? rootScale * 1.07 : rootScale * (1 + Math.sin(t * 2.2) * 0.008);
+    const targetSxz = isJumping ? rootScale * 0.95 : rootScale;
+    group.scale.y += (targetSy - group.scale.y) * 0.2;
+    group.scale.x += (targetSxz - group.scale.x) * 0.2;
+    group.scale.z += (targetSxz - group.scale.z) * 0.2;
+
+    // 2. Expressive Facial Animation (blinking + laugh smile)
     const blinkScale = Math.sin(t * 2.15) > 0.965 ? 0.14 : 1;
     eyesGroup.scale.y = blinkScale;
     const isBored = !isJumping && !isZeroG && moveSpeed <= 0.1 && idleSeconds >= 8;
@@ -549,7 +613,7 @@ export function buildSpaceFitXCharacter(options?: {
       1
     );
 
-    // 2. Locomotion, Emotes & 8s Idle Sit-Down Pose
+    // 3. Locomotion, Emotes & 8s Idle Sit-Down Pose
     headGroup.rotation.set(0, Math.sin(t * 1.1) * 0.08, 0);
 
     if (isZeroG) {
@@ -692,8 +756,8 @@ export function buildSpaceFitXCharacter(options?: {
     const avgRes = suitState
       ? Object.values(suitState.jointLoads).reduce((a, b) => a + b, 0) / 5 / 100
       : 0.55;
-    matCableCyan.color.setHex(released ? 0xf59e0b : 0x38bdf8);
-    matCableCyan.emissive.setHex(released ? 0xd97706 : 0x0284c7);
+    matCableCyan.color.setHex(released ? 0xf59e0b : themeSpec.cable);
+    matCableCyan.emissive.setHex(released ? 0xd97706 : themeSpec.emissive);
     matCableCyan.emissiveIntensity = highlightModule === 2 ? 1.85 : released ? 0.25 : 0.45 + avgRes * 1.1;
     const cableScale = released ? 0.5 : 0.85 + avgRes * 0.55;
     [leftArm.armCable, rightArm.armCable, leftLeg.legCable, rightLeg.legCable].forEach((c) => {

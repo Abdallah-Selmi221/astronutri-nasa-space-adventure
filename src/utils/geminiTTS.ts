@@ -1,5 +1,6 @@
 // Bulletproof Egyptian Arabic DialogueManager & Gemini 3.1 Flash TTS Engine
 // Strictly uses Web Audio API PCM16 decoding — ZERO browser speechSynthesis fallback.
+import { soundManager } from './sound';
 
 export type SpeechCallback = () => void;
 export type ErrorCallback = (error: unknown) => void;
@@ -85,6 +86,8 @@ export class DialogueManager {
   private toastTimer: number | null = null;
   private hasShownFallbackToast: boolean = false;
   private voiceEnabled: boolean = true;
+  private lastSpeakAtMs: number = 0;
+  private lastSpokenText: string = '';
 
   private speakingListeners: Set<(speaking: boolean) => void> = new Set();
   private statusListeners: Set<(status: DialogueStatus) => void> = new Set();
@@ -155,6 +158,7 @@ export class DialogueManager {
   private emitStatus(loading: boolean, speaking: boolean, errorMsg?: string | null): void {
     this.isLoading = loading;
     this.isSpeaking = speaking;
+    soundManager.duckBGM(speaking);
     if (errorMsg !== undefined) {
       this.toastError = errorMsg;
       if (this.toastTimer) {
@@ -221,6 +225,10 @@ export class DialogueManager {
    * Immediately flushes the dialogue queue, aborts any in-flight Gemini fetch,
    * and stops any currently playing Web Audio buffer so voices NEVER overlap.
    */
+  public stopCurrentSpeech(): void {
+    this.stop();
+  }
+
   public stop(): void {
     this.queue = [];
     this.isProcessingQueue = false;
@@ -241,6 +249,7 @@ export class DialogueManager {
     }
 
     this.stopCurrentAudioSource();
+    soundManager.duckBGM(false);
     this.emitStatus(false, false);
   }
 
@@ -317,15 +326,26 @@ export class DialogueManager {
     text: string,
     onStart?: SpeechCallback,
     onEnd?: SpeechCallback,
-    onError?: ErrorCallback
+    onError?: ErrorCallback,
+    options?: { force?: boolean }
   ): Promise<void> {
-    this.stop();
-
     const cleanText = this.sanitizeForSpeech(text);
     if (!cleanText || !this.voiceEnabled) {
+      this.stopCurrentSpeech();
       if (onEnd) onEnd();
       return;
     }
+
+    // Single-channel 1.5s debounce guard against double-triggers & overlapping dialogue
+    const now = Date.now();
+    if (!options?.force && now - this.lastSpeakAtMs < 1500 && (this.isSpeaking || this.isLoading || cleanText === this.lastSpokenText)) {
+      if (onEnd) onEnd();
+      return;
+    }
+
+    this.stopCurrentSpeech();
+    this.lastSpeakAtMs = now;
+    this.lastSpokenText = cleanText;
 
     this.queue.push({
       id: ++this.nextUtteranceId,

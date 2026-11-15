@@ -48,9 +48,10 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
   const yawTargetRef = useRef<number>(0);
   const dragActiveRef = useRef(false);
   const lastXRef = useRef(0);
-  const suitStateRef = useRef<SpaceFitXState>(suitState || initialSpaceFitXState);
+  const effectiveSuit = suitState || initialSpaceFitXState;
+  const suitStateRef = useRef<SpaceFitXState>(effectiveSuit);
   const highlightRef = useRef<number | null>(highlightModule);
-  suitStateRef.current = suitState || initialSpaceFitXState;
+  suitStateRef.current = effectiveSuit;
   highlightRef.current = highlightModule;
 
   useEffect(() => {
@@ -76,7 +77,7 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
 
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
       renderer.setSize(width, height);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
       container.innerHTML = '';
       container.appendChild(renderer.domElement);
 
@@ -104,8 +105,8 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
       scene.add(ring);
 
       const character = buildSpaceFitXCharacter({
-        showEvaHelmet: false,
-        showCompanion: false,
+        showEvaHelmet: suitStateRef.current.helmetEnabled ?? true,
+        showCompanion: true,
         scale: 1.05
       });
       scene.add(character.group);
@@ -327,6 +328,122 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
                   <Sparkles className="w-3.5 h-3.5 inline ml-1 text-amber-300" />
                   جرّب تحريك الأزرار بالأسفل لرؤية التفاعل المباشر على البدلة الـ 3D (ضغط ذكي، كابلات المقاومة، زر الإفلات، والبطارية)!
                 </span>
+              </div>
+
+              {/* Real-Time 3D Astronaut Appearance Customizer (Saved Immediately to Profile) */}
+              <div
+                data-testid="astronaut-customizer-panel"
+                className="p-3 rounded-2xl bg-slate-950/90 border-2 border-amber-400/45 space-y-2.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-hud font-black text-xs text-amber-300">
+                    🎨 تخصيص مظهر رائد الفضاء 3D (AstroNutri)
+                  </span>
+                  <span className="text-[10px] text-cyan-200 font-bold">
+                    يُحفظ تلقائياً في العالم والجزر ✨
+                  </span>
+                </div>
+
+                {/* 1. Helmet Visor Toggle */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    data-testid="customizer-helmet-eva"
+                    onClick={() => {
+                      soundManager.playClick();
+                      onChangeSuitState({ ...effectiveSuit, helmetEnabled: true });
+                    }}
+                    className={`py-1.5 px-2.5 rounded-xl text-[11px] font-black border cursor-pointer ${
+                      (effectiveSuit.helmetEnabled ?? true)
+                        ? 'bg-cyan-400 text-slate-950 border-white'
+                        : 'bg-slate-800 text-slate-200 border-slate-700'
+                    }`}
+                  >
+                    🪖 خوذة الفضاء الزجاجية (EVA)
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="customizer-helmet-iva"
+                    onClick={() => {
+                      soundManager.playClick();
+                      onChangeSuitState({ ...effectiveSuit, helmetEnabled: false });
+                    }}
+                    className={`py-1.5 px-2.5 rounded-xl text-[11px] font-black border cursor-pointer ${
+                      effectiveSuit.helmetEnabled === false
+                        ? 'bg-amber-400 text-slate-950 border-white'
+                        : 'bg-slate-800 text-slate-200 border-slate-700'
+                    }`}
+                  >
+                    🎧 سماعة القيادة بدون خوذة (IVA)
+                  </button>
+                </div>
+
+                {/* 2. 4 Suit Themes */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  {(
+                    [
+                      { id: 'cyan_black', label: 'SPACE-FIT X', dot: 'bg-cyan-400' },
+                      { id: 'nasa_white', label: 'NASA أبيض', dot: 'bg-blue-400' },
+                      { id: 'gold_emerald', label: 'ذهبي زمردي', dot: 'bg-emerald-400' },
+                      { id: 'mars_crimson', label: 'المريخ القرمزي', dot: 'bg-rose-400' }
+                    ] as const
+                  ).map((th) => {
+                    const active = (effectiveSuit.suitTheme ?? 'cyan_black') === th.id;
+                    return (
+                      <button
+                        key={th.id}
+                        type="button"
+                        data-testid={`customizer-theme-${th.id}`}
+                        onClick={() => {
+                          soundManager.playClick();
+                          onChangeSuitState({ ...effectiveSuit, suitTheme: th.id });
+                        }}
+                        className={`py-1.5 px-2 rounded-xl text-[10px] font-black border flex items-center justify-center gap-1.5 cursor-pointer ${
+                          active
+                            ? 'bg-sky-400 text-slate-950 border-white shadow-[0_0_12px_rgba(56,189,248,0.45)]'
+                            : 'bg-slate-900 text-slate-200 border-slate-700 hover:border-cyan-400'
+                        }`}
+                      >
+                        <span className={`w-2.5 h-2.5 rounded-full ${th.dot} border border-white/70 shrink-0`} />
+                        <span className="truncate">{th.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 3. Backpack Gear */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    data-testid="customizer-pack-eclss"
+                    onClick={() => {
+                      soundManager.playClick();
+                      onChangeSuitState({ ...effectiveSuit, backpackStyle: 'eclss' });
+                    }}
+                    className={`py-1.5 px-2.5 rounded-xl text-[11px] font-black border cursor-pointer ${
+                      (effectiveSuit.backpackStyle ?? 'eclss') === 'eclss'
+                        ? 'bg-emerald-400 text-slate-950 border-white'
+                        : 'bg-slate-800 text-slate-200 border-slate-700'
+                    }`}
+                  >
+                    🫧 حقيبة الحياة ECLSS
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="customizer-pack-thruster"
+                    onClick={() => {
+                      soundManager.playClick();
+                      onChangeSuitState({ ...effectiveSuit, backpackStyle: 'thruster' });
+                    }}
+                    className={`py-1.5 px-2.5 rounded-xl text-[11px] font-black border cursor-pointer ${
+                      effectiveSuit.backpackStyle === 'thruster'
+                        ? 'bg-amber-400 text-slate-950 border-white'
+                        : 'bg-slate-800 text-slate-200 border-slate-700'
+                    }`}
+                  >
+                    🚀 حقيبة نفاثات 0G
+                  </button>
+                </div>
               </div>
 
               {/* Studio Concept & Hardware Quick-Inspect Preview Strip */}

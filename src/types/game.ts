@@ -56,6 +56,8 @@ export interface FoodItem {
   badgeType?: ScienceBadgeType;
   micronutrientsAr?: string[];
   crumbRating?: 'zero_crumbs' | 'high_crumbs';
+  hasCrumbs?: boolean;
+  isForbidden?: boolean;
 }
 
 export interface CargoItemEntry {
@@ -188,6 +190,10 @@ export interface SpaceFitXState {
   batteryPercent: number;
   powerDrawWatts: number;
   harvestedWh: number;
+  // Stylized Astronaut Customizer (persisted per profile)
+  helmetEnabled?: boolean;
+  suitTheme?: 'cyan_black' | 'nasa_white' | 'gold_emerald' | 'mars_crimson';
+  backpackStyle?: 'eclss' | 'thruster';
 }
 
 export interface CampaignProgressState {

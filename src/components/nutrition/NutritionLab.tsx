@@ -55,6 +55,7 @@ export const NutritionLab: React.FC = () => {
   const [showNasaSourcesModal, setShowNasaSourcesModal] = useState<boolean>(false);
   const [showNutritionQuizModal, setShowNutritionQuizModal] = useState<boolean>(false);
   const [cargoWarningToast, setCargoWarningToast] = useState<string | null>(null);
+  const [safeFoodToast, setSafeFoodToast] = useState<string | null>(null);
   const [dialogueStatus, setDialogueStatus] = useState<DialogueStatus>(
     dialogueManager.getStatusSnapshot()
   );
@@ -108,20 +109,36 @@ export const NutritionLab: React.FC = () => {
   // Handle Phaser -> React Events
   const handleFoodPacked = useCallback(
     ({ item }: NutritionPackedPayload) => {
+      const isHazardous = Boolean(item.hasCrumbs || item.isForbidden || item.isBanned);
+      if (isHazardous) {
+        soundManager.playAlertSiren();
+        setSafeFoodToast(null);
+        const warn = item.bannedReasonAr || getRandomWarningPhrase();
+        setCargoWarningToast(warn);
+        setRoboSpeech(warn);
+        EventBus.emit('nutrition:robo-state', { state: 'WARNING' });
+        void dialogueManager.speak(warn);
+        return;
+      }
       setCargoWarningToast(null);
+      setSafeFoodToast(`✓ وجبة فضائية آمنة ومغذية — ${item.nameAr || item.name}`);
       addFoodItem(item);
       setInspectedItem(item);
 
       const praise = getRandomSuccessPhrase();
       const fullSpeech = `${praise} ${item.funFactAr || ''}`;
       setRoboSpeech(fullSpeech);
+      EventBus.emit('nutrition:robo-state', { state: 'HAPPY' });
       void dialogueManager.speak(fullSpeech);
     },
     [addFoodItem]
   );
 
   const handleFoodBanned = useCallback(({ item }: NutritionBannedPayload) => {
+    const isHazardous = Boolean(item.hasCrumbs || item.isForbidden || item.isBanned);
+    if (!isHazardous) return;
     soundManager.playAlertSiren();
+    setSafeFoodToast(null);
     setInspectedItem(item);
 
     const warn = item.bannedReasonAr || getRandomWarningPhrase();
@@ -215,10 +232,10 @@ export const NutritionLab: React.FC = () => {
       setShowSuccessModal(true);
     } else if (packedCount === 4 && !canCompleteMission) {
       const balancePrompt = state.nutritionScore.feedbackTip;
-      soundManager.playAlertSiren();
+      soundManager.playCautionBeep();
       setCargoWarningToast(balancePrompt);
       setRoboSpeech(balancePrompt);
-      EventBus.emit('nutrition:robo-state', { state: 'WARNING' });
+      EventBus.emit('nutrition:robo-state', { state: 'TALKING' });
       void dialogueManager.speak(balancePrompt);
     } else {
       const promptPhrase = `يا بطل الفضاء! نحتاج إلى 4 وجبات فضائية متوازنة داخل الصندوق قبل الإقلاع (لديك الآن ${packedCount}/4).`;
@@ -390,6 +407,25 @@ export const NutritionLab: React.FC = () => {
             </span>
           )}
         </div>
+
+        {safeFoodToast && !cargoWarningToast && (
+          <div
+            data-testid="cargo-safe-toast"
+            className="flex items-center justify-between gap-2 bg-emerald-950/95 border-2 border-emerald-400 rounded-2xl px-4 py-2 text-emerald-100 font-hud font-black text-xs sm:text-sm shadow-lg"
+          >
+            <div className="flex items-center gap-2">
+              <Check className="w-5 h-5 text-emerald-400 shrink-0" />
+              <span>{safeFoodToast}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSafeFoodToast(null)}
+              className="px-2.5 py-1 rounded-xl bg-emerald-900 hover:bg-emerald-800 text-emerald-100 text-xs font-hud font-bold cursor-pointer"
+            >
+              تمام ✓
+            </button>
+          </div>
+        )}
 
         {cargoWarningToast && (
           <div

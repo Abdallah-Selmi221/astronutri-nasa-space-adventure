@@ -58,7 +58,7 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
   return (
     <div
       dir="ltr"
-      className="pointer-events-none fixed inset-x-0 bottom-3 z-30 px-3 sm:px-6 flex items-end justify-between gap-2"
+      className="pointer-events-none fixed inset-x-0 bottom-4 sm:bottom-5 z-30 px-3.5 sm:px-6 flex items-end justify-between gap-2"
     >
       {/* Bottom-Left: Minimalist Transparent Circular Analog Thumbstick */}
       <div className="pointer-events-auto flex flex-col items-start gap-1.5 shrink-0">

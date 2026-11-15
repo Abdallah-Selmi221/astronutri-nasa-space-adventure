@@ -125,13 +125,9 @@ export const HumanHealth: React.FC<HumanHealthProps> = ({ onComplete }) => {
   const shuffledHealthOptions = useMemo(() => shuffleArray(HEART_HEALTH_OPTIONS), []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void dialogueManager.speak(INITIAL_HEALTH_SPEECH);
-    }, 120);
-
+    // Cleanup any active speech on unmount without firing passive mount timers
     return () => {
-      window.clearTimeout(timer);
-      dialogueManager.stop();
+      dialogueManager.stopCurrentSpeech();
     };
   }, []);
 

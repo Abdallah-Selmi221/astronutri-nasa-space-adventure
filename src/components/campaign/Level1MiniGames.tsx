@@ -40,6 +40,8 @@ interface PantryEntry {
   fiber: number;
   vitamins: number;
   isBanned: boolean;
+  hasCrumbs?: boolean;
+  isForbidden?: boolean;
   originBadge?: string;
   bannedMsg?: string;
 }
@@ -62,6 +64,8 @@ const buildPantryEntries = (): PantryEntry[] => {
       fiber: f.fiberGrams ?? 2,
       vitamins: vitBoost,
       isBanned: f.isBanned,
+      hasCrumbs: Boolean(f.hasCrumbs || f.crumbRating === 'high_crumbs'),
+      isForbidden: Boolean(f.isForbidden || f.isBanned),
       originBadge,
       bannedMsg: f.bannedReasonAr
     };
@@ -95,6 +99,8 @@ const buildPantryEntries = (): PantryEntry[] => {
       fiber: 1,
       vitamins: 0,
       isBanned: true,
+      hasCrumbs: true,
+      isForbidden: true,
       originBadge: 'ممنوع بالفضاء 🚫',
       bannedMsg:
         '⚠️ خطر الفتات! البسكويت المتفتت يسبح في الجاذبية الصغرى ويسد فلاتر الهواء ويؤذي أعين الرواد!'
@@ -112,6 +118,8 @@ const buildPantryEntries = (): PantryEntry[] => {
       fiber: 0,
       vitamins: 15,
       isBanned: true,
+      hasCrumbs: false,
+      isForbidden: true,
       originBadge: 'ممنوع بالفضاء 🚫',
       bannedMsg:
         '⚠️ السوائل الحرة ممنوعة! في 0G تتطاير قطرات العصير وتُحدث تماساً كهربائياً بالأجهزة!'
@@ -227,6 +235,10 @@ const FoodPackingScene: React.FC<{
     campaign.l1SelectedFoodIds.length > 0 ? campaign.l1SelectedFoodIds : []
   );
   const [safetyAlert, setSafetyAlert] = useState<string | null>(null);
+  const [safeToast, setSafeToast] = useState<string | null>(null);
+  const [foodMissionDone, setFoodMissionDone] = useState<boolean>(
+    campaign.completedMiniGames.includes('l1_food_prep')
+  );
 
   const packed = PANTRY_ENTRIES.filter((p) => selectedIds.includes(p.id));
   const totalKg = packed.reduce((s, p) => s + p.weightKg, 0);
@@ -246,31 +258,39 @@ const FoodPackingScene: React.FC<{
   const vitPct = pct(totalVitamins, 55);
   const fiberPct = pct(totalFiber, 9);
 
+  // Healthy Egyptian/Sinai & NASA food combinations (zero-crumb, non-forbidden) should unlock smoothly without overly punishing low-fat selections
   const isBalanced =
     packed.length >= 4 &&
     totalKg <= maxKg &&
-    proteinPct >= 75 &&
-    carbsPct >= 65 &&
-    fatsPct >= 65 &&
-    vitPct >= 70 &&
-    fiberPct >= 65;
+    proteinPct >= 45 &&
+    carbsPct >= 45 &&
+    vitPct >= 50 &&
+    fiberPct >= 40 &&
+    (fatsPct >= 30 || totalFats >= 5);
 
   const toggleItem = (entry: PantryEntry) => {
-    if (entry.isBanned) {
+    const isHazardous = Boolean(entry.hasCrumbs || entry.isForbidden || entry.isBanned);
+    if (isHazardous) {
       soundManager.playAlertSiren();
-      setSafetyAlert(entry.bannedMsg || 'ممنوع في الفضاء!');
+      setSafeToast(null);
+      setSafetyAlert(entry.bannedMsg || 'ممنوع في الفضاء! خطر الفتات والسوائل الحرة!');
       void dialogueManager.speak('حاسب! ده ممنوع في الفضاء عشان الفتات والسوائل الحرة!');
       return;
     }
     soundManager.playClick();
     setSafetyAlert(null);
     setSelectedIds((prev) => {
-      if (prev.includes(entry.id)) return prev.filter((x) => x !== entry.id);
+      if (prev.includes(entry.id)) {
+        setSafeToast(null);
+        return prev.filter((x) => x !== entry.id);
+      }
       if (totalKg + entry.weightKg > maxKg) {
         soundManager.playCautionBeep();
+        setSafeToast(null);
         setSafetyAlert('⚠️ وصلت للحد الأقصى لسعة صندوق الشحن (20 كجم)! أزل صنفاً لتضيف غيره.');
         return prev;
       }
+      setSafeToast(`✓ وجبة فضائية آمنة ومغذية — ${entry.nameAr}`);
       return [...prev, entry.id];
     });
   };
@@ -286,6 +306,16 @@ const FoodPackingScene: React.FC<{
           {SCIENCE_BADGES.GAME_RULE.labelAr} • تبسيط تعليمي
         </span>
       </div>
+
+      {safeToast && (
+        <div
+          data-testid="food-safe-toast"
+          className="p-3 rounded-2xl bg-emerald-950/90 border-2 border-emerald-400 text-emerald-100 font-hud font-black text-xs sm:text-sm flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.28)]"
+        >
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span>{safeToast}</span>
+        </div>
+      )}
 
       {safetyAlert && (
         <div className="p-3 rounded-2xl bg-rose-950 border-2 border-rose-400 text-rose-100 font-hud font-bold text-xs sm:text-sm flex items-center gap-2">
@@ -456,6 +486,7 @@ const FoodPackingScene: React.FC<{
         disabled={!isBalanced}
         onClick={() => {
           soundManager.playFanfare();
+          setFoodMissionDone(true);
           void dialogueManager.speak('عاش يا بطل! الوجبة متوازنة وتجمع أكلات مصر وسيناء الآمنة بدون فتات!');
           onComplete(selectedIds, totalKg);
         }}
@@ -467,8 +498,19 @@ const FoodPackingScene: React.FC<{
       >
         {isBalanced
           ? 'تأكيد تعبئة الطعام الآمن وإغلاق الصندوق 🚀'
-          : 'أضف 4+ أصناف متنوعة حتى ترتفع مؤشرات التغذية جميعها فوق 70%'}
+          : 'أضف 4+ أصناف متنوعة آمنة لنقلها لصندوق المهمة'}
       </button>
+
+      {foodMissionDone && (
+        <div
+          data-testid="mission-complete-cta"
+          className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-950 border-2 border-emerald-300 text-center space-y-2 shadow-[0_0_25px_rgba(52,211,153,0.35)]"
+        >
+          <p className="font-hud font-black text-base text-emerald-200">
+            ✓ تم حفظ وجبات البعثة بنجاح — وجبة فضائية آمنة ومغذية!
+          </p>
+        </div>
+      )}
     </div>
   );
 };
@@ -743,9 +785,10 @@ const MissionControlLaunchScene: React.FC<{
             <button
               type="button"
               onClick={onNextLevel}
-              className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-hud font-black text-base border-2 border-white cursor-pointer hover:scale-105 transition-transform"
+              data-testid="mission-next-level-btn"
+              className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-300 via-yellow-300 to-orange-400 text-slate-950 font-hud font-black text-base border-2 border-white shadow-[0_0_26px_rgba(251,191,36,0.75)] cursor-pointer hover:scale-105 transition-transform animate-pulse"
             >
-              انتقل للمستوى 2: الرحلة في 0G 🛸
+              المهمة اكتملت! انطلق للمرحلة التالية 🚀
             </button>
             <button
               type="button"

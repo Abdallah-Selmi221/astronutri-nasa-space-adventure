@@ -466,9 +466,10 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
             <button
               type="button"
               onClick={onNextLevel}
-              className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-hud font-black text-base border-2 border-white cursor-pointer"
+              data-testid="mission-next-level-btn"
+              className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-300 via-yellow-300 to-orange-400 text-slate-950 font-hud font-black text-base border-2 border-white shadow-[0_0_26px_rgba(251,191,36,0.75)] cursor-pointer hover:scale-105 transition-transform animate-pulse"
             >
-              ابدأ المستوى 3: عمليات القاعدة القمرية 🌕
+              المهمة اكتملت! انطلق للمرحلة التالية 🚀
             </button>
             <button
               type="button"

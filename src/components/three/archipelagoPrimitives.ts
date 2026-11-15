@@ -75,14 +75,35 @@ export function createIslandSurfaceTexture(
       ctx.arc(256, 256, 118, 0, Math.PI * 2);
       ctx.fill();
 
-      // Pebble flagstones around inner plaza
-      ctx.strokeStyle = 'rgba(254, 243, 199, 0.45)';
+      // Pebble flagstones & radiating garden walking paths toward courtyard rings
+      ctx.strokeStyle = 'rgba(217, 155, 82, 0.72)';
+      ctx.lineWidth = 18;
+      ctx.lineCap = 'round';
+      for (let p = 0; p < 6; p++) {
+        const ang = (p / 6) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(256, 256);
+        ctx.lineTo(256 + Math.cos(ang) * 185, 256 + Math.sin(ang) * 185);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = 'rgba(254, 243, 199, 0.48)';
       ctx.lineWidth = 6;
       ctx.setLineDash([16, 10]);
       ctx.beginPath();
       ctx.arc(256, 256, 122, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
+
+      // Tiny meadow daisies & clover highlights
+      for (let d = 0; d < 75; d++) {
+        const dx = (d * 149 + 31) % 512;
+        const dy = (d * 227 + 19) % 512;
+        ctx.fillStyle = d % 2 === 0 ? 'rgba(254, 249, 195, 0.55)' : 'rgba(244, 114, 182, 0.45)';
+        ctx.beginPath();
+        ctx.arc(dx, dy, 2.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
     } else if (mode === 'lunar') {
       for (let i = 0; i < 520; i++) {
         const x = (i * 89) % 512;
@@ -162,36 +183,36 @@ export function createIslandSurfaceTexture(
 export function createCosmicSkyBackdrop(scene: THREE.Scene, skyMode: SkyMode = 'nebula'): CosmicSkyHandle {
   const isDaylight = skyMode === 'sunny' || skyMode === 'tropical';
   if (skyMode === 'sunny') {
-    scene.background = new THREE.Color(0x2884e6);
-    scene.fog = new THREE.FogExp2(0x3a96f0, 0.0038);
+    scene.background = new THREE.Color(0x0f3275);
+    scene.fog = new THREE.FogExp2(0x164494, 0.0034);
   } else if (skyMode === 'tropical') {
-    scene.background = new THREE.Color(0x0ea5e9);
-    scene.fog = new THREE.FogExp2(0x38bdf8, 0.004);
+    scene.background = new THREE.Color(0x09517f);
+    scene.fog = new THREE.FogExp2(0x0e6a9e, 0.0036);
   } else if (skyMode === 'lunar') {
-    scene.background = new THREE.Color(0x0c1b44);
-    scene.fog = new THREE.FogExp2(0x0f2454, 0.0055);
+    scene.background = new THREE.Color(0x071230);
+    scene.fog = new THREE.FogExp2(0x0b1c47, 0.005);
   } else {
-    scene.background = new THREE.Color(0x101c45);
-    scene.fog = new THREE.FogExp2(0x162559, 0.006);
+    scene.background = new THREE.Color(0x0a1438);
+    scene.fog = new THREE.FogExp2(0x111f54, 0.0055);
   }
 
   const disposableTextures: THREE.Texture[] = [];
   const disposableObjects: THREE.Object3D[] = [];
 
-  // 1. Starfield (subtle sparkle in upper sky even in sunny space-academy dome -> 1 draw call)
-  const starCount = isDaylight ? 260 : 680;
+  // 1. Dual-Layer Twinkling Cosmic Starfield (primary canopy + vibrant twinkle sparkles -> 2 draw calls)
+  const starCount = isDaylight ? 420 : 720;
   const starGeo = new THREE.BufferGeometry();
   const starPos = new Float32Array(starCount * 3);
   const starCols = new Float32Array(starCount * 3);
   const palette = isDaylight
-    ? [new THREE.Color(0xffffff), new THREE.Color(0xfef9c3)]
+    ? [new THREE.Color(0xffffff), new THREE.Color(0xfef9c3), new THREE.Color(0x7dd3fc), new THREE.Color(0xc4b5fd)]
     : [new THREE.Color(0xe0f2fe), new THREE.Color(0xfef08a), new THREE.Color(0x7dd3fc), new THREE.Color(0xf9a8d4)];
 
   for (let i = 0; i < starCount; i++) {
-    const r = 34 + Math.random() * 56;
+    const r = 34 + Math.random() * 58;
     const theta = Math.random() * Math.PI * 2;
     starPos[i * 3] = Math.cos(theta) * r;
-    starPos[i * 3 + 1] = isDaylight ? 14 + Math.random() * 28 : 2 + (Math.random() - 0.35) * 44;
+    starPos[i * 3 + 1] = isDaylight ? 6 + Math.random() * 34 : 2 + (Math.random() - 0.35) * 46;
     starPos[i * 3 + 2] = Math.sin(theta) * r;
     const c = palette[i % palette.length];
     starCols[i * 3] = c.r;
@@ -202,10 +223,34 @@ export function createCosmicSkyBackdrop(scene: THREE.Scene, skyMode: SkyMode = '
   starGeo.setAttribute('color', new THREE.BufferAttribute(starCols, 3));
   const starPoints = new THREE.Points(
     starGeo,
-    new THREE.PointsMaterial({ size: isDaylight ? 0.25 : 0.32, vertexColors: true, transparent: true, opacity: isDaylight ? 0.55 : 0.92 })
+    new THREE.PointsMaterial({ size: isDaylight ? 0.3 : 0.34, vertexColors: true, transparent: true, opacity: 0.88 })
   );
   scene.add(starPoints);
   disposableObjects.push(starPoints);
+
+  // Secondary shimmering star & cosmic dust cluster
+  const twinkleCount = 160;
+  const twinkleGeo = new THREE.BufferGeometry();
+  const twinklePos = new Float32Array(twinkleCount * 3);
+  const twinkleCols = new Float32Array(twinkleCount * 3);
+  const nebPalette = [new THREE.Color(0x38bdf8), new THREE.Color(0xe879f9), new THREE.Color(0xfde047)];
+  for (let i = 0; i < twinkleCount; i++) {
+    const r = 38 + Math.random() * 48;
+    const theta = (i / twinkleCount) * Math.PI * 2 + (i % 5) * 0.13;
+    twinklePos[i * 3] = Math.cos(theta) * r;
+    twinklePos[i * 3 + 1] = 8 + ((i * 19) % 30);
+    twinklePos[i * 3 + 2] = Math.sin(theta) * r;
+    const c = nebPalette[i % nebPalette.length];
+    twinkleCols[i * 3] = c.r;
+    twinkleCols[i * 3 + 1] = c.g;
+    twinkleCols[i * 3 + 2] = c.b;
+  }
+  twinkleGeo.setAttribute('position', new THREE.BufferAttribute(twinklePos, 3));
+  twinkleGeo.setAttribute('color', new THREE.BufferAttribute(twinkleCols, 3));
+  const twinkleMat = new THREE.PointsMaterial({ size: 0.56, vertexColors: true, transparent: true, opacity: 0.72 });
+  const twinklePoints = new THREE.Points(twinkleGeo, twinkleMat);
+  scene.add(twinklePoints);
+  disposableObjects.push(twinklePoints);
 
   // 2. Sculpted Low-Poly Clouds OR Luminous Nebula Billboards (1-2 draw calls)
   let cloudMesh: THREE.Mesh | null = null;
@@ -287,6 +332,8 @@ export function createCosmicSkyBackdrop(scene: THREE.Scene, skyMode: SkyMode = '
 
   const update = (t: number) => {
     starPoints.rotation.y = t * 0.006;
+    twinklePoints.rotation.y = -t * 0.009;
+    twinkleMat.opacity = 0.58 + 0.32 * Math.sin(t * 2.4);
     if (cloudMesh) {
       cloudMesh.rotation.y = t * 0.015;
     }
@@ -472,7 +519,7 @@ export function createFloatingIslandMesh(opts: {
   island.add(underMesh);
 
   // 3. Instanced Grass Tufts / Flowers / Toadstools / Rocks (1 InstancedMesh draw call!)
-  const detailCount = Math.min(34, Math.max(16, Math.round(opts.radius * 1.7)));
+  const detailCount = Math.min(48, Math.max(20, Math.round(opts.radius * 2.1)));
   const detailGeom =
     mode === 'grass' || mode === 'ocean'
       ? new THREE.ConeGeometry(0.14, 0.42, 5)
