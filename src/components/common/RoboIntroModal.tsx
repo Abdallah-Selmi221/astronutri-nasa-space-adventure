@@ -43,9 +43,16 @@ export const RoboIntroModal: React.FC = () => {
   };
 
   const handleStartAdventure = () => {
-    dialogueManager.stop();
-    soundManager.playFanfare();
+    // Dismiss synchronously so slow mobile audio never blocks UI transition
     dismissIntro();
+    window.setTimeout(() => {
+      try {
+        dialogueManager.stop();
+        soundManager.playFanfare();
+      } catch {
+        // Ignore audio errors
+      }
+    }, 0);
   };
 
   if (!state.showIntroModal) return null;
@@ -167,15 +174,13 @@ export const RoboIntroModal: React.FC = () => {
             {/* Responsive Glowing Capsule CTA Button */}
             <div className="flex items-center justify-center gap-3 w-full max-w-lg">
               <Star className="w-8 h-8 text-yellow-300 fill-yellow-400 animate-bounce shrink-0" />
-              <motion.button
+              <button
                 type="button"
-                whileHover={{ scale: 1.05, y: -3 }}
-                whileTap={{ scale: 0.95 }}
                 onClick={handleStartAdventure}
-                className="flex-1 py-4 sm:py-5 px-8 rounded-full bg-gradient-to-b from-yellow-300 via-amber-500 to-orange-600 text-white font-hud font-black text-xl sm:text-3xl border-4 border-yellow-100 shadow-[0_0_40px_rgba(245,158,11,0.8)] cursor-pointer"
+                className="flex-1 py-4 sm:py-5 px-8 rounded-full bg-gradient-to-b from-yellow-300 via-amber-500 to-orange-600 text-white font-hud font-black text-xl sm:text-3xl border-4 border-yellow-100 shadow-[0_0_40px_rgba(245,158,11,0.8)] cursor-pointer touch-manipulation active:scale-95 transition-transform"
               >
                 انطلق إلى المغامرة!
-              </motion.button>
+              </button>
               <Star className="w-8 h-8 text-yellow-300 fill-yellow-400 animate-bounce shrink-0" />
             </div>
           </div>

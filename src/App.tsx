@@ -69,8 +69,12 @@ const GameRouter: React.FC = () => {
   const { state, setLocation } = useGameState();
   const [isNasaOpen, setIsNasaOpen] = useState(false);
   const [hasWatchedIntro, setHasWatchedIntro] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('astronutri_intro_played') === 'true';
+    try {
+      if (typeof window !== 'undefined') {
+        return sessionStorage.getItem('astronutri_intro_played') === 'true';
+      }
+    } catch {
+      // Ignore restricted mobile storage access
     }
     return false;
   });
@@ -82,8 +86,12 @@ const GameRouter: React.FC = () => {
   }, []);
 
   const handleIntroComplete = () => {
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('astronutri_intro_played', 'true');
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('astronutri_intro_played', 'true');
+      }
+    } catch {
+      // Ignore restricted mobile storage access
     }
     setHasWatchedIntro(true);
   };

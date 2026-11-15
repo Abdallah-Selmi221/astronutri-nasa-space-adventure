@@ -241,7 +241,7 @@ export default defineConfig(({ mode }) => {
         disable: mode === 'development',
         registerType: 'autoUpdate',
         injectRegister: 'auto',
-        includeAssets: ['favicon.svg', 'robots.txt', 'apple-touch-icon.png'],
+        includeAssets: ['favicon.svg', 'robots.txt', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
         manifest: {
           name: 'AstroNutri - Junior Astronaut Mission Trainer',
           short_name: 'AstroNutri',
@@ -277,19 +277,70 @@ export default defineConfig(({ mode }) => {
           cleanupOutdatedCaches: true,
           skipWaiting: true,
           clientsClaim: true,
-          globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,webp,woff2,mp3,mp4,json,glb,gltf}'],
+          globPatterns: ['**/*.{js,css,html,ico,svg,woff2,glb}'],
           globIgnores: [
+            '**/*.mp4',
+            '**/*.mp3',
+            '**/*.jpg',
+            '**/*.jpeg',
+            '**/*.webp',
+            '**/assets/suit/*.jpg',
             'robo-intro.mp4',
             'assets/scenes/**',
-            'assets/sprites/contact-sheet.png',
-            'assets/images/robo-cropped.png',
-            'audio/robo/automation-test/**',
-            'audio/robo/model-comparison/**',
-            'audio/robo/sample/sample_greeting.mp3',
-            'audio/robo/sample/sample_manifest.json'
+            'assets/art/**',
+            'assets/sprites/**',
+            'assets/images/**',
+            'assets/generated/**',
+            'assets/intro_frames/**',
+            'audio/**',
+            'assets/food/*.png'
           ],
           navigateFallbackDenylist: [/^\/api\//],
-          maximumFileSizeToCacheInBytes: 25 * 1024 * 1024
+          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+          runtimeCaching: [
+            {
+              urlPattern: /\.(?:mp3|jpg|jpeg|png|webp|svg)$/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'astronutri-media-cache',
+                expiration: {
+                  maxEntries: 150,
+                  maxAgeSeconds: 30 * 24 * 60 * 60
+                },
+                cacheableResponse: {
+                  statuses: [0, 200]
+                }
+              }
+            },
+            {
+              urlPattern: /\.(?:mp4)$/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'astronutri-video-cache',
+                expiration: {
+                  maxEntries: 4,
+                  maxAgeSeconds: 14 * 24 * 60 * 60
+                },
+                cacheableResponse: {
+                  statuses: [0, 200]
+                }
+              }
+            },
+            {
+              urlPattern: /\/data\/nasa_snapshots\.json$/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'astronutri-nasa-data-cache',
+                expiration: {
+                  maxEntries: 5,
+                  maxAgeSeconds: 7 * 24 * 60 * 60
+                },
+                cacheableResponse: {
+                  statuses: [0, 200]
+                }
+              }
+            }
+          ]
         }
       })
     ],
