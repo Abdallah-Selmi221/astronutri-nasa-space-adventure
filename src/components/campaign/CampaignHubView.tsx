@@ -18,6 +18,8 @@ import { openNasaDrawer } from '../common/NasaMissionControlDrawer';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { nasaCache } from '../../services/nasa/nasaCache';
+import { getNextSequentialMissionTarget, LEVEL_TITLES_BILINGUAL } from '../../data/campaignBilingual';
+import { tr } from '../../utils/i18n';
 import {
   ArrowRight,
   BookOpen,
@@ -40,16 +42,11 @@ import {
   X
 } from 'lucide-react';
 
-const LEVEL_UI_META: Record<CampaignLevelId, { badge: string; shortTitleAr: string }> = {
-  1: { badge: '🌍', shortTitleAr: 'الأرض والانطلاق' },
-  2: { badge: '🛸', shortTitleAr: 'المدار 0G' },
-  3: { badge: '🌙', shortTitleAr: 'مستعمرة القمر' },
-  4: { badge: '🪂', shortTitleAr: 'العودة للأرض' }
-};
-
 export const CampaignHubView: React.FC = () => {
   const {
     state,
+    language,
+    setLanguage,
     setLocation,
     setCampaignView,
     completeCampaignMiniGame,
@@ -61,6 +58,12 @@ export const CampaignHubView: React.FC = () => {
   const campaign = state.campaign || initialCampaignState;
   const activeLevelId = campaign.activeLevel || 1;
   const activeLevelSpec = CAMPAIGN_LEVELS[activeLevelId];
+  const isDemoMode =
+    campaign.unlockedLevels.length >= 4 &&
+    campaign.l3ReturnAuthorized &&
+    campaign.l3PackedTools.length >= 4;
+  const seqTarget = getNextSequentialMissionTarget(activeLevelId, campaign);
+  const langDir = language === 'ar' ? 'rtl' : 'ltr';
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSourcesOpen, setIsSourcesOpen] = useState(false);
@@ -134,12 +137,12 @@ export const CampaignHubView: React.FC = () => {
     isHowToPlayOpen ? (
       <div
         className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md"
-        dir="rtl"
+        dir={langDir}
       >
         <div className="w-full max-w-lg rounded-3xl bg-slate-900 border-2 border-amber-400/70 p-5 space-y-3 text-white shadow-2xl">
           <div className="flex items-center justify-between">
             <h3 className="font-hud font-black text-lg text-amber-300">
-              🎮 كيف تلعب في أسترونوتري؟ (How To Play)
+              {tr(language, '🎮 How To Play AstroNutri', '🎮 كيف تلعب في أسترونوتري؟')}
             </h3>
             <button
               type="button"
@@ -150,10 +153,38 @@ export const CampaignHubView: React.FC = () => {
             </button>
           </div>
           <ul className="space-y-2 text-xs sm:text-sm text-slate-200 leading-relaxed">
-            <li>1️⃣ <strong>تجول في الأرخبيل الـ 3D:</strong> تحرك بمفاتيح WASD / الأسهم أو عصا التحكم واقفز بزر Space عبر الجزر الأربع والجسور السماوية!</li>
-            <li>2️⃣ <strong>بدلة SPACE-FIT X الذكية:</strong> افتح عارض البدلة واستخدم الـ 7 وحدات للضغط الذكي والمقاومة والحصاد الحركي للطاقة.</li>
-            <li>3️⃣ <strong>الأكلات المصرية والسيناوية وعسل النحل:</strong> جهّز عسل النحل الجبلي السيناوي والمش والعجوة والطحينة والجرجير والكابوتشا بلا فتات.</li>
-            <li>4️⃣ <strong>المصداقية العلمية:</strong> كل حقيقة تحمل شارة صريحة تميّز بين المثبت على ISS ✅ والتجريبي 🧪 والتخطيطي 📐 وتبسيط اللعبة 🎮.</li>
+            <li>
+              1️⃣{' '}
+              {tr(
+                language,
+                'Explore 3D Floating Islands: Use WASD/joystick or tap "Go to Next Mission" and follow the golden floor arrow!',
+                'تجول في الجزر الثلاثية الأبعاد بالتحكم أو بزر "اذهب للمهمة التالية" واتبع السهم الذهبي على الأرض!'
+              )}
+            </li>
+            <li>
+              2️⃣{' '}
+              {tr(
+                language,
+                'SPACE-FIT X Suit: Open the 3D Suit Showcase to adjust smart compression, joint cables, and harvest kinetic energy.',
+                'بدلة SPACE-FIT X الذكية: افتح عارض البدلة لضبط الضغط والمقاومة وحصاد الطاقة الحركية.'
+              )}
+            </li>
+            <li>
+              3️⃣{' '}
+              {tr(
+                language,
+                'Sinai & Egyptian Space Foods: Pack crumb-free Sinai Honey, Mish, Date bars & Hydroponic Greens.',
+                'الأكلات المصرية والسيناوية: جهّز عسل النحل السيناوي والمش والعجوة والجرجير بلا فتات.'
+              )}
+            </li>
+            <li>
+              4️⃣{' '}
+              {tr(
+                language,
+                'NASA Data Honesty: Every mission pairs real DONKI/NeoWs/OSDR/ECLSS telemetry with labeled game rules.',
+                'المصداقية العلمية: كل مهمة مرتبطة ببيانات ناسا الحقيقية وشارة صريحة لتبسيط اللعبة.'
+              )}
+            </li>
           </ul>
           <button
             type="button"
@@ -163,7 +194,7 @@ export const CampaignHubView: React.FC = () => {
             }}
             className="w-full py-2.5 rounded-2xl bg-amber-400 text-slate-950 font-hud font-black text-sm cursor-pointer"
           >
-            فهمت! هيا نبدأ 🚀
+            {tr(language, "Got it! Let's Launch 🚀", 'فهمت! هيا نبدأ 🚀')}
           </button>
         </div>
       </div>
@@ -314,10 +345,12 @@ export const CampaignHubView: React.FC = () => {
     const canEnterNextLevel =
       activeLevelId < 4 && campaign.unlockedLevels.includes(nextLevelId);
 
+    const activeLvMeta = LEVEL_TITLES_BILINGUAL[activeLevelId];
+
     return (
       <div
         className="relative w-full h-[100dvh] overflow-hidden bg-[#07122b] text-white"
-        dir="rtl"
+        dir={langDir}
       >
         {/* Full-Viewport 3D Island & Third-Person Character Scene */}
         <div className="absolute inset-0 w-full h-full z-0">
@@ -329,51 +362,66 @@ export const CampaignHubView: React.FC = () => {
           />
         </div>
 
-        {/* Minimalist Corner Kids HUD (Level Island: Star Counter Left, NASA & Menu Right) */}
+        {/* Minimalist Corner Kids HUD */}
         <header
           dir="ltr"
-          className="pointer-events-none fixed top-2.5 inset-x-2.5 sm:inset-x-4 z-30 flex items-start justify-between gap-2"
+          className="pointer-events-none fixed top-2.5 inset-x-2 sm:inset-x-4 z-30 flex items-start justify-between gap-1 sm:gap-2"
         >
           {/* Physical Top-Left: Back to Archipelago + Gold Star & Mission Progress */}
-          <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 shrink-0">
             <button
               type="button"
               onClick={handleBackToWorldMap}
               className="casual-btn-cyan px-2.5 sm:px-3 py-1.5 text-xs flex items-center gap-1 cursor-pointer shrink-0 rounded-full"
-              dir="rtl"
+              aria-label={tr(language, 'Archipelago', 'الأرخبيل')}
+              dir={langDir}
             >
-              <ArrowRight className="w-3.5 h-3.5" />
-              <span>الأرخبيل</span>
+              <ArrowRight className={`w-3.5 h-3.5 ${language === 'en' ? 'rotate-180' : ''}`} />
+              <span className="hidden sm:inline">{tr(language, 'Archipelago', 'الأرخبيل')}</span>
             </button>
 
             <div
-              dir="rtl"
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-slate-950/75 border-2 border-amber-300/75 backdrop-blur-md shadow-lg"
+              dir={langDir}
+              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-slate-950/75 border-2 border-amber-300/75 backdrop-blur-md shadow-lg"
             >
               <img
                 src="/assets/ui/star_coin.svg"
                 alt=""
-                className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 drop-shadow"
+                className="w-4 h-4 sm:w-6 sm:h-6 shrink-0 drop-shadow"
               />
-              <span className="font-hud font-black text-xs sm:text-sm text-amber-300 tabular-nums">
+              <span className="font-hud font-black text-[11px] sm:text-sm text-amber-300 tabular-nums">
                 {totalStarsScore}
               </span>
-              <span className="text-[11px] font-hud font-black text-white border-r border-white/20 pr-1.5 whitespace-nowrap">
-                {LEVEL_UI_META[activeLevelId].badge} {levelDoneCount}/{activeLevelSpec.miniGames.length}
+              <span className="text-[10px] sm:text-[11px] font-hud font-black text-white border-s border-white/20 ps-1 sm:ps-1.5 whitespace-nowrap">
+                <span className="hidden sm:inline">{activeLvMeta.badge} </span>
+                {levelDoneCount}/{activeLevelSpec.miniGames.length}
               </span>
             </div>
           </div>
 
-          {/* Physical Top-Right: Return Auth (when earned) + NASA Live Data + Pause/Menu Drawer */}
-          <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Physical Top-Right: 1-Tap EN/AR + Return Auth + NASA Live Data + Menu */}
+          <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 shrink-0">
+            <button
+              type="button"
+              data-testid="hud-lang-toggle"
+              onClick={() => {
+                soundManager.playClick();
+                setLanguage(language === 'en' ? 'ar' : 'en');
+              }}
+              className="px-2 sm:px-2.5 py-1.5 rounded-full bg-slate-950/80 hover:bg-slate-800 text-cyan-200 font-hud font-black text-[11px] border-2 border-cyan-400/75 backdrop-blur-md shadow-lg cursor-pointer whitespace-nowrap"
+            >
+              <span className="sm:hidden">{language === 'en' ? 'عربي' : 'EN'}</span>
+              <span className="hidden sm:inline">{language === 'en' ? 'EN | عربي' : 'عربي | EN'}</span>
+            </button>
+
             {activeLevelId === 3 && allLevelGamesDone && !campaign.l3ReturnAuthorized && (
               <button
                 type="button"
                 onClick={() => setCampaignView('minigame', 3, 'mission_control', null)}
-                className="px-2.5 py-1.5 rounded-full bg-purple-600 hover:bg-purple-500 text-white font-black text-xs border-2 border-purple-200 animate-pulse cursor-pointer whitespace-nowrap shadow-lg"
-                dir="rtl"
+                className="px-2 sm:px-2.5 py-1.5 rounded-full bg-purple-600 hover:bg-purple-500 text-white font-black text-[11px] sm:text-xs border-2 border-purple-200 animate-pulse cursor-pointer whitespace-nowrap shadow-lg"
+                dir={langDir}
               >
-                🛸 إذن العودة
+                {tr(language, '🛸 Auth', '🛸 إذن')}
               </button>
             )}
 
@@ -385,11 +433,11 @@ export const CampaignHubView: React.FC = () => {
                 setIsMobileMenuOpen(false);
                 openNasaDrawer();
               }}
-              className="px-2.5 sm:px-3 py-1.5 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-100 font-hud font-black text-xs border-2 border-cyan-300/75 backdrop-blur-md shadow-lg flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-              dir="rtl"
+              className="px-2 sm:px-3 py-1.5 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-100 font-hud font-black text-xs border-2 border-cyan-300/75 backdrop-blur-md shadow-lg flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              aria-label="NASA"
             >
               <Satellite className="w-3.5 h-3.5 text-cyan-300" />
-              <span>NASA</span>
+              <span className="hidden sm:inline">NASA</span>
             </button>
 
             <button
@@ -399,29 +447,53 @@ export const CampaignHubView: React.FC = () => {
                 soundManager.playClick();
                 setIsMobileMenuOpen((v) => !v);
               }}
-              className="px-2.5 sm:px-3 py-1.5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_3px_0_#b45309] flex items-center gap-1 cursor-pointer whitespace-nowrap"
-              aria-label="فتح القائمة"
-              dir="rtl"
+              className="px-2 sm:px-3 py-1.5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_3px_0_#b45309] flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              aria-label="Menu"
+              dir={langDir}
             >
               {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-              <span className="hidden sm:inline">القائمة</span>
+              <span className="hidden sm:inline">{tr(language, 'Menu', 'القائمة')}</span>
             </button>
           </div>
         </header>
 
-        {/* Clean Unified Pause & Navigation Drawer (Level Hub: Desktop + Mobile) */}
+        {/* Kid-Friendly Top-Center Guided Mission Banner (Step 1 of N + Tap-to-Walk) */}
+        <div
+          dir={langDir}
+          className="pointer-events-none fixed top-14 sm:top-3.5 inset-x-0 z-20 flex justify-center px-3"
+        >
+          <button
+            type="button"
+            data-testid="top-mission-banner"
+            onClick={() => {
+              soundManager.playClick();
+              window.dispatchEvent(new CustomEvent('astronutri:auto-walk-next'));
+            }}
+            className="pointer-events-auto inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-950/80 hover:bg-slate-900 border-2 border-amber-300/85 backdrop-blur-md shadow-xl text-xs sm:text-sm font-hud font-black text-white max-w-[92vw] sm:max-w-md cursor-pointer transition-transform active:scale-95"
+          >
+            <span className="text-amber-300 shrink-0">🎯</span>
+            <span className="truncate">{tr(language, seqTarget.bannerEn, seqTarget.bannerAr)}</span>
+            {seqTarget.activeRoom && (
+              <span className="px-2 py-0.5 rounded-full bg-cyan-400 text-slate-950 text-[10px] font-black shrink-0">
+                {tr(language, 'Go 🧭', 'اذهب 🧭')}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Clean Unified Pause & Navigation Drawer (Level Hub) */}
         {isMobileMenuOpen && (
           <div
             data-testid="mobile-menu-drawer"
-            dir="rtl"
+            dir={langDir}
             className="fixed top-14 sm:top-16 right-2.5 sm:right-4 z-40 w-[calc(100vw-20px)] max-w-sm rounded-3xl bg-slate-950/95 border-2 border-cyan-300/80 p-3.5 shadow-2xl space-y-2.5"
           >
             <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
               <div className="text-xs font-hud font-black text-cyan-200 truncate">
-                {LEVEL_UI_META[activeLevelId].badge} {LEVEL_UI_META[activeLevelId].shortTitleAr}
+                {activeLvMeta.badge} {tr(language, activeLvMeta.shortEn, activeLvMeta.shortAr)}
               </div>
               <span className="text-[11px] font-bold text-emerald-300 whitespace-nowrap">
-                ✅ {levelDoneCount}/{activeLevelSpec.miniGames.length} مهام
+                ✅ {levelDoneCount}/{activeLevelSpec.miniGames.length} {tr(language, 'Missions', 'مهام')}
               </span>
             </div>
 
@@ -437,7 +509,7 @@ export const CampaignHubView: React.FC = () => {
                 className="p-2.5 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-hud font-black text-xs border-2 border-sky-200/80 shadow-[0_3px_0_#075985] flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <DoorOpen className="w-4 h-4" />
-                <span>الغرف ({activeLevelSpec.rooms.length})</span>
+                <span>{tr(language, `Stations (${activeLevelSpec.rooms.length})`, `الغرف (${activeLevelSpec.rooms.length})`)}</span>
               </button>
 
               <button
@@ -465,7 +537,7 @@ export const CampaignHubView: React.FC = () => {
                   className="p-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-hud font-black text-xs border-2 border-emerald-200 shadow-[0_3px_0_#065f46] flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Sprout className="w-4 h-4" />
-                  <span>الزراعة المائية</span>
+                  <span>{tr(language, 'Hydroponics', 'الزراعة المائية')}</span>
                 </button>
               )}
 
@@ -479,7 +551,7 @@ export const CampaignHubView: React.FC = () => {
                 className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-sky-200 font-hud font-black text-xs border-2 border-sky-400/50 flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <BookOpen className="w-4 h-4 text-sky-300" />
-                <span>مصادر (13)</span>
+                <span>{tr(language, 'Sources (13)', 'مصادر (13)')}</span>
               </button>
 
               <button
@@ -492,7 +564,7 @@ export const CampaignHubView: React.FC = () => {
                 className="p-2.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-xs border-2 border-white flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <HelpCircle className="w-4 h-4" />
-                <span>كيف تلعب؟</span>
+                <span>{tr(language, 'How to Play', 'كيف تلعب؟')}</span>
               </button>
 
               <button
@@ -506,7 +578,7 @@ export const CampaignHubView: React.FC = () => {
                 className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-hud font-black text-xs border-2 border-slate-500 flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Settings className="w-4 h-4" />
-                <span>الإعدادات</span>
+                <span>{tr(language, 'Settings', 'الإعدادات')}</span>
               </button>
 
               {canEnterNextLevel && (
@@ -519,7 +591,7 @@ export const CampaignHubView: React.FC = () => {
                   className="col-span-2 p-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-hud font-black text-xs border-2 border-white flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Rocket className="w-4 h-4" />
-                  <span>الانتقال إلى المستوى {nextLevelId}</span>
+                  <span>{tr(language, `Advance to Level ${nextLevelId}`, `الانتقال إلى المستوى ${nextLevelId}`)}</span>
                 </button>
               )}
             </div>
@@ -534,9 +606,13 @@ export const CampaignHubView: React.FC = () => {
                 <div>
                   <h2 className="font-hud font-black text-lg text-cyan-200 flex items-center gap-2">
                     <Compass className="w-5 h-5 text-cyan-400" />
-                    <span>مهام وغرف {activeLevelSpec.titleAr}</span>
+                    <span>
+                      {tr(language, activeLvMeta.titleEn, activeLvMeta.titleAr)} • {tr(language, 'Sequential Steps', 'المهام المتسلسلة')}
+                    </span>
                   </h2>
-                  <p className="text-xs text-slate-400">{activeLevelSpec.subtitleAr}</p>
+                  <p className="text-xs text-slate-400">
+                    {tr(language, activeLvMeta.subtitleEn, activeLvMeta.subtitleAr)}
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -562,34 +638,52 @@ export const CampaignHubView: React.FC = () => {
                 {activeLevelSpec.miniGames.map((mgId) => {
                   const spec = MINI_GAME_SPECS[mgId];
                   const done = campaign.completedMiniGames.includes(mgId);
+                  const isActiveStep = !done && seqTarget.activeMiniGameId === mgId;
+                  const unlockedStep = done || isActiveStep || isDemoMode;
                   return (
                     <button
                       key={mgId}
                       type="button"
+                      disabled={!unlockedStep}
                       onClick={() => {
+                        if (!unlockedStep) return;
                         soundManager.playClick();
                         setIsRoomsDrawerOpen(false);
                         setCampaignView('minigame', activeLevelId, spec.roomId, mgId);
                       }}
-                      className={`p-3 rounded-2xl border-2 text-right flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                      className={`p-3 rounded-2xl border-2 flex items-center justify-between gap-2 transition-all ${
+                        language === 'ar' ? 'text-right' : 'text-left'
+                      } ${
                         done
-                          ? 'bg-emerald-950/50 border-emerald-400/70 text-white'
-                          : 'bg-slate-950/75 border-slate-700 hover:border-cyan-400 text-slate-100'
+                          ? 'bg-emerald-950/50 border-emerald-400/70 text-white cursor-pointer'
+                          : isActiveStep
+                          ? 'bg-amber-950/60 border-amber-300 text-white shadow-[0_0_16px_rgba(251,191,36,0.3)] cursor-pointer'
+                          : isDemoMode
+                          ? 'bg-slate-950/75 border-cyan-500/45 hover:border-cyan-400 text-slate-100 cursor-pointer'
+                          : 'bg-slate-950/50 border-slate-800 text-slate-500 opacity-60 cursor-not-allowed'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <span className="text-2xl shrink-0">{spec.icon}</span>
                         <div className="min-w-0">
                           <div className="font-black text-xs truncate">
-                            {spec.orderInLevel}. {spec.titleAr}
+                            {spec.orderInLevel}. {tr(language, spec.titleEn, spec.titleAr)}
                           </div>
                           <div className="text-[10px] text-slate-400 truncate">{spec.nasaBadge}</div>
                         </div>
                       </div>
                       {done ? (
                         <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                      ) : isActiveStep ? (
+                        <span className="text-[11px] font-black text-amber-300 shrink-0">
+                          {tr(language, 'Active 🎯', 'ابدأ 🎯')}
+                        </span>
+                      ) : unlockedStep ? (
+                        <span className="text-[11px] font-black text-cyan-300 shrink-0">
+                          {tr(language, 'Open', 'افتح')}
+                        </span>
                       ) : (
-                        <span className="text-[11px] font-black text-cyan-300 shrink-0">ابدأ ←</span>
+                        <Lock className="w-4 h-4 text-slate-500 shrink-0" />
                       )}
                     </button>
                   );
@@ -598,31 +692,40 @@ export const CampaignHubView: React.FC = () => {
                 {activeLevelId === 3 && (
                   <button
                     type="button"
+                    disabled={!allLevelGamesDone && !isDemoMode && !campaign.l3ReturnAuthorized}
                     onClick={() => {
                       setIsRoomsDrawerOpen(false);
                       setCampaignView('minigame', 3, 'mission_control', null);
                     }}
-                    className={`p-3 rounded-2xl border-2 text-right flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                    className={`p-3 rounded-2xl border-2 flex items-center justify-between gap-2 transition-all ${
+                      language === 'ar' ? 'text-right' : 'text-left'
+                    } ${
                       campaign.l3ReturnAuthorized
-                        ? 'bg-purple-950/60 border-purple-400 text-white'
-                        : 'bg-slate-950/75 border-purple-500/45 hover:border-purple-400 text-purple-100'
+                        ? 'bg-purple-950/60 border-purple-400 text-white cursor-pointer'
+                        : allLevelGamesDone || isDemoMode
+                        ? 'bg-slate-950/75 border-purple-400 hover:border-purple-300 text-purple-100 cursor-pointer'
+                        : 'bg-slate-950/50 border-slate-800 text-slate-500 opacity-60 cursor-not-allowed'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <span className="text-2xl shrink-0">🛸</span>
                       <div className="min-w-0">
                         <div className="font-black text-xs truncate">
-                          مركز قيادة القمر (Mission Control)
+                          {tr(language, 'Lunar Mission Control', 'مركز قيادة القمر')}
                         </div>
                         <div className="text-[10px] text-purple-300 truncate">
-                          تفويض العودة إلى الأرض (المستوى 4)
+                          {tr(language, 'Earth Return Auth (Level 4)', 'تفويض العودة للأرض (المستوى 4)')}
                         </div>
                       </div>
                     </div>
                     {campaign.l3ReturnAuthorized ? (
                       <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                    ) : allLevelGamesDone || isDemoMode ? (
+                      <span className="text-[11px] font-black text-purple-300 shrink-0">
+                        {tr(language, 'Check', 'افحص')}
+                      </span>
                     ) : (
-                      <span className="text-[11px] font-black text-purple-300 shrink-0">افحص ←</span>
+                      <Lock className="w-4 h-4 text-slate-500 shrink-0" />
                     )}
                   </button>
                 )}
@@ -662,7 +765,7 @@ export const CampaignHubView: React.FC = () => {
   return (
     <div
       className="relative w-full h-[100dvh] overflow-hidden bg-[#07122b] text-white"
-      dir="rtl"
+      dir={langDir}
     >
       {/* Full-Viewport 3D Floating Islands Archipelago */}
       <div className="absolute inset-0 w-full h-full z-0">
@@ -673,26 +776,26 @@ export const CampaignHubView: React.FC = () => {
         />
       </div>
 
-      {/* Minimalist Corner Kids HUD (World Archipelago: Gold Stars Left, NASA & Menu Right) */}
+      {/* Minimalist Corner Kids HUD (World Archipelago: Gold Stars Left, EN/AR + NASA + Menu Right) */}
       <header
         dir="ltr"
-        className="pointer-events-none fixed top-2.5 inset-x-2.5 sm:inset-x-4 z-30 flex items-start justify-between gap-2"
+        className="pointer-events-none fixed top-2.5 inset-x-2 sm:inset-x-4 z-30 flex items-start justify-between gap-1 sm:gap-2"
       >
         {/* Physical Top-Left: Gold Star Counter + Primary Play Button */}
-        <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 shrink-0">
           <div
-            dir="rtl"
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-slate-950/75 border-2 border-amber-300/75 backdrop-blur-md shadow-lg"
+            dir={langDir}
+            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-full bg-slate-950/75 border-2 border-amber-300/75 backdrop-blur-md shadow-lg"
           >
             <img
               src="/assets/ui/star_coin.svg"
               alt=""
-              className="w-6 h-6 sm:w-7 sm:h-7 shrink-0 drop-shadow"
+              className="w-5 h-5 sm:w-7 sm:h-7 shrink-0 drop-shadow"
             />
-            <span className="font-hud font-black text-xs sm:text-sm text-amber-300 tabular-nums">
+            <span className="font-hud font-black text-[11px] sm:text-sm text-amber-300 tabular-nums">
               {totalStarsScore}
             </span>
-            <span className="hidden sm:inline text-[11px] font-bold text-slate-200 border-r border-white/20 pr-1.5 whitespace-nowrap">
+            <span className="hidden sm:inline text-[11px] font-bold text-slate-200 border-x border-white/20 px-1.5 whitespace-nowrap">
               {campaign.completedMiniGames.length}/21
             </span>
           </div>
@@ -704,16 +807,29 @@ export const CampaignHubView: React.FC = () => {
                 [...campaign.unlockedLevels].sort((a, b) => b - a)[0] || 1;
               handleSelectLevel(highestUnlocked);
             }}
-            className="casual-btn-emerald px-3 py-1.5 text-xs cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-full"
-            dir="rtl"
+            className="casual-btn-emerald px-2.5 sm:px-3 py-1.5 text-xs cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-full"
+            dir={langDir}
           >
             <Play className="w-3.5 h-3.5 fill-white" />
-            <span>ابدأ</span>
+            <span>{tr(language, 'Play', 'ابدأ')}</span>
           </button>
         </div>
 
-        {/* Physical Top-Right: Energy/NASA Observatory + Robo Voice + Pause/Menu Toggle */}
-        <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
+        {/* Physical Top-Right: 1-Tap EN/AR Toggle + NASA Observatory + Robo Voice + Pause/Menu */}
+        <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 shrink-0">
+          <button
+            type="button"
+            data-testid="hud-lang-toggle"
+            onClick={() => {
+              soundManager.playClick();
+              setLanguage(language === 'en' ? 'ar' : 'en');
+            }}
+            className="px-2 sm:px-2.5 py-1.5 rounded-full bg-slate-950/80 hover:bg-slate-800 text-cyan-200 font-hud font-black text-[11px] border-2 border-cyan-400/75 backdrop-blur-md shadow-lg cursor-pointer whitespace-nowrap"
+          >
+            <span className="sm:hidden">{language === 'en' ? 'عربي' : 'EN'}</span>
+            <span className="hidden sm:inline">{language === 'en' ? 'EN | عربي' : 'عربي | EN'}</span>
+          </button>
+
           <button
             type="button"
             data-testid="open-nasa-drawer-btn"
@@ -722,11 +838,11 @@ export const CampaignHubView: React.FC = () => {
               setIsMobileMenuOpen(false);
               openNasaDrawer();
             }}
-            className="px-2.5 sm:px-3 py-1.5 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-100 font-hud font-black text-xs border-2 border-cyan-300/75 backdrop-blur-md shadow-lg cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
-            dir="rtl"
+            className="px-2 sm:px-3 py-1.5 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-100 font-hud font-black text-xs border-2 border-cyan-300/75 backdrop-blur-md shadow-lg cursor-pointer flex items-center gap-1 whitespace-nowrap"
+            aria-label="NASA"
           >
             <Satellite className="w-3.5 h-3.5 text-cyan-300" />
-            <span>NASA</span>
+            <span className="hidden sm:inline">NASA</span>
           </button>
 
           <button
@@ -737,12 +853,16 @@ export const CampaignHubView: React.FC = () => {
                 dialogueManager.stop();
               } else {
                 dialogueManager.speak(
-                  'أهلاً يا بطل! استكشف الجزر الطائرة في الأرخبيل واضغط على جزيرة أو تحرك إليها لدخول الـ 21 تحدياً!'
+                  tr(
+                    language,
+                    'Welcome Cadet! Follow the golden floor arrow or tap Play to launch your first NASA mission!',
+                    'أهلاً يا بطل! اتبع السهم الذهبي في الأرخبيل أو اضغط ابدأ لدخول الـ 21 تحدياً!'
+                  )
                 );
               }
             }}
             className="p-2 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-200 border-2 border-cyan-300/60 backdrop-blur-md shadow-lg cursor-pointer"
-            aria-label="صوت كابتن روبو"
+            aria-label="Robo Voice"
           >
             <Volume2 className={`w-4 h-4 ${isAudioPlaying ? 'animate-pulse text-amber-300' : ''}`} />
           </button>
@@ -755,20 +875,20 @@ export const CampaignHubView: React.FC = () => {
               setIsMobileMenuOpen((v) => !v);
             }}
             className="px-2.5 sm:px-3 py-1.5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_3px_0_#b45309] flex items-center gap-1 cursor-pointer whitespace-nowrap"
-            aria-label="فتح القائمة"
-            dir="rtl"
+            aria-label="Menu"
+            dir={langDir}
           >
             {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-            <span className="hidden sm:inline">القائمة</span>
+            <span className="hidden sm:inline">{tr(language, 'Menu', 'القائمة')}</span>
           </button>
         </div>
       </header>
 
-      {/* Unified Pause & Arcade Menu Drawer (World Map: Desktop + Mobile) */}
+      {/* Unified Pause & Arcade Menu Drawer (World Map) */}
       {isMobileMenuOpen && (
         <div
           data-testid="mobile-menu-drawer"
-          dir="rtl"
+          dir={langDir}
           className="fixed top-14 sm:top-16 right-2.5 sm:right-4 z-40 w-[calc(100vw-20px)] max-w-sm rounded-3xl bg-slate-950/95 border-2 border-cyan-300/80 p-3.5 shadow-2xl space-y-2.5"
         >
           <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
@@ -779,7 +899,7 @@ export const CampaignHubView: React.FC = () => {
                 className="w-7 h-7 shrink-0 drop-shadow"
               />
               <span className="font-hud font-black text-xs text-white truncate">
-                {state.cadetName ? state.cadetName : 'رائد الفضاء'}
+                {state.cadetName ? state.cadetName : tr(language, 'Explorer', 'رائد الفضاء')}
               </span>
             </div>
             <span className="text-[11px] font-hud font-black text-amber-300 whitespace-nowrap">
@@ -799,7 +919,7 @@ export const CampaignHubView: React.FC = () => {
               className="p-2.5 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-hud font-black text-xs border-2 border-sky-200/80 shadow-[0_3px_0_#075985] flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Layers className="w-4 h-4" />
-              <span>المستويات (4)</span>
+              <span>{tr(language, 'Levels (4)', 'المستويات (4)')}</span>
             </button>
 
             <button
@@ -826,7 +946,7 @@ export const CampaignHubView: React.FC = () => {
               className="p-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-hud font-black text-xs border-2 border-emerald-200 shadow-[0_3px_0_#065f46] flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Sprout className="w-4 h-4" />
-              <span>الزراعة المائية</span>
+              <span>{tr(language, 'Hydroponics', 'الزراعة المائية')}</span>
             </button>
 
             <button
@@ -839,7 +959,7 @@ export const CampaignHubView: React.FC = () => {
               className="p-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-hud font-black text-xs border-2 border-indigo-200/70 flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <span>🪐</span>
-              <span>الكواكب والجاذبية</span>
+              <span>{tr(language, 'Planets & Gravity', 'الكواكب والجاذبية')}</span>
             </button>
 
             <button
@@ -852,7 +972,7 @@ export const CampaignHubView: React.FC = () => {
               className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-emerald-200 font-hud font-black text-xs border-2 border-emerald-400/50 flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <BookOpen className="w-4 h-4 text-emerald-300" />
-              <span>مصادر (13)</span>
+              <span>{tr(language, 'Sources (13)', 'مصادر (13)')}</span>
             </button>
 
             <button
@@ -865,7 +985,7 @@ export const CampaignHubView: React.FC = () => {
               className="p-2.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-xs border-2 border-white flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <HelpCircle className="w-4 h-4" />
-              <span>كيف تلعب؟</span>
+              <span>{tr(language, 'How to Play', 'كيف تلعب؟')}</span>
             </button>
 
             <button
@@ -879,7 +999,7 @@ export const CampaignHubView: React.FC = () => {
               className="col-span-2 p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-hud font-black text-xs border-2 border-slate-500 flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Settings className="w-4 h-4" />
-              <span>الإعدادات</span>
+              <span>{tr(language, 'Settings / Unlock All', 'الإعدادات / وضع التحكيم')}</span>
             </button>
           </div>
         </div>
@@ -887,22 +1007,33 @@ export const CampaignHubView: React.FC = () => {
 
       {/* Expandable 4-Level Sequential Overview Modal Drawer */}
       {isLevelsDrawerOpen && (
-        <div className="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+        <div
+          dir={language === 'ar' ? 'rtl' : 'ltr'}
+          className="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
+        >
           <div className="w-full max-w-6xl rounded-3xl bg-slate-900 border-2 border-cyan-400/60 p-4 sm:p-6 space-y-4 shadow-2xl my-auto">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <h2 className="font-hud font-black text-lg sm:text-xl text-cyan-200">
-                  🚀 خريطة المستويات المتسلسلة (4 مستويات • 21 مهمة)
+                  {tr(
+                    language,
+                    '🚀 Sequential Campaign Map (4 Levels • 21 Missions)',
+                    '🚀 خريطة المستويات المتسلسلة (4 مستويات • 21 مهمة)'
+                  )}
                 </h2>
                 <p className="text-xs text-slate-400">
-                  التخزين: {storageStatus === 'VALID_SAVE' || storageStatus === 'NO_SAVE' ? '✅ محفوظ تلقائياً' : 'وضع الحماية'} •{' '}
-                  {nasaCache.getAttribution()}
+                  {tr(language, 'Save Status:', 'التخزين:')}{' '}
+                  {storageStatus === 'VALID_SAVE' || storageStatus === 'NO_SAVE'
+                    ? tr(language, '✅ Auto-Saved', '✅ محفوظ تلقائياً')
+                    : tr(language, 'Safe Mode', 'وضع الحماية')}{' '}
+                  • {nasaCache.getAttribution()}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsLevelsDrawerOpen(false)}
                 className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center cursor-pointer"
+                aria-label={tr(language, 'Close', 'إغلاق')}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -911,6 +1042,7 @@ export const CampaignHubView: React.FC = () => {
             <section id="campaign-levels-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
               {([1, 2, 3, 4] as CampaignLevelId[]).map((lvlId) => {
                 const lvl = CAMPAIGN_LEVELS[lvlId];
+                const biLvl = LEVEL_TITLES_BILINGUAL[lvlId];
                 const unlocked = campaign.unlockedLevels.includes(lvlId);
                 const doneCount = lvl.miniGames.filter((id) =>
                   campaign.completedMiniGames.includes(id)
@@ -936,15 +1068,23 @@ export const CampaignHubView: React.FC = () => {
                           className="px-2.5 py-0.5 rounded-full text-[11px] font-black text-slate-950"
                           style={{ backgroundColor: unlocked ? lvl.themeColorHex : '#64748b' }}
                         >
-                          المستوى {lvlId}
+                          {tr(language, `Level ${lvlId}`, `المستوى ${lvlId}`)}
                         </span>
                         <span className="text-xs font-bold text-slate-300">
-                          {lvl.rooms.length} غرف • {total} مهام
+                          {tr(
+                            language,
+                            `${lvl.rooms.length} Rooms • ${total} Missions`,
+                            `${lvl.rooms.length} غرف • ${total} مهام`
+                          )}
                         </span>
                       </div>
 
-                      <h3 className="font-hud font-black text-base text-white">{lvl.titleAr}</h3>
-                      <p className="text-xs text-slate-300 leading-relaxed">{lvl.subtitleAr}</p>
+                      <h3 className="font-hud font-black text-base text-white">
+                        {tr(language, biLvl.titleEn, biLvl.titleAr)}
+                      </h3>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        {tr(language, biLvl.subtitleEn, biLvl.subtitleAr)}
+                      </p>
                     </div>
 
                     <div className="space-y-2.5">
@@ -959,13 +1099,13 @@ export const CampaignHubView: React.FC = () => {
                       </div>
 
                       <div className="flex items-center justify-between text-[11px] font-bold text-slate-300">
-                        <span>التقدم: {doneCount}/{total}</span>
+                        <span>{tr(language, `Progress: ${doneCount}/${total}`, `التقدم: ${doneCount}/${total}`)}</span>
                         {completedAll ? (
-                          <span className="text-emerald-300">✅ مكتمل</span>
+                          <span className="text-emerald-300">{tr(language, '✅ Completed', '✅ مكتمل')}</span>
                         ) : unlocked ? (
-                          <span className="text-cyan-300">مفتوح</span>
+                          <span className="text-cyan-300">{tr(language, 'Unlocked', 'مفتوح')}</span>
                         ) : (
-                          <span className="text-slate-400">🔒 مقفل</span>
+                          <span className="text-slate-400">{tr(language, '🔒 Locked', '🔒 مقفل')}</span>
                         )}
                       </div>
 
@@ -985,12 +1125,12 @@ export const CampaignHubView: React.FC = () => {
                         {unlocked ? (
                           <>
                             <Rocket className="w-4 h-4" />
-                            <span>دخول جزيرة المستوى {lvlId}</span>
+                            <span>{tr(language, `Enter Level ${lvlId} Island`, `دخول جزيرة المستوى ${lvlId}`)}</span>
                           </>
                         ) : (
                           <>
                             <Lock className="w-4 h-4" />
-                            <span>أكمل المستوى {lvlId - 1} أولاً</span>
+                            <span>{tr(language, `Complete Level ${lvlId - 1} First`, `أكمل المستوى ${lvlId - 1} أولاً`)}</span>
                           </>
                         )}
                       </button>
@@ -1007,7 +1147,9 @@ export const CampaignHubView: React.FC = () => {
               </div>
               <div className="flex items-center gap-1">
                 <Star className="w-4 h-4 text-amber-300 fill-amber-300" />
-                <span className="font-bold text-amber-200">{totalStarsScore} نجمة</span>
+                <span className="font-bold text-amber-200">
+                  {tr(language, `${totalStarsScore} Stars`, `${totalStarsScore} نجمة`)}
+                </span>
               </div>
             </div>
           </div>

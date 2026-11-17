@@ -1,0 +1,528 @@
+import type {
+  AppLanguage,
+  CadetAgeGroup,
+  CampaignLevelId,
+  CampaignProgressState,
+  MiniGameId
+} from '../types/game';
+import { CAMPAIGN_LEVELS, MINI_GAME_SPECS, SpatialRoomNode } from './campaignLevels';
+import { tr, adaptByAge } from '../utils/i18n';
+
+export type NasaDatasetTag = 'OSDR' | 'DONKI' | 'NeoWs' | 'ECLSS' | 'NASA Food Lab' | 'Artemis DSN';
+
+export interface MiniGameBriefing {
+  datasetTag: NasaDatasetTag;
+  icons: [string, string, string];
+  en: [string, string];
+  ar: [string, string];
+  youngTipEn: string;
+  youngTipAr: string;
+  teenTipEn: string;
+  teenTipAr: string;
+}
+
+export const LEVEL_TITLES_BILINGUAL: Record<
+  CampaignLevelId,
+  { badge: string; shortEn: string; shortAr: string; titleEn: string; titleAr: string; subtitleEn: string; subtitleAr: string }
+> = {
+  1: {
+    badge: '🌍',
+    shortEn: 'Earth Prep',
+    shortAr: 'الأرض والانطلاق',
+    titleEn: 'Level 1: Earth Preparation',
+    titleAr: 'المستوى 1: التحضير على الأرض',
+    subtitleEn: '5 sequential pre-launch steps across Earth Academy before liftoff to the Moon',
+    subtitleAr: '5 مهام تجهيز متسلسلة قبل انطلاق الصاروخ إلى القمر'
+  },
+  2: {
+    badge: '🛸',
+    shortEn: 'Zero-G Transit',
+    shortAr: 'المدار 0G',
+    titleEn: 'Level 2: Zero-G Orbit Transit',
+    titleAr: 'المستوى 2: الرحلة في انعدام الجاذبية',
+    subtitleEn: '6 microgravity challenges & NASA NeoWs radar navigation on route to Lunar Orbit',
+    subtitleAr: '6 تحديات في انعدام الجاذبية وصولاً إلى مدار القمر'
+  },
+  3: {
+    badge: '🌙',
+    shortEn: 'Lunar Base',
+    shortAr: 'مستعمرة القمر',
+    titleEn: 'Level 3: Artemis Lunar Outpost',
+    titleAr: 'المستوى 3: مستعمرة القمر أرتميس',
+    subtitleEn: '5 habitat, solar-storm & lunar geology missions before Earth return authorization',
+    subtitleAr: '5 مهام علمية مترابطة وعاصفة DONKI قبل الإذن بالعودة'
+  },
+  4: {
+    badge: '🪂',
+    shortEn: 'Earth Return',
+    shortAr: 'العودة للأرض',
+    titleEn: 'Level 4: Return to Earth',
+    titleAr: 'المستوى 4: رحلة العودة إلى الأرض',
+    subtitleEn: '5 critical Orion re-entry, repair & parachute splashdown steps home',
+    subtitleAr: '5 تحديات حاسمة حتى الهبوط الآمن على الأرض'
+  }
+};
+
+export const ROOM_OBJECTIVE_EN: Record<string, string> = {
+  food_storage: 'Pack crumb-free space meals with balanced nutrients',
+  equipment_room: 'Inspect and stow essential EVA & flight hardware',
+  medical_room: 'Verify hydration, rest & flight surgeon clearance',
+  spaceship_bay: 'Inspect O2, power, comms & thermal systems',
+  mission_control: 'Final readiness check & Earth return authorization',
+  launch_area: 'Initiate 3-2-1 rocket ignition to orbit',
+  corridor: 'Use cabin handrails to glide safely in zero gravity',
+  cockpit: 'Capture & velcro all 5 floating tools before impact',
+  hydration_station: 'Drink safely via sealed zero-G valve pouch',
+  crew_quarters: 'Rest inside anchored sleep bags & buckle up',
+  medical_bay: 'Check fluid shift & cabin vestibular health',
+  communication_room: 'Run live NASA NeoWs asteroid corridor radar',
+  habitat: 'Monitor lunar crew living telemetry',
+  fitness_room: 'Complete ARED resistance reps with SPACE-FIT X',
+  food_nutrition_lab: 'Inspect hydroponics & Spirulina oxygen backup',
+  water_recycling_room: 'Restore 98% ISS-style ECLSS water filtration',
+  power_solar_control: 'Balance station shields, ECLSS & farm watts',
+  eva_prep_room: 'Assemble xEMU pressure suit & pack 4 tools',
+  emergency_shelter: 'Respond to NASA DONKI solar proton wave alert',
+  solar_panel_field: 'Protect lunar arrays during CME flare',
+  lunar_rover_parking: 'Stage geological sampling traverse',
+  lunar_exploration_zone: 'Collect basalt & regolith in 0.16G gravity',
+  central_corridor: 'Deploy chutes cleanly for ocean splashdown',
+  cargo_sample_storage: 'Verify lunar sample containment & life support',
+  cockpit_navigation: 'Align re-entry corridor & test 1.3s DSN delay',
+  systems_check_station: 'Control PICA-X heat shield angle through plasma',
+  equipment_maintenance: 'Isolate & repair mid-flight capsule fault'
+};
+
+export const MINI_GAME_BRIEFINGS: Record<MiniGameId, MiniGameBriefing> = {
+  l1_food_prep: {
+    datasetTag: 'NASA Food Lab',
+    icons: ['🍯', '🚫🍪', '📦'],
+    en: [
+      'In zero gravity, dry crumbs float into air filters and electronics — that is why NASA packs sticky pastes and squeeze pouches like Sinai Honey.',
+      'Select 4+ crumb-free Egyptian & space foods to fill protein, carbs, healthy fats, fiber, and vitamins!'
+    ],
+    ar: [
+      'في انعدام الجاذبية يتطاير الفتات داخل الفلاتر والأجهزة، لذلك تعتمد ناسا معاجين وأكياس ضغط مثل عسل سيناء والمش.',
+      'اختر 4+ أطعمة آمنة بلا فتات لموازنة البروتين والكربوهيدرات والفيتامينات والألياف!'
+    ],
+    youngTipEn: 'Pick yummy foods with zero crumbs (like Sinai Honey!) and avoid crunchy snacks.',
+    youngTipAr: 'اختر أكلات لذيذة بدون فتات (مثل عسل سيناء) وتجنب المقرمشات.',
+    teenTipEn: 'Optimize caloric density and amino/micronutrient diversity inside the 20 kg stowage limit.',
+    teenTipAr: 'وازن السعرات والبروتين والألياف والدهون الصحية ضمن حد حمولة 20 كجم.'
+  },
+  l1_equipment_prep: {
+    datasetTag: 'Artemis DSN',
+    icons: ['🧰', '⚡', '🦺'],
+    en: [
+      'Every kilogram launched into space costs rocket fuel, so NASA astronauts reject faulty batteries and heavy non-essential toys.',
+      'Check each item carefully, calibrate your SPACE-FIT X suit telemetry, and pack only flight-certified gear.'
+    ],
+    ar: [
+      'كل كيلوجرام إضافي في الصاروخ يستهلك وقوداً، لذا يستبعد رواد الفضاء البطاريات التالفة والألعاب غير الضرورية.',
+      'افحص كل أداة بدقة، وعاير بدلة SPACE-FIT X، واحزم المعدات السليمة فقط.'
+    ],
+    youngTipEn: 'Pack safety gear you really need and say NO to broken batteries or game consoles!',
+    youngTipAr: 'احزم أدوات الأمان الضرورية وارفض البطاريات التالفة والألعاب!',
+    teenTipEn: 'Mass budgeting + Li-ion thermal safety screening prior to Orion payload integration.',
+    teenTipAr: 'ترشيد الكتلة وفحص سلامة بطاريات الليثيوم قبل دمج الحمولة.'
+  },
+  l1_medical_check: {
+    datasetTag: 'OSDR',
+    icons: ['🩺', '💧', '😴'],
+    en: [
+      'Before launch, Flight Surgeons inspect crew hydration and sleep quality so astronauts handle 3G+ launch acceleration safely.',
+      'Boost Hydration and Rest to 100% on the body telemetry meters to earn your medical flight clearance.'
+    ],
+    ar: [
+      'يفحص أطباء الطيران الترطيب وساعات النوم قبل الإقلاع لتحمّل تسارع الصاروخ.',
+      'ارفع مؤشرات الترطيب والنوم على عدادات الجسم إلى 100% للحصول على التصريح الطبي.'
+    ],
+    youngTipEn: 'Tap Drink Water and Deep Sleep until every body meter turns bright green!',
+    youngTipAr: 'اضغط شرب الماء والنوم الكافي حتى تتحول مؤشرات الجسم للأخضر!',
+    teenTipEn: 'Confirm euvolemic hydration baseline and circadian readiness per Flight Surgeon protocol.',
+    teenTipAr: 'اعتمد توازن السوائل والاستعداد العصبي وفق بروتوكول طب الطيران.'
+  },
+  l1_spaceship_inspect: {
+    datasetTag: 'Artemis DSN',
+    icons: ['🛸', '🫧', '🔒'],
+    en: [
+      'The spacecraft acts like a sealed life-support bubble protecting astronauts from the vacuum of space.',
+      'Inspect oxygen pressure, fuel cells, comms, CO2 scrubbers, and hatch seals until every gauge reads green.'
+    ],
+    ar: [
+      'المركبة الفضائية كبسولة محكمة تحمي الرواد من فراغ الفضاء عبر الأكسجين والطاقة وتنقية الهواء.',
+      'افحص الأكسجين والطاقة والرادار وCO₂ وأبواب الكابينة حتى تكتمل بنسبة 100%.'
+    ],
+    youngTipEn: 'Tap all 5 ship check cards to turn every light green before launch!',
+    youngTipAr: 'اضغط على البطاقات الخمس لتضيء أنظمة المركبة بالأخضر!',
+    teenTipEn: 'Verify redundant Orion ECLSS loops, bus voltage, and cabin hatch pressure interlocks.',
+    teenTipAr: 'تحقق من دوائر دعم الحياة الاحتياطية وأقفال ضغط الأبواب.'
+  },
+  l1_mission_launch: {
+    datasetTag: 'Artemis DSN',
+    icons: ['🚀', '📡', '🔥'],
+    en: [
+      'Launch Control verifies that navigation telemetry locks onto the Moon transfer orbit before igniting main engines.',
+      'Sync Earth-Moon navigation, confirm green systems, and fire the 3-2-1 rocket countdown!'
+    ],
+    ar: [
+      'يتحقق مركز الإطلاق من تطابق مدار الانتقال القمري قبل تشغيل المحركات الرئيسية.',
+      'اضبط التوجيه الأرضي-القمري وابدأ العد التنازلي للانطلاق!'
+    ],
+    youngTipEn: 'Press Sync Radar first, then tap Launch Rocket for blastoff!',
+    youngTipAr: 'اضغط مزامنة التوجيه أولاً ثم ابدأ العد التنازلي للانطلاق!',
+    teenTipEn: 'Lock Trans-Lunar Injection (TLI) guidance telemetry prior to SRB ignition.',
+    teenTipAr: 'طابق مسار حقن الانتقال القمري TLI قبل إشعال المعززات.'
+  },
+  l2_zerog_movement: {
+    datasetTag: 'OSDR',
+    icons: ['🧑‍🚀', '🚧', '⚖️'],
+    en: [
+      'In zero gravity (Newton’s 1st Law), once you push off a wall, you keep drifting until another force stops you!',
+      'Push gently, then grab handrails so you reach the airlock smoothly at or below 1.2 m/s.'
+    ],
+    ar: [
+      'في انعدام الجاذبية (قانون نيوتن الأول)، إذا دفعت نفسك تستمر بالحركة دون توقف حتى تمسك بشيء!',
+      'ادفع برفق ثم امسك الدرابزين لتصل للبوابة بسرعة ≤ 1.2 م/ث.'
+    ],
+    youngTipEn: 'Give 1 gentle push, then tap Grab Handrail before crashing into the exit!',
+    youngTipAr: 'ادفع برفق ثم اضغط امسك الدرابزين لتتوقف بأمان!',
+    teenTipEn: 'Control linear momentum p = mv along the zero-friction ISS Z-axis corridor.',
+    teenTipAr: 'اضبط كمية التحرك الخطية في غياب الاحتكاك داخل الممر المداري.'
+  },
+  l2_secure_objects: {
+    datasetTag: 'NASA Food Lab',
+    icons: ['🧲', '🍱', '🔧'],
+    en: [
+      'Inside a microgravity cabin, any loose screwdriver or food pouch floats around like a missile hazard!',
+      'Tap each floating item and snap it securely into its matching velcro locker.'
+    ],
+    ar: [
+      'في 0G أي مفك أو عبوة سائبة قد تطفو وتصطدم بالرواد أو لوحات القيادة!',
+      'اضغط على كل غرض طافٍ ثم ثبته داخل خزانته المطابقة.'
+    ],
+    youngTipEn: 'Click any floating tool on top, then click the matching locker box below.',
+    youngTipAr: 'اضغط الغرض الطافي بالأعلى ثم اضغط خزانته المطابقة بالأسفل.',
+    teenTipEn: 'Zero-G FOD (Foreign Object Debris) mitigation using crew stowage restraints.',
+    teenTipAr: 'منع الحطام السائب FOD بتأمين الحمولة داخل وحدات التخزين.'
+  },
+  l2_balanced_meal: {
+    datasetTag: 'NASA Food Lab',
+    icons: ['🧀', '🍯', '🥬'],
+    en: [
+      'Astronauts need protein for muscles, fast carbs for energy, healthy fats for cells, and leafy greens for vitamins.',
+      'Build a complete 4-group Egyptian/Sinai space tray to keep the astronaut body meters strong in orbit.'
+    ],
+    ar: [
+      'يحتاج الرواد للبروتين لحماية العضلات، والكربوهيدرات للطاقة، والدهون الصحية، والخضروات للفيتامينات.',
+      'كوّن صينية متكاملة من المجموعات الأربع لترفع مؤشرات جسم الرائد في المدار.'
+    ],
+    youngTipEn: 'Tap all 4 food group cards to fill every bar on the astronaut meter!',
+    youngTipAr: 'اختر المجموعات الأربع لتمتلئ جميع عدادات الجسم في الصينية!',
+    teenTipEn: 'Balance macronutrients + bone-protective vitamins under microgravity metabolic stress.',
+    teenTipAr: 'حقق توازن الماكروز والفيتامينات تحت إجهاد التمثيل الغذائي المداري.'
+  },
+  l2_hydration: {
+    datasetTag: 'OSDR',
+    icons: ['💧', '🥤', '🧠'],
+    en: [
+      'Per NASA OSDR Fluid Shift studies, body fluids move toward the head in 0G, making hydration timing tricky.',
+      'Sip smoothly from the sealed valve straw and pause to swallow when droplets appear!'
+    ],
+    ar: [
+      'وفق أبحاث NASA OSDR تنتقل السوائل للرأس في 0G، لذا يجب شرب الماء ببطء وبكميات مقننة.',
+      'اضغط للشرب من الكيس المختوم وتوقف للبلع حتى لا تتطاير القطرات!'
+    ],
+    youngTipEn: 'Take short sips from the sealed pouch and stop right on the target line!',
+    youngTipAr: 'خذ رشفات هادئة وتوقف عند العلامة الآمنة!',
+    teenTipEn: 'Manage cephalad fluid shift hydration using valve-sealed potable water bags.',
+    teenTipAr: 'إدارة الترطيب مع تغير توزيع السوائل للرأس عبر أكياس الصمامات المحكمة.'
+  },
+  l2_motion_sickness: {
+    datasetTag: 'OSDR',
+    icons: ['🛌', '🩺', '⚡'],
+    en: [
+      'Space Adaptation Syndrome happens when your inner ear feels confused in weightlessness during the first 48 hours.',
+      'Diagnose the cause, rest in anchored sleep bags, and alert the Ground Flight Surgeon.'
+    ],
+    ar: [
+      'يحدث دوار الفضاء عند ارتباك الأذن الداخلية في غياب اتجاه الجاذبية خلال أول يومين.',
+      'شخّص الأعراض، استرح في كيس النوم المثبت، وأبلغ طبيب الرحلة الأرضي.'
+    ],
+    youngTipEn: 'Follow the 3 calm recovery cards in order: Diagnose -> Rest -> Call Doctor!',
+    youngTipAr: 'اتبع الخطوات الثلاث بالترتيب: التشخيص ثم الراحة ثم إبلاغ الطبيب!',
+    teenTipEn: 'Address neurovestibular mismatch via sleep-restraint stabilization and telemedicine.',
+    teenTipAr: 'علاج اضطراب الأذن الداخلية بالتثبيت النومي والتطبيب عن بُعد.'
+  },
+  l2_systems_neows: {
+    datasetTag: 'NeoWs',
+    icons: ['☄️', '📡', '🌕'],
+    en: [
+      'NASA’s NeoWs (Near-Earth Object Web Service) tracks asteroids like 2010 PK so spacecraft avoid crossing debris corridors.',
+      'Pilot through the live NeoWs Asteroid Dodge radar lanes and verify all 5 arrival systems!'
+    ],
+    ar: [
+      'يتابع نظام NASA NeoWs الكويكبات القريبة مثل 2010 PK لتتجنب المركبات مسارات الشظايا.',
+      'تجنّب صخور الكويكب في رادار NeoWs الحي وافحص الأنظمة الخمسة للهبوط على القمر!'
+    ],
+    youngTipEn: 'Use Up/Down buttons to dodge floating asteroid rocks while systems lock on!',
+    youngTipAr: 'استخدم أزرار أعلى/أسفل لتفادي صخور الكويكب أثناء فحص الأنظمة!',
+    teenTipEn: 'Combine NeoWs close-approach ephemeris telemetry with active orbital corridor dodging.',
+    teenTipAr: 'ادمج بيانات اقتراب كويكب NeoWs مع المناورة الآمنة عبر الممر المداري.'
+  },
+  l3_resistance_training: {
+    datasetTag: 'OSDR',
+    icons: ['🏋️', '🦴', '⚡'],
+    en: [
+      'NASA OSDR (OSD-102) proves astronauts lose bone density and muscle strength rapidly without heavy resistance exercise.',
+      'Complete Leg, Arm & Core reps in your SPACE-FIT X suit to boost the Bone & Muscle meters and harvest energy!'
+    ],
+    ar: [
+      'تؤكد بيانات NASA OSDR فقدان العظام والعضلات دون تمارين مقاومة يومية في الفضاء والقمر.',
+      'نفّذ تمارين الأرجل والذراعين والجذع لترفع مؤشر العظام وتحصد طاقة حركية ببدلة SPACE-FIT X!'
+    ],
+    youngTipEn: 'Tap the big workout button to do 3 Leg, 3 Arm, and 3 Core reps!',
+    youngTipAr: 'اضغط زر التمرين لإتمام الأرجل ثم الذراعين ثم الجذع!',
+    teenTipEn: 'Joint-specific cable load triggers piezoelectric harvesting while countering osteopenia.',
+    teenTipAr: 'مقاومة المفاصل تقاوم فقدان الكتلة العظمية وتولد طاقة حركية للبطارية.'
+  },
+  l3_water_recycling: {
+    datasetTag: 'ECLSS',
+    icons: ['🚰', '🧽', '💧'],
+    en: [
+      'In June 2023, the ISS ECLSS achieved 98% water recovery by purifying sweat, breath condensation, and wastewater.',
+      'Isolate the valve, swap the clogged carbon filter, and watch Filter Cleanliness hit 98% purity!'
+    ],
+    ar: [
+      'حققت محطة الفضاء ISS استرجاع 98% من المياه في يونيو 2023 بتقنيات ECLSS.',
+      'اعزل الصمام واستبدل الفلتر الكربوني ليرتفع مؤشر نظافة الفلتر ونقاء الماء إلى 98%!'
+    ],
+    youngTipEn: 'Complete the 4 numbered pipe steps in order to clean the water tank!',
+    youngTipAr: 'نفّذ خطوات الصيانة الأربع بالترتيب لتنقية خزان المياه!',
+    teenTipEn: 'Simulated brine-processing + multi-filtration loop maintenance (with experimental caveat).',
+    teenTipAr: 'صيانة حلقة معالجة المحلول المائي والترشيح الكربوني متعددة المراحل.'
+  },
+  l3_solar_storm: {
+    datasetTag: 'DONKI',
+    icons: ['☀️', '🌊', '🛡️'],
+    en: [
+      'NASA DONKI tracks real Coronal Mass Ejections (CME) that blast high-energy solar proton waves across the Moon.',
+      'Halt Moonwalks, route >=45% power to Radiation Shields & >=30% to ECLSS, and deflect the incoming storm wave!'
+    ],
+    ar: [
+      'يرصد نظام NASA DONKI الانبعاثات الشمسية التي ترسل موجات إشعاعية عالية نحو سطح القمر.',
+      'أوقف السير القمري ووجّه >=45% للدروع و>=30% للماء/الهواء لصد الموجات الشمسية!'
+    ],
+    youngTipEn: 'Stop EVA outside, move Shield slider >= 45% + Water >= 30%, and lock the shelter!',
+    youngTipAr: 'أوقف العمل بالخارج وارفع شريط الدروع >= 45% والمياه >= 30% واحتمِ بالملجأ!',
+    teenTipEn: 'Power trade-off optimization under CME radiation flux: crew survival + ECLSS over grow lights.',
+    teenTipAr: 'موازنة حمل الطاقة خلال تدفق الجسيمات الشمسية: أولوية الدروع ودعم الحياة.'
+  },
+  l3_eva_prep: {
+    datasetTag: 'Artemis DSN',
+    icons: ['👨‍🚀', '🔨', '🛍️'],
+    en: [
+      'While SPACE-FIT X is an inside training suit (IVA), stepping into Moon vacuum requires a pressurized Artemis EVA suit.',
+      'Assemble all 5 EVA suit layers and pack the 4 geology tools needed for rock sampling!'
+    ],
+    ar: [
+      'بدلة SPACE-FIT X للتدريب داخل المحطة، أما السير على القمر فيتطلب بدلة ضغط فضائية خالية من التسريب EVA.',
+      'ركّب أجزاء البدلة القمرية الخمسة واحزم الأدوات الجيولوجية الأربع!'
+    ],
+    youngTipEn: 'Click all 5 blue suit pieces and all 4 yellow science tools before heading outside!',
+    youngTipAr: 'اختر أجزاء البدلة الخمسة والأدوات الأربع قبل الخروج لسطح القمر!',
+    teenTipEn: 'Verify 4.3 PSI EVA suit pressure integrity and full Artemis geological toolkit.',
+    teenTipAr: 'تأكد من ضغط 4.3 PSI للبدلة الخارجية واكتمال عدة الجيولوجيا القمرية.'
+  },
+  l3_lunar_samples: {
+    datasetTag: 'Artemis DSN',
+    icons: ['🪨', '🌙', '👜'],
+    en: [
+      'Lunar geology lets scientists study craters under 1/6th Earth gravity (0.16G) using specialized scoops, hammers & tongs.',
+      'Visit each crater site and collect Basalt, Regolith Dust & Crater Pebbles with your packed tools!'
+    ],
+    ar: [
+      'في جاذبية القمر السدسية (0.16G) يستخدم الرواد المطرقة والمجرفة والملقط لجمع عينات البازلت والريجوليث.',
+      'زر مواقع القمر الثلاث واجمع العينات باستخدام الأدوات التي حزمتها!'
+    ],
+    youngTipEn: 'Tap all 3 Moon sample craters to fill your science bag before logging results!',
+    youngTipAr: 'اضغط على مواقع العينات الثلاث لجمع صخور القمر وتوثيقها!',
+    teenTipEn: 'LROC geological traverse across 0.16G basalt/regolith sites with EVA O2 budget.',
+    teenTipAr: 'جمع عينات البازلت والتربة القمرية ضمن مخزون الأكسجين في 0.16G.'
+  },
+  l4_departure_prep: {
+    datasetTag: 'Artemis DSN',
+    icons: ['📦', '🫧', '🔋'],
+    en: [
+      'Before leaving Lunar orbit, astronauts seal every Moon rock canister and inspect capsule life support.',
+      'Check all 5 return capsule readiness switches and verify your lunar cargo is locked down.'
+    ],
+    ar: [
+      'قبل مغادرة مدار القمر، يتأكد الرواد من إحكام إغلاق حاويات الصخور القمرية وأنظمة الكبسولة.',
+      'راجع مؤشرات المغادرة الخمسة وتأكد من تثبيت عينات القمر بإحكام.'
+    ],
+    youngTipEn: 'Check off all 5 green readiness cards to clear the capsule for departure!',
+    youngTipAr: 'فعّل البطاقات الخمس حتى تجهز الكبسولة لرحلة العودة!',
+    teenTipEn: 'Verify sample return containment seals and Orion service-module consumables.',
+    teenTipAr: 'تأمين حاويات العينات ومستهلكات وحدة الخدمة قبل حرق المغادرة.'
+  },
+  l4_navigation_earth: {
+    datasetTag: 'Artemis DSN',
+    icons: ['🧭', '📡', '🌍'],
+    en: [
+      'Even at the speed of light, radio signals from the Moon (384,400 km away) take ~1.3 seconds to reach Earth!',
+      'Steer your return corridor between -4° and +4° and observe the real Deep Space Network signal delay.'
+    ],
+    ar: [
+      'تستغرق إشارات الراديو من القمر للأرض (~384,400 كم) نحو 1.3 ثانية بسرعة الضوء!',
+      'اضبط زاوية المسار بين -4° و+4° وأرسل الإشارة لمركز التحكم الأرضي.'
+    ],
+    youngTipEn: 'Slide the angle near 0° until the dot turns green, then press Send Signal!',
+    youngTipAr: 'حرّك الشريط نحو الصفر ليضيء المسار بالأخضر ثم أرسل الإشارة!',
+    teenTipEn: 'Earth Trans-Earth Injection (TEI) trajectory alignment + speed-of-light DSN RTT.',
+    teenTipAr: 'مواءمة مسار العودة TEI واختبار زمن انتقال إشارة الفضاء العميق.'
+  },
+  l4_spacecraft_emergency: {
+    datasetTag: 'Artemis DSN',
+    icons: ['🔧', '⚡', '🚨'],
+    en: [
+      'Deep-space crews must isolate and diagnose voltage drops, antenna drift, or CO2 valve faults quickly without waiting on ground teams.',
+      'Run the Fault Diagnostic Scanner, then choose the matching repair tool!'
+    ],
+    ar: [
+      'يعتمد رواد الفضاء على تشخيص الأعطال بأنفسهم سريعاً دون انتظار تدخل الأرض المباشر.',
+      'شغّل فاحص الأعطال أولاً ثم اختر أداة الصيانة المطابقة للعطل!'
+    ],
+    youngTipEn: 'Tap Scan Fault first, then pick the tool icon that matches the problem!',
+    youngTipAr: 'اضغط زر التشخيص أولاً ثم اختر الأداة المناسبة للمشكلة!',
+    teenTipEn: 'Rapid fault-tree isolation across power bus, S-band gimbal, and CO2 scrubber loop.',
+    teenTipAr: 'عزل الأعطال السريع لدوائر الجهد والهوائي وصمام ثاني أكسيد الكربون.'
+  },
+  l4_earth_reentry: {
+    datasetTag: 'OSDR',
+    icons: ['🔥', '🛡️', '🌍'],
+    en: [
+      'Re-entering Earth’s atmosphere compresses air into ~1,600°C plasma, shielded by PICA-X thermal tiles while crew experience high G-loads.',
+      'Inspect all heat-shield tiles, start re-entry, and keep capsule angle inside the green safety corridor!'
+    ],
+    ar: [
+      'عند دخول الغلاف الجوي ترتفع الحرارة إلى ~1600°C فيحمي الدرع الحراري الكبسولة وسط جاذبية عالية.',
+      'افحص بلاطات الدرع الحراري ثم أبقِ زاوية الكبسولة في المنطقة الخضراء!'
+    ],
+    youngTipEn: 'Inspect the 3 heat tiles, start entry, and tap Left/Right to keep angle green!',
+    youngTipAr: 'افحص البلاطات الثلاث ثم حافظ على الزاوية في المنطقة الخضراء!',
+    teenTipEn: 'Manage PICA-X ablative pitch corridor against atmospheric shear & peak G-loading.',
+    teenTipAr: 'ضبط زاوية الهجوم للدرع الحراري PICA-X أثناء ذروة التسارع والبلازما.'
+  },
+  l4_safe_landing: {
+    datasetTag: 'Artemis DSN',
+    icons: ['🪂', '🌊', '🎉'],
+    en: [
+      'In the final descent over the ocean, drogue chutes stabilize the capsule before huge main parachutes slow splashdown.',
+      'Deploy Drogue Chutes, then Main Parachutes, and celebrate Mission Accomplished back on Earth!'
+    ],
+    ar: [
+      'في المرحلة الأخيرة فوق المحيط تفتح المظلات الكابحة ثم الرئيسية لتهدئة السرعة حتى الهبوط الآمن.',
+      'افتح المظلات الكابحة ثم الرئيسية واحتفل بعودة البعثة إلى كوكب الأرض!'
+    ],
+    youngTipEn: 'Tap Deploy Drogue Chutes, then Main Parachutes when prompted!',
+    youngTipAr: 'افتح المظلات الكابحة ثم الرئيسية للهبوط الآمن على المحيط!',
+    teenTipEn: 'Staged aerodynamic deceleration sequence from terminal velocity to safe splashdown.',
+    teenTipAr: 'تسلسل فتح المظلات لتهدئة السرعة الانتهائية حتى الهبوط المائي السليم.'
+  }
+};
+
+export interface SequentialMissionTarget {
+  stepNumber: number;
+  totalSteps: number;
+  doneCount: number;
+  activeMiniGameId: MiniGameId | null;
+  activeRoom: SpatialRoomNode | null;
+  requiresReturnAuth: boolean;
+  isAllDone: boolean;
+  bannerEn: string;
+  bannerAr: string;
+}
+
+export function getNextSequentialMissionTarget(
+  levelId: CampaignLevelId,
+  campaign: CampaignProgressState
+): SequentialMissionTarget {
+  const spec = CAMPAIGN_LEVELS[levelId];
+  const miniGames = spec.miniGames;
+  const totalSteps = miniGames.length;
+  const doneCount = miniGames.filter((id) => campaign.completedMiniGames.includes(id)).length;
+  const firstPendingIdx = miniGames.findIndex((id) => !campaign.completedMiniGames.includes(id));
+
+  if (firstPendingIdx === -1) {
+    if (levelId === 3 && !campaign.l3ReturnAuthorized) {
+      const mcRoom = spec.rooms.find((r) => r.consoleAction === 'l3_return_auth') || spec.rooms[0];
+      return {
+        stepNumber: totalSteps,
+        totalSteps,
+        doneCount,
+        activeMiniGameId: null,
+        activeRoom: mcRoom,
+        requiresReturnAuth: true,
+        isAllDone: false,
+        bannerEn: `Final Step: Enter ${mcRoom.nameEn} to Authorize Earth Return`,
+        bannerAr: `الخطوة الأخيرة: ادخل ${mcRoom.nameAr} لاعتماد إذن العودة للأرض`
+      };
+    }
+
+    return {
+      stepNumber: totalSteps,
+      totalSteps,
+      doneCount,
+      activeMiniGameId: null,
+      activeRoom: null,
+      requiresReturnAuth: false,
+      isAllDone: true,
+      bannerEn: `Level ${levelId} Complete (${totalSteps}/${totalSteps})! Advance to Next Island`,
+      bannerAr: `اكتمل المستوى ${levelId} (${totalSteps}/${totalSteps})! انتقل للجزيرة التالية`
+    };
+  }
+
+  const activeMiniGameId = miniGames[firstPendingIdx];
+  const mgSpec = MINI_GAME_SPECS[activeMiniGameId];
+  const activeRoom =
+    spec.rooms.find((r) => r.id === mgSpec.roomId) ||
+    spec.rooms.find((r) => r.miniGameId === activeMiniGameId) ||
+    spec.rooms[0];
+
+  const stepNumber = firstPendingIdx + 1;
+  return {
+    stepNumber,
+    totalSteps,
+    doneCount,
+    activeMiniGameId,
+    activeRoom,
+    requiresReturnAuth: false,
+    isAllDone: false,
+    bannerEn: `Step ${stepNumber} of ${totalSteps}: ${mgSpec.titleEn}`,
+    bannerAr: `الخطوة ${stepNumber} من ${totalSteps}: ${mgSpec.titleAr}`
+  };
+}
+
+export function getRoomLabel(room: SpatialRoomNode, lang: AppLanguage): { title: string; objective: string } {
+  return {
+    title: tr(lang, room.nameEn, room.nameAr),
+    objective: tr(lang, ROOM_OBJECTIVE_EN[room.id] || room.nameEn, room.shortObjectiveAr)
+  };
+}
+
+export function getAdaptedBriefingHint(
+  miniGameId: MiniGameId,
+  lang: AppLanguage,
+  ageGroup: CadetAgeGroup
+): string {
+  const b = MINI_GAME_BRIEFINGS[miniGameId];
+  return adaptByAge(ageGroup, lang, {
+    youngEn: b.youngTipEn,
+    youngAr: b.youngTipAr,
+    midEn: b.en[1],
+    midAr: b.ar[1],
+    teenEn: b.teenTipEn,
+    teenAr: b.teenTipAr
+  });
+}

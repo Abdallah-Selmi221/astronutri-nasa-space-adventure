@@ -4,7 +4,9 @@ import type {
   CargoItemEntry,
   NutritionScore,
   TradeOffChoice,
-  CampaignProgressState
+  CampaignProgressState,
+  AppLanguage,
+  CadetAgeGroup
 } from '../types/game';
 
 export const SAVE_STORAGE_KEY = 'astronutri_save_v1';
@@ -18,6 +20,8 @@ export interface AstroNutriSaveDataV1 {
   version: 1;
   timestamp: number;
   cadetName: string;
+  language?: AppLanguage;
+  ageGroup?: CadetAgeGroup;
   unlockedRooms: RoomLocation[];
   isNutritionMissionComplete: boolean;
   isHumanHealthComplete?: boolean;
@@ -89,7 +93,9 @@ export function extractSaveData(state: GameState): AstroNutriSaveDataV1 {
   return {
     version: 1,
     timestamp: Date.now(),
-    cadetName: state.cadetName || 'البطل الصغير',
+    cadetName: state.cadetName || 'Explorer',
+    ...(state.language ? { language: state.language } : {}),
+    ...(state.ageGroup ? { ageGroup: state.ageGroup } : {}),
     unlockedRooms: Array.from(new Set([...DEFAULT_UNLOCKED_ROOMS, ...state.unlockedRooms])),
     isNutritionMissionComplete: Boolean(state.isNutritionMissionComplete),
     isHumanHealthComplete: Boolean(state.isHumanHealthComplete),
@@ -214,6 +220,8 @@ function mergeSavedState(initial: GameState, saved: AstroNutriSaveDataV1): GameS
     showIntroModal: false,
 
     cadetName: saved.cadetName || initial.cadetName,
+    ...(saved.language ? { language: saved.language } : {}),
+    ...(saved.ageGroup ? { ageGroup: saved.ageGroup } : {}),
     unlockedRooms: mergedRooms,
     isNutritionMissionComplete: Boolean(saved.isNutritionMissionComplete),
     isHumanHealthComplete: Boolean(saved.isHumanHealthComplete),

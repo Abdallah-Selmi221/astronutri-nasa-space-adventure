@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Radio, RotateCcw, Sparkles, Star, X } from 'lucide-react';
 import { QuizQuestion } from '../../data/questionBanks';
+import { useGameState } from '../../context/GameContext';
+import { tr } from '../../utils/i18n';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { soundManager } from '../../utils/sound';
 import { shuffleArray } from '../../utils/shuffle';
@@ -15,7 +17,8 @@ interface InteractiveQuizDeckProps {
   onMilestoneComplete?: (correctCount: number, totalQuestions: number) => void;
 }
 
-const OPTION_LETTERS = ['أ', 'ب', 'ج', 'د'];
+const OPTION_LETTERS_AR = ['أ', 'ب', 'ج', 'د'];
+const OPTION_LETTERS_EN = ['A', 'B', 'C', 'D'];
 const OPTION_BADGE_COLORS = [
   'bg-sky-500 text-white border-sky-200/70',
   'bg-violet-500 text-white border-violet-200/70',
@@ -32,6 +35,7 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
   isMilestoneDone = false,
   onMilestoneComplete
 }) => {
+  const { language, setLanguage } = useGameState();
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<string, { optionId: string; isCorrect: boolean }>>({});
   const [milestoneFired, setMilestoneFired] = useState(false);
@@ -48,6 +52,7 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
 
   const currentQ = safeQuestions[currentIdx];
   const activeOptions = currentQ ? (shuffledOptionsByQuestion[currentQ.id] ?? currentQ.options) : [];
+  const optionLetters = language === 'ar' ? OPTION_LETTERS_AR : OPTION_LETTERS_EN;
 
   const stats = useMemo(() => {
     const entries = Object.values(answers);
@@ -75,7 +80,7 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
     if (option.isCorrect) {
       soundManager.playDropSuccess();
       void dialogueManager.speak(
-        'إجابة عبقرية! بطل ناسا الحقيقي ممتاز جداً!'
+        tr(language, 'Brilliant answer! True NASA Space Explorer!', 'إجابة عبقرية! بطل ناسا الحقيقي ممتاز جداً!')
       );
       const nextCorrect = Object.values(nextAnswers).filter((a) => a.isCorrect).length;
       if (!alreadyCorrect && !milestoneFired && nextCorrect >= milestoneCount) {
@@ -85,7 +90,7 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
     } else {
       soundManager.playAlertSiren();
       void dialogueManager.speak(
-        'قربت جداً يا بطل! فكر تاني وجرب الخيار الصح!'
+        tr(language, 'Almost there! Try thinking through the other options!', 'قربت جداً يا بطل! فكر تاني وجرب الخيار الصح!')
       );
     }
   };
@@ -119,7 +124,7 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
   const doneBadge = isMilestoneDone || milestoneFired || stats.correctCount >= milestoneCount;
 
   return (
-    <section dir="rtl" className="casual-card p-4 sm:p-6 space-y-4">
+    <section dir={language === 'ar' ? 'rtl' : 'ltr'} className="casual-card p-4 sm:p-6 space-y-4">
       {/* Header + Progress Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -139,14 +144,26 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={handleReset}
-          className="px-3 py-1.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-hud font-bold text-slate-100 flex items-center gap-1.5 cursor-pointer"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span>إعادة التحدي</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClick();
+              setLanguage(language === 'en' ? 'ar' : 'en');
+            }}
+            className="px-2.5 py-1.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-amber-300/60 text-xs font-hud font-black text-amber-200 cursor-pointer"
+          >
+            {language === 'en' ? 'EN | عربي' : 'عربي | EN'}
+          </button>
+          <button
+            type="button"
+            onClick={handleReset}
+            className="px-3 py-1.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-hud font-bold text-slate-100 flex items-center gap-1.5 cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>{tr(language, 'Restart Quiz', 'إعادة التحدي')}</span>
+          </button>
+        </div>
       </div>
 
       {/* Milestone Bar */}
@@ -154,8 +171,16 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
         <div className="flex items-center justify-between text-xs font-hud font-bold mb-1.5">
           <span className={doneBadge ? 'text-emerald-300' : 'text-amber-200'}>
             {doneBadge
-              ? `✅ بطل التحدي! أتممت ${stats.correctCount} إجابات صحيحة ويمكنك متابعة الـ ${safeQuestions.length} سؤالاً`
-              : `🎯 أجب عن ${milestoneCount} أسئلة صحيحة لتوثيق شارة المهمة (${stats.correctCount}/${milestoneCount})`}
+              ? tr(
+                  language,
+                  `✅ Quiz Champion! Answered ${stats.correctCount} correctly (${safeQuestions.length} total)`,
+                  `✅ بطل التحدي! أتممت ${stats.correctCount} إجابات صحيحة ويمكنك متابعة الـ ${safeQuestions.length} سؤالاً`
+                )
+              : tr(
+                  language,
+                  `🎯 Answer ${milestoneCount} questions correctly to earn the badge (${stats.correctCount}/${milestoneCount})`,
+                  `🎯 أجب عن ${milestoneCount} أسئلة صحيحة لتوثيق شارة المهمة (${stats.correctCount}/${milestoneCount})`
+                )}
           </span>
           <span className="text-cyan-300 font-black">{milestonePct}%</span>
         </div>
@@ -210,13 +235,13 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="text-[11px] font-hud font-black text-cyan-300">
-                سؤال {currentIdx + 1} من {safeQuestions.length}
+                {tr(language, `Question ${currentIdx + 1} of ${safeQuestions.length}`, `سؤال ${currentIdx + 1} من ${safeQuestions.length}`)}
               </span>
               <span className="text-[10px] font-hud font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/35 border border-indigo-300/50 text-indigo-100">
                 🛰️ {currentQ.nasaBadgeAr}
               </span>
             </div>
-            <h3 className="font-hud font-black text-base sm:text-lg text-white leading-relaxed">
+            <h3 dir="rtl" className="font-hud font-black text-base sm:text-lg text-white leading-relaxed">
               {currentQ.questionAr}
             </h3>
           </div>
@@ -255,9 +280,9 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
                   <span
                     className={`w-8 h-8 rounded-xl border flex items-center justify-center font-black text-xs shrink-0 shadow-sm ${badgeColor}`}
                   >
-                    {OPTION_LETTERS[optIdx] || optIdx + 1}
+                    {optionLetters[optIdx] || optIdx + 1}
                   </span>
-                  <span className="leading-snug">{option.labelAr}</span>
+                  <span dir="rtl" className="leading-snug">{option.labelAr}</span>
                 </div>
                 {(showCorrectHighlight || revealCorrect) && <Check className="w-5 h-5 text-emerald-300 shrink-0" />}
                 {showWrongHighlight && <X className="w-5 h-5 text-rose-300 shrink-0" />}
@@ -275,15 +300,17 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
                 : 'bg-amber-950/60 border-amber-400/60'
             }`}
           >
-            <div className="flex items-start gap-2 font-hud font-bold text-sm text-white">
+            <div dir="rtl" className="flex items-start gap-2 font-hud font-bold text-sm text-white">
               <Sparkles className="w-4 h-4 text-amber-300 shrink-0 mt-0.5" />
               <span>{selectedOption.feedbackAr}</span>
             </div>
             <div className="rounded-xl bg-slate-950/70 border border-cyan-400/30 p-2.5 flex items-start gap-2 text-xs font-hud font-bold text-cyan-100">
               <Radio className="w-4 h-4 text-cyan-300 shrink-0 mt-0.5" />
               <div>
-                <span className="text-cyan-300 font-black">حقيقة من ناسا ({currentQ.nasaBadgeAr}): </span>
-                <span>{currentQ.nasaConnectionAr}</span>
+                <span className="text-cyan-300 font-black">
+                  {tr(language, `NASA Science (${currentQ.nasaBadgeAr}): `, `حقيقة من ناسا (${currentQ.nasaBadgeAr}): `)}
+                </span>
+                <span dir="rtl">{currentQ.nasaConnectionAr}</span>
               </div>
             </div>
           </div>
@@ -298,7 +325,7 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
           className="px-4 py-2.5 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-white/25 font-hud font-bold text-xs sm:text-sm text-slate-100 flex items-center gap-1.5 cursor-pointer"
         >
           <ChevronRight className="w-4 h-4" />
-          <span>السؤال السابق</span>
+          <span>{tr(language, 'Previous Question', 'السؤال السابق')}</span>
         </button>
 
         <button
@@ -306,7 +333,7 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
           onClick={handleNext}
           className="casual-btn-cyan px-5 py-2.5 text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer"
         >
-          <span>السؤال التالي</span>
+          <span>{tr(language, 'Next Question', 'السؤال التالي')}</span>
           <ChevronLeft className="w-4 h-4" />
         </button>
       </div>

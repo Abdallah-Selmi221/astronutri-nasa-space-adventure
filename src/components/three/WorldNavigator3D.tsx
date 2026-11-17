@@ -25,23 +25,20 @@ import {
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
 import {
   createDustPuffSystem,
+  createFloorGuideArrowSystem,
   lerpAngle,
   stepSmoothHorizontalVelocity
 } from './thirdPersonPhysics';
 import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
+import { useGameState } from '../../context/GameContext';
+import { LEVEL_TITLES_BILINGUAL } from '../../data/campaignBilingual';
+import { tr } from '../../utils/i18n';
 
 interface WorldNavigator3DProps {
   campaign: CampaignProgressState;
   onSelectLevel: (levelId: CampaignLevelId) => void;
   suitState?: SpaceFitXState;
 }
-
-const LEVEL_UI_META: Record<CampaignLevelId, { badge: string; shortTitleAr: string }> = {
-  1: { badge: '🌍', shortTitleAr: 'الأرض والانطلاق' },
-  2: { badge: '🛸', shortTitleAr: 'المدار 0G' },
-  3: { badge: '🌙', shortTitleAr: 'مستعمرة القمر' },
-  4: { badge: '🪂', shortTitleAr: 'العودة للأرض' }
-};
 
 function checkLevelCompleted(campaign: CampaignProgressState, lid: CampaignLevelId): boolean {
   const spec = CAMPAIGN_LEVELS[lid];
@@ -315,6 +312,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   onSelectLevel,
   suitState
 }) => {
+  const { language } = useGameState();
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
 
@@ -326,7 +324,9 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   const [idleSpeechAr, setIdleSpeechAr] = useState<string | null>(null);
   const [isFlightMode, setIsFlightMode] = useState(false);
   const isFlightModeRef = useRef(false);
-  const [activeBiomeAr, setActiveBiomeAr] = useState<string>('1.0G 🌍 الأرض');
+  const [activeBiomeAr, setActiveBiomeAr] = useState<string>(
+    tr(language, '1.0G 🌍 Earth', '1.0G 🌍 الأرض')
+  );
   const activeBiomeRef = useRef<string>('earth');
 
   const playerPosRef = useRef(new THREE.Vector3(initialCenter.x, initialCenter.y, initialCenter.z + 2.2));
@@ -336,6 +336,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   const lastGroundedMsRef = useRef(performance.now());
   const sprintDustTimerRef = useRef(0);
   const walkTargetRef = useRef<THREE.Vector3 | null>(null);
+  const pendingLevelRef = useRef<CampaignLevelId | null>(null);
   const joystickVecRef = useRef({ x: 0, z: 0 });
   const isSprintingRef = useRef(false);
   const toggleFlightRef = useRef<() => void>(() => {});
@@ -363,6 +364,36 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   const unlockedSet = new Set(campaign.unlockedLevels);
   const unlockedSetRef = useRef(unlockedSet);
   unlockedSetRef.current = unlockedSet;
+
+  const activeTargetLevelId =
+    ([1, 2, 3, 4] as CampaignLevelId[]).find(
+      (lid) => unlockedSet.has(lid) && !checkLevelCompleted(campaign, lid)
+    ) ??
+    (([...campaign.unlockedLevels].sort((a, b) => b - a)[0] || 1) as CampaignLevelId);
+  const activeTargetIslandCfg =
+    ISLAND_CONFIGS.find((c) => c.levelId === activeTargetLevelId) ?? ISLAND_CONFIGS[0];
+
+  const handleWalkToNextIsland = () => {
+    markPlayerActive();
+    soundManager.playClick();
+    if (isFlightModeRef.current || !unlockedSet.has(activeTargetLevelId)) {
+      if (unlockedSet.has(activeTargetLevelId)) {
+        onSelectLevelRef.current(activeTargetLevelId);
+      }
+      return;
+    }
+    const targetPt = new THREE.Vector3(
+      activeTargetIslandCfg.center.x,
+      activeTargetIslandCfg.center.y,
+      activeTargetIslandCfg.center.z + 1.6
+    );
+    if (playerPosRef.current.distanceTo(targetPt) < 2.4) {
+      onSelectLevelRef.current(activeTargetLevelId);
+    } else {
+      walkTargetRef.current = targetPt;
+      pendingLevelRef.current = activeTargetLevelId;
+    }
+  };
 
   const currentGravityRef = useRef<{ gravity: number; jumpVel: number; dustColor: number }>({
     gravity: 21,
@@ -555,10 +586,15 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       portalBasePositions.push(new THREE.Vector3(cfg.center.x, cfg.center.y + 1.2, cfg.center.z - 0.4));
       exclFlags.push(unlocked && !completed);
 
-      // In-world Sprite Label cleanly hovering above island (ZERO duplicate prefix!)
-      const statusBadge = completed ? '✓' : unlocked ? LEVEL_UI_META[cfg.levelId].badge : '🔒';
+      // In-world Sprite Label cleanly hovering above island (EN / AR localized!)
+      const lMeta = LEVEL_TITLES_BILINGUAL[cfg.levelId];
+      const statusBadge = completed ? '✓' : unlocked ? lMeta.badge : '🔒';
       const { sprite, texture } = createFloatingLabelSprite(
-        `المستوى ${cfg.levelId} • ${LEVEL_UI_META[cfg.levelId].shortTitleAr}`,
+        tr(
+          language,
+          `Level ${cfg.levelId} • ${lMeta.shortEn}`,
+          `المستوى ${cfg.levelId} • ${lMeta.shortAr}`
+        ),
         statusBadge,
         unlocked ? cfg.accentHex : '#64748b',
         completed
@@ -652,7 +688,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     }[] = [
       {
         id: 'mars',
-        badgeAr: '0.38G 🔴 المريخ',
+        badgeAr: tr(language, '0.38G 🔴 Mars', '0.38G 🔴 المريخ'),
         pos: new THREE.Vector3(-4, 5.8, -16),
         radius: 11,
         sky: 'mars',
@@ -665,7 +701,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       },
       {
         id: 'saturn',
-        badgeAr: '1.06G 🪐 زحل',
+        badgeAr: tr(language, '1.06G 🪐 Saturn', '1.06G 🪐 زحل'),
         pos: new THREE.Vector3(21, 6.2, -14),
         radius: 12,
         sky: 'nebula',
@@ -678,7 +714,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       },
       {
         id: 'earth_orbit',
-        badgeAr: '1.0G 🌍 الأرض',
+        badgeAr: tr(language, '1.0G 🌍 Earth', '1.0G 🌍 الأرض'),
         pos: new THREE.Vector3(-19, 6.4, -14),
         radius: 12,
         sky: 'sunny',
@@ -691,7 +727,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       },
       {
         id: 'moon_orbit',
-        badgeAr: '0.16G 🌙 القمر',
+        badgeAr: tr(language, '0.16G 🌙 Moon', '0.16G 🌙 القمر'),
         pos: new THREE.Vector3(8, 6.8, -15),
         radius: 11,
         sky: 'lunar',
@@ -726,6 +762,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     });
 
     const dustSystem = createDustPuffSystem(scene, 24);
+    const floorArrowSystem = createFloorGuideArrowSystem(scene);
 
     toggleFlightRef.current = () => {
       const next = !isFlightModeRef.current;
@@ -829,6 +866,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
               onSelectLevelRef.current(found.levelId);
             } else {
               walkTargetRef.current = new THREE.Vector3(cfg.center.x, cfg.center.y, cfg.center.z + 1.8);
+              pendingLevelRef.current = unlockedSetRef.current.has(found.levelId) ? found.levelId : null;
               soundManager.playClick();
             }
           }
@@ -983,6 +1021,11 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         } else {
           walkTargetRef.current = null;
           horizVelRef.current = { x: 0, z: 0 };
+          const enterLid = pendingLevelRef.current;
+          pendingLevelRef.current = null;
+          if (enterLid && unlockedSetRef.current.has(enterLid)) {
+            onSelectLevelRef.current(enterLid);
+          }
         }
       } else {
         const { speed } = stepSmoothHorizontalVelocity(
@@ -1019,12 +1062,12 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
           : 'tropical';
       let targetBadge =
         surf.nearestLevelId === 1
-          ? '1.0G 🌍 الأرض'
+          ? tr(language, '1.0G 🌍 Earth', '1.0G 🌍 الأرض')
           : surf.nearestLevelId === 2
-          ? '0.0G 🛸 المدار'
+          ? tr(language, '0.0G 🛸 Orbit', '0.0G 🛸 المدار')
           : surf.nearestLevelId === 3
-          ? '0.16G 🌙 القمر'
-          : '1.0G 🪂 المحيط';
+          ? tr(language, '0.16G 🌙 Moon', '0.16G 🌙 القمر')
+          : tr(language, '1.0G 🪂 Splashdown', '1.0G 🪂 المحيط');
       let targetGravity = surf.nearestLevelId === 3 ? 7.4 : surf.nearestLevelId === 2 ? 6.2 : 21;
       let targetJumpVel = surf.nearestLevelId === 3 ? 7.6 : surf.nearestLevelId === 2 ? 5.8 : 8.4;
       let targetDustHex = surf.nearestLevelId === 3 ? 0xe2e8f0 : surf.nearestLevelId === 2 ? 0x818cf8 : 0xfef3c7;
@@ -1125,7 +1168,13 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       if (isBoredIdle && !boredVoiceFiredRef.current) {
         boredVoiceFiredRef.current = true;
         // 8s idle triggers silent visual speech bubble + animation only (no unprompted passive voice)
-        setIdleSpeechAr('يلا يا بطل مستنيينك نكمل مغامرة الفضاء! 🚀');
+        setIdleSpeechAr(
+          tr(
+            language,
+            'Follow the golden floor arrow to your next Island! 🚀',
+            'اتبع السهم الذهبي نحو الجزيرة التالية يا بطل! 🚀'
+          )
+        );
       }
 
       const activeEmote: AstronautEmote =
@@ -1146,12 +1195,31 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         emote: activeEmote
       });
 
+      // Floor directional arrow guiding player toward active target island
+      floorArrowSystem.update(
+        pos,
+        isFlightMode ? null : activeTargetIslandCfg.center,
+        surf.groundY,
+        elapsed
+      );
+
+      // Auto-Follow Third-Person Camera behind player while moving (one-thumb mobile ready!)
+      if (moveSpeed > 0.25 && !dragOrbiting && !isFlightMode) {
+        const behindPlayerYaw = hero.group.rotation.y + Math.PI;
+        cameraOrbitYawRef.current = lerpAngle(
+          cameraOrbitYawRef.current,
+          behindPlayerYaw,
+          1 - Math.exp(-1.75 * dt)
+        );
+      }
+
       // Smooth Third-Person Follow Camera with Orbit Yaw/Pitch
+      const followYaw = cameraOrbitYawRef.current;
       const camDist = isFlying ? 14.2 : 11.5;
       const horizDist = camDist * Math.cos(cameraOrbitPitchRef.current);
       const camHeight = (isFlying ? 3.2 : 2.4) + camDist * Math.sin(cameraOrbitPitchRef.current);
-      const desiredCamX = pos.x + Math.sin(yaw) * horizDist;
-      const desiredCamZ = pos.z + Math.cos(yaw) * horizDist;
+      const desiredCamX = pos.x + Math.sin(followYaw) * horizDist;
+      const desiredCamZ = pos.z + Math.cos(followYaw) * horizDist;
       const desiredCamY = pos.y + camHeight;
 
       camera.position.x += (desiredCamX - camera.position.x) * 0.12;
@@ -1183,6 +1251,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
       skyHandle.dispose();
       dustSystem.dispose();
+      floorArrowSystem.dispose();
       hero.dispose();
       disposableTextures.forEach((tex) => tex.dispose());
       scene.traverse((obj) => {
@@ -1197,7 +1266,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       });
       renderer.dispose();
     };
-  }, [campaign.completedMiniGames, campaign.l3ReturnAuthorized, campaign.unlockedLevels]);
+  }, [campaign.completedMiniGames, campaign.l3ReturnAuthorized, campaign.unlockedLevels, language]);
 
   if (webglFailed) {
     return (
@@ -1205,10 +1274,12 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         data-testid="world-navigator-3d"
         className="w-full h-full flex items-center justify-center bg-slate-950 p-6"
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl w-full" dir="rtl">
+        <div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl w-full"
+          dir={language === 'ar' ? 'rtl' : 'ltr'}
+        >
           {([1, 2, 3, 4] as CampaignLevelId[]).map((lid) => {
-            const spec = CAMPAIGN_LEVELS[lid];
-            const meta = LEVEL_UI_META[lid];
+            const meta = LEVEL_TITLES_BILINGUAL[lid];
             const unlocked = campaign.unlockedLevels.includes(lid);
             const completed = checkLevelCompleted(campaign, lid);
             return (
@@ -1218,17 +1289,27 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
                 data-testid={`level-node-${lid}`}
                 disabled={!unlocked}
                 onClick={() => focusOrOpenLevelPill(lid)}
-                className={`p-5 rounded-3xl border-2 text-right transition-all ${
+                className={`p-5 rounded-3xl border-2 transition-all ${
+                  language === 'ar' ? 'text-right' : 'text-left'
+                } ${
                   unlocked
                     ? 'bg-slate-900/90 border-cyan-400/50 hover:border-cyan-300 cursor-pointer'
                     : 'bg-slate-950/70 border-slate-800 opacity-50 cursor-not-allowed'
                 }`}
               >
                 <div className="text-3xl mb-2">{meta.badge}</div>
-                <div className="font-bold text-white text-base">{spec.titleAr}</div>
-                <div className="text-xs text-slate-400 mt-1">{spec.subtitleAr}</div>
+                <div className="font-bold text-white text-base">
+                  {tr(language, meta.titleEn, meta.titleAr)}
+                </div>
+                <div className="text-xs text-slate-400 mt-1">
+                  {tr(language, meta.subtitleEn, meta.subtitleAr)}
+                </div>
                 <div className="mt-3 text-xs font-bold text-cyan-300">
-                  {completed ? '✅ مكتمل' : unlocked ? '🚀 افتح الجزيرة' : '🔒 مقفل'}
+                  {completed
+                    ? tr(language, '✅ Completed', '✅ مكتمل')
+                    : unlocked
+                    ? tr(language, '🚀 Enter Island', '🚀 افتح الجزيرة')
+                    : tr(language, '🔒 Locked', '🔒 مقفل')}
                 </div>
               </button>
             );
@@ -1238,8 +1319,9 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     );
   }
 
-  const focusedSpec = CAMPAIGN_LEVELS[focusedLevel];
+  const focusedMeta = LEVEL_TITLES_BILINGUAL[focusedLevel];
   const focusedUnlocked = unlockedSet.has(focusedLevel);
+  const nextIslandMeta = LEVEL_TITLES_BILINGUAL[activeTargetLevelId];
 
   return (
     <div data-testid="world-navigator-3d" className="relative w-full h-full overflow-hidden select-none">
@@ -1252,12 +1334,12 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
       {/* Minimalist Compact Level Hop Pills (Tucked Cleanly at Top-Center Between Corner HUDs) */}
       <div
-        dir="rtl"
+        dir={language === 'ar' ? 'rtl' : 'ltr'}
         className="pointer-events-none fixed top-16 sm:top-3.5 inset-x-0 z-20 flex justify-center px-3"
       >
         <div className="pointer-events-auto inline-flex flex-wrap items-center justify-center gap-1 px-2 py-1 rounded-full bg-slate-950/55 border border-white/30 backdrop-blur-md shadow-lg max-w-full">
           {([1, 2, 3, 4] as CampaignLevelId[]).map((lid) => {
-            const meta = LEVEL_UI_META[lid];
+            const meta = LEVEL_TITLES_BILINGUAL[lid];
             const unlocked = unlockedSet.has(lid);
             const completed = checkLevelCompleted(campaign, lid);
             const isFocused = focusedLevel === lid;
@@ -1276,7 +1358,9 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
                 }`}
               >
                 <span>{meta.badge}</span>
-                <span className="hidden lg:inline">{meta.shortTitleAr}</span>
+                <span className="hidden lg:inline">
+                  {tr(language, meta.shortEn, meta.shortAr)}
+                </span>
                 <span className="lg:hidden">{lid}</span>
                 {completed && <CheckCircle2 className="w-3 h-3 text-emerald-500" />}
                 {!unlocked && <Lock className="w-2.5 h-2.5 text-slate-400" />}
@@ -1294,7 +1378,11 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
                 : 'bg-indigo-950/75 border-cyan-300/65 text-cyan-100 hover:bg-indigo-900'
             }`}
           >
-            <span>{isFlightMode ? '🛬 هبوط' : '🚀 طيران'}</span>
+            <span>
+              {isFlightMode
+                ? tr(language, '🛬 Land', '🛬 هبوط')
+                : tr(language, '🚀 Fly', '🚀 طيران')}
+            </span>
           </button>
 
           <span
@@ -1309,7 +1397,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       {/* Playful Speech Bubble when Astronaut gets Bored after 8s Idle */}
       {idleSpeechAr && (
         <div
-          dir="rtl"
+          dir={language === 'ar' ? 'rtl' : 'ltr'}
           data-testid="idle-speech-bubble"
           className="pointer-events-none fixed bottom-32 sm:bottom-24 inset-x-0 z-30 flex justify-center px-4"
         >
@@ -1320,15 +1408,25 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         </div>
       )}
 
-      {/* Bottom Minimalist Arcade Controls (Left Thumbstick + Right B Interact & A Jump) */}
+      {/* Bottom Minimalist Arcade Controls (Left Thumbstick + Tap-to-Walk + Right B Interact & A Jump) */}
       <ThirdPersonControlsOverlay
         promptLabelAr={
           focusedUnlocked
-            ? `ادخل جزيرة ${focusedLevel}: ${LEVEL_UI_META[focusedLevel].shortTitleAr}`
-            : `الجزيرة ${focusedLevel} مقفلة`
+            ? tr(
+                language,
+                `Enter Island ${focusedLevel}: ${focusedMeta.shortEn}`,
+                `ادخل جزيرة ${focusedLevel}: ${focusedMeta.shortAr}`
+              )
+            : tr(language, `Island ${focusedLevel} Locked`, `الجزيرة ${focusedLevel} مقفلة`)
         }
-        promptSubAr={focusedUnlocked ? focusedSpec.titleAr.split('•')[0] : undefined}
+        promptSubAr={focusedUnlocked ? tr(language, focusedMeta.titleEn, focusedMeta.titleAr) : undefined}
         onInteract={handleEnterFocusedIsland}
+        onAutoWalkNext={handleWalkToNextIsland}
+        autoWalkLabel={tr(
+          language,
+          `Go to Next Mission: ${nextIslandMeta.shortEn}`,
+          `اذهب للمهمة التالية: ${nextIslandMeta.shortAr}`
+        )}
         onJoystickMove={(vec) => {
           markPlayerActive();
           joystickVecRef.current = vec;
@@ -1338,11 +1436,23 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
           markPlayerActive();
           isSprintingRef.current = s;
         }}
-        gravityLabelAr={isFlightMode ? `وضع الطيران الحر (${activeBiomeAr})` : activeBiomeAr}
+        gravityLabelAr={
+          isFlightMode
+            ? tr(language, `Free Flight (${activeBiomeAr})`, `وضع الطيران الحر (${activeBiomeAr})`)
+            : activeBiomeAr
+        }
         hintAr={
           isFlightMode
-            ? 'WASD للقيادة • Space للارتفاع • Shift تسريع • F للهبوط'
-            : 'WASD للمشي • Space للقفز • F للطيران الحر • E للدخول'
+            ? tr(
+                language,
+                'WASD Fly • Space Up • Shift Boost • F Land',
+                'WASD للقيادة • Space للارتفاع • Shift تسريع • F للهبوط'
+              )
+            : tr(
+                language,
+                'WASD Walk • Space Jump • F Free Flight • E Enter',
+                'WASD للمشي • Space للقفز • F للطيران الحر • E للدخول'
+              )
         }
       />
     </div>

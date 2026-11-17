@@ -1,12 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
+import { AnimatePresence, motion } from 'framer-motion';
 import { CampaignProgressState, MiniGameId } from '../../types/game';
+import { useGameState } from '../../context/GameContext';
+import { tr } from '../../utils/i18n';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { NASA_ENGINEERING_TRADEOFFS } from '../../services/nasa/nasaOSDR';
 import { EGYPTIAN_SINAI_SPACE_FOODS, FOOD_DATABASE } from '../../data/foodItems';
 import { DAILY_REFERENCE_ASSUMPTIONS, SCIENCE_BADGES } from '../../data/science';
 import { SpaceFitXControlsHUD } from '../suit/SpaceFitXControlsHUD';
+import { BodyTelemetryMeters } from './BodyTelemetryMeters';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -43,11 +47,19 @@ interface PantryEntry {
   hasCrumbs?: boolean;
   isForbidden?: boolean;
   originBadge?: string;
+  originBadgeEn?: string;
   bannedMsg?: string;
+  bannedMsgEn?: string;
 }
 
 const buildPantryEntries = (): PantryEntry[] => {
-  const fromFoodDb = (id: string, fallbackWeight: number, vitBoost: number, originBadge?: string): PantryEntry | null => {
+  const fromFoodDb = (
+    id: string,
+    fallbackWeight: number,
+    vitBoost: number,
+    originBadge?: string,
+    originBadgeEn?: string
+  ): PantryEntry | null => {
     const f = FOOD_DATABASE.find((item) => item.id === id);
     if (!f) return null;
     return {
@@ -67,21 +79,23 @@ const buildPantryEntries = (): PantryEntry[] => {
       hasCrumbs: Boolean(f.hasCrumbs || f.crumbRating === 'high_crumbs'),
       isForbidden: Boolean(f.isForbidden || f.isBanned),
       originBadge,
-      bannedMsg: f.bannedReasonAr
+      originBadgeEn: originBadgeEn || originBadge,
+      bannedMsg: f.bannedReasonAr,
+      bannedMsgEn: f.bannedReasonAr ? 'Unsafe in microgravity: floating crumbs or liquid droplets hazard!' : undefined
     };
   };
 
   const candidates = [
-    fromFoodDb('sinai_honey', 2, 18, 'سيناوي 🍯'),
-    fromFoodDb('egy_mish_pouch', 3, 20, 'مصري 🇪🇬'),
-    fromFoodDb('sinai_date_bars', 3, 20, 'سيناوي 🌴'),
-    fromFoodDb('egy_tahini_pouch', 2, 18, 'مصري 🥣'),
-    fromFoodDb('sinai_olive_oil_drops', 1, 16, 'سيناوي 🫒'),
-    fromFoodDb('sinai_herbal_paste', 1, 22, 'سيناوي 🌿'),
-    fromFoodDb('egy_space_cabbage_lettuce', 2, 35, 'زراعة مائية 🌱'),
-    fromFoodDb('egy_space_arugula', 2, 35, 'زراعة مائية 🌱'),
-    fromFoodDb('egy_space_turnip', 2, 28, 'زراعة مائية 🌱'),
-    fromFoodDb('chicken_teriyaki_pouch', 4, 15, 'ناسا المعتمدة')
+    fromFoodDb('sinai_honey', 2, 18, 'سيناوي 🍯', 'Sinai 🍯'),
+    fromFoodDb('egy_mish_pouch', 3, 20, 'مصري 🇪🇬', 'Egyptian 🇪🇬'),
+    fromFoodDb('sinai_date_bars', 3, 20, 'سيناوي 🌴', 'Sinai 🌴'),
+    fromFoodDb('egy_tahini_pouch', 2, 18, 'مصري 🥣', 'Egyptian 🥣'),
+    fromFoodDb('sinai_olive_oil_drops', 1, 16, 'سيناوي 🫒', 'Sinai 🫒'),
+    fromFoodDb('sinai_herbal_paste', 1, 22, 'سيناوي 🌿', 'Sinai 🌿'),
+    fromFoodDb('egy_space_cabbage_lettuce', 2, 35, 'زراعة مائية 🌱', 'Hydroponic 🌱'),
+    fromFoodDb('egy_space_arugula', 2, 35, 'زراعة مائية 🌱', 'Hydroponic 🌱'),
+    fromFoodDb('egy_space_turnip', 2, 28, 'زراعة مائية 🌱', 'Hydroponic 🌱'),
+    fromFoodDb('chicken_teriyaki_pouch', 4, 15, 'ناسا المعتمدة', 'NASA Approved')
   ].filter(Boolean) as PantryEntry[];
 
   // Red-warning banned items
@@ -89,7 +103,7 @@ const buildPantryEntries = (): PantryEntry[] => {
     {
       id: 'banned_crumbly_biscuits',
       nameAr: 'بسكويت متفتت (خطر)',
-      nameEn: 'Crumbly Biscuits',
+      nameEn: 'Crumbly Biscuits (Hazard)',
       icon: '🍪',
       weightKg: 2,
       kcal: 220,
@@ -102,13 +116,16 @@ const buildPantryEntries = (): PantryEntry[] => {
       hasCrumbs: true,
       isForbidden: true,
       originBadge: 'ممنوع بالفضاء 🚫',
+      originBadgeEn: '0G Hazard 🚫',
       bannedMsg:
-        '⚠️ خطر الفتات! البسكويت المتفتت يسبح في الجاذبية الصغرى ويسد فلاتر الهواء ويؤذي أعين الرواد!'
+        '⚠️ خطر الفتات! البسكويت المتفتت يسبح في الجاذبية الصغرى ويسد فلاتر الهواء ويؤذي أعين الرواد!',
+      bannedMsgEn:
+        '⚠️ Crumb Hazard! Dry biscuit crumbs float in 0G, clog ECLSS air filters, and irritate astronauts’ eyes!'
     },
     {
       id: 'banned_open_juice',
       nameAr: 'عصير في كوب مفتوح (خطر)',
-      nameEn: 'Open Juice Cup',
+      nameEn: 'Open Juice Cup (Hazard)',
       icon: '🧃',
       weightKg: 2,
       kcal: 110,
@@ -121,8 +138,11 @@ const buildPantryEntries = (): PantryEntry[] => {
       hasCrumbs: false,
       isForbidden: true,
       originBadge: 'ممنوع بالفضاء 🚫',
+      originBadgeEn: '0G Hazard 🚫',
       bannedMsg:
-        '⚠️ السوائل الحرة ممنوعة! في 0G تتطاير قطرات العصير وتُحدث تماساً كهربائياً بالأجهزة!'
+        '⚠️ السوائل الحرة ممنوعة! في 0G تتطاير قطرات العصير وتُحدث تماساً كهربائياً بالأجهزة!',
+      bannedMsgEn:
+        '⚠️ Unsealed Liquid Hazard! Free droplets float into avionics and short-circuit spacecraft panels in 0G!'
     }
   );
 
@@ -137,8 +157,10 @@ interface EquipInspectionItem {
   nameEn: string;
   icon: string;
   bay: string;
+  bayEn: string;
   shouldPack: boolean;
   reasonAr: string;
+  reasonEn: string;
 }
 
 const EQUIP_INSPECTION_LIST: EquipInspectionItem[] = [
@@ -148,17 +170,21 @@ const EQUIP_INSPECTION_LIST: EquipInspectionItem[] = [
     nameEn: 'Space Medical Kit',
     icon: '🧰',
     bay: 'العيادة الطبية',
+    bayEn: 'Medical Bay',
     shouldPack: true,
-    reasonAr: 'ضرورية لمتابعة النبض والضغط والإسعاف الأولي.'
+    reasonAr: 'ضرورية لمتابعة النبض والضغط والإسعاف الأولي.',
+    reasonEn: 'Essential for tracking pulse, blood pressure, and crew first aid.'
   },
   {
     id: 'damaged_batteries',
     nameAr: 'بطاريات تالفة ومنتفخة',
-    nameEn: 'Damaged Batteries',
+    nameEn: 'Damaged Swollen Batteries',
     icon: '🪫',
     bay: 'ممنوعة — أمان الطاقة',
+    bayEn: 'Rejected — Power Safety',
     shouldPack: false,
-    reasonAr: 'مرفوض! البطاريات التالفة تشكل خطر حريق وتسرب كيميائي بالمركبة.'
+    reasonAr: 'مرفوض! البطاريات التالفة تشكل خطر حريق وتسرب كيميائي بالمركبة.',
+    reasonEn: 'Rejected! Damaged cells pose thermal runaway and toxic leak risks.'
   },
   {
     id: 'comms_headset',
@@ -166,17 +192,21 @@ const EQUIP_INSPECTION_LIST: EquipInspectionItem[] = [
     nameEn: 'Mission Comms Headset',
     icon: '🎧',
     bay: 'غرفة التحكم',
+    bayEn: 'Mission Control',
     shouldPack: true,
-    reasonAr: 'أساسية للتواصل المستمر مع مركز التحكم الأرضي.'
+    reasonAr: 'أساسية للتواصل المستمر مع مركز التحكم الأرضي.',
+    reasonEn: 'Required for continuous two-way voice telemetry with Earth control.'
   },
   {
     id: 'game_console',
     nameAr: 'جهاز ألعاب كبير غير ضروري',
-    nameEn: 'Unnecessary Game Console',
+    nameEn: 'Bulky Unapproved Game Console',
     icon: '🎮',
     bay: 'مرفوض — وزن زائد',
+    bayEn: 'Rejected — Excess Mass',
     shouldPack: false,
-    reasonAr: 'مرفوض! كل كيلوجرام في الصاروخ يستهلك وقوداً غالياً بلا فائدة علمية.'
+    reasonAr: 'مرفوض! كل كيلوجرام في الصاروخ يستهلك وقوداً غالياً بلا فائدة علمية.',
+    reasonEn: 'Rejected! Every extra kilogram wastes precious launch propellant without mission value.'
   },
   {
     id: 'o2_monitor',
@@ -184,17 +214,21 @@ const EQUIP_INSPECTION_LIST: EquipInspectionItem[] = [
     nameEn: 'Portable O2 Monitor',
     icon: '🫧',
     bay: 'حظيرة المركبة',
+    bayEn: 'Spaceship Bay',
     shouldPack: true,
-    reasonAr: 'يراقب نقاء هواء الكابينة وضغط الأكسجين.'
+    reasonAr: 'يراقب نقاء هواء الكابينة وضغط الأكسجين.',
+    reasonEn: 'Continuously checks cabin air purity and partial oxygen pressure.'
   },
   {
     id: 'expired_pack',
     nameAr: 'عبوة طعام منتهية الصلاحية',
-    nameEn: 'Expired Pack',
+    nameEn: 'Expired Food Ration',
     icon: '📦',
     bay: 'مرفوض — سلامة ميكروبية',
+    bayEn: 'Rejected — Microbial Safety',
     shouldPack: false,
-    reasonAr: 'مرفوض! السلامة الميكروبية وصلاحية الغذاء شرط أساسي في الفضاء.'
+    reasonAr: 'مرفوض! السلامة الميكروبية وصلاحية الغذاء شرط أساسي في الفضاء.',
+    reasonEn: 'Rejected! Strict microbial stability and shelf-life verification are mandatory.'
   },
   {
     id: 'safety_tethers',
@@ -202,26 +236,30 @@ const EQUIP_INSPECTION_LIST: EquipInspectionItem[] = [
     nameEn: 'Zero-G Safety Tethers',
     icon: '🪢',
     bay: 'ممر انعدام الجاذبية',
+    bayEn: 'Zero-G Corridor',
     shouldPack: true,
-    reasonAr: 'تمنع طفو الأدوات وارتطامها في انعدام الجاذبية.'
+    reasonAr: 'تمنع طفو الأدوات وارتطامها في انعدام الجاذبية.',
+    reasonEn: 'Secures hardware and prevents tools drifting away in weightlessness.'
   },
   {
     id: 'toy_camera',
     nameAr: 'كاميرا بلاستيكية لعبة',
-    nameEn: 'Toy Camera',
+    nameEn: 'Unverified Toy Camera',
     icon: '📷',
     bay: 'مرفوض — غير معتمدة',
+    bayEn: 'Rejected — Uncertified',
     shouldPack: false,
-    reasonAr: 'مرفوض! استبدلها بأدوات الرصد العلمية المعايرة.'
+    reasonAr: 'مرفوض! استبدلها بأدوات الرصد العلمية المعايرة.',
+    reasonEn: 'Rejected! Swap for flight-certified optical scientific instruments.'
   }
 ];
 
 const L1_SHIP_SYSTEMS = [
-  { id: 'oxygen', nameAr: 'خزانات الأكسجين ومعدل الضغط (O₂)', icon: '🫧' },
-  { id: 'power', nameAr: 'البطاريات وخلايا الطاقة الكهربائية', icon: '⚡' },
-  { id: 'comms', nameAr: 'هوائي الاتصال الأرضي والرادار', icon: '📡' },
-  { id: 'life_support', nameAr: 'نظام دعم الحياة وإزالة CO₂ (ECLSS)', icon: '💨' },
-  { id: 'cabin_doors', nameAr: 'إغلاق وأمان أبواب الكبسولة', icon: '🚪' }
+  { id: 'oxygen', nameAr: 'خزانات الأكسجين ومعدل الضغط (O₂)', nameEn: 'Oxygen Tanks & Pressure (O₂)', icon: '🫧' },
+  { id: 'power', nameAr: 'البطاريات وخلايا الطاقة الكهربائية', nameEn: 'Power Cells & Battery Arrays', icon: '⚡' },
+  { id: 'comms', nameAr: 'هوائي الاتصال الأرضي والرادار', nameEn: 'Ground Antenna & Radar Link', icon: '📡' },
+  { id: 'life_support', nameAr: 'نظام دعم الحياة وإزالة CO₂ (ECLSS)', nameEn: 'ECLSS Life Support & CO₂ Scrubber', icon: '💨' },
+  { id: 'cabin_doors', nameAr: 'إغلاق وأمان أبواب الكبسولة', nameEn: 'Capsule Hatch Seals & Locks', icon: '🚪' }
 ];
 
 // ---------------------------------------------------------------------------
@@ -231,14 +269,27 @@ const FoodPackingScene: React.FC<{
   campaign: CampaignProgressState;
   onComplete: (ids: string[], weightKg: number) => void;
 }> = ({ campaign, onComplete }) => {
+  const { language } = useGameState();
   const [selectedIds, setSelectedIds] = useState<string[]>(
     campaign.l1SelectedFoodIds.length > 0 ? campaign.l1SelectedFoodIds : []
   );
   const [safetyAlert, setSafetyAlert] = useState<string | null>(null);
   const [safeToast, setSafeToast] = useState<string | null>(null);
+  const [crumbParticles, setCrumbParticles] = useState<
+    Array<{ id: number; emoji: string; x: number; y: number; dx: number; dy: number }>
+  >([]);
+  const particleTimerRef = useRef<number | null>(null);
   const [foodMissionDone, setFoodMissionDone] = useState<boolean>(
     campaign.completedMiniGames.includes('l1_food_prep')
   );
+
+  useEffect(() => {
+    return () => {
+      if (particleTimerRef.current !== null) {
+        window.clearTimeout(particleTimerRef.current);
+      }
+    };
+  }, []);
 
   const packed = PANTRY_ENTRIES.filter((p) => selectedIds.includes(p.id));
   const totalKg = packed.reduce((s, p) => s + p.weightKg, 0);
@@ -268,13 +319,43 @@ const FoodPackingScene: React.FC<{
     fiberPct >= 40 &&
     (fatsPct >= 30 || totalFats >= 5);
 
+  const spawnFloating0GParticles = (isCrumb: boolean) => {
+    const icons = isCrumb ? ['🍪', '✨', '💨', '⚠️'] : ['💧', '🫧', '⚡', '⚠️'];
+    const batch = Array.from({ length: 10 }, (_, idx) => ({
+      id: Date.now() + idx,
+      emoji: icons[idx % icons.length],
+      x: 20 + ((idx * 17) % 60),
+      y: 30 + ((idx * 23) % 45),
+      dx: (idx % 2 === 0 ? 1 : -1) * (35 + (idx % 4) * 18),
+      dy: -(25 + (idx % 5) * 18)
+    }));
+    setCrumbParticles(batch);
+    if (particleTimerRef.current !== null) {
+      window.clearTimeout(particleTimerRef.current);
+    }
+    particleTimerRef.current = window.setTimeout(() => setCrumbParticles([]), 2100);
+  };
+
   const toggleItem = (entry: PantryEntry) => {
     const isHazardous = Boolean(entry.hasCrumbs || entry.isForbidden || entry.isBanned);
     if (isHazardous) {
       soundManager.playAlertSiren();
       setSafeToast(null);
-      setSafetyAlert(entry.bannedMsg || 'ممنوع في الفضاء! خطر الفتات والسوائل الحرة!');
-      void dialogueManager.speak('حاسب! ده ممنوع في الفضاء عشان الفتات والسوائل الحرة!');
+      spawnFloating0GParticles(Boolean(entry.hasCrumbs));
+      setSafetyAlert(
+        tr(
+          language,
+          entry.bannedMsgEn || '0G Hazard! Crumbs and free liquids clog air filters in space!',
+          entry.bannedMsg || 'ممنوع في الفضاء! خطر الفتات والسوائل الحرة!'
+        )
+      );
+      void dialogueManager.speak(
+        tr(
+          language,
+          'Careful! Crumbs and open drinks float into air filters in zero gravity!',
+          'حاسب! ده ممنوع في الفضاء عشان الفتات والسوائل الحرة!'
+        )
+      );
       return;
     }
     soundManager.playClick();
@@ -287,10 +368,22 @@ const FoodPackingScene: React.FC<{
       if (totalKg + entry.weightKg > maxKg) {
         soundManager.playCautionBeep();
         setSafeToast(null);
-        setSafetyAlert('⚠️ وصلت للحد الأقصى لسعة صندوق الشحن (20 كجم)! أزل صنفاً لتضيف غيره.');
+        setSafetyAlert(
+          tr(
+            language,
+            '⚠️ Cargo crate full (20 kg max)! Remove one item first.',
+            '⚠️ وصلت للحد الأقصى لسعة صندوق الشحن (20 كجم)! أزل صنفاً لتضيف غيره.'
+          )
+        );
         return prev;
       }
-      setSafeToast(`✓ وجبة فضائية آمنة ومغذية — ${entry.nameAr}`);
+      setSafeToast(
+        tr(
+          language,
+          `✓ Safe & nutritious zero-G food — ${entry.nameEn}`,
+          `✓ وجبة فضائية آمنة ومغذية — ${entry.nameAr}`
+        )
+      );
       return [...prev, entry.id];
     });
   };
@@ -300,10 +393,14 @@ const FoodPackingScene: React.FC<{
       {/* Educational Header + Simplified Game Rule Notice */}
       <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-950/85 rounded-2xl p-3 border border-cyan-500/35">
         <div className="text-xs font-hud font-bold text-slate-200">
-          🇪🇬 اختر أطعمة مصرية وسيناوية وعالمية آمنة بلا فتات لبناء وجبة الفضاء المتوازنة (4+ أصناف ضمن 20 كجم):
+          {tr(
+            language,
+            '🇪🇬 Pick 4+ crumb-free Egyptian, Sinai & NASA foods within 20 kg to balance nutrition:',
+            '🇪🇬 اختر أطعمة مصرية وسيناوية وعالمية آمنة بلا فتات لبناء وجبة الفضاء المتوازنة (4+ أصناف ضمن 20 كجم):'
+          )}
         </div>
         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black border bg-amber-950/80 border-amber-400 text-amber-200">
-          {SCIENCE_BADGES.GAME_RULE.labelAr} • تبسيط تعليمي
+          {tr(language, 'Educational Sim • Simplified Game Rule', `${SCIENCE_BADGES.GAME_RULE.labelAr} • تبسيط تعليمي`)}
         </span>
       </div>
 
@@ -318,7 +415,10 @@ const FoodPackingScene: React.FC<{
       )}
 
       {safetyAlert && (
-        <div className="p-3 rounded-2xl bg-rose-950 border-2 border-rose-400 text-rose-100 font-hud font-bold text-xs sm:text-sm flex items-center gap-2">
+        <div
+          data-testid="food-hazard-alert"
+          className="p-3 rounded-2xl bg-rose-950 border-2 border-rose-400 text-rose-100 font-hud font-bold text-xs sm:text-sm flex items-center gap-2"
+        >
           <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
           <span>{safetyAlert}</span>
         </div>
@@ -329,17 +429,21 @@ const FoodPackingScene: React.FC<{
         {/* LEFT: Pantry Shelves (Egyptian, Sinai, Hydroponic & Warning Items) */}
         <div className="lg:col-span-5 rounded-2xl bg-slate-950/80 border border-slate-700 p-3 space-y-2.5 max-h-[430px] overflow-y-auto">
           <div className="font-hud font-black text-xs text-cyan-200">
-            🥫 رفوف المخزن الفضائي ({PANTRY_ENTRIES.length} أصناف)
+            {tr(language, `🥫 Space Pantry (${PANTRY_ENTRIES.length} items)`, `🥫 رفوف المخزن الفضائي (${PANTRY_ENTRIES.length} أصناف)`)}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
             {PANTRY_ENTRIES.map((entry) => {
               const isSelected = selectedIds.includes(entry.id);
+              const displayName = tr(language, entry.nameEn, entry.nameAr);
               return (
                 <button
                   key={entry.id}
                   type="button"
+                  data-testid={`pantry-item-${entry.id}`}
                   onClick={() => toggleItem(entry)}
-                  className={`p-2.5 rounded-2xl border-2 text-right flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                  className={`p-2.5 rounded-2xl border-2 flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                    language === 'ar' ? 'text-right' : 'text-left'
+                  } ${
                     entry.isBanned
                       ? 'bg-rose-950/45 border-rose-500/75 hover:bg-rose-900/60'
                       : isSelected
@@ -349,14 +453,14 @@ const FoodPackingScene: React.FC<{
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     {entry.svgAsset ? (
-                      <img src={entry.svgAsset} alt={entry.nameAr} className="w-10 h-10 object-contain shrink-0" />
+                      <img src={entry.svgAsset} alt={displayName} className="w-10 h-10 object-contain shrink-0" />
                     ) : (
                       <span className="text-2xl shrink-0">{entry.icon}</span>
                     )}
                     <div className="min-w-0">
-                      <div className="font-hud font-black text-xs text-white truncate">{entry.nameAr}</div>
+                      <div className="font-hud font-black text-xs text-white truncate">{displayName}</div>
                       <div className="text-[10px] text-slate-300 truncate">
-                        {entry.kcal} kcal • ب:{entry.protein}g • ك:{entry.carbs}g • د:{entry.fats}g
+                        {entry.kcal} kcal • P:{entry.protein}g • C:{entry.carbs}g • F:{entry.fats}g
                       </div>
                     </div>
                   </div>
@@ -365,10 +469,12 @@ const FoodPackingScene: React.FC<{
                       <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
                         entry.isBanned ? 'bg-rose-900 text-rose-200' : 'bg-cyan-950 text-cyan-200 border border-cyan-500/40'
                       }`}>
-                        {entry.originBadge}
+                        {tr(language, entry.originBadgeEn || entry.originBadge, entry.originBadge)}
                       </span>
                     )}
-                    <span className="text-[10px] font-black text-amber-300">{entry.weightKg} كجم</span>
+                    <span className="text-[10px] font-black text-amber-300">
+                      {entry.weightKg} {tr(language, 'kg', 'كجم')}
+                    </span>
                   </div>
                 </button>
               );
@@ -376,24 +482,53 @@ const FoodPackingScene: React.FC<{
           </div>
         </div>
 
-        {/* CENTER: Astronaut Chef & Meal Tray + Cargo Crate */}
-        <div className="lg:col-span-4 rounded-2xl bg-gradient-to-b from-indigo-950/80 to-slate-950 border-2 border-indigo-400/50 p-4 flex flex-col items-center justify-between gap-3 min-h-[380px]">
-          <div className="text-center space-y-1">
+        {/* CENTER: Astronaut Chef & Meal Tray + Floating 0G Crumb/Droplet FX */}
+        <div className="lg:col-span-4 rounded-2xl bg-gradient-to-b from-indigo-950/80 to-slate-950 border-2 border-indigo-400/50 p-4 flex flex-col items-center justify-between gap-3 min-h-[380px] relative overflow-hidden">
+          {/* Zero-G Floating Crumbs / Droplets Visualizer */}
+          <AnimatePresence>
+            {crumbParticles.map((p) => (
+              <motion.span
+                key={p.id}
+                data-testid="zerog-crumb-particle"
+                initial={{ opacity: 1, scale: 0.9, left: `${p.x}%`, top: `${p.y}%` }}
+                animate={{
+                  opacity: [1, 1, 0],
+                  scale: [1, 1.35, 0.9],
+                  x: p.dx,
+                  y: p.dy,
+                  rotate: [0, 180, 360]
+                }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 1.9, ease: 'easeOut' }}
+                className="pointer-events-none absolute z-30 text-2xl sm:text-3xl px-1.5 py-0.5 rounded-full bg-rose-950/80 border border-rose-300/80 select-none shadow-[0_0_16px_rgba(244,63,94,0.95)]"
+              >
+                {p.emoji}
+              </motion.span>
+            ))}
+          </AnimatePresence>
+
+          <div className="text-center space-y-1 relative z-10">
             <div className="text-5xl">👨‍🚀🍽️</div>
-            <div className="font-hud font-black text-sm text-white">صينية الوجبة وصندوق الشحن</div>
+            <div className="font-hud font-black text-sm text-white">
+              {tr(language, 'Meal Tray & Cargo Crate', 'صينية الوجبة وصندوق الشحن')}
+            </div>
             <div className="text-[11px] text-indigo-200">
-              اضغط على الطعام لإضافته إلى الصندوق الآمن
+              {tr(language, 'Tap pantry foods to pack safe rations', 'اضغط على الطعام لإضافته إلى الصندوق الآمن')}
             </div>
           </div>
 
-          <div className="w-full flex-1 rounded-2xl bg-slate-900/80 border border-slate-700 p-3 space-y-2">
+          <div className="w-full flex-1 rounded-2xl bg-slate-900/80 border border-slate-700 p-3 space-y-2 relative z-10">
             <div className="flex items-center justify-between text-xs font-black text-emerald-300">
-              <span>📦 العناصر المحزومة ({packed.length})</span>
+              <span>{tr(language, `📦 Packed (${packed.length})`, `📦 العناصر المحزومة (${packed.length})`)}</span>
               <span>{totalKcal} kcal</span>
             </div>
             {packed.length === 0 ? (
               <div className="h-32 flex items-center justify-center text-xs text-slate-400 text-center">
-                الصينية فارغة الآن — اختر أطعمة مصرية أو سيناوية أو مائية آمنة!
+                {tr(
+                  language,
+                  'Tray empty — choose safe Egyptian, Sinai or hydroponic items!',
+                  'الصينية فارغة الآن — اختر أطعمة مصرية أو سيناوية أو مائية آمنة!'
+                )}
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
@@ -403,10 +538,10 @@ const FoodPackingScene: React.FC<{
                     type="button"
                     onClick={() => toggleItem(p)}
                     className="px-2.5 py-1.5 rounded-xl bg-emerald-950/80 border border-emerald-400/70 text-[11px] font-bold text-white flex items-center gap-1.5 cursor-pointer hover:bg-rose-950/70"
-                    title="اضغط للإزالة"
+                    title={tr(language, 'Tap to remove', 'اضغط للإزالة')}
                   >
                     <span>{p.icon}</span>
-                    <span>{p.nameAr.split(' (')[0]}</span>
+                    <span>{tr(language, p.nameEn, p.nameAr).split(' (')[0]}</span>
                     <span className="text-rose-300">✕</span>
                   </button>
                 ))}
@@ -414,15 +549,21 @@ const FoodPackingScene: React.FC<{
             )}
           </div>
 
-          <div className="w-full text-[11px] text-cyan-200 bg-sky-950/70 rounded-xl p-2.5 border border-cyan-500/30 text-center font-bold">
-            عدد عناصر السيناوي/المصري بالصندوق: {packed.filter((p) => EGYPTIAN_SINAI_SPACE_FOODS.some((e) => e.id === p.id)).length}
+          <div className="w-full text-[11px] text-cyan-200 bg-sky-950/70 rounded-xl p-2.5 border border-cyan-500/30 text-center font-bold relative z-10">
+            {tr(
+              language,
+              `Egyptian/Sinai foods packed: ${packed.filter((p) => EGYPTIAN_SINAI_SPACE_FOODS.some((e) => e.id === p.id)).length}`,
+              `عدد عناصر السيناوي/المصري بالصندوق: ${packed.filter((p) => EGYPTIAN_SINAI_SPACE_FOODS.some((e) => e.id === p.id)).length}`
+            )}
           </div>
         </div>
 
         {/* RIGHT: Glossy Telemetry Meters */}
         <div className="lg:col-span-3 rounded-2xl bg-slate-950/90 border border-cyan-400/40 p-3.5 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="font-hud font-black text-xs text-white">📊 عدادات المهمة</span>
+            <span className="font-hud font-black text-xs text-white">
+              {tr(language, '📊 Mission Telemetry', '📊 عدادات المهمة')}
+            </span>
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
               safetyAlert ? 'bg-rose-600 text-white' : 'bg-emerald-500 text-slate-950'
             }`}>
@@ -433,8 +574,8 @@ const FoodPackingScene: React.FC<{
           {/* Cargo Capacity Meter */}
           <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
             <div className="flex justify-between text-[11px] font-black">
-              <span className="text-amber-300">سعة الشحن</span>
-              <span className="text-white">{totalKg} / {maxKg} كجم</span>
+              <span className="text-amber-300">{tr(language, 'Cargo Capacity', 'سعة الشحن')}</span>
+              <span className="text-white">{totalKg} / {maxKg} {tr(language, 'kg', 'كجم')}</span>
             </div>
             <div className="h-2 rounded-full bg-slate-950 overflow-hidden">
               <div
@@ -444,20 +585,22 @@ const FoodPackingScene: React.FC<{
             </div>
           </div>
 
-          {/* 5 Macro/Micro Bars (with explicit 'تبسيط' badge) */}
+          {/* 5 Macro/Micro Bars */}
           <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-black text-cyan-200">توازن التغذية</span>
+              <span className="text-[11px] font-black text-cyan-200">
+                {tr(language, 'Nutrition Balance', 'توازن التغذية')}
+              </span>
               <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-amber-950 border border-amber-400 text-amber-200">
-                تبسيط
+                {tr(language, 'Game Model', 'تبسيط')}
               </span>
             </div>
             {[
-              { label: 'بروتين', pctVal: proteinPct, color: 'bg-sky-400', raw: `${totalProtein}g` },
-              { label: 'كربوهيدرات', pctVal: carbsPct, color: 'bg-amber-400', raw: `${totalCarbs}g` },
-              { label: 'دهون صحية', pctVal: fatsPct, color: 'bg-yellow-300', raw: `${totalFats.toFixed(0)}g` },
-              { label: 'فيتامينات', pctVal: vitPct, color: 'bg-emerald-400', raw: `${totalVitamins}%` },
-              { label: 'ألياف', pctVal: fiberPct, color: 'bg-pink-400', raw: `${totalFiber.toFixed(0)}g` }
+              { label: tr(language, 'Protein', 'بروتين'), pctVal: proteinPct, color: 'bg-sky-400', raw: `${totalProtein}g` },
+              { label: tr(language, 'Carbs', 'كربوهيدرات'), pctVal: carbsPct, color: 'bg-amber-400', raw: `${totalCarbs}g` },
+              { label: tr(language, 'Healthy Fats', 'دهون صحية'), pctVal: fatsPct, color: 'bg-yellow-300', raw: `${totalFats.toFixed(0)}g` },
+              { label: tr(language, 'Vitamins', 'فيتامينات'), pctVal: vitPct, color: 'bg-emerald-400', raw: `${totalVitamins}%` },
+              { label: tr(language, 'Fiber', 'ألياف'), pctVal: fiberPct, color: 'bg-pink-400', raw: `${totalFiber.toFixed(0)}g` }
             ].map((bar) => (
               <div key={bar.label} className="space-y-0.5">
                 <div className="flex justify-between text-[10px] font-bold text-slate-300">
@@ -472,13 +615,23 @@ const FoodPackingScene: React.FC<{
           </div>
 
           <div className="p-2 rounded-xl bg-sky-950/60 border border-sky-400/35 text-[10px] text-sky-100 leading-relaxed">
-            📐 <strong>{SCIENCE_BADGES.PLANNING_ASSUMPTION.labelAr}:</strong> لرائد 70 كجم/يوم = {DAILY_REFERENCE_ASSUMPTIONS.energyKcal} kcal و{DAILY_REFERENCE_ASSUMPTIONS.proteinGrams}g بروتين.
+            📐 <strong>{tr(language, 'NASA Reference:', `${SCIENCE_BADGES.PLANNING_ASSUMPTION.labelAr}:`)}</strong>{' '}
+            {tr(
+              language,
+              `70 kg crew/day = ${DAILY_REFERENCE_ASSUMPTIONS.energyKcal} kcal • ${DAILY_REFERENCE_ASSUMPTIONS.proteinGrams}g protein.`,
+              `لرائد 70 كجم/يوم = ${DAILY_REFERENCE_ASSUMPTIONS.energyKcal} kcal و${DAILY_REFERENCE_ASSUMPTIONS.proteinGrams}g بروتين.`
+            )}
           </div>
         </div>
       </div>
 
       <div className="p-3 rounded-2xl bg-sky-950/60 border border-cyan-500/35 text-xs font-hud text-cyan-100">
-        🛰️ <strong>{NASA_ENGINEERING_TRADEOFFS[1].titleAr}:</strong> {NASA_ENGINEERING_TRADEOFFS[1].optimalDecisionAr}
+        🛰️ <strong>{tr(language, 'NASA Food Engineering:', `${NASA_ENGINEERING_TRADEOFFS[1].titleAr}:`)}</strong>{' '}
+        {tr(
+          language,
+          'Zero-crumb pastes (Sinai Honey, pouches) protect air filters while hydroponics supply fresh micronutrients.',
+          NASA_ENGINEERING_TRADEOFFS[1].optimalDecisionAr
+        )}
       </div>
 
       <button
@@ -487,7 +640,13 @@ const FoodPackingScene: React.FC<{
         onClick={() => {
           soundManager.playFanfare();
           setFoodMissionDone(true);
-          void dialogueManager.speak('عاش يا بطل! الوجبة متوازنة وتجمع أكلات مصر وسيناء الآمنة بدون فتات!');
+          void dialogueManager.speak(
+            tr(
+              language,
+              'Awesome! Your zero-crumb mission tray is balanced and packed for launch!',
+              'عاش يا بطل! الوجبة متوازنة وتجمع أكلات مصر وسيناء الآمنة بدون فتات!'
+            )
+          );
           onComplete(selectedIds, totalKg);
         }}
         className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 transition-all ${
@@ -497,8 +656,8 @@ const FoodPackingScene: React.FC<{
         }`}
       >
         {isBalanced
-          ? 'تأكيد تعبئة الطعام الآمن وإغلاق الصندوق 🚀'
-          : 'أضف 4+ أصناف متنوعة آمنة لنقلها لصندوق المهمة'}
+          ? tr(language, 'Confirm Safe Space Meals & Seal Crate 🚀', 'تأكيد تعبئة الطعام الآمن وإغلاق الصندوق 🚀')
+          : tr(language, 'Add 4+ varied crumb-free foods to continue', 'أضف 4+ أصناف متنوعة آمنة لنقلها لصندوق المهمة')}
       </button>
 
       {foodMissionDone && (
@@ -507,7 +666,11 @@ const FoodPackingScene: React.FC<{
           className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-950 border-2 border-emerald-300 text-center space-y-2 shadow-[0_0_25px_rgba(52,211,153,0.35)]"
         >
           <p className="font-hud font-black text-base text-emerald-200">
-            ✓ تم حفظ وجبات البعثة بنجاح — وجبة فضائية آمنة ومغذية!
+            {tr(
+              language,
+              '✓ Mission rations sealed — zero-crumb & nutritionally balanced!',
+              '✓ تم حفظ وجبات البعثة بنجاح — وجبة فضائية آمنة ومغذية!'
+            )}
           </p>
         </div>
       )}
@@ -523,6 +686,7 @@ const EquipmentInspectionScene: React.FC<{
   onUpdateCampaign?: (patch: Partial<CampaignProgressState>) => void;
   onComplete: (packedIds: string[]) => void;
 }> = ({ campaign, onUpdateCampaign, onComplete }) => {
+  const { language } = useGameState();
   const [decisions, setDecisions] = useState<Record<string, 'packed' | 'rejected'>>(() => {
     const init: Record<string, 'packed' | 'rejected'> = {};
     campaign.l1EquipmentPacked.forEach((id) => {
@@ -534,13 +698,14 @@ const EquipmentInspectionScene: React.FC<{
 
   const handleDecide = (item: EquipInspectionItem, choice: 'packed' | 'rejected') => {
     const correct = (choice === 'packed' && item.shouldPack) || (choice === 'rejected' && !item.shouldPack);
+    const reason = tr(language, item.reasonEn, item.reasonAr);
     if (!correct) {
       soundManager.playAlertSiren();
-      setFeedback(`⚠️ انتبه! ${item.reasonAr}`);
+      setFeedback(`⚠️ ${tr(language, 'Watch out!', 'انتبه!')} ${reason}`);
       return;
     }
     soundManager.playDropSuccess();
-    setFeedback(`✅ قرار سليم: ${item.reasonAr}`);
+    setFeedback(`✅ ${tr(language, 'Great decision:', 'قرار سليم:')} ${reason}`);
     setDecisions((prev) => ({ ...prev, [item.id]: choice }));
   };
 
@@ -555,10 +720,14 @@ const EquipmentInspectionScene: React.FC<{
     <div className="bg-slate-900/95 border-2 border-amber-400/70 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="font-hud font-bold text-xs sm:text-sm text-amber-200">
-          افحص كل عنصر: احزم المعدات السليمة فقط، وارفض التالف أو الزائد عن الحاجة ({resolvedCount}/{EQUIP_INSPECTION_LIST.length}):
+          {tr(
+            language,
+            `Inspect every item: pack certified hardware and reject damaged/excess cargo (${resolvedCount}/${EQUIP_INSPECTION_LIST.length}):`,
+            `افحص كل عنصر: احزم المعدات السليمة فقط، وارفض التالف أو الزائد عن الحاجة (${resolvedCount}/${EQUIP_INSPECTION_LIST.length}):`
+          )}
         </p>
         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-950 border border-amber-400 text-amber-200">
-          المعدات الصالحة المطلوبة: {validItemsCount}
+          {tr(language, `Valid hardware needed: ${validItemsCount}`, `المعدات الصالحة المطلوبة: ${validItemsCount}`)}
         </span>
       </div>
 
@@ -585,8 +754,12 @@ const EquipmentInspectionScene: React.FC<{
               <div className="flex items-center gap-3">
                 <span className="text-3xl shrink-0">{item.icon}</span>
                 <div>
-                  <div className="font-hud font-black text-sm text-white">{item.nameAr}</div>
-                  <div className="text-[11px] text-slate-300">{item.bay}</div>
+                  <div className="font-hud font-black text-sm text-white">
+                    {tr(language, item.nameEn, item.nameAr)}
+                  </div>
+                  <div className="text-[11px] text-slate-300">
+                    {tr(language, item.bayEn, item.bay)}
+                  </div>
                 </div>
               </div>
 
@@ -601,7 +774,7 @@ const EquipmentInspectionScene: React.FC<{
                   }`}
                 >
                   <PackageCheck className="w-3.5 h-3.5" />
-                  <span>{d === 'packed' ? 'تم الحزم ✅' : 'احزم للمهمة'}</span>
+                  <span>{d === 'packed' ? tr(language, 'Packed ✅', 'تم الحزم ✅') : tr(language, 'Pack Gear', 'احزم للمهمة')}</span>
                 </button>
                 <button
                   type="button"
@@ -613,7 +786,7 @@ const EquipmentInspectionScene: React.FC<{
                   }`}
                 >
                   <XCircle className="w-3.5 h-3.5" />
-                  <span>{d === 'rejected' ? 'تم الاستبعاد 🚫' : 'رفض / استبعاد'}</span>
+                  <span>{d === 'rejected' ? tr(language, 'Rejected 🚫', 'تم الاستبعاد 🚫') : tr(language, 'Reject', 'رفض / استبعاد')}</span>
                 </button>
               </div>
             </div>
@@ -625,7 +798,11 @@ const EquipmentInspectionScene: React.FC<{
       {onUpdateCampaign && (
         <div className="pt-2 border-t border-slate-800 space-y-2">
           <p className="font-hud font-black text-xs sm:text-sm text-cyan-200">
-            🦺 معايرة بدلة SPACE-FIT X الداخلية (Prototype 1.0 — AstroNutri):
+            {tr(
+              language,
+              '🦺 Calibrate SPACE-FIT X Suit (Prototype 1.0 — AstroNutri):',
+              '🦺 معايرة بدلة SPACE-FIT X الداخلية (Prototype 1.0 — AstroNutri):'
+            )}
           </p>
           <SpaceFitXControlsHUD
             compact
@@ -640,7 +817,13 @@ const EquipmentInspectionScene: React.FC<{
         disabled={!resolvedCorrectly}
         onClick={() => {
           soundManager.playFanfare();
-          void dialogueManager.speak('ممتاز! فرزت المعدات السليمة واستبعدت الأوزان والأشياء التالفة بنجاح!');
+          void dialogueManager.speak(
+            tr(
+              language,
+              'Excellent! You verified certified equipment and rejected unsafe mass!',
+              'ممتاز! فرزت المعدات السليمة واستبعدت الأوزان والأشياء التالفة بنجاح!'
+            )
+          );
           onComplete(EQUIP_INSPECTION_LIST.filter((i) => i.shouldPack).map((i) => i.id));
         }}
         className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 ${
@@ -649,7 +832,7 @@ const EquipmentInspectionScene: React.FC<{
             : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
         }`}
       >
-        تأكيد فحص وحزم المعدات ✅
+        {tr(language, 'Confirm Equipment Inspection ✅', 'تأكيد فحص وحزم المعدات ✅')}
       </button>
     </div>
   );
@@ -664,6 +847,7 @@ const MissionControlLaunchScene: React.FC<{
   onNextLevel: () => void;
   onBackToLevel: () => void;
 }> = ({ campaign, onComplete, onNextLevel, onBackToLevel }) => {
+  const { language } = useGameState();
   const [navSynced, setNavSynced] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [launchSuccess, setLaunchSuccess] = useState(
@@ -696,7 +880,13 @@ const MissionControlLaunchScene: React.FC<{
         setLaunchSuccess(true);
         soundManager.playFanfare();
         confetti({ particleCount: 160, spread: 95, origin: { y: 0.6 } });
-        void dialogueManager.speak('عاش يا بطل! تم إطلاق الصاروخ بنجاح وانطلقت الرحلة إلى القمر!');
+        void dialogueManager.speak(
+          tr(
+            language,
+            'Liftoff! Rocket launched successfully on a trajectory to the Moon!',
+            'عاش يا بطل! تم إطلاق الصاروخ بنجاح وانطلقت الرحلة إلى القمر!'
+          )
+        );
         onComplete();
       }, 2400)
     );
@@ -708,29 +898,33 @@ const MissionControlLaunchScene: React.FC<{
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
         <div className="md:col-span-5 rounded-2xl bg-gradient-to-b from-[#081b3b] to-slate-950 border-2 border-cyan-400/50 p-4 flex flex-col items-center justify-center relative overflow-hidden min-h-[190px]">
           <div className="text-[11px] font-black text-cyan-200 absolute top-2.5 right-3">
-            🪟 نافذة منصة الإطلاق المباشرة
+            {tr(language, '🪟 Live Launch Pad Window', '🪟 نافذة منصة الإطلاق المباشرة')}
           </div>
           <div className={`text-6xl transition-transform duration-700 ${launchSuccess ? '-translate-y-12 scale-110' : ''}`}>
             🚀
           </div>
           <div className="w-32 h-3 rounded-full bg-slate-700 mt-3 border border-slate-500" />
           <div className="text-[11px] font-bold text-slate-300 mt-2">
-            {launchSuccess ? '🔥 تم الإقلاع نحو المدار!' : canLaunch ? 'جاهز للاشتعال الكامل' : 'في انتظار اكتمال الفحوصات ومزامنة الملاحة'}
+            {launchSuccess
+              ? tr(language, '🔥 Ascending to Orbit!', '🔥 تم الإقلاع نحو المدار!')
+              : canLaunch
+              ? tr(language, 'Go for Ignition', 'جاهز للاشتعال الكامل')
+              : tr(language, 'Awaiting checks & navigation sync', 'في انتظار اكتمال الفحوصات ومزامنة الملاحة')}
           </div>
         </div>
 
         <div className="md:col-span-7 space-y-3">
           <h2 className="font-hud font-black text-base text-white flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-cyan-400" />
-            <span>قائمة التحقق النهائية للإطلاق:</span>
+            <span>{tr(language, 'Final Pre-Launch Checklist:', 'قائمة التحقق النهائية للإطلاق:')}</span>
           </h2>
 
           <div className="grid grid-cols-2 gap-2.5 text-xs font-hud font-black">
             {[
-              { ok: reqFood, label: '1. مخزن الطعام (Food)' },
-              { ok: reqEquip, label: '2. فحص المعدات (Equipment)' },
-              { ok: reqMed, label: '3. الفحص الطبي (Medical)' },
-              { ok: reqShip, label: '4. أنظمة المركبة (Rocket)' }
+              { ok: reqFood, label: tr(language, '1. Food Pantry', '1. مخزن الطعام (Food)') },
+              { ok: reqEquip, label: tr(language, '2. Gear Check', '2. فحص المعدات (Equipment)') },
+              { ok: reqMed, label: tr(language, '3. Medical OK', '3. الفحص الطبي (Medical)') },
+              { ok: reqShip, label: tr(language, '4. Ship Systems', '4. أنظمة المركبة (Rocket)') }
             ].map((r) => (
               <div
                 key={r.label}
@@ -750,7 +944,11 @@ const MissionControlLaunchScene: React.FC<{
           }`}>
             <div className="text-xs font-bold text-white flex items-center gap-2">
               <Radio className="w-4 h-4 text-amber-300" />
-              <span>{navSynced ? '✅ تم مزامنة بيانات الملاحة بنجاح!' : 'تنبيه: بيانات الملاحة تحتاج مزامنة قبل الإطلاق'}</span>
+              <span>
+                {navSynced
+                  ? tr(language, '✅ Navigation telemetry synced!', '✅ تم مزامنة بيانات الملاحة بنجاح!')
+                  : tr(language, 'Alert: Sync navigation link before ignition', 'تنبيه: بيانات الملاحة تحتاج مزامنة قبل الإطلاق')}
+              </span>
             </div>
             <button
               type="button"
@@ -762,7 +960,7 @@ const MissionControlLaunchScene: React.FC<{
                 navSynced ? 'bg-emerald-500 text-slate-950' : 'bg-amber-400 hover:bg-amber-300 text-slate-950'
               }`}
             >
-              {navSynced ? 'تمت المزامنة ✓' : 'Sync Navigation Data 🛰️'}
+              {navSynced ? tr(language, 'Synced ✓', 'تمت المزامنة ✓') : tr(language, 'Sync Navigation Data 🛰️', 'مزامنة الملاحة 🛰️')}
             </button>
           </div>
         </div>
@@ -780,7 +978,11 @@ const MissionControlLaunchScene: React.FC<{
             LAUNCH SUCCESSFUL! THE JOURNEY TO THE MOON BEGINS!
           </p>
           <p className="font-hud font-black text-base text-white">
-            تم الإطلاق بنجاح! فُتح المستوى الثاني: الرحلة في انعدام الجاذبية 🚀🌕
+            {tr(
+              language,
+              'Liftoff confirmed! Level 2 Unlocked: Zero-G Orbit Transit 🚀🌕',
+              'تم الإطلاق بنجاح! فُتح المستوى الثاني: الرحلة في انعدام الجاذبية 🚀🌕'
+            )}
           </p>
           <div className="flex flex-wrap justify-center gap-3 pt-1">
             <button
@@ -789,14 +991,14 @@ const MissionControlLaunchScene: React.FC<{
               data-testid="mission-next-level-btn"
               className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-300 via-yellow-300 to-orange-400 text-slate-950 font-hud font-black text-base border-2 border-white shadow-[0_0_26px_rgba(251,191,36,0.75)] cursor-pointer hover:scale-105 transition-transform animate-pulse"
             >
-              المهمة اكتملت! انطلق للمرحلة التالية 🚀
+              {tr(language, 'Mission Complete! Advance to Level 2 🚀', 'المهمة اكتملت! انطلق للمرحلة التالية 🚀')}
             </button>
             <button
               type="button"
               onClick={onBackToLevel}
               className="px-5 py-3 rounded-2xl bg-slate-800 text-white font-hud font-bold text-sm border border-cyan-400 cursor-pointer"
             >
-              العودة لخريطة الغرف
+              {tr(language, 'Back to Station Map', 'العودة لخريطة الغرف')}
             </button>
           </div>
         </div>
@@ -812,7 +1014,11 @@ const MissionControlLaunchScene: React.FC<{
           }`}
         >
           <Rocket className="w-6 h-6" />
-          <span>{canLaunch ? 'INITIATE LAUNCH • ابدأ العد التنازلي (3-2-1)' : 'أكمل الغرف الأربع وزامن الملاحة للإطلاق 🔒'}</span>
+          <span>
+            {canLaunch
+              ? tr(language, 'INITIATE LAUNCH (3-2-1) 🚀', 'INITIATE LAUNCH • ابدأ العد التنازلي (3-2-1)')
+              : tr(language, 'Complete all 4 rooms & sync navigation 🔒', 'أكمل الغرف الأربع وزامن الملاحة للإطلاق 🔒')}
+          </span>
         </button>
       )}
     </div>
@@ -827,6 +1033,7 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
   onNextLevel,
   onBackToLevel
 }) => {
+  const { language } = useGameState();
   const [hydrationFixed, setHydrationFixed] = useState(campaign.l1MedicalCleared);
   const [sleepFixed, setSleepFixed] = useState(campaign.l1MedicalCleared);
   const [checkedShip, setCheckedShip] = useState<string[]>(
@@ -863,20 +1070,36 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
 
     return (
       <div className="bg-slate-900/95 border-2 border-pink-400/70 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
+        <BodyTelemetryMeters
+          language={language}
+          titleEn="Pre-Flight Astronaut Biometrics"
+          titleAr="المؤشرات الحيوية قبل الإطلاق"
+          metrics={[
+            { key: 'hydration', value: hydrationFixed ? 96 : 62 },
+            { key: 'muscle', value: sleepFixed ? 92 : 65 }
+          ]}
+        />
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className={`p-4 rounded-2xl border-2 ${nutritionReady ? 'bg-emerald-950/70 border-emerald-400' : 'bg-amber-950/70 border-amber-400'}`}>
-            <p className="font-hud font-black text-base text-white">🥗 مؤشر التغذية</p>
+            <p className="font-hud font-black text-base text-white">
+              {tr(language, '🥗 Nutrition Status', '🥗 مؤشر التغذية')}
+            </p>
             <p className="font-hud text-xs mt-1 text-slate-200">
               {nutritionReady
-                ? 'مكتمل ومعتمد من مخزن الطعام (تأثير مباشر على جاهزية الطاقم).'
-                : 'تنبيه! لم تجهز الوجبات المتوازنة في مخزن الطعام بعد.'}
+                ? tr(language, 'Certified balanced pantry stowage verified.', 'مكتمل ومعتمد من مخزن الطعام (تأثير مباشر على جاهزية الطاقم).')
+                : tr(language, 'Alert: Complete Food Storage check first.', 'تنبيه! لم تجهز الوجبات المتوازنة في مخزن الطعام بعد.')}
             </p>
           </div>
 
           <div className={`p-4 rounded-2xl border-2 ${hydrationFixed ? 'bg-emerald-950/70 border-emerald-400' : 'bg-rose-950/70 border-rose-400'}`}>
-            <p className="font-hud font-black text-base text-white">💧 مؤشر الترطيب</p>
+            <p className="font-hud font-black text-base text-white">
+              {tr(language, '💧 Hydration Level', '💧 مؤشر الترطيب')}
+            </p>
             <p className="font-hud text-xs mt-1 text-slate-200">
-              {hydrationFixed ? 'ترطيب مثالي: 96%!' : 'تحذير جفاف طفيف (62%)! اشرب ماء قبل الإطلاق.'}
+              {hydrationFixed
+                ? tr(language, 'Optimal hydration: 96%!', 'ترطيب مثالي: 96%!')
+                : tr(language, 'Mild dehydration (62%)! Drink water before launch.', 'تحذير جفاف طفيف (62%)! اشرب ماء قبل الإطلاق.')}
             </p>
             {!hydrationFixed && (
               <button
@@ -887,15 +1110,19 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
                 }}
                 className="mt-3 px-3 py-1.5 rounded-xl bg-cyan-500 text-slate-950 font-hud font-black text-xs cursor-pointer"
               >
-                عالج: شرب الماء 💧
+                {tr(language, 'Fix: Drink Water 💧', 'عالج: شرب الماء 💧')}
               </button>
             )}
           </div>
 
           <div className={`p-4 rounded-2xl border-2 ${sleepFixed ? 'bg-emerald-950/70 border-emerald-400' : 'bg-amber-950/70 border-amber-400'}`}>
-            <p className="font-hud font-black text-base text-white">😴 مؤشر النوم والراحة</p>
+            <p className="font-hud font-black text-base text-white">
+              {tr(language, '😴 Sleep & Recovery', '😴 مؤشر النوم والراحة')}
+            </p>
             <p className="font-hud text-xs mt-1 text-slate-200">
-              {sleepFixed ? 'نوم كافٍ: 8.5 ساعات!' : 'تنبيه: 5 ساعات نوم فقط! اضبط راحة الطاقم.'}
+              {sleepFixed
+                ? tr(language, 'Well-rested: 8.5 hours!', 'نوم كافٍ: 8.5 ساعات!')
+                : tr(language, 'Alert: Only 5h sleep logged! Rest crew now.', 'تنبيه: 5 ساعات نوم فقط! اضبط راحة الطاقم.')}
             </p>
             {!sleepFixed && (
               <button
@@ -906,7 +1133,7 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
                 }}
                 className="mt-3 px-3 py-1.5 rounded-xl bg-indigo-400 text-slate-950 font-hud font-black text-xs cursor-pointer"
               >
-                عالج: إتمام 8 ساعات راحة 🛏️
+                {tr(language, 'Fix: Complete 8h Rest 🛏️', 'عالج: إتمام 8 ساعات راحة 🛏️')}
               </button>
             )}
           </div>
@@ -914,10 +1141,15 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
 
         <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-400/40 text-xs text-emerald-100 flex flex-wrap items-center justify-between gap-2">
           <span>
-            💊 <strong>المغذيات الدقيقة للبعثة:</strong> الكالسيوم، فيتامينات D وK وC وB12، الحديد، المغنيسيوم، البوتاسيوم، أوميغا-3، والزنك لحماية العظام والمناعة.
+            💊{' '}
+            {tr(
+              language,
+              'Key Micro-Nutrients: Calcium, Vitamins D/K/C/B12, Iron, Magnesium, Potassium, Omega-3 & Zinc for bone density and immunity.',
+              'المغذيات الدقيقة للبعثة: الكالسيوم، فيتامينات D وK وC وB12، الحديد، المغنيسيوم، البوتاسيوم، أوميغا-3، والزنك لحماية العظام والمناعة.'
+            )}
           </span>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-900 border border-emerald-400 text-emerald-200">
-            {SCIENCE_BADGES.ISS_PROVEN.labelAr}
+            {tr(language, SCIENCE_BADGES.ISS_PROVEN.labelEn, SCIENCE_BADGES.ISS_PROVEN.labelAr)}
           </span>
         </div>
 
@@ -934,7 +1166,9 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
           disabled={!allClear}
           onClick={() => {
             soundManager.playFanfare();
-            void dialogueManager.speak('أحسنت! الفحص الطبي سليم 100% والطاقم لائق للانطلاق!');
+            void dialogueManager.speak(
+              tr(language, 'Flight surgeon clearance granted! Crew is 100% go for launch!', 'أحسنت! الفحص الطبي سليم 100% والطاقم لائق للانطلاق!')
+            );
             onCompleteMiniGame('l1_medical_check', { l1MedicalCleared: true });
           }}
           className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 ${
@@ -943,7 +1177,9 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
               : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
           }`}
         >
-          {nutritionReady ? 'اعتماد التصريح الطبي للانطلاق 🩺' : 'أكمل مخزن الطعام أولاً ثم اعتمد الفحص الطبي'}
+          {nutritionReady
+            ? tr(language, 'Approve Medical Flight Clearance 🩺', 'اعتماد التصريح الطبي للانطلاق 🩺')
+            : tr(language, 'Complete Food Pantry first, then certify medical exam', 'أكمل مخزن الطعام أولاً ثم اعتمد الفحص الطبي')}
         </button>
       </div>
     );
@@ -959,7 +1195,11 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
     return (
       <div className="bg-slate-900/95 border-2 border-indigo-400/70 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
         <p className="font-hud font-bold text-sm text-indigo-200">
-          افحص أنظمة المركبة الخمسة في حظيرة الصاروخ ({checkedShip.length}/{L1_SHIP_SYSTEMS.length}):
+          {tr(
+            language,
+            `Inspect all 5 spacecraft systems inside the hangar (${checkedShip.length}/${L1_SHIP_SYSTEMS.length}):`,
+            `افحص أنظمة المركبة الخمسة في حظيرة الصاروخ (${checkedShip.length}/${L1_SHIP_SYSTEMS.length}):`
+          )}
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {L1_SHIP_SYSTEMS.map((sys) => {
@@ -977,10 +1217,10 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
               >
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{sys.icon}</span>
-                  <span className="font-hud font-black text-sm">{sys.nameAr}</span>
+                  <span className="font-hud font-black text-sm">{tr(language, sys.nameEn, sys.nameAr)}</span>
                 </div>
                 <span className={`text-xs font-hud font-black ${ok ? 'text-emerald-300' : 'text-amber-300'}`}>
-                  {ok ? 'سليم 100% ✓' : 'افحص الآن'}
+                  {ok ? tr(language, '100% GO ✓', 'سليم 100% ✓') : tr(language, 'Inspect', 'افحص الآن')}
                 </span>
               </button>
             );
@@ -992,7 +1232,9 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
           disabled={!allChecked}
           onClick={() => {
             soundManager.playFanfare();
-            void dialogueManager.speak('أنظمة المركبة خضراء بالكامل! توجه إلى منصة الإطلاق!');
+            void dialogueManager.speak(
+              tr(language, 'All spacecraft systems green! Proceed to the Launch Pad!', 'أنظمة المركبة خضراء بالكامل! توجه إلى منصة الإطلاق!')
+            );
             onCompleteMiniGame('l1_spaceship_inspect', { l1SpaceshipInspected: true });
           }}
           className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 ${
@@ -1001,7 +1243,7 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
               : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
           }`}
         >
-          تأكيد سلامة المركبة الفضائية 🛸
+          {tr(language, 'Confirm Spacecraft Readiness 🛸', 'تأكيد سلامة المركبة الفضائية 🛸')}
         </button>
       </div>
     );

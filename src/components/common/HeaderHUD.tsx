@@ -5,10 +5,11 @@ import { SettingsMenu } from './SettingsMenu';
 import { openNasaDrawer } from './NasaMissionControlDrawer';
 import { soundManager } from '../../utils/sound';
 import { geminiTTS } from '../../utils/geminiTTS';
+import { tr } from '../../utils/i18n';
 import { Settings, Home, Satellite } from 'lucide-react';
 
 export const HeaderHUD: React.FC = () => {
-  const { state, setLocation, setCampaignView } = useGameState();
+  const { state, language, setLanguage, setLocation, setCampaignView } = useGameState();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Synchronized star score across Campaign Hub & SpaceScience
@@ -38,13 +39,29 @@ export const HeaderHUD: React.FC = () => {
             whileTap={{ scale: 0.94 }}
             onClick={handleGoHome}
             className="pointer-events-auto casual-btn-cyan w-11 h-11 sm:w-13 sm:h-13 flex items-center justify-center cursor-pointer shrink-0"
-            aria-label="العودة للخريطة"
+            aria-label={tr(language, 'Return to Map', 'العودة للخريطة')}
           >
             <Home className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
           </motion.button>
 
-          {/* A) Giant Yellow Star Badge + NASA Data & Settings */}
+          {/* A) Giant Yellow Star Badge + Language Toggle + NASA Data & Settings */}
           <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-3 shrink-0">
+            {/* Language Switcher */}
+            <motion.button
+              type="button"
+              data-testid="header-lang-toggle"
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.94 }}
+              onClick={() => {
+                soundManager.playClick();
+                setLanguage(language === 'en' ? 'ar' : 'en');
+              }}
+              className="casual-pill h-11 sm:h-13 px-3 flex items-center justify-center font-hud font-black text-xs text-white cursor-pointer hover:brightness-110"
+              aria-label={tr(language, 'Switch Language', 'تغيير اللغة')}
+            >
+              {language === 'en' ? 'EN | عربي' : 'عربي | EN'}
+            </motion.button>
+
             {/* NASA Live Data Button */}
             <motion.button
               type="button"
@@ -56,7 +73,7 @@ export const HeaderHUD: React.FC = () => {
                 openNasaDrawer();
               }}
               className="casual-pill w-11 h-11 sm:w-13 sm:h-13 flex items-center justify-center relative cursor-pointer hover:brightness-110"
-              aria-label="بيانات ناسا الحية"
+              aria-label={tr(language, 'NASA Live Data', 'بيانات ناسا الحية')}
             >
               <Satellite className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2] text-cyan-200" />
               <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 animate-pulse border-2 border-slate-900" />
@@ -80,7 +97,7 @@ export const HeaderHUD: React.FC = () => {
                 setIsSettingsOpen(true);
               }}
               className="casual-pill w-11 h-11 sm:w-13 sm:h-13 flex items-center justify-center text-white cursor-pointer hover:brightness-110"
-              aria-label="الإعدادات والصوت"
+              aria-label={tr(language, 'Settings & Audio', 'الإعدادات والصوت')}
             >
               <Settings className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
             </motion.button>

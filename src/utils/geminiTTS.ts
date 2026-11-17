@@ -1,6 +1,7 @@
 // Bulletproof Egyptian Arabic DialogueManager & Gemini 3.1 Flash TTS Engine
-// Strictly uses Web Audio API PCM16 decoding — ZERO browser speechSynthesis fallback.
+// Uses pre-authored ElevenLabs audio + /api/tts Gemini proxy for Arabic, and non-blocking Web Speech fallback for English/offline.
 import { soundManager } from './sound';
+import { speakWebSpeechNonBlocking } from './i18n';
 
 export type SpeechCallback = () => void;
 export type ErrorCallback = (error: unknown) => void;
@@ -85,6 +86,7 @@ export class DialogueManager {
   private toastError: string | null = null;
   private toastTimer: number | null = null;
   private hasShownFallbackToast: boolean = false;
+  private ttsEndpointUnavailable: boolean = false;
   private voiceEnabled: boolean = true;
   private lastSpeakAtMs: number = 0;
   private lastSpokenText: string = '';
@@ -532,13 +534,11 @@ export class DialogueManager {
       // proceed to network fetch
     }
 
-    // 3. Offline check — if browser is offline and phrase is not cached, gracefully use visual text bubble
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      this.emitStatus(
-        false,
-        false,
-        'وضع عدم الاتصال: يمكنك متابعة اللعب وقراءة رسائل روبو! 🚀'
-      );
+    // 3. Offline, English-mode, or unavailable TTS proxy -> instant non-blocking Web Speech fallback
+    const hasArabic = /[\u0600-\u06FF]/.test(text);
+    if (!hasArabic || this.ttsEndpointUnavailable || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+      speakWebSpeechNonBlocking(text, hasArabic ? 'ar' : 'en');
+      this.emitStatus(false, false);
       if (onEnd) onEnd();
       return;
     }
@@ -623,7 +623,9 @@ export class DialogueManager {
         return;
       }
 
-      // API failed or offline: exit THINKING state, show non-blocking toast once per session
+      // API failed or offline: mark endpoint unavailable for session & fall back non-blocking
+      this.ttsEndpointUnavailable = true;
+      speakWebSpeechNonBlocking(text, /[\u0600-\u06FF]/.test(text) ? 'ar' : 'en');
       const toastMsg = this.hasShownFallbackToast
         ? null
         : 'وضع القراءة الصامت: استمر في اللعب مع رسائل روبو المرئية! 🚀';

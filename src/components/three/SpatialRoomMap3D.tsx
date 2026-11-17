@@ -4,7 +4,10 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { CAMPAIGN_LEVELS, SpatialRoomNode } from '../../data/campaignLevels';
 import { CampaignLevelId, CampaignProgressState, SpaceFitXState } from '../../types/game';
 import { soundManager } from '../../utils/sound';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Compass, Lock } from 'lucide-react';
+import { useGameState } from '../../context/GameContext';
+import { getNextSequentialMissionTarget, getRoomLabel } from '../../data/campaignBilingual';
+import { tr } from '../../utils/i18n';
 import { AstronautEmote, buildSpaceFitXCharacter } from './buildSpaceFitXCharacter';
 import {
   createCosmicSkyBackdrop,
@@ -25,6 +28,7 @@ import {
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
 import {
   createDustPuffSystem,
+  createFloorGuideArrowSystem,
   lerpAngle,
   stepSmoothHorizontalVelocity
 } from './thirdPersonPhysics';
@@ -43,7 +47,7 @@ interface PositionedRoom {
   yawToCenter: number;
 }
 
-function getBiomeTheme(levelId: CampaignLevelId): {
+function getBiomeTheme(levelId: CampaignLevelId, language: 'en' | 'ar'): {
   topColor: number;
   rimColor: number;
   rockColor: number;
@@ -67,7 +71,7 @@ function getBiomeTheme(levelId: CampaignLevelId): {
         skyMode: 'sunny',
         gravity: 21,
         jumpVel: 8.4,
-        gravityLabelAr: 'جاذبية الأرض 1G',
+        gravityLabelAr: tr(language, 'Earth Gravity 1.0G', 'جاذبية الأرض 1G'),
         isZeroG: false,
         accentCraters: false
       };
@@ -81,7 +85,7 @@ function getBiomeTheme(levelId: CampaignLevelId): {
         skyMode: 'nebula',
         gravity: 5.8,
         jumpVel: 5.8,
-        gravityLabelAr: 'انعدام الوزن 0G — طفو حر',
+        gravityLabelAr: tr(language, 'Zero-G Orbit 0.0G', 'انعدام الوزن 0G — طفو حر'),
         isZeroG: true,
         accentCraters: false
       };
@@ -95,7 +99,7 @@ function getBiomeTheme(levelId: CampaignLevelId): {
         skyMode: 'lunar',
         gravity: 7.4,
         jumpVel: 7.6,
-        gravityLabelAr: 'جاذبية القمر 0.16G — قفزة عالية',
+        gravityLabelAr: tr(language, 'Lunar Gravity 0.16G — High Jump', 'جاذبية القمر 0.16G — قفزة عالية'),
         isZeroG: false,
         accentCraters: true
       };
@@ -110,7 +114,7 @@ function getBiomeTheme(levelId: CampaignLevelId): {
         skyMode: 'tropical',
         gravity: 21,
         jumpVel: 8.4,
-        gravityLabelAr: 'جاذبية العودة للأرض 1G',
+        gravityLabelAr: tr(language, 'Earth Splashdown 1.0G', 'جاذبية العودة للأرض 1G'),
         isZeroG: false,
         accentCraters: false
       };
@@ -123,14 +127,25 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
   onEnterRoom,
   suitState
 }) => {
+  const { language } = useGameState();
   const levelSpec = CAMPAIGN_LEVELS[levelId];
-  const theme = getBiomeTheme(levelId);
+  const theme = getBiomeTheme(levelId, language);
+  const seqTarget = getNextSequentialMissionTarget(levelId, campaign);
+  const isDemoMode =
+    campaign.unlockedLevels.length >= 4 &&
+    campaign.l3ReturnAuthorized &&
+    campaign.l3PackedTools.length >= 4;
+
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
 
-  const [nearbyRoom, setNearbyRoom] = useState<SpatialRoomNode | null>(levelSpec.rooms[0] || null);
+  const [nearbyRoom, setNearbyRoom] = useState<SpatialRoomNode | null>(
+    seqTarget.activeRoom || levelSpec.rooms[0] || null
+  );
   const nearbyRoomRef = useRef<SpatialRoomNode | null>(nearbyRoom);
   const [idleSpeechAr, setIdleSpeechAr] = useState<string | null>(null);
+  const [lockedToast, setLockedToast] = useState<string | null>(null);
+  const activeEntryRef = useRef<{ room: SpatialRoomNode; entrySpot: THREE.Vector3 } | null>(null);
 
   const playerPosRef = useRef(new THREE.Vector3(0, 0, 0));
   const playerVelYRef = useRef(0);
@@ -169,6 +184,12 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     return campaign.completedMiniGames.includes(room.miniGameId);
   };
 
+  const isRoomAccessible = (room: SpatialRoomNode): boolean => {
+    if (isRoomCompleted(room)) return true;
+    if (seqTarget.activeRoom?.id === room.id) return true;
+    return isDemoMode;
+  };
+
   const triggerJump = () => {
     markPlayerActive();
     const withinCoyote = performance.now() - lastGroundedMsRef.current <= 130;
@@ -179,14 +200,46 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     }
   };
 
-  const enterCurrentRoom = () => {
+  const handleWalkToNextMission = () => {
     markPlayerActive();
-    const target = nearbyRoomRef.current || levelSpec.rooms[0];
-    if (target) {
-      soundManager.playClick();
-      onEnterRoomRef.current(target);
+    setLockedToast(null);
+    const active = activeEntryRef.current;
+    if (!active) return;
+    soundManager.playClick();
+    if (playerPosRef.current.distanceTo(active.entrySpot) < 1.2) {
+      onEnterRoomRef.current(active.room);
+    } else {
+      walkTargetRef.current = active.entrySpot.clone();
+      pendingRoomRef.current = active.room;
     }
   };
+
+  const enterCurrentRoom = () => {
+    markPlayerActive();
+    const target = nearbyRoomRef.current || seqTarget.activeRoom || levelSpec.rooms[0];
+    if (!target) return;
+    if (!isRoomAccessible(target)) {
+      soundManager.playCautionBeep();
+      const activeTitle = seqTarget.activeRoom ? getRoomLabel(seqTarget.activeRoom, language).title : '';
+      setLockedToast(
+        tr(
+          language,
+          `🔒 Locked! Complete Step ${seqTarget.stepNumber}: ${activeTitle} first.`,
+          `🔒 مقفول! أكمل الخطوة ${seqTarget.stepNumber}: ${activeTitle} أولاً.`
+        )
+      );
+      window.setTimeout(() => setLockedToast(null), 2600);
+      return;
+    }
+    soundManager.playClick();
+    onEnterRoomRef.current(target);
+  };
+
+  useEffect(() => {
+    const onAutoWalkEvent = () => handleWalkToNextMission();
+    window.addEventListener('astronutri:auto-walk-next', onAutoWalkEvent);
+    return () => window.removeEventListener('astronutri:auto-walk-next', onAutoWalkEvent);
+  }, []);
 
   useEffect(() => {
     // Reset astronaut to central courtyard plaza when switching level islands
@@ -465,7 +518,15 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xf59e0b, emissiveIntensity: 0.58, roughness: 0.25 }),
       roomCount
     );
-    const portalMeta: { basePos: THREE.Vector3; exclPos: THREE.Vector3; yaw: number; completed: boolean }[] = [];
+    const portalMeta: {
+      basePos: THREE.Vector3;
+      exclPos: THREE.Vector3;
+      yaw: number;
+      completed: boolean;
+      isActive: boolean;
+    }[] = [];
+    let activeTargetWorldPos: THREE.Vector3 | null = null;
+    activeEntryRef.current = null;
     const signboardItems: Parameters<typeof createCourtyardSignboardsMesh>[0] = [];
     const courtyardBuildingGeoms: THREE.BufferGeometry[] = [];
     const rotEuler = new THREE.Euler();
@@ -475,6 +536,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
     positionedRooms.forEach(({ room, pos, yawToCenter }, idx) => {
       const completed = isRoomCompleted(room);
+      const isActive = !seqTarget.isAllDone && seqTarget.activeRoom?.id === room.id;
+      const locked = !completed && !isActive && !isDemoMode;
       const ridLower = room.id.toLowerCase();
       const useBlenderCraft =
         (levelId === 1 || levelId === 4) &&
@@ -523,17 +586,20 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         .applyAxisAngle(new THREE.Vector3(0, 1, 0), yawToCenter)
         .add(pos);
       const exclPos = new THREE.Vector3(pos.x, 4.35, pos.z);
-      portalMeta.push({ basePos: portalWorldPos, exclPos, yaw: yawToCenter, completed });
-      const ringCol = new THREE.Color(completed ? '#10b981' : room.accentHex);
+      portalMeta.push({ basePos: portalWorldPos, exclPos, yaw: yawToCenter, completed, isActive });
+      const ringCol = new THREE.Color(
+        completed ? '#10b981' : isActive ? '#facc15' : locked ? '#475569' : room.accentHex
+      );
       portalRingsInst.setColorAt(idx, ringCol);
       curtainsInst.setColorAt(idx, ringCol);
 
+      const roomLbl = getRoomLabel(room, language);
       signboardItems.push({
         pos,
         yawToCenter,
-        titleAr: room.nameAr,
+        titleAr: locked ? `🔒 ${roomLbl.title}` : isActive ? `🎯 ${roomLbl.title}` : roomLbl.title,
         icon: room.icon,
-        accentHex: room.accentHex,
+        accentHex: locked ? '#64748b' : isActive ? '#facc15' : room.accentHex,
         completed
       });
 
@@ -542,12 +608,16 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       const pathCenter = dirToRoom.clone().multiplyScalar(2.1 + pathLen / 2);
       walkwayParts.push({
         geometry: new THREE.BoxGeometry(1.15, 0.05, pathLen),
-        color: completed ? 0x10b981 : theme.walkwayColor,
+        color: completed ? 0x10b981 : isActive ? 0xfacc15 : locked ? 0x475569 : theme.walkwayColor,
         position: [pathCenter.x, 0.03, pathCenter.z],
         rotation: [0, yawToCenter, 0]
       });
 
       const entrySpot = pos.clone().sub(dirToRoom.clone().multiplyScalar(2.5));
+      if (isActive) {
+        activeTargetWorldPos = pos.clone();
+        activeEntryRef.current = { room, entrySpot: entrySpot.clone() };
+      }
       clickTargets.push({ group: bld.group, room, entrySpot, pos });
     });
 
@@ -666,6 +736,19 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           }
         }
         if (found) {
+          if (!isRoomAccessible(found.room)) {
+            soundManager.playCautionBeep();
+            const activeTitle = seqTarget.activeRoom ? getRoomLabel(seqTarget.activeRoom, language).title : '';
+            setLockedToast(
+              tr(
+                language,
+                `🔒 Complete Step ${seqTarget.stepNumber} (${activeTitle}) first!`,
+                `🔒 أكمل الخطوة ${seqTarget.stepNumber} (${activeTitle}) أولاً!`
+              )
+            );
+            window.setTimeout(() => setLockedToast(null), 2600);
+            return;
+          }
           soundManager.playClick();
           // If already standing right near that room, enter directly; otherwise walk straight up to it
           const d = playerPosRef.current.distanceTo(found.pos);
@@ -697,6 +780,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     const portalDummy = new THREE.Object3D();
     const satDummy = new THREE.Object3D();
     const dustSystem = createDustPuffSystem(scene, 20);
+    const floorArrowSystem = createFloorGuideArrowSystem(scene);
     const biomeDustColor = levelId === 3 ? 0xe2e8f0 : levelId === 2 ? 0x818cf8 : 0xfef3c7;
     let rafId = 0;
     let lastTime = performance.now();
@@ -727,10 +811,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         portalDummy.updateMatrix();
         curtainsInst.setMatrixAt(idx, portalDummy.matrix);
 
-        if (!pm.completed) {
-          portalDummy.position.set(pm.exclPos.x, pm.exclPos.y + Math.abs(Math.sin(elapsed * 3.8 + idx)) * 0.3, pm.exclPos.z);
+        if (pm.isActive) {
+          portalDummy.position.set(pm.exclPos.x, pm.exclPos.y + Math.abs(Math.sin(elapsed * 3.8 + idx)) * 0.32, pm.exclPos.z);
           portalDummy.rotation.set(0, elapsed * 1.9 + idx, 0);
-          portalDummy.scale.setScalar(1.0);
+          portalDummy.scale.setScalar(1.12);
         } else {
           portalDummy.position.set(pm.exclPos.x, -100, pm.exclPos.z);
           portalDummy.scale.setScalar(0);
@@ -904,7 +988,13 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       if (isBoredIdle && !boredVoiceFiredRef.current) {
         boredVoiceFiredRef.current = true;
         // 8s idle triggers silent visual speech bubble + animation only (no unprompted passive voice)
-        setIdleSpeechAr('يلا يا بطل مستنيينك نكمل مغامرة الفضاء! 🚀');
+        setIdleSpeechAr(
+          tr(
+            language,
+            'Follow the golden floor arrow to your next NASA mission! 🚀',
+            'اتبع السهم الذهبي على الأرض نحو مهمتك الفضائية التالية! 🚀'
+          )
+        );
       }
 
       const activeEmote: AstronautEmote =
@@ -928,12 +1018,25 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         emote: activeEmote
       });
 
-      // Third-Person Follow Camera
+      // Floor directional guide arrow pointing toward current active step target
+      floorArrowSystem.update(pos, activeTargetWorldPos, 0, elapsed);
+
+      // Auto-Follow Third-Person Camera behind player while walking (no two-finger camera needed on mobile!)
+      if (moveSpeed > 0.25 && !dragOrbiting) {
+        const behindPlayerYaw = hero.group.rotation.y + Math.PI;
+        cameraOrbitYawRef.current = lerpAngle(
+          cameraOrbitYawRef.current,
+          behindPlayerYaw,
+          1 - Math.exp(-1.9 * dt)
+        );
+      }
+
+      const followYaw = cameraOrbitYawRef.current;
       const camDist = 10.6;
       const horizDist = camDist * Math.cos(cameraOrbitPitchRef.current);
       const camHeight = 2.3 + camDist * Math.sin(cameraOrbitPitchRef.current);
-      const desiredCamX = pos.x + Math.sin(yaw) * horizDist;
-      const desiredCamZ = pos.z + Math.cos(yaw) * horizDist;
+      const desiredCamX = pos.x + Math.sin(followYaw) * horizDist;
+      const desiredCamZ = pos.z + Math.cos(followYaw) * horizDist;
       const desiredCamY = pos.y + camHeight;
 
       camera.position.x += (desiredCamX - camera.position.x) * 0.14;
@@ -963,6 +1066,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
       skyHandle.dispose();
       dustSystem.dispose();
+      floorArrowSystem.dispose();
       hero.dispose();
       disposableTextures.forEach((tex) => tex.dispose());
       scene.traverse((obj) => {
@@ -977,7 +1081,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       });
       renderer.dispose();
     };
-  }, [levelId, campaign.completedMiniGames, campaign.l3ReturnAuthorized]);
+  }, [levelId, campaign.completedMiniGames, campaign.l3ReturnAuthorized, language, isDemoMode]);
 
   if (webglFailed) {
     return (
@@ -985,25 +1089,49 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         data-testid={`spatial-room-map-3d-l${levelId}`}
         className="w-full h-full flex items-center justify-center bg-slate-950 p-6 overflow-y-auto"
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl w-full" dir="rtl">
+        <div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl w-full"
+          dir={language === 'ar' ? 'rtl' : 'ltr'}
+        >
           {levelSpec.rooms.map((room) => {
             const done = isRoomCompleted(room);
+            const isActive = !seqTarget.isAllDone && seqTarget.activeRoom?.id === room.id;
+            const accessible = isRoomAccessible(room);
+            const lbl = getRoomLabel(room, language);
             return (
               <button
                 key={room.id}
                 type="button"
+                disabled={!accessible}
                 onClick={() => {
+                  if (!accessible) return;
                   soundManager.playClick();
                   onEnterRoom(room);
                 }}
-                className="p-4 rounded-2xl bg-slate-900 border border-slate-700 hover:border-cyan-400 text-right cursor-pointer"
+                className={`p-4 rounded-2xl border-2 transition-all ${
+                  language === 'ar' ? 'text-right' : 'text-left'
+                } ${
+                  isActive
+                    ? 'bg-amber-950/50 border-amber-400 cursor-pointer shadow-lg'
+                    : accessible
+                    ? 'bg-slate-900 border-slate-700 hover:border-cyan-400 cursor-pointer'
+                    : 'bg-slate-950/60 border-slate-800 opacity-55 cursor-not-allowed'
+                }`}
               >
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-2xl">{room.icon}</span>
-                  {done && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                  {done ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  ) : isActive ? (
+                    <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black">
+                      {tr(language, `Step ${seqTarget.stepNumber}`, `الخطوة ${seqTarget.stepNumber}`)}
+                    </span>
+                  ) : (
+                    <Lock className="w-4 h-4 text-slate-400" />
+                  )}
                 </div>
-                <div className="font-bold text-white text-sm">{room.nameAr}</div>
-                <div className="text-xs text-slate-400 mt-1">{room.shortObjectiveAr}</div>
+                <div className="font-bold text-white text-sm">{lbl.title}</div>
+                <div className="text-xs text-slate-400 mt-1">{lbl.objective}</div>
               </button>
             );
           })}
@@ -1011,6 +1139,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       </div>
     );
   }
+
+  const nearbyLbl = nearbyRoom ? getRoomLabel(nearbyRoom, language) : null;
+  const nearbyLocked = nearbyRoom ? !isRoomAccessible(nearbyRoom) : false;
+  const activeLbl = seqTarget.activeRoom ? getRoomLabel(seqTarget.activeRoom, language) : null;
 
   return (
     <div
@@ -1024,10 +1156,32 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         className="w-full h-full cursor-grab active:cursor-grabbing"
       />
 
+      {/* Sequential Station Lock Warning Toast with 1-Tap Auto-Walk Shortcut */}
+      {lockedToast && (
+        <div
+          dir={language === 'ar' ? 'rtl' : 'ltr'}
+          className="fixed bottom-36 sm:bottom-28 inset-x-0 z-30 flex justify-center px-4 pointer-events-none"
+        >
+          <div className="pointer-events-auto flex flex-wrap items-center gap-2.5 px-4 py-2 rounded-full bg-slate-950/95 border-2 border-amber-400 text-amber-200 font-hud font-black text-xs shadow-2xl">
+            <span>{lockedToast}</span>
+            {seqTarget.activeRoom && (
+              <button
+                type="button"
+                onClick={handleWalkToNextMission}
+                className="px-3 py-1 rounded-full bg-cyan-400 text-slate-950 font-black text-[11px] flex items-center gap-1 cursor-pointer"
+              >
+                <Compass className="w-3.5 h-3.5" />
+                <span>{tr(language, 'Go Now', 'اذهب الآن')}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Playful Speech Bubble when Astronaut sits down bored after 8s */}
       {idleSpeechAr && (
         <div
-          dir="rtl"
+          dir={language === 'ar' ? 'rtl' : 'ltr'}
           data-testid="idle-speech-bubble"
           className="pointer-events-none fixed bottom-32 sm:bottom-24 inset-x-0 z-30 flex justify-center px-4"
         >
@@ -1038,11 +1192,27 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         </div>
       )}
 
-      {/* Bottom Minimalist Arcade Controls */}
+      {/* Bottom Minimalist Arcade Controls + Tap-to-Walk Auto-Nav */}
       <ThirdPersonControlsOverlay
-        promptLabelAr={nearbyRoom ? `دخول ${nearbyRoom.icon} ${nearbyRoom.nameAr}` : null}
-        promptSubAr={nearbyRoom?.shortObjectiveAr}
+        promptLabelAr={
+          nearbyRoom && nearbyLbl
+            ? nearbyLocked
+              ? `🔒 ${nearbyLbl.title}`
+              : tr(language, `Enter ${nearbyRoom.icon} ${nearbyLbl.title}`, `دخول ${nearbyRoom.icon} ${nearbyLbl.title}`)
+            : null
+        }
+        promptSubAr={nearbyLbl?.objective}
         onInteract={enterCurrentRoom}
+        onAutoWalkNext={seqTarget.activeRoom ? handleWalkToNextMission : undefined}
+        autoWalkLabel={
+          activeLbl
+            ? tr(
+                language,
+                `Go to Step ${seqTarget.stepNumber}: ${activeLbl.title}`,
+                `اذهب للمهمة ${seqTarget.stepNumber}: ${activeLbl.title}`
+              )
+            : null
+        }
         onJoystickMove={(vec) => {
           markPlayerActive();
           joystickVecRef.current = vec;
@@ -1053,7 +1223,11 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           isSprintingRef.current = s;
         }}
         gravityLabelAr={theme.gravityLabelAr}
-        hintAr="WASD / الأسهم للمشي • Space (A) للقفز • E (B) للدخول"
+        hintAr={tr(
+          language,
+          'WASD / Arrows to Walk • Space (A) Jump • E (B) Enter',
+          'WASD / الأسهم للمشي • Space (A) للقفز • E (B) للدخول'
+        )}
       />
     </div>
   );

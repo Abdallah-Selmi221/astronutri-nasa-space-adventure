@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { CampaignProgressState, LunarSampleId, MiniGameId } from '../../types/game';
+import { useGameState } from '../../context/GameContext';
+import { tr } from '../../utils/i18n';
 import { NASA_OSDR_METRICS } from '../../services/nasa/nasaOSDR';
+import { BodyTelemetryMeters } from './BodyTelemetryMeters';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { AlertTriangle, CheckCircle2, Flame, Navigation, Radio, ShieldCheck, Wrench } from 'lucide-react';
@@ -14,54 +17,62 @@ interface Level4Props {
   onBackToWorldMap: () => void;
 }
 
-const SAMPLE_LABELS: Record<LunarSampleId, { nameAr: string; icon: string }> = {
-  basalt_rock: { nameAr: 'صخور البازلت القمرية', icon: '🪨' },
-  regolith_dust: { nameAr: 'عينات تربة الريجوليث', icon: '🌫️' },
-  crater_pebbles: { nameAr: 'حصى فوهات القمر', icon: '🌑' }
+const SAMPLE_LABELS: Record<LunarSampleId, { nameEn: string; nameAr: string; icon: string }> = {
+  basalt_rock: { nameEn: 'Lunar Basalt Rock', nameAr: 'صخور البازلت القمرية', icon: '🪨' },
+  regolith_dust: { nameEn: 'Lunar Regolith Soil', nameAr: 'عينات تربة الريجوليث', icon: '🌫️' },
+  crater_pebbles: { nameEn: 'Crater Rim Pebbles', nameAr: 'حصى فوهات القمر', icon: '🌑' }
 };
 
 type FaultType = 'power_drop' | 'comms_noise' | 'life_support';
 
 interface FaultSpec {
   id: FaultType;
+  titleEn: string;
   titleAr: string;
+  symptomEn: string;
   symptomAr: string;
   correctToolId: 'breaker' | 'antenna' | 'scrubber';
-  tools: Array<{ id: 'breaker' | 'antenna' | 'scrubber'; labelAr: string; icon: string }>;
+  tools: Array<{ id: 'breaker' | 'antenna' | 'scrubber'; labelEn: string; labelAr: string; icon: string }>;
 }
 
 const FAULT_SCENARIOS: FaultSpec[] = [
   {
     id: 'power_drop',
+    titleEn: 'Main Power Bus Voltage Drop',
     titleAr: 'هبوط جهد حزمة الطاقة الرئيسية',
+    symptomEn: 'Battery Bus B voltage dropped to 18V right after Trans-Earth Injection!',
     symptomAr: 'انخفض الفولت في البطارية B إلى 18V بعد مغادرة المدار القمري!',
     correctToolId: 'breaker',
     tools: [
-      { id: 'breaker', labelAr: 'قاطع الطاقة الاحتياطي', icon: '⚡' },
-      { id: 'antenna', labelAr: 'معاير هوائي الراديو', icon: '📡' },
-      { id: 'scrubber', labelAr: 'فلتر ثاني أكسيد الكربون', icon: '🫧' }
+      { id: 'breaker', labelEn: 'Backup Power Breaker', labelAr: 'قاطع الطاقة الاحتياطي', icon: '⚡' },
+      { id: 'antenna', labelEn: 'Radio Dish Calibrator', labelAr: 'معاير هوائي الراديو', icon: '📡' },
+      { id: 'scrubber', labelEn: 'CO2 Scrubber Cartridge', labelAr: 'فلتر ثاني أكسيد الكربون', icon: '🫧' }
     ]
   },
   {
     id: 'comms_noise',
+    titleEn: 'Deep Space Antenna Interference',
     titleAr: 'تشويش في إشارة العودة الأرضية',
+    symptomEn: 'Engine vibration misaligned the high-gain dish; Telemetry signal is noisy.',
     symptomAr: 'انحرف الطبق الهوائي بسبب ارتداد المحرك ويحتاج إعادة معايرة.',
     correctToolId: 'antenna',
     tools: [
-      { id: 'breaker', labelAr: 'قاطع الطاقة الاحتياطي', icon: '⚡' },
-      { id: 'antenna', labelAr: 'معاير هوائي الراديو', icon: '📡' },
-      { id: 'scrubber', labelAr: 'فلتر ثاني أكسيد الكربون', icon: '🫧' }
+      { id: 'breaker', labelEn: 'Backup Power Breaker', labelAr: 'قاطع الطاقة الاحتياطي', icon: '⚡' },
+      { id: 'antenna', labelEn: 'Radio Dish Calibrator', labelAr: 'معاير هوائي الراديو', icon: '📡' },
+      { id: 'scrubber', labelEn: 'CO2 Scrubber Cartridge', labelAr: 'فلتر ثاني أكسيد الكربون', icon: '🫧' }
     ]
   },
   {
     id: 'life_support',
+    titleEn: 'Cabin CO2 Buildup Warning',
     titleAr: 'تحذير تراكم CO2 في الكبسولة',
+    symptomEn: 'CO2 partial pressure climbed inside Orion crew cabin and needs valve swap.',
     symptomAr: 'ارتفع مؤشر ثاني أكسيد الكربون في غرفة الطاقم ويحتاج تبديل الصمام.',
     correctToolId: 'scrubber',
     tools: [
-      { id: 'breaker', labelAr: 'قاطع الطاقة الاحتياطي', icon: '⚡' },
-      { id: 'antenna', labelAr: 'معاير هوائي الراديو', icon: '📡' },
-      { id: 'scrubber', labelAr: 'فلتر ثاني أكسيد الكربون', icon: '🫧' }
+      { id: 'breaker', labelEn: 'Backup Power Breaker', labelAr: 'قاطع الطاقة الاحتياطي', icon: '⚡' },
+      { id: 'antenna', labelEn: 'Radio Dish Calibrator', labelAr: 'معاير هوائي الراديو', icon: '📡' },
+      { id: 'scrubber', labelEn: 'CO2 Scrubber Cartridge', labelAr: 'فلتر ثاني أكسيد الكربون', icon: '🫧' }
     ]
   }
 ];
@@ -70,6 +81,7 @@ const DeparturePrepGame: React.FC<{
   campaign: CampaignProgressState;
   onComplete: () => void;
 }> = ({ campaign, onComplete }) => {
+  const { language } = useGameState();
   const [cargoChecks, setCargoChecks] = useState<Record<string, boolean>>({
     oxygen: false,
     power: false,
@@ -90,7 +102,11 @@ const DeparturePrepGame: React.FC<{
     <div className="space-y-4">
       <div className="rounded-2xl bg-amber-950/35 border border-amber-500/35 p-4">
         <div className="font-bold text-amber-200 text-sm mb-2">
-          📦 التحقق من عينات القمر الواردة من المستوى 3 ({collectedSamples.length} عينة)
+          {tr(
+            language,
+            `📦 Verify Lunar Samples Stowed from Level 3 (${collectedSamples.length} samples)`,
+            `📦 التحقق من عينات القمر الواردة من المستوى 3 (${collectedSamples.length} عينة)`
+          )}
         </div>
         {collectedSamples.length > 0 ? (
           <div className="flex flex-wrap gap-2">
@@ -102,25 +118,29 @@ const DeparturePrepGame: React.FC<{
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-xs font-bold text-emerald-200"
                 >
                   <span>{info?.icon || '🪨'}</span>
-                  <span>{info?.nameAr || sid}</span>
+                  <span>{info ? tr(language, info.nameEn, info.nameAr) : sid}</span>
                 </span>
               );
             })}
           </div>
         ) : (
           <div className="text-xs text-amber-200/90">
-            ملاحظة: دخلتَ المستوى 4 مباشرة أو لم تُخزَّن عينات؛ يتم تأمين كبسولة العينات القياسية المرجعية في المخزن.
+            {tr(
+              language,
+              'Reference sample canister secured in cargo locker.',
+              'ملاحظة: دخلتَ المستوى 4 مباشرة أو لم تُخزَّن عينات؛ يتم تأمين كبسولة العينات القياسية المرجعية في المخزن.'
+            )}
           </div>
         )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {[
-          { key: 'oxygen', icon: '🫧', label: 'فحص خزانات الأكسجين (O₂ 100%)' },
-          { key: 'power', icon: '⚡', label: 'توازن خلايا الطاقة والبطاريات' },
-          { key: 'lifeSupport', icon: '🌡️', label: 'استقرار ضغط وحرارة الكبسولة' },
-          { key: 'comms', icon: '📡', label: 'مواءمة هوائي شبكة الفضاء العميق' },
-          { key: 'samplesSealed', icon: '🔒', label: 'إغلاق وتثبيت حاوية عينات القمر' }
+          { key: 'oxygen', icon: '🫧', en: 'Oxygen Tanks Verified (100% O2)', ar: 'فحص خزانات الأكسجين (O₂ 100%)' },
+          { key: 'power', icon: '⚡', en: 'Fuel Cells & Battery Balance', ar: 'توازن خلايا الطاقة والبطاريات' },
+          { key: 'lifeSupport', icon: '🌡️', en: 'Capsule Pressure & Thermal Stable', ar: 'استقرار ضغط وحرارة الكبسولة' },
+          { key: 'comms', icon: '📡', en: 'Deep Space Network (DSN) Aligned', ar: 'مواءمة هوائي شبكة الفضاء العميق' },
+          { key: 'samplesSealed', icon: '🔒', en: 'Seal & Lock Lunar Sample Locker', ar: 'إغلاق وتثبيت حاوية عينات القمر' }
         ].map((item) => {
           const ok = cargoChecks[item.key];
           return (
@@ -128,7 +148,9 @@ const DeparturePrepGame: React.FC<{
               key={item.key}
               type="button"
               onClick={() => toggleCheck(item.key)}
-              className={`p-3.5 rounded-2xl border-2 text-right flex items-center justify-between transition-all ${
+              className={`p-3.5 rounded-2xl border-2 flex items-center justify-between transition-all cursor-pointer ${
+                language === 'ar' ? 'text-right' : 'text-left'
+              } ${
                 ok
                   ? 'bg-emerald-950/65 border-emerald-400 text-white'
                   : 'bg-slate-900/75 border-slate-700 text-slate-200 hover:border-amber-400'
@@ -136,10 +158,10 @@ const DeparturePrepGame: React.FC<{
             >
               <div className="flex items-center gap-2.5">
                 <span className="text-xl">{item.icon}</span>
-                <span className="font-bold text-sm">{item.label}</span>
+                <span className="font-bold text-sm">{tr(language, item.en, item.ar)}</span>
               </div>
               <span className="text-xs font-black px-2 py-0.5 rounded-full bg-slate-950/70">
-                {ok ? '✅ مؤكد' : 'افحص'}
+                {ok ? tr(language, '✅ Verified', '✅ مؤكد') : tr(language, 'Check', 'افحص')}
               </span>
             </button>
           );
@@ -151,23 +173,30 @@ const DeparturePrepGame: React.FC<{
         onClick={() => {
           if (!allCargoChecked) return;
           soundManager.playDropSuccess();
-          dialogueManager.speak('تم تأمين عينات القمر وفحص الأنظمة بنجاح! مستعدون للعودة إلى كوكب الأرض!');
+          dialogueManager.speak(
+            tr(
+              language,
+              'Lunar samples sealed and Orion systems checked! Ready for Trans-Earth departure!',
+              'تم تأمين عينات القمر وفحص الأنظمة بنجاح! مستعدون للعودة إلى كوكب الأرض!'
+            )
+          );
           onComplete();
         }}
         disabled={!allCargoChecked}
         className={`w-full py-3.5 rounded-2xl font-black text-base transition-all ${
           allCargoChecked
-            ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg'
+            ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg cursor-pointer'
             : 'bg-slate-800 text-slate-500 cursor-not-allowed'
         }`}
       >
-        تأكيد جاهزية المغادرة والعودة للأرض ←
+        {tr(language, 'Confirm Departure Readiness to Earth →', 'تأكيد جاهزية المغادرة والعودة للأرض ←')}
       </button>
     </div>
   );
 };
 
 const NavigationEarthGame: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
+  const { language } = useGameState();
   const [headingDeg, setHeadingDeg] = useState(-14);
   const [delayState, setDelayState] = useState<'idle' | 'transmitting' | 'confirmed'>('idle');
   const [delayMsElapsed, setDelayMsElapsed] = useState(0);
@@ -195,7 +224,13 @@ const NavigationEarthGame: React.FC<{ onComplete: () => void }> = ({ onComplete 
         timerRef.current = null;
         setDelayState('confirmed');
         soundManager.playDropSuccess();
-        dialogueManager.speak('استقبل مركز الأرض الإشارة بعد 1.3 ثانية! مسار العودة مضبوط بدقة!');
+        dialogueManager.speak(
+          tr(
+            language,
+            'Earth control received your Deep Space Network signal after 1.3s light delay! Trajectory locked!',
+            'استقبل مركز الأرض الإشارة بعد 1.3 ثانية! مسار العودة مضبوط بدقة!'
+          )
+        );
       }
     }, 60);
   };
@@ -206,10 +241,10 @@ const NavigationEarthGame: React.FC<{ onComplete: () => void }> = ({ onComplete 
         <div className="flex items-center justify-between text-xs font-bold text-indigo-200">
           <span className="flex items-center gap-1.5">
             <Navigation className="w-4 h-4 text-sky-400" />
-            ضبط زاوية مسار العودة إلى الأرض (الهدف: بين -4° و +4°)
+            {tr(language, 'Align Earth Re-Entry Corridor (Target: -4° to +4°)', 'ضبط زاوية مسار العودة إلى الأرض (الهدف: بين -4° و +4°)')}
           </span>
           <span className={inCorridor ? 'text-emerald-300' : 'text-amber-300'}>
-            الزاوية الحالية: {headingDeg > 0 ? `+${headingDeg}°` : `${headingDeg}°`}
+            {tr(language, 'Heading:', 'الزاوية الحالية:')} {headingDeg > 0 ? `+${headingDeg}°` : `${headingDeg}°`}
           </span>
         </div>
 
@@ -244,7 +279,11 @@ const NavigationEarthGame: React.FC<{ onComplete: () => void }> = ({ onComplete 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-bold text-sky-200">
             <Radio className="w-4 h-4 text-sky-400" />
-            اختبار تأخير الاتصال الفضائي (384,400 كم ÷ سرعة الضوء = 1.3 ثانية)
+            {tr(
+              language,
+              'Deep Space Light-Delay Test (384,400 km / c = 1.3s)',
+              'اختبار تأخير الاتصال الفضائي (384,400 كم ÷ سرعة الضوء = 1.3 ثانية)'
+            )}
           </div>
           <span className="text-xs font-mono text-sky-300">{(delayMsElapsed / 1000).toFixed(2)}s / 1.30s</span>
         </div>
@@ -258,17 +297,17 @@ const NavigationEarthGame: React.FC<{ onComplete: () => void }> = ({ onComplete 
           type="button"
           onClick={handleSendDsnSignal}
           disabled={!inCorridor || delayState === 'transmitting'}
-          className={`w-full py-3 rounded-xl font-bold text-sm transition-all ${
+          className={`w-full py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${
             inCorridor
               ? 'bg-sky-600 hover:bg-sky-500 text-white'
               : 'bg-slate-800 text-slate-500 cursor-not-allowed'
           }`}
         >
           {delayState === 'transmitting'
-            ? '📡 جاري إرسال الإشارة عبر الفضاء (1.3 ثانية)...'
+            ? tr(language, '📡 Transmitting signal across 384,400 km (1.3s)...', '📡 جاري إرسال الإشارة عبر الفضاء (1.3 ثانية)...')
             : delayState === 'confirmed'
-            ? '✅ تم استلام رد مركز التحكم الأرضي!'
-            : 'إرسال إحداثيات العودة لمركز الأرض'}
+            ? tr(language, '✅ Earth Control Confirmed Trajectory!', '✅ تم استلام رد مركز التحكم الأرضي!')
+            : tr(language, 'Transmit Earth Return Coordinates', 'إرسال إحداثيات العودة لمركز الأرض')}
         </button>
       </div>
 
@@ -278,17 +317,18 @@ const NavigationEarthGame: React.FC<{ onComplete: () => void }> = ({ onComplete 
         onClick={onComplete}
         className={`w-full py-3.5 rounded-2xl font-black text-base transition-all ${
           delayState === 'confirmed'
-            ? 'bg-gradient-to-r from-emerald-500 to-sky-600 text-white shadow-lg'
+            ? 'bg-gradient-to-r from-emerald-500 to-sky-600 text-white shadow-lg cursor-pointer'
             : 'bg-slate-800 text-slate-500 cursor-not-allowed'
         }`}
       >
-        تثبيت مسار العودة إلى الأرض ←
+        {tr(language, 'Lock Earth Return Trajectory →', 'تثبيت مسار العودة إلى الأرض ←')}
       </button>
     </div>
   );
 };
 
 const EmergencyRepairGame: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
+  const { language } = useGameState();
   const [faultIdx, setFaultIdx] = useState(0);
   const [faultDiagnosed, setFaultDiagnosed] = useState(false);
   const [faultFixed, setFaultFixed] = useState(false);
@@ -302,10 +342,22 @@ const EmergencyRepairGame: React.FC<{ onComplete: () => void }> = ({ onComplete 
       setWrongMsg(null);
       soundManager.playDropSuccess();
       setFaultFixed(true);
-      dialogueManager.speak('رائع! تم تشخيص العطل وإصلاحه بأداة الصيانة الصحيحة واستقرت المركبة!');
+      dialogueManager.speak(
+        tr(
+          language,
+          'Great fix! Spacecraft fault stabilized cleanly with the right tool!',
+          'رائع! تم تشخيص العطل وإصلاحه بأداة الصيانة الصحيحة واستقرت المركبة!'
+        )
+      );
     } else {
       soundManager.playCautionBeep();
-      setWrongMsg('⚠️ هذه الأداة لا تناسب هذا العطل! اقرأ التشخيص واختر الأداة المطابقة.');
+      setWrongMsg(
+        tr(
+          language,
+          '⚠️ Wrong repair tool! Read the diagnostic report carefully and pick the matching fix.',
+          '⚠️ هذه الأداة لا تناسب هذا العطل! اقرأ التشخيص واختر الأداة المطابقة.'
+        )
+      );
     }
   };
 
@@ -315,7 +367,7 @@ const EmergencyRepairGame: React.FC<{ onComplete: () => void }> = ({ onComplete 
         <AlertTriangle className="w-6 h-6 text-rose-400 shrink-0 mt-0.5" />
         <div className="space-y-1 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <h4 className="font-black text-rose-200 text-base">{fault.titleAr}</h4>
+            <h4 className="font-black text-rose-200 text-base">{tr(language, fault.titleEn, fault.titleAr)}</h4>
             <button
               type="button"
               onClick={() => {
@@ -324,12 +376,12 @@ const EmergencyRepairGame: React.FC<{ onComplete: () => void }> = ({ onComplete 
                 setFaultFixed(false);
                 setWrongMsg(null);
               }}
-              className="text-xs px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800"
+              className="text-xs px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 cursor-pointer"
             >
-              تجربة عطل آخر ↻
+              {tr(language, 'Next Fault ↻', 'تجربة عطل آخر ↻')}
             </button>
           </div>
-          <p className="text-xs text-rose-100/90 leading-relaxed">{fault.symptomAr}</p>
+          <p className="text-xs text-rose-100/90 leading-relaxed">{tr(language, fault.symptomEn, fault.symptomAr)}</p>
         </div>
       </div>
 
@@ -339,19 +391,21 @@ const EmergencyRepairGame: React.FC<{ onComplete: () => void }> = ({ onComplete 
           soundManager.playClick();
           setFaultDiagnosed(true);
         }}
-        className={`w-full py-3 rounded-2xl border font-bold text-sm transition-all ${
+        className={`w-full py-3 rounded-2xl border font-bold text-sm transition-all cursor-pointer ${
           faultDiagnosed
             ? 'bg-emerald-950/60 border-emerald-400 text-emerald-200'
             : 'bg-amber-600 hover:bg-amber-500 border-amber-400 text-white'
         }`}
       >
-        {faultDiagnosed ? '✅ الخطوة 1: تم فحص الدائرة وتحديد مكان العطل' : '🔍 الخطوة 1: تشغيل جهاز تشخيص الأعطال'}
+        {faultDiagnosed
+          ? tr(language, '✅ Step 1: Circuit Scanned & Fault Located', '✅ الخطوة 1: تم فحص الدائرة وتحديد مكان العطل')
+          : tr(language, '🔍 Step 1: Run Diagnostic Scanner', '🔍 الخطوة 1: تشغيل جهاز تشخيص الأعطال')}
       </button>
 
       <div className="space-y-2">
         <div className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
           <Wrench className="w-4 h-4 text-amber-400" />
-          الخطوة 2: اختر أداة الصيانة المناسبة من غرفة المعدات:
+          {tr(language, 'Step 2: Select the matching repair tool:', 'الخطوة 2: اختر أداة الصيانة المناسبة من غرفة المعدات:')}
         </div>
         {wrongMsg && <div className="text-xs font-bold text-rose-300">{wrongMsg}</div>}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -365,12 +419,12 @@ const EmergencyRepairGame: React.FC<{ onComplete: () => void }> = ({ onComplete 
                 faultFixed && t.id === fault.correctToolId
                   ? 'bg-emerald-950/75 border-emerald-400 text-white'
                   : faultDiagnosed
-                  ? 'bg-slate-900/80 border-slate-700 hover:border-amber-400 text-slate-100'
+                  ? 'bg-slate-900/80 border-slate-700 hover:border-amber-400 text-slate-100 cursor-pointer'
                   : 'bg-slate-900/40 border-slate-800 text-slate-500 cursor-not-allowed'
               }`}
             >
               <div className="text-2xl mb-1">{t.icon}</div>
-              <div className="text-xs font-bold">{t.labelAr}</div>
+              <div className="text-xs font-bold">{tr(language, t.labelEn, t.labelAr)}</div>
             </button>
           ))}
         </div>
@@ -382,17 +436,18 @@ const EmergencyRepairGame: React.FC<{ onComplete: () => void }> = ({ onComplete 
         onClick={onComplete}
         className={`w-full py-3.5 rounded-2xl font-black text-base transition-all ${
           faultFixed
-            ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg'
+            ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg cursor-pointer'
             : 'bg-slate-800 text-slate-500 cursor-not-allowed'
         }`}
       >
-        تأكيد استقرار المركبة ومتابعة الهبوط ←
+        {tr(language, 'Confirm Spacecraft Stability & Continue →', 'تأكيد استقرار المركبة ومتابعة الهبوط ←')}
       </button>
     </div>
   );
 };
 
 const ReentryShieldGame: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
+  const { language } = useGameState();
   const [tilesChecked, setTilesChecked] = useState<Record<number, boolean>>({ 0: false, 1: false, 2: false });
   const [reentryStarted, setReentryStarted] = useState(false);
   const [shieldAngle, setShieldAngle] = useState(0);
@@ -423,29 +478,52 @@ const ReentryShieldGame: React.FC<{ onComplete: () => void }> = ({ onComplete })
         const delta = Math.abs(shieldAngle) <= 18 ? 6 : -3;
         const next = Math.max(0, Math.min(100, prev + delta));
         if (Math.abs(shieldAngle) > 18) {
-          setReentryError('⚠️ الكبسولة مالت خارج زاوية الدرع الحراري! اضبطها بين -18° و +18°!');
+          setReentryError(
+            tr(
+              language,
+              '⚠️ Capsule tilted past heat shield safe margin! Steer between -18° and +18°!',
+              '⚠️ الكبسولة مالت خارج زاوية الدرع الحراري! اضبطها بين -18° و +18°!'
+            )
+          );
         } else {
           setReentryError(null);
         }
         if (next >= 100 && !reentryDoneRef.current) {
           reentryDoneRef.current = true;
           soundManager.playDropSuccess();
-          dialogueManager.speak('برافو! تجاوزنا البلازما عند 1600 درجة مئوية بأمان تام!');
+          dialogueManager.speak(
+            tr(
+              language,
+              'Plasma corridor cleared! Survived 1600°C re-entry with intact PICA-X heat shield!',
+              'برافو! تجاوزنا البلازما عند 1600 درجة مئوية بأمان تام!'
+            )
+          );
         }
         return next;
       });
     }, 280);
     return () => window.clearInterval(ticker);
-  }, [reentryStarted, reentryFinished, shieldAngle]);
+  }, [reentryStarted, reentryFinished, shieldAngle, language]);
 
   return (
     <div className="space-y-4">
+      <BodyTelemetryMeters
+        language={language}
+        titleEn="4.0G Peak Re-Entry & Crew Biometrics"
+        titleAr="مؤشر تحمل الجاذبية أثناء الدخول (4.0G)"
+        metrics={[
+          { key: 'muscle', value: inSafeZone ? 90 : 58 },
+          { key: 'hydration', value: reentryFinished ? 92 : 76 }
+        ]}
+      />
+
       <div className="rounded-2xl bg-slate-900/75 border border-pink-400/30 p-3.5 text-xs text-pink-200 flex items-center justify-between gap-2">
         <span>
-          🩺 <strong>{gLoadMetric.osdrCode}:</strong> {gLoadMetric.titleAr} — ذروة الجاذبية خلال الدخول <strong>4.0G</strong>
+          🩺 <strong>{gLoadMetric.osdrCode}:</strong>{' '}
+          {tr(language, 'Orion Re-Entry Biometrics — Peak G-Load: 4.0G', `${gLoadMetric.titleAr} — ذروة الجاذبية خلال الدخول 4.0G`)}
         </span>
         <span className="px-2 py-0.5 rounded-full bg-orange-950 border border-orange-500/40 text-orange-200 font-bold">
-          حرارة البلازما: {reentryStarted ? `${Math.round(800 + reentryProgress * 8)}°C` : '22°C'}
+          {tr(language, 'Plasma Temp:', 'حرارة البلازما:')} {reentryStarted ? `${Math.round(800 + reentryProgress * 8)}°C` : '22°C'}
         </span>
       </div>
 
@@ -458,14 +536,14 @@ const ReentryShieldGame: React.FC<{ onComplete: () => void }> = ({ onComplete })
               soundManager.playClick();
               setTilesChecked((prev) => ({ ...prev, [idx]: true }));
             }}
-            className={`p-3 rounded-2xl border-2 text-center text-xs font-bold transition-all ${
+            className={`p-3 rounded-2xl border-2 text-center text-xs font-bold transition-all cursor-pointer ${
               tilesChecked[idx]
                 ? 'bg-emerald-950/65 border-emerald-400 text-emerald-200'
                 : 'bg-slate-900/75 border-slate-700 hover:border-orange-400 text-slate-200'
             }`}
           >
             <ShieldCheck className="w-5 h-5 mx-auto mb-1 text-orange-400" />
-            لوح PICA-X #{idx + 1} {tilesChecked[idx] ? '✅' : ''}
+            {tr(language, `PICA-X Tile #${idx + 1}`, `لوح PICA-X #${idx + 1}`)} {tilesChecked[idx] ? '✅' : ''}
           </button>
         ))}
       </div>
@@ -480,21 +558,21 @@ const ReentryShieldGame: React.FC<{ onComplete: () => void }> = ({ onComplete })
           }}
           className={`w-full py-3.5 rounded-2xl font-black text-base transition-all ${
             allTilesOk
-              ? 'bg-gradient-to-r from-orange-500 to-rose-600 text-white shadow-lg'
+              ? 'bg-gradient-to-r from-orange-500 to-rose-600 text-white shadow-lg cursor-pointer'
               : 'bg-slate-800 text-slate-500 cursor-not-allowed'
           }`}
         >
-          🔥 بدء اختراق الغلاف الجوي (تحكّم بالدرع الحراري)
+          {tr(language, '🔥 Begin Atmospheric Re-Entry (Steer Heat Shield)', '🔥 بدء اختراق الغلاف الجوي (تحكّم بالدرع الحراري)')}
         </button>
       ) : (
         <div className="rounded-2xl bg-slate-900/85 border border-orange-500/40 p-4 space-y-3">
           <div className="flex items-center justify-between text-xs font-bold">
             <span className="flex items-center gap-1.5 text-orange-300">
               <Flame className="w-4 h-4" />
-              تثبيت زاوية الدرع الحراري ({shieldAngle > 0 ? `+${shieldAngle}°` : `${shieldAngle}°`})
+              {tr(language, 'Heat Shield Angle:', 'تثبيت زاوية الدرع الحراري')} ({shieldAngle > 0 ? `+${shieldAngle}°` : `${shieldAngle}°`})
             </span>
             <span className={inSafeZone ? 'text-emerald-300' : 'text-rose-300'}>
-              {inSafeZone ? '✅ داخل الممر الآمن' : '⚠️ انحراف خطير'}
+              {inSafeZone ? tr(language, '✅ Safe Corridor', '✅ داخل الممر الآمن') : tr(language, '⚠️ Hazardous Tilt', '⚠️ انحراف خطير')}
             </span>
           </div>
 
@@ -517,7 +595,7 @@ const ReentryShieldGame: React.FC<{ onComplete: () => void }> = ({ onComplete })
             />
           </div>
           <div className="text-xs text-slate-300 text-center font-bold">
-            تقدم اجتياز الغلاف الجوي: {reentryProgress}%
+            {tr(language, `Re-Entry Progress: ${reentryProgress}%`, `تقدم اجتياز الغلاف الجوي: ${reentryProgress}%`)}
           </div>
         </div>
       )}
@@ -528,11 +606,11 @@ const ReentryShieldGame: React.FC<{ onComplete: () => void }> = ({ onComplete })
         onClick={onComplete}
         className={`w-full py-3.5 rounded-2xl font-black text-base transition-all ${
           reentryFinished
-            ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg'
+            ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg cursor-pointer'
             : 'bg-slate-800 text-slate-500 cursor-not-allowed'
         }`}
       >
-        الانتقال لنشر مظلات الهبوط ←
+        {tr(language, 'Proceed to Parachute Splashdown →', 'الانتقال لنشر مظلات الهبوط ←')}
       </button>
     </div>
   );
@@ -543,6 +621,7 @@ const SafeLandingGame: React.FC<{
   onBackToLevel: () => void;
   onBackToWorldMap: () => void;
 }> = ({ onComplete, onBackToLevel, onBackToWorldMap }) => {
+  const { language } = useGameState();
   const [altitudeM, setAltitudeM] = useState(9600);
   const [speedMs, setSpeedMs] = useState(95);
   const [drogueDeployed, setDrogueDeployed] = useState(false);
@@ -563,7 +642,13 @@ const SafeLandingGame: React.FC<{
           setSplashdownDone(true);
           soundManager.playFanfare();
           confetti({ particleCount: 150, spread: 90, origin: { y: 0.55 } });
-          dialogueManager.speak('مهمة أسترونوتري مكتملة بنجاح باهر! هبطنا بسلام في مياه المحيط على كوكب الأرض!');
+          dialogueManager.speak(
+            tr(
+              language,
+              'AstroNutri mission accomplished! Safe ocean splashdown on Earth with all lunar samples!',
+              'مهمة أسترونوتري مكتملة بنجاح باهر! هبطنا بسلام في مياه المحيط على كوكب الأرض!'
+            )
+          );
           onComplete();
         } else if (nextAlt === 0 && !mainDeployed) {
           return 900;
@@ -572,7 +657,7 @@ const SafeLandingGame: React.FC<{
       });
     }, 650);
     return () => window.clearInterval(timer);
-  }, [drogueDeployed, mainDeployed, splashdownDone, onComplete]);
+  }, [drogueDeployed, mainDeployed, splashdownDone, onComplete, language]);
 
   const deployDrogue = () => {
     if (drogueDeployed || altitudeM > 7800) return;
@@ -593,12 +678,16 @@ const SafeLandingGame: React.FC<{
       <div className="rounded-2xl bg-slate-900/80 border border-emerald-500/35 p-4 space-y-3">
         <div className="grid grid-cols-2 gap-3 text-center">
           <div className="rounded-xl bg-slate-950/75 p-3 border border-slate-800">
-            <div className="text-xs text-slate-400">الارتفاع عن سطح المحيط</div>
-            <div className="text-2xl font-black text-sky-300">{altitudeM.toLocaleString()} م</div>
+            <div className="text-xs text-slate-400">{tr(language, 'Altitude Above Ocean', 'الارتفاع عن سطح المحيط')}</div>
+            <div className="text-2xl font-black text-sky-300">
+              {altitudeM.toLocaleString()} {tr(language, 'm', 'م')}
+            </div>
           </div>
           <div className="rounded-xl bg-slate-950/75 p-3 border border-slate-800">
-            <div className="text-xs text-slate-400">سرعة الهبوط</div>
-            <div className="text-2xl font-black text-emerald-300">{speedMs} م/ث</div>
+            <div className="text-xs text-slate-400">{tr(language, 'Descent Speed', 'سرعة الهبوط')}</div>
+            <div className="text-2xl font-black text-emerald-300">
+              {speedMs} {tr(language, 'm/s', 'م/ث')}
+            </div>
           </div>
         </div>
 
@@ -611,15 +700,15 @@ const SafeLandingGame: React.FC<{
               drogueDeployed
                 ? 'bg-emerald-950/70 border-emerald-400 text-emerald-200'
                 : altitudeM <= 7800
-                ? 'bg-amber-600 hover:bg-amber-500 border-amber-300 text-white animate-pulse'
+                ? 'bg-amber-600 hover:bg-amber-500 border-amber-300 text-white animate-pulse cursor-pointer'
                 : 'bg-slate-800/60 border-slate-700 text-slate-400 cursor-not-allowed'
             }`}
           >
             {drogueDeployed
-              ? '✅ تم فتح المظلات الكابحة (Drogue)'
+              ? tr(language, '✅ Drogue Chutes Deployed', '✅ تم فتح المظلات الكابحة (Drogue)')
               : altitudeM <= 7800
-              ? '🪂 افتح المظلات الكابحة الآن!'
-              : '⏳ انتظر النزول تحت 7,800 م'}
+              ? tr(language, '🪂 Deploy Drogue Chutes NOW!', '🪂 افتح المظلات الكابحة الآن!')
+              : tr(language, '⏳ Wait until below 7,800 m', '⏳ انتظر النزول تحت 7,800 م')}
           </button>
 
           <button
@@ -630,17 +719,17 @@ const SafeLandingGame: React.FC<{
               mainDeployed
                 ? 'bg-emerald-950/70 border-emerald-400 text-emerald-200'
                 : drogueDeployed && altitudeM <= 3600
-                ? 'bg-emerald-600 hover:bg-emerald-500 border-emerald-300 text-white animate-pulse'
+                ? 'bg-emerald-600 hover:bg-emerald-500 border-emerald-300 text-white animate-pulse cursor-pointer'
                 : 'bg-slate-800/60 border-slate-700 text-slate-400 cursor-not-allowed'
             }`}
           >
             {mainDeployed
-              ? '✅ تم نشر المظلات الرئيسية الثلاث!'
+              ? tr(language, '✅ All 3 Main Chutes Deployed!', '✅ تم نشر المظلات الرئيسية الثلاث!')
               : !drogueDeployed
-              ? '1️⃣ افتح المظلات الكابحة أولاً'
+              ? tr(language, '1️⃣ Deploy Drogue Chutes First', '1️⃣ افتح المظلات الكابحة أولاً')
               : altitudeM <= 3600
-              ? '🪂 افتح المظلات الرئيسية الآن!'
-              : '⏳ انتظر النزول تحت 3,600 م'}
+              ? tr(language, '🪂 Deploy Main Chutes NOW!', '🪂 افتح المظلات الرئيسية الآن!')
+              : tr(language, '⏳ Wait until below 3,600 m', '⏳ انتظر النزول تحت 3,600 م')}
           </button>
         </div>
       </div>
@@ -650,23 +739,27 @@ const SafeLandingGame: React.FC<{
           <div className="text-4xl">🌍🎉🚀</div>
           <div className="text-xl font-black text-emerald-300 tracking-wide">MISSION ACCOMPLISHED!</div>
           <p className="text-sm text-slate-100 leading-relaxed">
-            هبط طاقم أسترونوتري بسلام على كوكب الأرض ومعه عينات القمر الثمينة بعد اجتياز 4 مستويات و21 تحدياً فضائياً!
+            {tr(
+              language,
+              'The AstroNutri crew splashed down safely on Earth with valuable lunar samples after completing all 4 Levels and 21 Space Missions!',
+              'هبط طاقم أسترونوتري بسلام على كوكب الأرض ومعه عينات القمر الثمينة بعد اجتياز 4 مستويات و21 تحدياً فضائياً!'
+            )}
           </p>
           <div className="flex flex-wrap justify-center gap-3 pt-2">
             <button
               type="button"
               onClick={onBackToLevel}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs"
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs cursor-pointer"
             >
-              عرض غرف المركبة
+              {tr(language, 'View Capsule Rooms', 'عرض غرف المركبة')}
             </button>
             <button
               type="button"
               onClick={onBackToWorldMap}
-              className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm flex items-center gap-1.5"
+              className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm flex items-center gap-1.5 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
-              العودة لخريطة العالم الـ 3D
+              {tr(language, 'Return to 3D World Archipelago', 'العودة لخريطة العالم الـ 3D')}
             </button>
           </div>
         </div>

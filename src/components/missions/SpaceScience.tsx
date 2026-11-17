@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGameState } from '../../context/GameContext';
+import { tr } from '../../utils/i18n';
 import { AsteroidRadarModal } from './AsteroidRadarModal';
 import { PlanetIllustration } from './PlanetIllustration';
 import { InteractiveQuizDeck } from '../common/InteractiveQuizDeck';
@@ -262,7 +263,7 @@ export interface SpaceScienceProps {
 }
 
 export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onComplete }) => {
-  const { state, setLocation } = useGameState();
+  const { state, language, setLocation } = useGameState();
   const [activeWorld, setActiveWorld] = useState<CelestialWorld>(CELESTIAL_WORLDS[2]); // Start warmly on Earth
   const [scienceTab, setScienceTab] = useState<'explore' | 'flight' | 'quiz'>('explore');
   const [isRadarOpen, setIsRadarOpen] = useState<boolean>(false);
@@ -434,7 +435,7 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
                 : 'bg-slate-900/80 text-slate-200 border-2 border-white/20 hover:bg-slate-800'
             }`}
           >
-            🪐 خريطة المجموعة الشمسية واستكشاف الكواكب
+            {tr(language, '🪐 Solar System Explorer & Gravity Lab', '🪐 خريطة المجموعة الشمسية واستكشاف الكواكب')}
           </button>
           <button
             type="button"
@@ -449,7 +450,7 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
             }`}
           >
             <Rocket className="w-4 h-4" />
-            <span>🛸 الطيران الحر بين الكواكب 3D</span>
+            <span>{tr(language, '🛸 Free 3D Planet Flight', '🛸 الطيران الحر بين الكواكب 3D')}</span>
           </button>
           <button
             type="button"
@@ -464,7 +465,13 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
             }`}
           >
             <Sparkles className="w-4 h-4" />
-            <span>🧠 تحدي أسئلة الفضاء ({SPACE_SCIENCE_QUESTIONS.length} سؤال)</span>
+            <span>
+              {tr(
+                language,
+                `🧠 NASA Space Quiz (${SPACE_SCIENCE_QUESTIONS.length} Qs)`,
+                `🧠 تحدي أسئلة الفضاء (${SPACE_SCIENCE_QUESTIONS.length} سؤال)`
+              )}
+            </span>
             {quizSolvedCount >= 3 && <span className="text-emerald-200">✅</span>}
           </button>
         </div>
@@ -510,7 +517,7 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
                           : 'text-slate-100 group-hover:text-cyan-200'
                       }`}
                     >
-                      {world.nameAr}
+                      {tr(language, world.englishName, world.nameAr)}
                     </span>
                   </motion.button>
                 );
@@ -524,8 +531,12 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
         <div className="relative z-10 w-full max-w-4xl mx-auto my-2 flex-1">
           <InteractiveQuizDeck
             questions={SPACE_SCIENCE_QUESTIONS}
-            titleAr="اختبار أبطال الفضاء من ناسا"
-            subtitleAr="اختبر معلوماتك عن عطارد، الزهرة، المريخ، حلقات زحل، وكويكب 2010 PK!"
+            titleAr={tr(language, 'NASA Space Explorer Quiz', 'اختبار أبطال الفضاء من ناسا')}
+            subtitleAr={tr(
+              language,
+              'Test your science knowledge on Mercury, Venus, Mars, Saturn Rings & 2010 PK!',
+              'اختبر معلوماتك عن عطارد، الزهرة، المريخ، حلقات زحل، وكويكب 2010 PK!'
+            )}
             accent="cyan"
             milestoneCount={3}
             onMilestoneComplete={(score) => setQuizSolvedCount(score)}

@@ -159,3 +159,85 @@ export function createDustPuffSystem(scene: THREE.Scene, maxParticles = 24): Dus
 
   return { mesh, emit, update, dispose };
 }
+
+export interface FloorGuideArrowSystem {
+  mesh: THREE.Group;
+  update: (
+    playerPos: THREE.Vector3,
+    targetPos: THREE.Vector3 | null,
+    groundY: number,
+    elapsed: number
+  ) => void;
+  dispose: () => void;
+}
+
+/**
+ * Glowing 3D directional arrow + orbit chevron sitting cleanly near the astronaut's feet,
+ * pointing smoothly toward the active mission target.
+ */
+export function createFloorGuideArrowSystem(scene: THREE.Scene): FloorGuideArrowSystem {
+  const group = new THREE.Group();
+
+  const arrowMat = new THREE.MeshStandardMaterial({
+    color: 0xfacc15,
+    emissive: 0x0ea5e9,
+    emissiveIntensity: 0.9,
+    roughness: 0.28,
+    metalness: 0.35
+  });
+
+  // Pointer head facing +Z
+  const headGeo = new THREE.ConeGeometry(0.36, 0.72, 4);
+  headGeo.rotateX(Math.PI / 2);
+  headGeo.rotateZ(Math.PI / 4);
+  const headMesh = new THREE.Mesh(headGeo, arrowMat);
+  headMesh.position.set(0, 0, 0.56);
+
+  // Tail stem
+  const stemGeo = new THREE.BoxGeometry(0.2, 0.1, 0.62);
+  const stemMesh = new THREE.Mesh(stemGeo, arrowMat);
+  stemMesh.position.set(0, 0, 0);
+
+  group.add(headMesh, stemMesh);
+  group.visible = false;
+  scene.add(group);
+
+  const update = (
+    playerPos: THREE.Vector3,
+    targetPos: THREE.Vector3 | null,
+    groundY: number,
+    elapsed: number
+  ) => {
+    if (!targetPos) {
+      group.visible = false;
+      return;
+    }
+    const dx = targetPos.x - playerPos.x;
+    const dz = targetPos.z - playerPos.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 1.9) {
+      group.visible = false;
+      return;
+    }
+    group.visible = true;
+    const dirX = dx / dist;
+    const dirZ = dz / dist;
+    const orbitPulse = 1.45 + Math.sin(elapsed * 4.5) * 0.16;
+    group.position.set(
+      playerPos.x + dirX * orbitPulse,
+      groundY + 0.16 + Math.sin(elapsed * 5) * 0.04,
+      playerPos.z + dirZ * orbitPulse
+    );
+    group.rotation.y = Math.atan2(dirX, dirZ);
+    arrowMat.emissiveIntensity = 0.75 + Math.sin(elapsed * 5) * 0.35;
+  };
+
+  const dispose = () => {
+    if (group.parent) group.parent.remove(group);
+    headGeo.dispose();
+    stemGeo.dispose();
+    arrowMat.dispose();
+  };
+
+  return { mesh: group, update, dispose };
+}

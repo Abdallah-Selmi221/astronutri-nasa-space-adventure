@@ -1,6 +1,9 @@
 import { SolarStormData } from '../utils/nasaApi';
 import type { ScienceBadgeType } from '../data/science';
 
+export type AppLanguage = 'en' | 'ar';
+export type CadetAgeGroup = '7-10' | '11-14' | '15+';
+
 export type RoomLocation =
   | 'Map'
   | 'NutritionLab'
@@ -255,6 +258,8 @@ export interface GameState {
   unlockedRooms: RoomLocation[];
   soundEnabled: boolean;
   cadetName: string;
+  language?: AppLanguage;
+  ageGroup?: CadetAgeGroup;
   campaign?: CampaignProgressState;
 }
 
@@ -267,6 +272,8 @@ export type GameAction =
   | { type: 'CLEAR_CARGO' }
   | { type: 'TOGGLE_SOUND' }
   | { type: 'SET_CADET_NAME'; payload: string }
+  | { type: 'SET_LANGUAGE'; payload: AppLanguage }
+  | { type: 'SET_AGE_GROUP'; payload: CadetAgeGroup }
   | { type: 'COMPLETE_NUTRITION_MISSION' }
   | { type: 'COMPLETE_HUMAN_HEALTH' }
   | { type: 'SET_O2_PRESSURE'; payload: number }

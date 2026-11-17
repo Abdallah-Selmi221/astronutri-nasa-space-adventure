@@ -21,6 +21,9 @@ import {
   Lock
 } from 'lucide-react';
 
+import { tr } from '../../utils/i18n';
+import type { AppLanguage, CadetAgeGroup } from '../../types/game';
+
 interface SettingsMenuProps {
   isOpen: boolean;
   onClose: () => void;
@@ -28,19 +31,23 @@ interface SettingsMenuProps {
 }
 
 export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onReplayIntro }) => {
-  const { state, toggleSound, resetGameFull, unlockAllDemoLevels, dispatch, storageStatus } = useGameState();
+  const {
+    state,
+    toggleSound,
+    resetGameFull,
+    unlockAllDemoLevels,
+    language,
+    ageGroup,
+    setLanguage,
+    setAgeGroup,
+    dispatch,
+    storageStatus
+  } = useGameState();
 
   const [volume, setVolume] = useState<number>(() => soundManager.getVolume());
   const [bgmVolume, setBgmVolume] = useState<number>(() => soundManager.getBgmVolume());
   const [bgmEnabled, setBgmEnabled] = useState<boolean>(() => soundManager.isBgmEnabled());
   const [roboVoiceEnabled, setRoboVoiceEnabled] = useState<boolean>(() => geminiTTS.isVoiceEnabled());
-  const [language, setLanguage] = useState<'ar' | 'en'>(() => {
-    try {
-      return (localStorage.getItem('astronutri_language') as 'ar' | 'en') || 'ar';
-    } catch {
-      return 'ar';
-    }
-  });
   const [cadetInput, setCadetInput] = useState<string>(state.cadetName);
   const [confirmReset, setConfirmReset] = useState<boolean>(false);
   const [resetNotice, setResetNotice] = useState<boolean>(false);
@@ -86,16 +93,9 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
     }
   };
 
-  const handleLanguageChange = (lang: 'ar' | 'en') => {
+  const handleLanguageChange = (lang: AppLanguage) => {
     soundManager.playClick();
     setLanguage(lang);
-    try {
-      localStorage.setItem('astronutri_language', lang);
-    } catch {
-      // ignore storage errors
-    }
-    document.documentElement.lang = lang;
-    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
   };
 
   const handleSaveCadetName = () => {
@@ -164,7 +164,10 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.88, opacity: 0, y: 24 }}
             transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-            className="relative z-10 w-full max-w-xl bg-gradient-to-b from-sky-950 via-space-900 to-space-950 border-4 border-cyan-400 rounded-[2rem] p-5 sm:p-7 shadow-[0_20px_60px_rgba(6,182,212,0.45)] text-right overflow-hidden"
+            dir={language === 'ar' ? 'rtl' : 'ltr'}
+            className={`relative z-10 w-full max-w-xl bg-gradient-to-b from-sky-950 via-space-900 to-space-950 border-4 border-cyan-400 rounded-[2rem] p-5 sm:p-7 shadow-[0_20px_60px_rgba(6,182,212,0.45)] ${
+              language === 'ar' ? 'text-right' : 'text-left'
+            } overflow-hidden`}
           >
             {/* Ambient Top Glow */}
             <div className="absolute -top-20 -right-20 w-56 h-56 bg-cyan-400/20 rounded-full blur-3xl pointer-events-none" />
@@ -180,13 +183,17 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                 </div>
                 <div>
                   <h2 className="font-hud font-black text-lg sm:text-2xl text-white flex items-center gap-2">
-                    <span>إعدادات مركز القيادة</span>
+                    <span>{tr(language, 'Command Center Settings', 'إعدادات مركز القيادة')}</span>
                     <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-900/90 border border-cyan-400/50 text-cyan-200">
-                      تحكم كامل ⚙️
+                      {tr(language, 'Full Control ⚙️', 'تحكم كامل ⚙️')}
                     </span>
                   </h2>
                   <p className="text-xs text-slate-300 font-bold">
-                    اضبط مستوى الصوت، صوت المرشد روبو، اللغة، أو أعد تشغيل المهمة
+                    {tr(
+                      language,
+                      'Switch EN/AR language, profile, audio, or unlock all levels for judging',
+                      'اضبط مستوى الصوت، صوت المرشد روبو، اللغة، أو أعد تشغيل المهمة'
+                    )}
                   </p>
                 </div>
               </div>
@@ -197,8 +204,8 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                   soundManager.playClick();
                   onClose();
                 }}
-                className="p-2.5 rounded-2xl bg-slate-800/90 hover:bg-rose-600 text-slate-200 hover:text-white border-2 border-slate-600 transition-all active:scale-90"
-                aria-label="إغلاق الإعدادات"
+                className="p-2.5 rounded-2xl bg-slate-800/90 hover:bg-rose-600 text-slate-200 hover:text-white border-2 border-slate-600 transition-all active:scale-90 cursor-pointer"
+                aria-label="Close Settings / إغلاق الإعدادات"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -211,10 +218,20 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                   <div>
                     <h3 className="font-hud font-black text-sm sm:text-base text-amber-300 flex items-center gap-2">
                       <Rocket className="w-5 h-5 text-emerald-300 shrink-0" />
-                      <span>🚀 وضع لجنة التحكيم: فتح كل المراحل (21 مهمة)</span>
+                      <span>
+                        {tr(
+                          language,
+                          '🚀 Jury Demo Mode: Unlock All 4 Levels (21 Missions)',
+                          '🚀 وضع لجنة التحكيم: فتح كل المراحل (21 مهمة)'
+                        )}
+                      </span>
                     </h3>
                     <p className="text-[11px] text-slate-200 font-bold mt-1 leading-relaxed">
-                      يفتح المستويات الـ 4 وجميع الغرف (33 غرفة / 21 مهمة) مع تجهيز أدوات وعينات القمر لتجربة أي مستوى فوراً دون توقف.
+                      {tr(
+                        language,
+                        'Unlocks all 4 islands, 33 rooms, and pre-equips lunar tools & samples so judges can test any mission directly.',
+                        'يفتح المستويات الـ 4 وجميع الغرف (33 غرفة / 21 مهمة) مع تجهيز أدوات وعينات القمر لتجربة أي مستوى فوراً دون توقف.'
+                      )}
                     </p>
                   </div>
 
@@ -224,7 +241,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                     onClick={handleUnlockAllDemo}
                     className="w-full sm:w-auto px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-emerald-400 hover:brightness-110 text-slate-950 font-hud font-black text-xs sm:text-sm border-2 border-white shadow-lg active:scale-95 transition-all shrink-0 cursor-pointer"
                   >
-                    فتح كل المراحل للتجربة 🔓
+                    {tr(language, 'Unlock All Levels 🔓', 'فتح كل المراحل للتجربة 🔓')}
                   </button>
                 </div>
 
@@ -235,7 +252,9 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400 text-emerald-200 font-hud font-black text-xs"
                     >
                       <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-                      <span>✓ تم فتح جميع المستويات للتجربة</span>
+                      <span>
+                        {tr(language, '✓ All Levels Unlocked for Demo', '✓ تم فتح جميع المستويات للتجربة')}
+                      </span>
                     </span>
 
                     <button
@@ -245,7 +264,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                       className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-700 text-rose-200 hover:text-white font-hud font-bold text-[11px] border border-rose-400/50 transition-all cursor-pointer"
                     >
                       <Lock className="w-3.5 h-3.5" />
-                      <span>إعادة التقدم للمستوى 1</span>
+                      <span>{tr(language, 'Reset to Level 1', 'إعادة التقدم للمستوى 1')}</span>
                     </button>
                   </div>
                 )}
@@ -419,7 +438,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                 </button>
               </div>
 
-              {/* 3. LANGUAGE SELECTOR (ARABIC [DEFAULT] / ENGLISH) */}
+              {/* 3. LANGUAGE SELECTOR (ENGLISH DEFAULT FOR GLOBAL JUDGES / ARABIC) */}
               <div className="p-4 rounded-3xl bg-space-950/90 border-2 border-purple-400/40 shadow-inner flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 rounded-2xl bg-purple-950 border border-purple-400 text-purple-300">
@@ -427,10 +446,14 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                   </div>
                   <div>
                     <h3 className="font-hud font-black text-sm sm:text-base text-white">
-                      لغة واجهة اللعبة (Language)
+                      {tr(language, 'Language / لغة الواجهة', 'لغة واجهة اللعبة (Language)')}
                     </h3>
                     <p className="text-[11px] text-slate-300 font-bold">
-                      اختر اللغة المفضلة لعرض القوائم واتجاه الشاشة
+                      {tr(
+                        language,
+                        'Switch instantly between Global English and Arabic RTL',
+                        'اختر اللغة المفضلة لعرض القوائم واتجاه الشاشة'
+                      )}
                     </p>
                   </div>
                 </div>
@@ -438,35 +461,35 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                 <div className="flex items-center gap-2 w-full sm:w-auto bg-space-900 p-1.5 rounded-2xl border border-purple-500/40">
                   <button
                     type="button"
-                    onClick={() => handleLanguageChange('ar')}
-                    className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
-                      language === 'ar'
-                        ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    العربية (الافتراضي) 🇪🇬
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => handleLanguageChange('en')}
-                    className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
+                    className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
                       language === 'en'
                         ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-md'
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    English 🇺🇸
+                    English 🌍
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleLanguageChange('ar')}
+                    className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                      language === 'ar'
+                        ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    العربية 🇪🇬
                   </button>
                 </div>
               </div>
 
-              {/* 4. CADET PROFILE NAME */}
-              <div className="p-4 rounded-3xl bg-space-950/90 border-2 border-emerald-500/30 shadow-inner">
-                <div className="flex items-center gap-2.5 mb-2.5">
+              {/* 4. CADET PROFILE NAME & AGE GROUP */}
+              <div className="p-4 rounded-3xl bg-space-950/90 border-2 border-emerald-500/30 shadow-inner space-y-3">
+                <div className="flex items-center gap-2.5">
                   <UserCheck className="w-5 h-5 text-emerald-400" />
                   <h3 className="font-hud font-black text-sm text-white">
-                    اسم رائد الفضاء البطل
+                    {tr(language, 'Cadet Profile & Hint Complexity', 'ملف رائد الفضاء والفئة العمرية')}
                   </h3>
                 </div>
                 <div className="flex items-center gap-2">
@@ -475,16 +498,40 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                     value={cadetInput}
                     onChange={(e) => setCadetInput(e.target.value)}
                     maxLength={22}
-                    placeholder="اكتب اسمك هنا يا بطل..."
+                    placeholder={tr(language, 'Cadet Name...', 'اكتب اسمك هنا يا بطل...')}
                     className="flex-1 bg-space-900 border-2 border-space-700 focus:border-emerald-400 rounded-2xl px-3.5 py-2 text-xs sm:text-sm text-white font-bold outline-none"
                   />
                   <button
                     type="button"
                     onClick={handleSaveCadetName}
-                    className="px-4 py-2 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-space-950 font-black text-xs shadow-md active:scale-95 transition-all"
+                    className="px-4 py-2 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-space-950 font-black text-xs shadow-md active:scale-95 transition-all cursor-pointer"
                   >
-                    حفظ الاسم ✅
+                    {tr(language, 'Save ✅', 'حفظ الاسم ✅')}
                   </button>
+                </div>
+                <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+                  <span className="text-[11px] font-bold text-slate-300">
+                    {tr(language, 'Age Group (adapts hint simplicity):', 'الفئة العمرية (لتبسيط الشرح):')}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {(['7-10', '11-14', '15+'] as CadetAgeGroup[]).map((ag) => (
+                      <button
+                        key={ag}
+                        type="button"
+                        onClick={() => {
+                          soundManager.playClick();
+                          setAgeGroup(ag);
+                        }}
+                        className={`px-3 py-1 rounded-xl text-xs font-black border transition-all cursor-pointer ${
+                          ageGroup === ag
+                            ? 'bg-emerald-400 text-slate-950 border-white'
+                            : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-emerald-400'
+                        }`}
+                      >
+                        {ag}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -537,7 +584,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                       }}
                       className="w-full sm:w-auto px-4 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs border-2 border-rose-300 shadow-lg active:scale-95 transition-all shrink-0"
                     >
-                      إعادة بدء المهمة 🔄
+                      {tr(language, 'Reset Progress 🔄', 'إعادة بدء المهمة 🔄')}
                     </button>
                   ) : (
                     <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -546,14 +593,14 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                         onClick={handleFullReset}
                         className="flex-1 sm:flex-initial px-4 py-2 rounded-2xl bg-red-500 hover:bg-red-400 text-white font-black text-xs border-2 border-yellow-300 animate-pulse"
                       >
-                        تأكيد المسح والبدء! ⚠️
+                        {tr(language, 'Confirm Reset! ⚠️', 'تأكيد المسح والبدء! ⚠️')}
                       </button>
                       <button
                         type="button"
                         onClick={() => setConfirmReset(false)}
                         className="px-3 py-2 rounded-2xl bg-slate-800 text-slate-300 text-xs font-bold"
                       >
-                        إلغاء
+                        {tr(language, 'Cancel', 'إلغاء')}
                       </button>
                     </div>
                   )}
@@ -562,7 +609,13 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                 {resetNotice && (
                   <div className="mt-3 p-2.5 rounded-2xl bg-emerald-950 border border-emerald-400 text-emerald-300 text-xs font-black flex items-center justify-center gap-2">
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>تم مسح الذاكرة وإعادة اللعبة للمستوى الأول بنجاح!</span>
+                    <span>
+                      {tr(
+                        language,
+                        'Progress cleared and reset to Level 1!',
+                        'تم مسح الذاكرة وإعادة اللعبة للمستوى الأول بنجاح!'
+                      )}
+                    </span>
                   </div>
                 )}
               </div>
@@ -576,9 +629,9 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                   soundManager.playClick();
                   onClose();
                 }}
-                className="w-full sm:w-auto px-8 py-3 rounded-2xl bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-500 text-space-950 font-hud font-black text-sm shadow-xl shadow-cyan-500/30 border-2 border-cyan-100 active:scale-95 transition-all"
+                className="w-full sm:w-auto px-8 py-3 rounded-2xl bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-500 text-space-950 font-hud font-black text-sm shadow-xl shadow-cyan-500/30 border-2 border-cyan-100 active:scale-95 transition-all cursor-pointer"
               >
-                حفظ والعودة للمهمة 🚀
+                {tr(language, 'Save & Return to Mission 🚀', 'حفظ والعودة للمهمة 🚀')}
               </button>
             </div>
           </motion.div>

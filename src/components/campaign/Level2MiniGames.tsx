@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { CampaignProgressState, MiniGameId } from '../../types/game';
+import { useGameState } from '../../context/GameContext';
+import { tr } from '../../utils/i18n';
 import { HydrationGame } from '../minigames/HydrationGame';
 import { nasaCache } from '../../services/nasa/nasaCache';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { NASA_OSDR_METRICS } from '../../services/nasa/nasaOSDR';
 import { DAILY_REFERENCE_ASSUMPTIONS, SCIENCE_BADGES } from '../../data/science';
-import { CheckCircle2, Hand, Radar, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { BodyTelemetryMeters } from './BodyTelemetryMeters';
+import { ArrowDown, ArrowUp, CheckCircle2, Hand, Radar, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 interface Level2Props {
   miniGameId: MiniGameId;
@@ -18,18 +21,38 @@ interface Level2Props {
 }
 
 const FLOATING_ITEMS = [
-  { id: 'food_packages', nameAr: 'عبوات الطعام الفضائي', icon: '🍱', lockerAr: 'خزانة المطبخ 1' },
-  { id: 'water_pouches', nameAr: 'أكياس الماء المختومة', icon: '💧', lockerAr: 'خزانة الترطيب 2' },
-  { id: 'screwdriver', nameAr: 'مفك الصيانة المغناطيسي', icon: '🪛', lockerAr: 'خزانة الأدوات 3' },
-  { id: 'medical_kit', nameAr: 'حقيبة الإسعاف الطائر', icon: '🩹', lockerAr: 'العيادة الطبية 4' },
-  { id: 'scientific_instrument', nameAr: 'جهاز القياس العلمي', icon: '🔬', lockerAr: 'خزانة الأبحاث 5' }
+  { id: 'food_packages', nameEn: 'Space Meal Pouches', nameAr: 'عبوات الطعام الفضائي', icon: '🍱', lockerEn: 'Galley Locker 1', lockerAr: 'خزانة المطبخ 1' },
+  { id: 'water_pouches', nameEn: 'Sealed Water Pouches', nameAr: 'أكياس الماء المختومة', icon: '💧', lockerEn: 'Hydration Bay 2', lockerAr: 'خزانة الترطيب 2' },
+  { id: 'screwdriver', nameEn: 'Magnetic Screwdriver', nameAr: 'مفك الصيانة المغناطيسي', icon: '🪛', lockerEn: 'Toolbox Locker 3', lockerAr: 'خزانة الأدوات 3' },
+  { id: 'medical_kit', nameEn: 'Floating First-Aid Kit', nameAr: 'حقيبة الإسعاف الطائر', icon: '🩹', lockerEn: 'Med Bay Locker 4', lockerAr: 'العيادة الطبية 4' },
+  { id: 'scientific_instrument', nameEn: 'Science Sensor Unit', nameAr: 'جهاز القياس العلمي', icon: '🔬', lockerEn: 'Research Bay 5', lockerAr: 'خزانة الأبحاث 5' }
 ];
 
 const MEAL_GROUPS = [
-  { id: 'protein', labelAr: '🧀 المش المصري بالملح الصخري أو الدجاج (بروتين وكالسيوم)', color: 'indigo' },
-  { id: 'carbs', labelAr: '🍯 العسل الجبلي السيناوي + 🌴 العجوة المضغوطة (طاقة وكربوهيدرات بدون فتات)', color: 'amber' },
-  { id: 'fats', labelAr: '🫒 زيت الزيتون السيناوي + طحينة السمسم (دهون صحية وأوميغا)', color: 'emerald' },
-  { id: 'vitamins', labelAr: '🥬 الكابوتشا والجرجير واللفت المائي + توابل سيناوية (فيتامينات وألياف)', color: 'pink' }
+  {
+    id: 'protein',
+    labelEn: '🧀 Egyptian Mish Pouch or Chicken (Protein & Calcium)',
+    labelAr: '🧀 المش المصري بالملح الصخري أو الدجاج (بروتين وكالسيوم)',
+    color: 'indigo'
+  },
+  {
+    id: 'carbs',
+    labelEn: '🍯 Sinai Honey + 🌴 Date Bars (Zero-Crumb Carbs & Energy)',
+    labelAr: '🍯 العسل الجبلي السيناوي + 🌴 العجوة المضغوطة (طاقة وكربوهيدرات بدون فتات)',
+    color: 'amber'
+  },
+  {
+    id: 'fats',
+    labelEn: '🫒 Sinai Olive Oil + Sesame Tahini (Healthy Omega Fats)',
+    labelAr: '🫒 زيت الزيتون السيناوي + طحينة السمسم (دهون صحية وأوميغا)',
+    color: 'emerald'
+  },
+  {
+    id: 'vitamins',
+    labelEn: '🥬 Hydroponic Lettuce, Arugula & Herbs (Vitamins & Fiber)',
+    labelAr: '🥬 الكابوتشا والجرجير واللفت المائي + توابل سيناوية (فيتامينات وألياف)',
+    color: 'pink'
+  }
 ];
 
 export const Level2MiniGames: React.FC<Level2Props> = ({
@@ -39,6 +62,8 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
   onNextLevel,
   onBackToLevel
 }) => {
+  const { language } = useGameState();
+
   // 2.1 Zero-G Handrail Momentum
   const [roboX, setRoboX] = useState<number>(8); // 0..92 %
   const [velX, setVelX] = useState<number>(0);
@@ -61,12 +86,19 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
   const [restedCrew, setRestedCrew] = useState<boolean>(campaign.l2MotionRested);
   const [medSupportSent, setMedSupportSent] = useState<boolean>(campaign.l2MotionRested);
 
-  // 2.6 Final Systems & NeoWs Radar
+  // 2.6 Final Systems & Live 3-Lane NASA NeoWs Asteroid Dodge
   const [sysChecks, setSysChecks] = useState<string[]>(
     campaign.completedMiniGames.includes('l2_systems_neows')
       ? ['oxygen', 'water', 'power', 'comms', 'navigation']
       : []
   );
+  const [shuttleLane, setShuttleLane] = useState<0 | 1 | 2>(1);
+  const [rockLane, setRockLane] = useState<0 | 1 | 2>(1);
+  const [rockX, setRockX] = useState<number>(88);
+  const [dodgesCleared, setDodgesCleared] = useState<number>(
+    campaign.completedMiniGames.includes('l2_systems_neows') ? 2 : 0
+  );
+  const [radarToast, setRadarToast] = useState<string | null>(null);
   const [arrivalConfirmed, setArrivalConfirmed] = useState<boolean>(
     campaign.completedMiniGames.includes('l2_systems_neows')
   );
@@ -82,12 +114,24 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
           if (Math.abs(velX) <= 1.2) {
             setHandrailWon(true);
             soundManager.playFanfare();
-            void dialogueManager.speak('عاش يا بطل! وصلت لنهاية الممر باستخدام الدرابزين بأمان في انعدام الجاذبية!');
+            void dialogueManager.speak(
+              tr(
+                language,
+                'Awesome! You reached the airlock safely using the handrail brake in zero gravity!',
+                'عاش يا بطل! وصلت لنهاية الممر باستخدام الدرابزين بأمان في انعدام الجاذبية!'
+              )
+            );
             onCompleteMiniGame('l2_zerog_movement');
             return 88;
           } else {
             soundManager.playAlertSiren();
-            setBumpWarning('أوه! سرعتك عالية جداً عند الوصول! استخدم فرملة الدرابزين قبل فتحة القفل!');
+            setBumpWarning(
+              tr(
+                language,
+                'Whoa! Too fast for safe docking — grab the handrail brake before hitting the hatch!',
+                'أوه! سرعتك عالية جداً عند الوصول! استخدم فرملة الدرابزين قبل فتحة القفل!'
+              )
+            );
             setVelX(-0.6);
             return 80;
           }
@@ -100,26 +144,63 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
       });
     }, 60);
     return () => window.clearInterval(timer);
-  }, [miniGameId, velX, handrailWon, onCompleteMiniGame]);
+  }, [miniGameId, velX, handrailWon, onCompleteMiniGame, language]);
+
+  // Live 3-lane NeoWs Asteroid Dodge loop for 2.6
+  useEffect(() => {
+    if (miniGameId !== 'l2_systems_neows' || dodgesCleared >= 2) return;
+    const timer = window.setInterval(() => {
+      setRockX((prev) => {
+        const next = prev - 4;
+        if (next <= 16) {
+          if (rockLane === shuttleLane) {
+            soundManager.playCautionBeep();
+            setRadarToast(
+              tr(
+                language,
+                '⚠️ Micrometeoroid graze! Move shuttle to a clear lane!',
+                '⚠️ اقتربت صخرة 2010 PK! حرك المكوك لمسار آمن!'
+              )
+            );
+          } else {
+            soundManager.playCrystalSparkle();
+            setDodgesCleared((c) => c + 1);
+            setRadarToast(
+              tr(
+                language,
+                '✅ Clean evasion pass! Radar vector safe.',
+                '✅ تفادٍ ناجح للصخرة! المسار آمن!'
+              )
+            );
+          }
+          setRockLane((old) => (((old + 1) % 3) as 0 | 1 | 2));
+          return 92;
+        }
+        return next;
+      });
+    }, 110);
+    return () => window.clearInterval(timer);
+  }, [miniGameId, dodgesCleared, rockLane, shuttleLane, language]);
 
   // 2.1 ZERO-G MOVEMENT CHALLENGE
   if (miniGameId === 'l2_zerog_movement') {
     return (
       <div className="bg-slate-900/95 border-2 border-cyan-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
         <p className="font-hud font-bold text-sm text-cyan-200">
-          في الفضاء لا يوجد احتكاك! ادفع نفسك برفق ثم امسك الدرابزين لتخفيف السرعة عند الوصول للمخرج (الهدف: ≤ 1.2 م/ث):
+          {tr(
+            language,
+            'Zero air friction in 0G! Push forward gently, then grab the yellow handrail brake to dock slowly (≤ 1.2 m/s):',
+            'في الفضاء لا يوجد احتكاك! ادفع نفسك برفق ثم امسك الدرابزين لتخفيف السرعة عند الوصول للمخرج (الهدف: ≤ 1.2 م/ث):'
+          )}
         </p>
 
         <div className="relative h-40 rounded-2xl bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 border-2 border-indigo-400/70 overflow-hidden px-4 flex items-center">
-          {/* Handrail Top & Bottom Bars */}
           <div className="absolute top-3 inset-x-4 h-2.5 rounded-full bg-amber-400/80 border border-white/50" />
           <div className="absolute bottom-3 inset-x-4 h-2.5 rounded-full bg-amber-400/80 border border-white/50" />
-          {/* Goal Airlock */}
           <div className="absolute left-3 top-6 bottom-6 w-12 rounded-xl bg-emerald-500/25 border-2 border-emerald-400 flex flex-col items-center justify-center text-xs font-hud font-black text-emerald-300">
             <span>🚪</span>
-            <span>هدف</span>
+            <span>{tr(language, 'GOAL', 'هدف')}</span>
           </div>
-          {/* Floating Robo */}
           <div
             style={{ right: `${roboX}%` }}
             className="absolute top-1/2 -translate-y-1/2 text-4xl transition-all duration-75"
@@ -130,7 +211,7 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
 
         <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-950/90 rounded-2xl p-3 border border-slate-700">
           <span className="font-mono font-bold text-sm text-amber-300">
-            سرعة القصور الذاتي: {velX.toFixed(1)} m/s
+            {tr(language, `Inertia Drift: ${velX.toFixed(1)} m/s`, `سرعة القصور الذاتي: ${velX.toFixed(1)} m/s`)}
           </span>
           <div className="flex flex-wrap gap-2">
             <button
@@ -142,7 +223,7 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
               }}
               className="px-4 py-2 rounded-xl bg-cyan-500 text-slate-950 font-hud font-black text-sm cursor-pointer"
             >
-              ادفع للأمام باليد 🚀
+              {tr(language, 'Push Forward 🚀', 'ادفع للأمام باليد 🚀')}
             </button>
             <button
               type="button"
@@ -153,7 +234,7 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
               className="px-4 py-2 rounded-xl bg-amber-400 text-slate-950 font-hud font-black text-sm flex items-center gap-1.5 cursor-pointer"
             >
               <Hand className="w-4 h-4" />
-              <span>امسك الدرابزين (تهدئة)</span>
+              <span>{tr(language, 'Grab Handrail (Brake)', 'امسك الدرابزين (تهدئة)')}</span>
             </button>
           </div>
         </div>
@@ -181,7 +262,13 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
         setSelectedFloating(null);
         if (next.length >= FLOATING_ITEMS.length) {
           soundManager.playFanfare();
-          void dialogueManager.speak('ممتاز! ثبتّ كل الأدوات الطافية الخمسة في خزانتها بأمان!');
+          void dialogueManager.speak(
+            tr(
+              language,
+              'All 5 floating items stowed cleanly into velcro lockers!',
+              'ممتاز! ثبتّ كل الأدوات الطافية الخمسة في خزانتها بأمان!'
+            )
+          );
           onCompleteMiniGame('l2_secure_objects', { l2SecuredObjects: next });
         }
       } else {
@@ -192,14 +279,17 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
     return (
       <div className="bg-slate-900/95 border-2 border-indigo-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
         <p className="font-hud font-bold text-sm text-indigo-200">
-          اضغط على الغرض الطافي ثم اضغط على خزانته الصحيحة ({stowed.length}/{FLOATING_ITEMS.length} مثبّت):
+          {tr(
+            language,
+            `Tap a floating object, then tap its matching velcro locker (${stowed.length}/${FLOATING_ITEMS.length} stowed):`,
+            `اضغط على الغرض الطافي ثم اضغط على خزانته الصحيحة (${stowed.length}/${FLOATING_ITEMS.length} مثبّت):`
+          )}
         </p>
 
-        {/* Floating Pool */}
         <div className="flex flex-wrap gap-3 p-4 rounded-2xl bg-slate-950 border border-indigo-500/40 min-h-[96px]">
           {remaining.length === 0 ? (
             <span className="font-hud font-black text-emerald-300 m-auto">
-              تم تثبيت جميع الأغراض الخمسة بنجاح! ✅
+              {tr(language, 'All 5 zero-G items stowed safely! ✅', 'تم تثبيت جميع الأغراض الخمسة بنجاح! ✅')}
             </span>
           ) : (
             remaining.map((item) => (
@@ -217,23 +307,25 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
                 }`}
               >
                 <span className="text-xl">{item.icon}</span>
-                <span>{item.nameAr}</span>
+                <span>{tr(language, item.nameEn, item.nameAr)}</span>
               </button>
             ))
           )}
         </div>
 
-        {/* Matching Lockers */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           {FLOATING_ITEMS.map((item) => {
             const done = stowed.includes(item.id);
+            const itemName = tr(language, item.nameEn, item.nameAr);
             return (
               <button
                 key={item.id}
                 type="button"
                 disabled={done}
                 onClick={() => matchToLocker(item.id)}
-                className={`p-3.5 rounded-2xl border-2 text-right transition-all ${
+                className={`p-3.5 rounded-2xl border-2 transition-all ${
+                  language === 'ar' ? 'text-right' : 'text-left'
+                } ${
                   done
                     ? 'bg-emerald-950 border-emerald-400 text-emerald-200'
                     : selectedFloating
@@ -241,9 +333,11 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
                     : 'bg-slate-800/80 border-slate-600 text-slate-300'
                 }`}
               >
-                <p className="font-hud font-black text-sm">{item.lockerAr}</p>
+                <p className="font-hud font-black text-sm">{tr(language, item.lockerEn, item.lockerAr)}</p>
                 <p className="font-hud text-xs text-cyan-200 mt-1">
-                  {done ? `✅ مثبّت: ${item.icon} ${item.nameAr}` : `المكان المخصص لـ: ${item.icon} ${item.nameAr}`}
+                  {done
+                    ? `${tr(language, '✅ Stowed:', '✅ مثبّت:')} ${item.icon} ${itemName}`
+                    : `${tr(language, 'Slot for:', 'المكان المخصص لـ:')} ${item.icon} ${itemName}`}
                 </p>
               </button>
             );
@@ -265,15 +359,36 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
       <div className="bg-slate-900/95 border-2 border-emerald-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="font-hud font-bold text-sm text-emerald-200">
-            كوّن صينية طعام متكاملة في 0G من المطبخ المصري والسيناوي والزراعة المائية ({trayGroups.length}/4):
+            {tr(
+              language,
+              `Assemble a balanced 0G meal tray from Egyptian, Sinai & hydroponic foods (${trayGroups.length}/4):`,
+              `كوّن صينية طعام متكاملة في 0G من المطبخ المصري والسيناوي والزراعة المائية (${trayGroups.length}/4):`
+            )}
           </p>
           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-950 border border-amber-400 text-amber-200">
-            {SCIENCE_BADGES.GAME_RULE.labelAr}
+            {tr(language, SCIENCE_BADGES.GAME_RULE.labelEn, SCIENCE_BADGES.GAME_RULE.labelAr)}
           </span>
         </div>
+
+        <BodyTelemetryMeters
+          language={language}
+          titleEn="Microgravity Body Nutrition Telemetry"
+          titleAr="مؤشر تغذية الجسم في المدار"
+          metrics={[
+            { key: 'bone', value: Math.min(100, 52 + trayGroups.length * 12) },
+            { key: 'muscle', value: Math.min(100, 50 + trayGroups.length * 12) }
+          ]}
+        />
+
         <div className="p-3 rounded-2xl bg-sky-950/60 border border-sky-400/40 text-xs text-sky-100">
-          📐 <strong>{SCIENCE_BADGES.PLANNING_ASSUMPTION.labelAr}:</strong> لرائد 70 كجم/يوم = {DAILY_REFERENCE_ASSUMPTIONS.energyKcal} kcal • {DAILY_REFERENCE_ASSUMPTIONS.proteinGrams}g بروتين • {DAILY_REFERENCE_ASSUMPTIONS.carbsGrams}g كربوهيدرات • {DAILY_REFERENCE_ASSUMPTIONS.fatsGrams}g دهون • {DAILY_REFERENCE_ASSUMPTIONS.fiberGramsRange} ألياف (الزراعة المائية مكملة فقط).
+          📐 <strong>{tr(language, SCIENCE_BADGES.PLANNING_ASSUMPTION.labelEn, SCIENCE_BADGES.PLANNING_ASSUMPTION.labelAr)}:</strong>{' '}
+          {tr(
+            language,
+            `70 kg crew/day = ${DAILY_REFERENCE_ASSUMPTIONS.energyKcal} kcal • ${DAILY_REFERENCE_ASSUMPTIONS.proteinGrams}g protein • ${DAILY_REFERENCE_ASSUMPTIONS.carbsGrams}g carbs • ${DAILY_REFERENCE_ASSUMPTIONS.fatsGrams}g fat.`,
+            `لرائد 70 كجم/يوم = ${DAILY_REFERENCE_ASSUMPTIONS.energyKcal} kcal • ${DAILY_REFERENCE_ASSUMPTIONS.proteinGrams}g بروتين • ${DAILY_REFERENCE_ASSUMPTIONS.carbsGrams}g كربوهيدرات • ${DAILY_REFERENCE_ASSUMPTIONS.fatsGrams}g دهون • ${DAILY_REFERENCE_ASSUMPTIONS.fiberGramsRange} ألياف.`
+          )}
         </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {MEAL_GROUPS.map((g) => {
             const active = trayGroups.includes(g.id);
@@ -282,14 +397,16 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
                 key={g.id}
                 type="button"
                 onClick={() => toggleGroup(g.id)}
-                className={`p-4 rounded-2xl border-2 text-right font-hud font-black text-sm cursor-pointer transition-all ${
+                className={`p-4 rounded-2xl border-2 font-hud font-black text-sm cursor-pointer transition-all ${
+                  language === 'ar' ? 'text-right' : 'text-left'
+                } ${
                   active
                     ? 'bg-emerald-950 border-emerald-400 text-white'
                     : 'bg-slate-800 border-slate-600 text-slate-200 hover:border-cyan-400'
                 }`}
               >
                 {active ? '✅ ' : '⬜ '}
-                {g.labelAr}
+                {tr(language, g.labelEn, g.labelAr)}
               </button>
             );
           })}
@@ -300,7 +417,13 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
           disabled={!balanced}
           onClick={() => {
             soundManager.playFanfare();
-            void dialogueManager.speak('وجبة فضائية متوازنة مية في المية! هتدينا طاقة وبروتين في الرحلة!');
+            void dialogueManager.speak(
+              tr(
+                language,
+                'Balanced space meal locked in! Fueling muscles and bones in orbit!',
+                'وجبة فضائية متوازنة مية في المية! هتدينا طاقة وبروتين في الرحلة!'
+              )
+            );
             onCompleteMiniGame('l2_balanced_meal');
           }}
           className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 ${
@@ -309,7 +432,7 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
               : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
           }`}
         >
-          تأكيد الوجبة المتوازنة 🍱
+          {tr(language, 'Confirm Balanced Space Meal 🍱', 'تأكيد الوجبة المتوازنة 🍱')}
         </button>
       </div>
     );
@@ -333,8 +456,23 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
 
     return (
       <div className="bg-slate-900/95 border-2 border-pink-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
+        <BodyTelemetryMeters
+          language={language}
+          titleEn="Vestibular & Fluid Shift Telemetry"
+          titleAr="توازن السوائل والأذن الداخلية"
+          metrics={[
+            { key: 'hydration', value: restedCrew ? 94 : 64 },
+            { key: 'muscle', value: medSupportSent ? 92 : 68 }
+          ]}
+        />
+
         <div className="p-3 rounded-2xl bg-sky-950/70 border border-cyan-400/50 text-xs font-hud text-cyan-100">
-          🧬 <strong>{osdrFluid.osdrCode}:</strong> {osdrFluid.findingAr}
+          🧬 <strong>{osdrFluid.osdrCode}:</strong>{' '}
+          {tr(
+            language,
+            'Cephalad fluid shift triggers space motion sickness during the first 48–72 hours of 0G.',
+            osdrFluid.findingAr
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -344,13 +482,17 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
               soundManager.playClick();
               setDiagnosisPicked(true);
             }}
-            className={`p-4 rounded-2xl border-2 text-right cursor-pointer ${
-              diagnosisPicked ? 'bg-emerald-950 border-emerald-400' : 'bg-slate-800 border-pink-400/70'
-            }`}
+            className={`p-4 rounded-2xl border-2 cursor-pointer ${
+              language === 'ar' ? 'text-right' : 'text-left'
+            } ${diagnosisPicked ? 'bg-emerald-950 border-emerald-400' : 'bg-slate-800 border-pink-400/70'}`}
           >
-            <p className="font-hud font-black text-base text-white">1. تشخيص الأعراض</p>
+            <p className="font-hud font-black text-base text-white">
+              {tr(language, '1. Diagnose Symptoms', '1. تشخيص الأعراض')}
+            </p>
             <p className="font-hud text-xs text-slate-200 mt-1">
-              {diagnosisPicked ? '✅ دوار التكيف مع انعدام الجاذبية + إرهاق' : 'حدد سبب الدوخة والإرهاق في 0G'}
+              {diagnosisPicked
+                ? tr(language, '✅ Zero-G vestibular adaptation + fatigue', '✅ دوار التكيف مع انعدام الجاذبية + إرهاق')
+                : tr(language, 'Identify cause of dizziness in 0G', 'حدد سبب الدوخة والإرهاق في 0G')}
             </p>
           </button>
 
@@ -361,7 +503,9 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
               soundManager.playCrystalSparkle();
               setRestedCrew(true);
             }}
-            className={`p-4 rounded-2xl border-2 text-right ${
+            className={`p-4 rounded-2xl border-2 ${
+              language === 'ar' ? 'text-right' : 'text-left'
+            } ${
               restedCrew
                 ? 'bg-emerald-950 border-emerald-400'
                 : diagnosisPicked
@@ -369,9 +513,13 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
                 : 'bg-slate-900 border-slate-700 opacity-60'
             }`}
           >
-            <p className="font-hud font-black text-base text-white">2. الراحة في Crew Quarters</p>
+            <p className="font-hud font-black text-base text-white">
+              {tr(language, '2. Rest in Crew Quarters', '2. الراحة في Crew Quarters')}
+            </p>
             <p className="font-hud text-xs text-slate-200 mt-1">
-              {restedCrew ? '✅ استراح الطاقم وثبّت حزام النوم + شرب ماء' : 'ثبّت كيس النوم واسترح لتوازن الأذن الداخلية'}
+              {restedCrew
+                ? tr(language, '✅ Secured sleep bag + hydrated', '✅ استراح الطاقم وثبّت حزام النوم + شرب ماء')
+                : tr(language, 'Zip into sleep bag & hydrate calmly', 'ثبّت كيس النوم واسترح لتوازن الأذن الداخلية')}
             </p>
           </button>
 
@@ -381,10 +529,18 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
             onClick={() => {
               soundManager.playFanfare();
               setMedSupportSent(true);
-              void dialogueManager.speak('تم استقرار حالة الدوار والطاقم بصحة ممتازة للهبوط على القمر!');
+              void dialogueManager.speak(
+                tr(
+                  language,
+                  'Motion sickness stabilized! Crew ready for lunar orbit!',
+                  'تم استقرار حالة الدوار والطاقم بصحة ممتازة للهبوط على القمر!'
+                )
+              );
               onCompleteMiniGame('l2_motion_sickness', { l2MotionRested: true });
             }}
-            className={`p-4 rounded-2xl border-2 text-right ${
+            className={`p-4 rounded-2xl border-2 ${
+              language === 'ar' ? 'text-right' : 'text-left'
+            } ${
               medSupportSent
                 ? 'bg-emerald-950 border-emerald-400'
                 : restedCrew
@@ -392,31 +548,40 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
                 : 'bg-slate-900 border-slate-700 opacity-60'
             }`}
           >
-            <p className="font-hud font-black text-base text-white">3. اتصال الدعم الطبي</p>
+            <p className="font-hud font-black text-base text-white">
+              {tr(language, '3. Telemetry to Flight Surgeon', '3. اتصال الدعم الطبي')}
+            </p>
             <p className="font-hud text-xs text-slate-200 mt-1">
-              {medSupportSent ? '✅ تم إبلاغ طبيب الرحلة وتأكيد التعافي' : 'أرسل التقرير لغرفة الطب الأرضي'}
+              {medSupportSent
+                ? tr(language, '✅ Flight surgeon notified & cleared', '✅ تم إبلاغ طبيب الرحلة وتأكيد التعافي')
+                : tr(language, 'Send recovery report to Earth med team', 'أرسل التقرير لغرفة الطب الأرضي')}
             </p>
           </button>
         </div>
 
         {allDone && (
           <div className="p-3 rounded-2xl bg-emerald-950/70 border border-emerald-400 text-emerald-200 font-hud font-black text-sm text-center">
-            ✅ تعافى الطاقم تماماً من دوار انعدام الجاذبية!
+            {tr(language, '✅ Crew fully recovered from Zero-G motion sickness!', '✅ تعافى الطاقم تماماً من دوار انعدام الجاذبية!')}
           </div>
         )}
       </div>
     );
   }
 
-  // 2.6 FINAL SYSTEMS CHECK & NASA NEOWS RADAR -> LUNAR ARRIVAL CONFIRMED!
+  // 2.6 FINAL SYSTEMS CHECK & LIVE NASA NEOWS 3-LANE ASTEROID DODGE
   const systems = [
-    { id: 'oxygen', labelAr: 'الأكسجين (O2 Pressure 14.7 PSI)' },
-    { id: 'water', labelAr: 'خزانات المياه النقية (100%)' },
-    { id: 'power', labelAr: 'الطاقة الكهربائية والخلايا الشمسية' },
-    { id: 'comms', labelAr: 'شبكة الاتصالات بالمدار القمري' },
-    { id: 'navigation', labelAr: `تتبع رادار ناسا NeoWs لكويكب ${asteroid2010PK.name}` }
+    { id: 'oxygen', labelEn: 'Oxygen Tanks (14.7 PSI)', labelAr: 'الأكسجين (O2 Pressure 14.7 PSI)' },
+    { id: 'water', labelEn: 'Potable Water Tanks (100%)', labelAr: 'خزانات المياه النقية (100%)' },
+    { id: 'power', labelEn: 'Solar Array & Power Bus', labelAr: 'الطاقة الكهربائية والخلايا الشمسية' },
+    { id: 'comms', labelEn: 'Lunar Orbit Comms Relay', labelAr: 'شبكة الاتصالات بالمدار القمري' },
+    {
+      id: 'navigation',
+      labelEn: `NASA NeoWs Tracking: Asteroid ${asteroid2010PK.name}`,
+      labelAr: `تتبع رادار ناسا NeoWs لكويكب ${asteroid2010PK.name}`
+    }
   ];
   const allSysChecked = sysChecks.length >= systems.length;
+  const readyForMoon = allSysChecked && dodgesCleared >= 2;
 
   return (
     <div className="bg-slate-900/95 border-2 border-amber-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
@@ -424,11 +589,92 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
         <div>
           <p className="font-hud font-black text-sm text-amber-300 flex items-center gap-1.5">
             <Radar className="w-4 h-4 text-cyan-400" />
-            <span>رادار NASA NeoWs الحي (بيانات ناسا المحفوظة محلياً):</span>
+            <span>{tr(language, 'Live NASA NeoWs Asteroid Corridor Radar:', 'رادار NASA NeoWs الحي (بيانات ناسا المحفوظة محلياً):')}</span>
           </p>
           <p className="font-hud text-xs sm:text-sm text-cyan-100 mt-1">
-            الكويكب {asteroid2010PK.name} • السرعة: {asteroid2010PK.relativeVelocityKmS.toFixed(1)} كم/ث • مسافة المرور الآمنة: {asteroid2010PK.missDistanceLunar.toFixed(1)} ضعف مسافة القمر (آمن 100%).
+            {tr(
+              language,
+              `Object ${asteroid2010PK.name} • Velocity: ${asteroid2010PK.relativeVelocityKmS.toFixed(1)} km/s • Safe Miss Distance: ${asteroid2010PK.missDistanceLunar.toFixed(1)} LD (Safe 100%).`,
+              `الكويكب ${asteroid2010PK.name} • السرعة: ${asteroid2010PK.relativeVelocityKmS.toFixed(1)} كم/ث • مسافة المرور الآمنة: ${asteroid2010PK.missDistanceLunar.toFixed(1)} ضعف مسافة القمر (آمن 100%).`
+            )}
           </p>
+        </div>
+      </div>
+
+      {/* Interactive 3-Lane NeoWs Asteroid Evasion Radar */}
+      <div
+        data-testid="neows-dodge-radar"
+        className="rounded-2xl bg-slate-950 border-2 border-indigo-400/60 p-3.5 space-y-2.5"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-hud font-black">
+          <span className="text-cyan-200">
+            ☄️ {tr(language, 'NeoWs Trajectory Evasion', 'تفادي صخور المدار القمري')}
+          </span>
+          <span className={dodgesCleared >= 2 ? 'text-emerald-300' : 'text-amber-300'}>
+            {dodgesCleared >= 2
+              ? tr(language, 'Corridor Clear! ✅ (2/2)', 'تم تأمين الممر! ✅ (2/2)')
+              : tr(language, `Dodge 2 Rocks: ${dodgesCleared}/2`, `تفادَ صخرتين: ${dodgesCleared}/2`)}
+          </span>
+        </div>
+
+        <div className="space-y-1.5">
+          {[0, 1, 2].map((laneIdx) => (
+            <button
+              key={laneIdx}
+              type="button"
+              onClick={() => {
+                soundManager.playClick();
+                setShuttleLane(laneIdx as 0 | 1 | 2);
+              }}
+              className={`relative w-full h-10 rounded-xl border flex items-center px-3 overflow-hidden cursor-pointer transition-colors ${
+                shuttleLane === laneIdx
+                  ? 'bg-cyan-950/75 border-cyan-400'
+                  : 'bg-slate-900/80 border-slate-700 hover:border-slate-500'
+              }`}
+            >
+              {shuttleLane === laneIdx && (
+                <span className="text-xl z-10 select-none">🛸</span>
+              )}
+              {rockLane === laneIdx && dodgesCleared < 2 && (
+                <span
+                  style={{ left: `${rockX}%` }}
+                  className="absolute text-xl select-none transition-all duration-100"
+                >
+                  🪨
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              data-testid="neows-lane-up"
+              onClick={() => {
+                soundManager.playClick();
+                setShuttleLane((l) => (Math.max(0, l - 1) as 0 | 1 | 2));
+              }}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-cyan-700 text-white font-hud font-black text-xs border border-cyan-400/50 flex items-center gap-1 cursor-pointer"
+            >
+              <ArrowUp className="w-3.5 h-3.5" />
+              <span>{tr(language, 'Up', 'أعلى')}</span>
+            </button>
+            <button
+              type="button"
+              data-testid="neows-lane-down"
+              onClick={() => {
+                soundManager.playClick();
+                setShuttleLane((l) => (Math.min(2, l + 1) as 0 | 1 | 2));
+              }}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-cyan-700 text-white font-hud font-black text-xs border border-cyan-400/50 flex items-center gap-1 cursor-pointer"
+            >
+              <ArrowDown className="w-3.5 h-3.5" />
+              <span>{tr(language, 'Down', 'أسفل')}</span>
+            </button>
+          </div>
+          {radarToast && <span className="text-xs font-bold text-amber-200">{radarToast}</span>}
         </div>
       </div>
 
@@ -447,8 +693,14 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
                 ok ? 'bg-emerald-950 border-emerald-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-200'
               }`}
             >
-              <span className="font-hud font-bold text-xs sm:text-sm">{s.labelAr}</span>
-              {ok ? <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" /> : <span className="text-xs text-amber-300">فحص ⬅</span>}
+              <span className="font-hud font-bold text-xs sm:text-sm">
+                {tr(language, s.labelEn, s.labelAr)}
+              </span>
+              {ok ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+              ) : (
+                <span className="text-xs text-amber-300">{tr(language, 'Verify', 'فحص')}</span>
+              )}
             </button>
           );
         })}
@@ -460,7 +712,11 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
             LUNAR ARRIVAL CONFIRMED!
           </p>
           <p className="font-hud font-black text-base text-white">
-            تم تأكيد الوصول إلى قاعدة القمر أرتميس! فُتح المستوى الثالث 🌕
+            {tr(
+              language,
+              'Artemis Lunar Base reached! Level 3 Unlocked 🌕',
+              'تم تأكيد الوصول إلى قاعدة القمر أرتميس! فُتح المستوى الثالث 🌕'
+            )}
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <button
@@ -469,36 +725,46 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
               data-testid="mission-next-level-btn"
               className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-300 via-yellow-300 to-orange-400 text-slate-950 font-hud font-black text-base border-2 border-white shadow-[0_0_26px_rgba(251,191,36,0.75)] cursor-pointer hover:scale-105 transition-transform animate-pulse"
             >
-              المهمة اكتملت! انطلق للمرحلة التالية 🚀
+              {tr(language, 'Mission Complete! Land on the Moon 🚀', 'المهمة اكتملت! انطلق للمرحلة التالية 🚀')}
             </button>
             <button
               type="button"
               onClick={onBackToLevel}
               className="px-5 py-3 rounded-2xl bg-slate-800 text-white font-hud font-bold text-sm border border-cyan-400 cursor-pointer"
             >
-              العودة للخريطة
+              {tr(language, 'Back to Station Map', 'العودة للخريطة')}
             </button>
           </div>
         </div>
       ) : (
         <button
           type="button"
-          disabled={!allSysChecked}
+          disabled={!readyForMoon}
           onClick={() => {
             setArrivalConfirmed(true);
             soundManager.playFanfare();
             confetti({ particleCount: 140, spread: 90 });
-            void dialogueManager.speak('مبروووك! تم تأكيد الوصول إلى القمر! استعد لمهمات قاعدة أرتميس!');
+            void dialogueManager.speak(
+              tr(
+                language,
+                'Touchdown! Welcome to Artemis Lunar Base on the Moon!',
+                'مبروووك! تم تأكيد الوصول إلى القمر! استعد لمهمات قاعدة أرتميس!'
+              )
+            );
             onCompleteMiniGame('l2_systems_neows');
           }}
           className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 flex items-center justify-center gap-2 ${
-            allSysChecked
+            readyForMoon
               ? 'bg-gradient-to-r from-indigo-400 to-amber-400 text-slate-950 border-white cursor-pointer'
               : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
           }`}
         >
           <ShieldCheck className="w-5 h-5" />
-          <span>تأكيد جميع الأنظمة والهبوط على القمر 🌕</span>
+          <span>
+            {readyForMoon
+              ? tr(language, 'Confirm All Systems & Land on the Moon 🌕', 'تأكيد جميع الأنظمة والهبوط على القمر 🌕')
+              : tr(language, 'Verify 5 systems & dodge 2 radar rocks to land 🔒', 'افحص الـ 5 أنظمة وتفادَ صخرتين للهبوط 🔒')}
+          </span>
         </button>
       )}
     </div>

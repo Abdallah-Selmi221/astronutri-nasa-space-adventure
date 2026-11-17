@@ -14,7 +14,9 @@ import {
   CampaignLevelId,
   CampaignViewMode,
   MiniGameId,
-  SpaceFitXState
+  SpaceFitXState,
+  AppLanguage,
+  CadetAgeGroup
 } from '../types/game';
 import { SolarStormData } from '../utils/nasaApi';
 import { TARGET_NUTRITION_REQUIREMENTS } from '../data/foodItems';
@@ -161,7 +163,19 @@ export const initialState: GameState = {
   level2State: initialLevel2State,
   unlockedRooms: ['Map', 'NutritionLab', 'SpaceScience', 'HumanHealth'],
   soundEnabled: true,
-  cadetName: 'البطل الصغير',
+  cadetName: 'Explorer',
+  language: (() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const stored = window.localStorage.getItem('astronutri_language');
+        if (stored === 'ar' || stored === 'en') return stored;
+      }
+    } catch {
+      // ignore
+    }
+    return 'en';
+  })(),
+  ageGroup: '7-10',
   campaign: initialCampaignState
 };
 
@@ -306,6 +320,20 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'SET_CADET_NAME':
       return { ...state, cadetName: action.payload };
+
+    case 'SET_LANGUAGE': {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('astronutri_language', action.payload);
+        }
+      } catch {
+        // ignore storage errors
+      }
+      return { ...state, language: action.payload };
+    }
+
+    case 'SET_AGE_GROUP':
+      return { ...state, ageGroup: action.payload };
 
     case 'COMPLETE_NUTRITION_MISSION': {
       const updatedRooms: RoomLocation[] = state.unlockedRooms.includes('SuitRoom')
@@ -991,6 +1019,11 @@ interface GameContextType {
   completeReturnMission: () => void;
   unlockAllRooms: () => void;
   unlockAllDemoLevels: () => void;
+  language: AppLanguage;
+  ageGroup: CadetAgeGroup;
+  setLanguage: (lang: AppLanguage) => void;
+  setAgeGroup: (age: CadetAgeGroup) => void;
+  setCadetName: (name: string) => void;
   canCompleteMission: boolean;
   setO2Pressure: (pressure: number) => void;
   toggleSuitEquipment: (key: keyof Omit<SuitCheckState, 'o2PressurePSI' | 'isO2Calibrated'>) => void;
@@ -1068,6 +1101,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const language: AppLanguage = state.language === 'ar' ? 'ar' : 'en';
+  const ageGroup: CadetAgeGroup = state.ageGroup || '7-10';
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = language;
+      document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
+    }
+  }, [language]);
+
   // Debounced auto-save effect for persistent game progress
   useEffect(() => {
     // If a future save version is detected, auto-save is permanently blocked to prevent data destruction
@@ -1082,6 +1125,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [
     state.cadetName,
+    state.language,
+    state.ageGroup,
     state.unlockedRooms,
     state.isNutritionMissionComplete,
     state.isHumanHealthComplete,
@@ -1196,6 +1241,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const unlockAllDemoLevels = () => {
     soundManager.playFanfare();
     dispatch({ type: 'UNLOCK_ALL_DEMO_LEVELS' });
+  };
+
+  const setLanguage = (lang: AppLanguage) => {
+    dispatch({ type: 'SET_LANGUAGE', payload: lang });
+  };
+
+  const setAgeGroup = (age: CadetAgeGroup) => {
+    dispatch({ type: 'SET_AGE_GROUP', payload: age });
+  };
+
+  const setCadetName = (name: string) => {
+    dispatch({ type: 'SET_CADET_NAME', payload: name });
   };
 
   const setO2Pressure = (pressure: number) => {
@@ -1367,6 +1424,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         completeReturnMission,
         unlockAllRooms,
         unlockAllDemoLevels,
+        language,
+        ageGroup,
+        setLanguage,
+        setAgeGroup,
+        setCadetName,
         canCompleteMission,
         setO2Pressure,
         toggleSuitEquipment,
