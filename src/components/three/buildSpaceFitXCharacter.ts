@@ -208,10 +208,31 @@ export function buildSpaceFitXCharacter(options?: {
     roughness: 0.18
   });
 
-  // Ground Shadow Disc
+  // Baked Radial Dark-Cyan Ambient Occlusion & Contact Shadow Disc (1 mesh, 0 extra draw calls)
+  const aoCanvas = document.createElement('canvas');
+  aoCanvas.width = 128;
+  aoCanvas.height = 128;
+  const aoCtx = aoCanvas.getContext('2d');
+  if (aoCtx) {
+    const grad = aoCtx.createRadialGradient(64, 64, 6, 64, 64, 62);
+    grad.addColorStop(0, 'rgba(2, 6, 23, 0.90)');
+    grad.addColorStop(0.45, 'rgba(6, 40, 62, 0.62)');
+    grad.addColorStop(0.76, 'rgba(8, 145, 178, 0.24)');
+    grad.addColorStop(1, 'rgba(2, 6, 23, 0.0)');
+    aoCtx.fillStyle = grad;
+    aoCtx.fillRect(0, 0, 128, 128);
+  }
+  const aoShadowTex = new THREE.CanvasTexture(aoCanvas);
+  aoShadowTex.colorSpace = THREE.SRGBColorSpace;
+  disposableTextures.push(aoShadowTex);
+
   const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(0.62, 24),
-    new THREE.MeshBasicMaterial({ color: 0x020617, transparent: true, opacity: 0.34 })
+    new THREE.CircleGeometry(0.78, 24),
+    new THREE.MeshBasicMaterial({
+      map: aoShadowTex,
+      transparent: true,
+      depthWrite: false
+    })
   );
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = 0.025;

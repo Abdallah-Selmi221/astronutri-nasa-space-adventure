@@ -163,11 +163,16 @@ def eval_terrain_height_and_color(x, y):
     else:
         col = lerp3(c_reentry_coast, (0.20, 0.68, 0.64), smoothstep(10.5, 14.5, x) * 0.45)
 
-    # Blend roadway slate border & canyon teal shadow
+    # Blend roadway slate border, canyon teal shadow & baked dark-cyan AO shadow ring under each Sector landmark
     canyon_mix = min(1.0, (canyon1 + canyon2 + canyon3) * 0.65)
     col = lerp3(col, c_canyon_glow, canyon_mix * 0.55)
     if d_road < 0.85:
         col = lerp3(col, c_road_slate, (1.0 - smoothstep(0.45, 0.85, d_road)) * 0.85)
+    for s in SECTORS:
+        ds = math.hypot(x - s["x"], y - s["y"])
+        if ds < s["rad"] * 0.82:
+            ao_w = (1.0 - smoothstep(0.0, s["rad"] * 0.82, ds)) * 0.72
+            col = lerp3(col, (0.02, 0.09, 0.17), ao_w)
 
     return z, col
 
@@ -182,14 +187,15 @@ def generate_massive_terra_island_mesh(mat_terrain, mat_glow):
     bm = bmesh.new()
     col_layer = bm.loops.layers.color.new("Col")
 
-    nx = 58
-    ny = 24
+    nx = 74
+    ny = 32
     x_min, x_max = -15.6, 15.6
     y_min, y_max = -6.8, 6.8
 
-    # 1. Build continuous sculpted perimeter island mask
+    # 1. Build continuous sculpted perimeter island mask with high-density smooth subdivision (~4,500 tris)
     grid_verts = [[None for _ in range(ny)] for _ in range(nx)]
     valid_mask = [[False for _ in range(ny)] for _ in range(nx)]
+    vert_lin_col = {}
 
     for ix in range(nx):
         ux = ix / (nx - 1)
@@ -199,7 +205,7 @@ def generate_massive_terra_island_mesh(mat_terrain, mat_glow):
             vy = iy / (ny - 1)
             y = y_min + vy * (y_max - y_min)
             # Keep connected organic silhouette wide enough for all 4 sectors + winding bridges
-            edge_wobble = 0.14 * math.sin(x * 0.7 + iy * 0.9)
+            edge_wobble = 0.14 * math.sin(x * 0.7 + vy * 18.0)
             r_norm = ((x / 15.0) ** 2) * 0.82 + (((y - spine_y) / 5.4) ** 2)
             # Also guarantee sectors are always inside island mask
             in_sector = any(math.hypot(x - s["x"], y - s["y"]) < s["rad"] + 0.9 for s in SECTORS)
@@ -207,11 +213,13 @@ def generate_massive_terra_island_mesh(mat_terrain, mat_glow):
                 valid_mask[ix][iy] = True
                 z, col = eval_terrain_height_and_color(x, y)
                 v = bm.verts.new((x, y, z))
+                lin_c = gba.col4(col[0], col[1], col[2], 1.0)
                 grid_verts[ix][iy] = (v, col)
+                vert_lin_col[v] = lin_c
 
     bm.verts.ensure_lookup_table()
 
-    # Connect quad/tri faces on the top landscape
+    # Connect smooth-shaded triangles on the top landscape with shared per-vertex color gradients
     top_faces = []
     for ix in range(nx - 1):
         for iy in range(ny - 1):
@@ -222,27 +230,22 @@ def generate_massive_terra_island_mesh(mat_terrain, mat_glow):
                 grid_verts[ix][iy + 1],
             ]
             if all(p is not None for p in pts):
-                v0, c0 = pts[0]
-                v1, c1 = pts[1]
-                v2, c2 = pts[2]
-                v3, c3 = pts[3]
-                avg_col = (
-                    (c0[0] + c1[0] + c2[0] + c3[0]) * 0.25,
-                    (c0[1] + c1[1] + c2[1] + c3[1]) * 0.25,
-                    (c0[2] + c1[2] + c2[2] + c3[2]) * 0.25,
-                )
+                v0, _ = pts[0]
+                v1, _ = pts[1]
+                v2, _ = pts[2]
+                v3, _ = pts[3]
                 try:
-                    # Deterministic diagonal split along alternating checkerboard for stylized faceted look
                     if (ix + iy) % 2 == 0:
                         f1 = bm.faces.new((v0, v1, v2))
                         f2 = bm.faces.new((v0, v2, v3))
                     else:
                         f1 = bm.faces.new((v0, v1, v3))
                         f2 = bm.faces.new((v1, v2, v3))
-                    f1.material_index = 0
-                    f2.material_index = 0
-                    assign_tri_vcolor(bm, col_layer, f1, avg_col)
-                    assign_tri_vcolor(bm, col_layer, f2, avg_col)
+                    for f in (f1, f2):
+                        f.material_index = 0
+                        f.smooth = True
+                        for loop in f.loops:
+                            loop[col_layer] = vert_lin_col[loop.vert]
                     top_faces.extend((f1, f2))
                 except ValueError:
                     pass
@@ -468,7 +471,7 @@ def generate_massive_terra_island_mesh(mat_terrain, mat_glow):
     bm.free()
 
     for poly in mesh.polygons:
-        poly.use_smooth = False
+        poly.use_smooth = True
 
     obj = bpy.data.objects.new("SpaceTerraIsland", mesh)
     bpy.context.scene.collection.objects.link(obj)

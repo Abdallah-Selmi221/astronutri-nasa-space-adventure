@@ -175,9 +175,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     const d = dirLightRef.current;
     if (!r) return;
     const q = getQualityRenderConfig(displaySettings.graphicsQuality);
+    const ultraShadows = displaySettings.graphicsQuality === 'ultra';
     r.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.maxPixelRatio));
-    r.shadowMap.enabled = false;
-    if (d) d.castShadow = false;
+    r.shadowMap.enabled = ultraShadows;
+    if (d) d.castShadow = ultraShadows;
   }, [displaySettings.graphicsQuality]);
 
   const applyLookDelta = (rawDx: number, rawDy: number) => {
@@ -306,10 +307,11 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
     const dims = getDims();
     const qInit = getQualityRenderConfig(displaySettingsRef.current.graphicsQuality);
+    const initUltraShadows = displaySettingsRef.current.graphicsQuality === 'ultra';
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, qInit.maxPixelRatio));
     renderer.setSize(dims.w, dims.h);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.shadowMap.enabled = false;
+    renderer.shadowMap.enabled = initUltraShadows;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     rendererRef.current = renderer;
     mount.innerHTML = '';
@@ -345,7 +347,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     scene.add(hemi);
     const dir = new THREE.DirectionalLight(0xfffbeb, 1.85);
     dir.position.set(16, 26, 18);
-    dir.castShadow = false;
+    dir.castShadow = initUltraShadows;
     dir.shadow.mapSize.set(1024, 1024);
     dir.shadow.camera.near = 2;
     dir.shadow.camera.far = 75;
@@ -496,11 +498,14 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       stationRoot.position.copy(pos);
       scene.add(stationRoot);
 
-      // Station Illuminated Pedestal (batched into 1 single draw call across all 3-4 stations)
+      // Station Illuminated Pedestal + Baked Dark-Cyan Ambient Occlusion Ground Skirt & Center Prop Contact Shadow (1 draw call for all stations!)
       const padColor = completed ? 0x065f46 : isActive ? 0x1e3a8a : locked ? 0x1e293b : 0x0f172a;
       const ringHex = completed ? '#10b981' : isActive ? '#facc15' : locked ? '#475569' : room.accentHex;
       padBatchParts.push(
-        { geometry: new THREE.CylinderGeometry(2.15, 2.38, 0.22, 18), color: padColor, position: [pos.x, 0.11, pos.z] },
+        { geometry: new THREE.CylinderGeometry(2.52, 2.86, 0.035, 22), color: 0x030d1c, position: [pos.x, 0.018, pos.z] },
+        { geometry: new THREE.CylinderGeometry(2.30, 2.52, 0.08, 22), color: 0x07223a, position: [pos.x, 0.045, pos.z] },
+        { geometry: new THREE.CylinderGeometry(2.15, 2.34, 0.20, 20), color: padColor, position: [pos.x, 0.11, pos.z] },
+        { geometry: new THREE.CylinderGeometry(1.24, 1.46, 0.215, 18), color: 0x041122, position: [pos.x, 0.115, pos.z - 0.12] },
         { geometry: new THREE.TorusGeometry(2.18, 0.08, 8, 28), color: new THREE.Color(ringHex).getHex(), position: [pos.x, 0.23, pos.z], rotation: [Math.PI / 2, 0, 0] }
       );
 

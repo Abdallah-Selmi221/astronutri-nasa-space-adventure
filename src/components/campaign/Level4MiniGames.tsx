@@ -104,6 +104,204 @@ const DeparturePrepGame: React.FC<{
   const varianceKg = Math.abs(leftMassKg - rightMassKg);
   const comBalanced = assignedCount === sampleItems.length && totalSampleKg <= 100 && varianceKg <= 15;
   const allReady = comBalanced && inlineFaultFixed;
+  const comCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = comCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    let rafId = 0;
+    const t0 = performance.now();
+    let smoothTiltRad = 0;
+
+    const renderFrame = () => {
+      rafId = window.requestAnimationFrame(renderFrame);
+      const t = (performance.now() - t0) / 1000;
+      const w = canvas.width;
+      const h = canvas.height;
+
+      // Deep aerospace blueprint telemetry backdrop + grid
+      const bg = ctx.createLinearGradient(0, 0, w, h);
+      bg.addColorStop(0, '#040a1a');
+      bg.addColorStop(0.5, '#0b1736');
+      bg.addColorStop(1, '#050d20');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
+      ctx.lineWidth = 1;
+      for (let gx = 0; gx <= w; gx += 24) {
+        ctx.beginPath();
+        ctx.moveTo(gx, 0);
+        ctx.lineTo(gx, h);
+        ctx.stroke();
+      }
+      for (let gy = 0; gy <= h; gy += 24) {
+        ctx.beginPath();
+        ctx.moveTo(0, gy);
+        ctx.lineTo(w, gy);
+        ctx.stroke();
+      }
+
+      const targetTiltDeg = Math.max(-16, Math.min(16, (rightMassKg - leftMassKg) * 0.45));
+      const targetRad = (targetTiltDeg * Math.PI) / 180;
+      smoothTiltRad += (targetRad - smoothTiltRad) * 0.14;
+
+      const cx = w * 0.5;
+      const cy = h * 0.56;
+
+      // Horizon zero-pitch reference line
+      ctx.strokeStyle = comBalanced ? 'rgba(52, 211, 153, 0.35)' : 'rgba(251, 191, 36, 0.25)';
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(24, cy);
+      ctx.lineTo(w - 24, cy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(smoothTiltRad);
+
+      // Animated RCS Attitude Control Thruster Plumes Firing to Counteract CoM Torque
+      const fireLeftJet = leftMassKg > rightMassKg + 2 || comBalanced;
+      const fireRightJet = rightMassKg > leftMassKg + 2 || comBalanced;
+      const pulse = 0.75 + Math.sin(t * 22) * 0.25;
+
+      if (fireLeftJet) {
+        const jetLen = (comBalanced ? 16 : 26) * pulse;
+        const jGrad = ctx.createLinearGradient(-118, 12, -118, 12 + jetLen);
+        jGrad.addColorStop(0, '#fef08a');
+        jGrad.addColorStop(0.5, comBalanced ? '#34d399' : '#38bdf8');
+        jGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+        ctx.fillStyle = jGrad;
+        ctx.beginPath();
+        ctx.moveTo(-124, 11);
+        ctx.lineTo(-112, 11);
+        ctx.lineTo(-118, 11 + jetLen);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      if (fireRightJet) {
+        const jetLen = (comBalanced ? 16 : 26) * pulse;
+        const jGrad = ctx.createLinearGradient(118, 12, 118, 12 + jetLen);
+        jGrad.addColorStop(0, '#fef08a');
+        jGrad.addColorStop(0.5, comBalanced ? '#34d399' : '#38bdf8');
+        jGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+        ctx.fillStyle = jGrad;
+        ctx.beginPath();
+        ctx.moveTo(112, 11);
+        ctx.lineTo(124, 11);
+        ctx.lineTo(118, 11 + jetLen);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Main Structural Service Beam & RCS Thruster Pods
+      const beamGrad = ctx.createLinearGradient(-126, 0, 126, 0);
+      beamGrad.addColorStop(0, '#0284c7');
+      beamGrad.addColorStop(0.5, comBalanced ? '#10b981' : '#f59e0b');
+      beamGrad.addColorStop(1, '#4f46e5');
+      ctx.fillStyle = beamGrad;
+      ctx.beginPath();
+      ctx.roundRect(-126, 3, 252, 8, 4);
+      ctx.fill();
+
+      //Orion Conical Crew Module Cross-Section Hull + PICA-X Aft Heat Shield
+      const hullGrad = ctx.createLinearGradient(-56, -36, 56, 8);
+      hullGrad.addColorStop(0, '#1e293b');
+      hullGrad.addColorStop(0.5, '#334155');
+      hullGrad.addColorStop(1, '#0f172a');
+      ctx.fillStyle = hullGrad;
+      ctx.strokeStyle = comBalanced ? '#34d399' : '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-58, 4);
+      ctx.lineTo(-22, -32);
+      ctx.lineTo(22, -32);
+      ctx.lineTo(58, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // PICA-X Heat Shield Base Curvature
+      ctx.fillStyle = '#ea580c';
+      ctx.beginPath();
+      ctx.roundRect(-60, 4, 120, 6, 3);
+      ctx.fill();
+
+      // Left (Port) & Right (Starboard) Cargo Bay Lock Cells
+      const leftLocks = sampleItems.filter((i) => bayAssignment[i.id] === 'left');
+      const rightLocks = sampleItems.filter((i) => bayAssignment[i.id] === 'right');
+
+      // Port Bay Lock Frame
+      ctx.fillStyle = 'rgba(2, 132, 199, 0.22)';
+      ctx.strokeStyle = leftLocks.length > 0 ? '#38bdf8' : '#475569';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.roundRect(-116, -22, 52, 23, 5);
+      ctx.fill();
+      ctx.stroke();
+
+      leftLocks.forEach((_, idx) => {
+        ctx.fillStyle = comBalanced ? '#34d399' : '#38bdf8';
+        ctx.beginPath();
+        ctx.roundRect(-111 + idx * 15, -17, 12, 13, 3);
+        ctx.fill();
+      });
+
+      // Starboard Bay Lock Frame
+      ctx.fillStyle = 'rgba(79, 70, 229, 0.22)';
+      ctx.strokeStyle = rightLocks.length > 0 ? '#818cf8' : '#475569';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.roundRect(64, -22, 52, 23, 5);
+      ctx.fill();
+      ctx.stroke();
+
+      rightLocks.forEach((_, idx) => {
+        ctx.fillStyle = comBalanced ? '#34d399' : '#818cf8';
+        ctx.beginPath();
+        ctx.roundRect(69 + idx * 15, -17, 12, 13, 3);
+        ctx.fill();
+      });
+
+      // Dynamic Center-of-Mass (CoM) Target Reticle inside Orion Cross-Section
+      const comShiftX = Math.max(-28, Math.min(28, (rightMassKg - leftMassKg) * 0.75));
+      ctx.strokeStyle = comBalanced ? '#34d399' : '#fbbf24';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(comShiftX, -12, 7, 0, Math.PI * 2);
+      ctx.moveTo(comShiftX - 11, -12);
+      ctx.lineTo(comShiftX + 11, -12);
+      ctx.moveTo(comShiftX, -23);
+      ctx.lineTo(comShiftX, -1);
+      ctx.stroke();
+
+      ctx.restore();
+
+      // Top Telemetry Readout Strip
+      ctx.fillStyle = comBalanced ? '#6ee7b7' : '#fde047';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(
+        language === 'ar'
+          ? comBalanced
+            ? '✓ اتزان مركز الكتلة وتثبيت نفاثات أوريون'
+            : `نفاثات التوازن نشطة • ميل ${targetTiltDeg.toFixed(1)}°`
+          : comBalanced
+          ? '✓ ORION CoM LOCKED • RCS ATTITUDE TRIM STABLE'
+          : `RCS ATTITUDE JETS FIRING • PITCH TRIM ${targetTiltDeg > 0 ? '+' : ''}${targetTiltDeg.toFixed(1)}°`,
+        cx,
+        15
+      );
+    };
+
+    renderFrame();
+    return () => window.cancelAnimationFrame(rafId);
+  }, [leftMassKg, rightMassKg, comBalanced, bayAssignment, sampleItems, language]);
 
   return (
     <div className="space-y-4">
@@ -134,23 +332,16 @@ const DeparturePrepGame: React.FC<{
           </div>
         </div>
 
-        {/* Orion Payload Center-of-Mass Pitch Trim Indicator */}
-        <svg viewBox="0 0 280 56" className="w-full h-14 overflow-visible">
-          <defs>
-            <linearGradient id="orionBayBeam" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#38bdf8" />
-              <stop offset="50%" stopColor={comBalanced ? '#34d399' : '#f59e0b'} />
-              <stop offset="100%" stopColor="#818cf8" />
-            </linearGradient>
-          </defs>
-          <polygon points="140,30 128,50 152,50" fill="#475569" stroke="#94a3b8" strokeWidth="1" />
-          <g transform={`rotate(${Math.max(-16, Math.min(16, (rightMassKg - leftMassKg) * 0.48))}, 140, 30)`}>
-            <rect x="28" y="25" width="224" height="8" rx="4" fill="url(#orionBayBeam)" />
-            <path d="M126 25 L140 7 L154 25 Z" fill="#e2e8f0" stroke="#38bdf8" strokeWidth="1.5" />
-            <rect x="38" y="10" width="44" height="14" rx="3" fill="#0284c7" stroke="#7dd3fc" strokeWidth="1" />
-            <rect x="198" y="10" width="44" height="14" rx="3" fill="#4f46e5" stroke="#a5b4fc" strokeWidth="1" />
-          </g>
-        </svg>
+        {/* High-Craft 60fps Orion Spacecraft Cross-Section, RCS Attitude Jets & Cargo Mass Locks Canvas */}
+        <div className="relative rounded-xl bg-slate-950 border border-cyan-500/35 overflow-hidden shadow-inner">
+          <canvas
+            ref={comCanvasRef}
+            width={340}
+            height={102}
+            data-testid="orion-com-canvas"
+            className="w-full h-28 sm:h-32 block"
+          />
+        </div>
 
         <div className="space-y-2">
           {sampleItems.map((item) => {

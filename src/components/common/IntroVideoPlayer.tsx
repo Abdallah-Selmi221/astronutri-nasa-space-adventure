@@ -40,7 +40,19 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
   const [nameInput, setNameInput] = useState<string>(state.cadetName || 'Explorer');
   const [cutsceneElapsed, setCutsceneElapsed] = useState<number>(0);
   const [beatIdx, setBeatIdx] = useState<number>(0);
+  const [showBootSplash, setShowBootSplash] = useState<boolean>(true);
+  const [splashProgress, setSplashProgress] = useState<number>(8);
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
+
+  // Instant AAA Game Boot Logo Splash (< 1.6s auto-transition or instant on tap, zero network wait)
+  useEffect(() => {
+    const tFill = window.setTimeout(() => setSplashProgress(100), 40);
+    const tDone = window.setTimeout(() => setShowBootSplash(false), 1600);
+    return () => {
+      window.clearTimeout(tFill);
+      window.clearTimeout(tDone);
+    };
+  }, []);
 
   // 5-second in-engine 3D orbital fly-in cutscene (zero MP4 video download)
   useEffect(() => {
@@ -264,6 +276,152 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
       dir={language === 'ar' ? 'rtl' : 'ltr'}
       className="fixed inset-0 z-50 bg-[#04091a] flex flex-col justify-between scrollable-panel select-none"
     >
+      {/* Instant AAA Game Boot Logo Splash (< 1.6s auto-transition or instant on tap) */}
+      {showBootSplash && (
+        <div
+          data-testid="boot-logo-splash"
+          onClick={() => setShowBootSplash(false)}
+          className="fixed inset-0 z-50 bg-[radial-gradient(circle_at_center,_#0c1e4a_0%,_#04091a_68%,_#020510_100%)] flex flex-col items-center justify-center p-6 cursor-pointer select-none animate-fade-in"
+        >
+          <div className="relative flex flex-col items-center max-w-lg w-full text-center space-y-4">
+            {/* Animated Glowing 3D/SVG Orbital Emblem with Orbiting Spacecraft Ring */}
+            <div className="relative w-36 h-36 sm:w-44 sm:h-44 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full bg-cyan-500/20 blur-2xl animate-pulse" />
+              <svg viewBox="0 0 200 200" className="w-full h-full overflow-visible">
+                <defs>
+                  <linearGradient id="splashOrbitGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#22d3ee" />
+                    <stop offset="50%" stopColor="#38bdf8" />
+                    <stop offset="100%" stopColor="#fbbf24" />
+                  </linearGradient>
+                  <radialGradient id="splashCoreGlow" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.85" />
+                    <stop offset="65%" stopColor="#1e3a8a" stopOpacity="0.45" />
+                    <stop offset="100%" stopColor="#04091a" stopOpacity="0" />
+                  </radialGradient>
+                </defs>
+
+                {/* Central Planet & Shield Halo */}
+                <circle cx="100" cy="100" r="68" fill="url(#splashCoreGlow)" />
+                <circle
+                  cx="100"
+                  cy="100"
+                  r="46"
+                  fill="#071330"
+                  stroke="url(#splashOrbitGrad)"
+                  strokeWidth="3.5"
+                />
+
+                {/* Latitude/Longitude Holographic Globe Grid */}
+                <ellipse
+                  cx="100"
+                  cy="100"
+                  rx="46"
+                  ry="18"
+                  fill="none"
+                  stroke="rgba(56,189,248,0.35)"
+                  strokeWidth="1.5"
+                />
+                <ellipse
+                  cx="100"
+                  cy="100"
+                  rx="18"
+                  ry="46"
+                  fill="none"
+                  stroke="rgba(56,189,248,0.35)"
+                  strokeWidth="1.5"
+                />
+
+                {/* Tilted Outer Orbit Ring */}
+                <g transform="rotate(-22 100 100)">
+                  <ellipse
+                    cx="100"
+                    cy="100"
+                    rx="84"
+                    ry="32"
+                    fill="none"
+                    stroke="url(#splashOrbitGrad)"
+                    strokeWidth="3"
+                    strokeDasharray="12 6"
+                  />
+                </g>
+
+                {/* Rotating Spacecraft Carrier Ring */}
+                <g className="origin-center animate-spin" style={{ animationDuration: '2.4s' }}>
+                  <circle
+                    cx="100"
+                    cy="100"
+                    r="64"
+                    fill="none"
+                    stroke="rgba(34,211,238,0.45)"
+                    strokeWidth="2"
+                    strokeDasharray="24 14"
+                  />
+                  {/* Orbiting Spacecraft Icon + Thruster Plume at top of ring */}
+                  <g transform="translate(100, 36)">
+                    <circle cx="-10" cy="0" r="5" fill="#fbbf24" opacity="0.85" />
+                    <path
+                      d="M 12 0 L -6 -7 L -2 0 L -6 7 Z"
+                      fill="#f8fafc"
+                      stroke="#22d3ee"
+                      strokeWidth="1.5"
+                    />
+                  </g>
+                </g>
+
+                {/* Center Stylized Rocket Crest */}
+                <path
+                  d="M100 68 L112 96 L106 112 L94 112 L88 96 Z"
+                  fill="#f8fafc"
+                  stroke="#38bdf8"
+                  strokeWidth="2"
+                />
+                <polygon points="88,98 78,112 90,110" fill="#f59e0b" />
+                <polygon points="112,98 122,112 110,110" fill="#f59e0b" />
+                <circle cx="100" cy="89" r="5" fill="#22d3ee" />
+                <path d="M95 113 L100 128 L105 113 Z" fill="#fbbf24" />
+              </svg>
+            </div>
+
+            {/* Brand Title */}
+            <div className="space-y-1.5">
+              <div className="font-hud font-black text-3xl sm:text-5xl tracking-[0.22em] text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-white to-amber-300 drop-shadow-[0_0_24px_rgba(34,211,238,0.65)]">
+                ASTRONUTRI
+              </div>
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-400/15 border border-amber-300/70 text-amber-200 font-hud font-black text-[10px] sm:text-xs tracking-wider uppercase shadow-lg">
+                <span>🏆</span>
+                <span>
+                  {tr(
+                    language,
+                    'JUNIOR ASTRONAUT MISSION TRAINER — NASA SPACE APPS GLOBAL NOMINEE',
+                    'مدرب رواد الفضاء الصغار — المرشح العالمي لتحدي ناسا لتطبيقات الفضاء'
+                  )}
+                </span>
+              </div>
+            </div>
+
+            {/* Sleek 1.5s Loading Pulse Bar */}
+            <div className="w-64 sm:w-80 space-y-1.5 pt-1">
+              <div className="h-2.5 w-full rounded-full bg-slate-900/90 border border-cyan-400/50 p-0.5 overflow-hidden shadow-[0_0_18px_rgba(34,211,238,0.35)]">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-sky-300 to-amber-400 transition-all ease-out"
+                  style={{
+                    width: `${splashProgress}%`,
+                    transitionDuration: '1450ms'
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[10px] font-mono text-cyan-200/80 px-1">
+                <span>
+                  {tr(language, 'INITIALIZING 3D ORBITAL DECK...', 'جاري تشغيل المنصة المدارية ثلاثية الأبعاد...')}
+                </span>
+                <span>{tr(language, 'TAP TO SKIP ⚡', 'اضغط للتخطي ⚡')}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Live 5-Second In-Engine 3D Orbital Cutscene Backdrop */}
       <div
         ref={canvasHostRef}

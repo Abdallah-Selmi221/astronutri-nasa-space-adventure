@@ -201,9 +201,10 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     const s = sunLightRef.current;
     if (!r) return;
     const q = getQualityRenderConfig(displaySettings.graphicsQuality);
+    const ultraShadows = displaySettings.graphicsQuality === 'ultra';
     r.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.maxPixelRatio));
-    r.shadowMap.enabled = false;
-    if (s) s.castShadow = false;
+    r.shadowMap.enabled = ultraShadows;
+    if (s) s.castShadow = ultraShadows;
   }, [displaySettings.graphicsQuality]);
 
   const applyLookDelta = (rawDx: number, rawDy: number) => {
@@ -320,10 +321,11 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
     const dims = getDims();
     const initialQuality = getQualityRenderConfig(displaySettingsRef.current.graphicsQuality);
+    const initUltraShadows = displaySettingsRef.current.graphicsQuality === 'ultra';
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, initialQuality.maxPixelRatio));
     renderer.setSize(dims.w, dims.h);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.shadowMap.enabled = false;
+    renderer.shadowMap.enabled = initUltraShadows;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     rendererRef.current = renderer;
     mount.innerHTML = '';
@@ -352,7 +354,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     const hemi = new THREE.HemisphereLight(0xe0f2fe, 0x0f172a, 1.28);
     const sun = new THREE.DirectionalLight(0xfffbeb, 1.75);
     sun.position.set(16, 22, 18);
-    sun.castShadow = false;
+    sun.castShadow = initUltraShadows;
     sun.shadow.mapSize.set(1024, 1024);
     sun.shadow.camera.near = 2;
     sun.shadow.camera.far = 70;
