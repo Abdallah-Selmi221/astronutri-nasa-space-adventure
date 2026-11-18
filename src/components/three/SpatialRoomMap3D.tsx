@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import gsap from 'gsap';
 import { CAMPAIGN_LEVELS, SpatialRoomNode } from '../../data/campaignLevels';
 import { CampaignLevelId, CampaignProgressState, SpaceFitXState } from '../../types/game';
 import { soundManager } from '../../utils/sound';
@@ -13,16 +13,11 @@ import {
   createCosmicSkyBackdrop,
   createCourtyardSignboardsMesh,
   createFloatingExclamationGeometry,
-  createFloatingIslandMesh,
-  createStationBuildingMesh,
   SkyMode
 } from './archipelagoPrimitives';
 import {
   animateBlenderEnvironmentGlb,
-  attachBlenderEarthIsland,
-  attachBlenderLunarIsland,
-  attachBlenderOrbitalStation,
-  attachBlenderSpaceship,
+  attachStationPropGlb,
   getLoadedGlbUrls
 } from './blenderModelLoader';
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
@@ -143,11 +138,11 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     seqTarget.activeRoom || levelSpec.rooms[0] || null
   );
   const nearbyRoomRef = useRef<SpatialRoomNode | null>(nearbyRoom);
-  const [idleSpeechAr, setIdleSpeechAr] = useState<string | null>(null);
+  const [showIdleHint, setShowIdleHint] = useState(false);
   const [lockedToast, setLockedToast] = useState<string | null>(null);
   const activeEntryRef = useRef<{ room: SpatialRoomNode; entrySpot: THREE.Vector3 } | null>(null);
 
-  const playerPosRef = useRef(new THREE.Vector3(0, 0, 0));
+  const playerPosRef = useRef(new THREE.Vector3(0, 0, 3.0));
   const playerVelYRef = useRef(0);
   const horizVelRef = useRef({ x: 0, z: 0 });
   const isGroundedRef = useRef(true);
@@ -168,7 +163,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     lastActivityMsRef.current = performance.now();
     if (boredVoiceFiredRef.current) {
       boredVoiceFiredRef.current = false;
-      setIdleSpeechAr(null);
+      setShowIdleHint(false);
     }
   };
 
@@ -179,9 +174,9 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
   onEnterRoomRef.current = onEnterRoom;
 
   const isRoomCompleted = (room: SpatialRoomNode): boolean => {
+    if (room.miniGameId) return campaign.completedMiniGames.includes(room.miniGameId);
     if (room.consoleAction === 'l3_return_auth') return campaign.l3ReturnAuthorized;
-    if (!room.miniGameId) return false;
-    return campaign.completedMiniGames.includes(room.miniGameId);
+    return false;
   };
 
   const isRoomAccessible = (room: SpatialRoomNode): boolean => {
@@ -242,18 +237,19 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
   }, []);
 
   useEffect(() => {
-    // Reset astronaut to central courtyard plaza when switching level islands
-    playerPosRef.current.set(0, 0, 0);
+    // Reset astronaut to front mission promenade facing the 1 -> 2 -> 3 stations
+    playerPosRef.current.set(0, 0, 3.0);
     playerVelYRef.current = 0;
     horizVelRef.current = { x: 0, z: 0 };
     isGroundedRef.current = true;
     lastGroundedMsRef.current = performance.now();
     walkTargetRef.current = null;
     pendingRoomRef.current = null;
+    cameraOrbitYawRef.current = 0;
     waveUntilMsRef.current = performance.now() + 2500;
     lastActivityMsRef.current = performance.now();
     boredVoiceFiredRef.current = false;
-    setIdleSpeechAr(null);
+    setShowIdleHint(false);
     setNearbyRoom(levelSpec.rooms[0] || null);
     nearbyRoomRef.current = levelSpec.rooms[0] || null;
   }, [levelId]);
@@ -285,7 +281,19 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     const scene = new THREE.Scene();
     let isSceneDisposed = false;
     const camera = new THREE.PerspectiveCamera(50, dims.w / dims.h, 0.1, 200);
-    camera.position.set(0, 5.8, 10.2);
+    camera.position.set(-4, 13.5, 19.5);
+    cameraOrbitPitchRef.current = 0.78;
+    cameraOrbitYawRef.current = -0.38;
+    const deckPitchIn = gsap.to(cameraOrbitPitchRef, {
+      current: 0.42,
+      duration: 1.35,
+      ease: 'power2.out'
+    });
+    const deckYawIn = gsap.to(cameraOrbitYawRef, {
+      current: 0,
+      duration: 1.35,
+      ease: 'power2.out'
+    });
 
     const skyHandle = createCosmicSkyBackdrop(scene, theme.skyMode);
 
@@ -303,172 +311,63 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     fill.position.set(-16, 8, -14);
     scene.add(fill);
 
-    // Compute Spacious Radial Courtyard Ring Layout (ZERO collisions even at 12 rooms)
+    // Streamlined Linear Mission Deck Promenade (3 to 4 Core Stations arranged 1 -> 2 -> 3 -> 4)
     const rooms = levelSpec.rooms;
     const roomCount = Math.max(1, rooms.length);
-    const ringRadius = Math.max(10.2, roomCount * 1.48);
-    const islandRadius = ringRadius + 6.2;
+    const stationSpacing = roomCount >= 4 ? 7.2 : 8.4;
+    const deckWidth = roomCount >= 4 ? 30.0 : 25.0;
+    const deckDepth = 13.8;
+    const halfDeckX = deckWidth * 0.45;
+    const islandRadius = deckWidth * 0.52;
 
-    // Floating Island Terrain Platform
-    const island = createFloatingIslandMesh({
-      radius: islandRadius,
-      depth: 7.4,
-      topColor: theme.topColor,
-      rimColor: theme.rimColor,
-      rockColor: theme.rockColor,
-      crystalColor: theme.crystalColor,
-      accentCraters: theme.accentCraters
-    });
-    scene.add(island);
+    const deckFloorColor =
+      levelId === 1
+        ? 0x334155
+        : levelId === 2
+        ? 0x1e293b
+        : levelId === 3
+        ? 0x475569
+        : 0x1e3a5f;
 
-    const disposableTextures: THREE.Texture[] = [
-      ...((island.userData.disposableTextures as THREE.Texture[] | undefined) || [])
+    const deckParts: ColoredGeometryPart[] = [
+      // Main architectural space mission deck
+      { geometry: new THREE.BoxGeometry(deckWidth, 0.72, deckDepth), color: deckFloorColor, position: [0, -0.36, -0.2] },
+      // Underside hull taper
+      { geometry: new THREE.BoxGeometry(deckWidth - 2.4, 0.55, deckDepth - 1.8), color: 0x0f172a, position: [0, -0.96, -0.2] },
+      // Glowing front & back perimeter safety strips
+      { geometry: new THREE.BoxGeometry(deckWidth + 0.16, 0.12, 0.24), color: theme.rimColor, position: [0, -0.02, deckDepth * 0.5 - 0.2] },
+      { geometry: new THREE.BoxGeometry(deckWidth + 0.16, 0.12, 0.24), color: theme.rimColor, position: [0, -0.02, -deckDepth * 0.5 - 0.2] },
+      // Center starting launch pad ring at (0, 0, 3.0)
+      { geometry: new THREE.CylinderGeometry(1.75, 1.9, 0.06, 20), color: 0x0f172a, position: [0, 0.02, 3.0] },
+      { geometry: new THREE.TorusGeometry(1.75, 0.08, 8, 24), color: theme.rimColor, position: [0, 0.05, 3.0], rotation: [Math.PI / 2, 0, 0] }
     ];
 
-    // Stylized Low-Poly Multi-Canopy Trees / Palms Around Outer Island Perimeter on Earth & Splashdown (1 draw call!)
-    let treeRingMesh: THREE.Mesh | null = null;
-    if (levelId === 1 || levelId === 4) {
-      const treeParts: ColoredGeometryPart[] = [];
-      const treeCount = 10;
-      for (let t = 0; t < treeCount; t++) {
-        const ang = (t / treeCount) * Math.PI * 2 + 0.25;
-        const dist = islandRadius - 1.55;
-        const tx = Math.cos(ang) * dist;
-        const tz = Math.sin(ang) * dist;
-        treeParts.push(
-          { geometry: new THREE.CylinderGeometry(0.14, 0.2, 0.92, 7), color: 0x78350f, position: [tx, 0.46, tz] },
-          { geometry: new THREE.ConeGeometry(0.84, 1.18, 7), color: levelId === 4 ? 0x059669 : 0x15803d, position: [tx, 1.28, tz] },
-          { geometry: new THREE.ConeGeometry(0.62, 0.95, 7), color: levelId === 4 ? 0x10b981 : 0x22c55e, position: [tx, 1.92, tz] },
-          { geometry: new THREE.ConeGeometry(0.4, 0.68, 7), color: 0x4ade80, position: [tx, 2.38, tz] }
-        );
-      }
-      treeRingMesh = new THREE.Mesh(
-        mergeColoredParts(treeParts),
-        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, flatShading: true })
-      );
-      scene.add(treeRingMesh);
-    }
+    const deckMesh = new THREE.Mesh(
+      mergeColoredParts(deckParts),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.46, metalness: 0.28, flatShading: true })
+    );
+    scene.add(deckMesh);
 
-    let blenderEnvGroup: THREE.Group | null = null;
-    if (levelId === 1) {
-      attachBlenderEarthIsland({
-        targetParent: scene,
-        radius: islandRadius,
-        depthScaleY: 0.45,
-        fallbackNodes: treeRingMesh ? [island, treeRingMesh] : [island],
-        isDisposed: () => isSceneDisposed,
-        onLoaded: (g) => {
-          g.rotation.y = -0.52;
-          blenderEnvGroup = g;
-        }
-      });
-    } else if (levelId === 2) {
-      attachBlenderOrbitalStation({
-        targetParent: scene,
-        radius: islandRadius,
-        depthScaleY: 0.46,
-        fallbackNodes: [island],
-        isDisposed: () => isSceneDisposed,
-        onLoaded: (g) => {
-          g.rotation.y = -0.52;
-          blenderEnvGroup = g;
-        }
-      });
-    } else if (levelId === 3) {
-      attachBlenderLunarIsland({
-        targetParent: scene,
-        radius: islandRadius,
-        depthScaleY: 0.46,
-        fallbackNodes: [island],
-        isDisposed: () => isSceneDisposed,
-        onLoaded: (g) => {
-          g.rotation.y = -0.52;
-          blenderEnvGroup = g;
-        }
-      });
-    }
+    const disposableTextures: THREE.Texture[] = [];
+    const blenderEnvGroups: THREE.Group[] = [];
 
-    // Distinct Biome Landmarks & Environmental Life (+1 to +2 merged draw calls total!)
+    // Subtle Distant Orbit Beacon Landmark
     let radarDishMesh: THREE.Mesh | null = null;
-    if (levelId === 1 || levelId === 3 || levelId === 4) {
-      const radarPedestalParts: ColoredGeometryPart[] = [
-        { geometry: new THREE.CylinderGeometry(0.22, 0.34, 2.4, 8), color: 0xe2e8f0, position: [ringRadius + 2.8, 1.2, -3.5] }
-      ];
-      if (levelId === 3) {
-        // Lunar Artemis: 0.16G Central Orbit Beacon elevated clear above center plaza
-        radarPedestalParts.push(
-          { geometry: new THREE.OctahedronGeometry(0.65, 0), color: 0xfbbf24, position: [0, 4.45, 0] }
-        );
-      } else if (levelId === 4) {
-        // Oceanic Recovery Ship + Golden AstroNutri Victory Monument + Tropical Beacon
-        radarPedestalParts.push(
-          { geometry: new THREE.BoxGeometry(3.8, 0.75, 1.45), color: 0xf8fafc, position: [-ringRadius - 1.9, 0.42, 3.4], rotation: [0, 0.55, 0] },
-          { geometry: new THREE.BoxGeometry(1.15, 0.95, 1.1), color: 0xf97316, position: [-ringRadius - 1.4, 1.22, 3.1], rotation: [0, 0.55, 0] },
-          { geometry: new THREE.CylinderGeometry(0.08, 0.1, 1.4, 6), color: 0x38bdf8, position: [-ringRadius - 1.4, 2.2, 3.1] },
-          { geometry: new THREE.CylinderGeometry(0.85, 1.05, 0.55, 8), color: 0xe2e8f0, position: [0, 0.28, 0] },
-          { geometry: new THREE.OctahedronGeometry(0.75, 0), color: 0xfacc15, position: [0, 1.35, 0] }
-        );
-      }
-      scene.add(
-        new THREE.Mesh(
-          mergeColoredParts(radarPedestalParts),
-          new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.48, metalness: 0.25 })
-        )
-      );
-
+    if (levelId === 1 || levelId === 3) {
       radarDishMesh = new THREE.Mesh(
         mergeColoredParts([
-          { geometry: new THREE.ConeGeometry(0.92, 0.4, 14), color: 0xf8fafc, rotation: [0, 0, Math.PI * 0.65] },
-          { geometry: new THREE.CylinderGeometry(0.05, 0.05, 0.45, 6), color: 0x22d3ee, position: [0.35, 0.18, 0], rotation: [0, 0, -Math.PI * 0.35] }
+          { geometry: new THREE.CylinderGeometry(0.16, 0.24, 1.6, 8), color: 0xe2e8f0, position: [0, 0.8, 0] },
+          { geometry: new THREE.ConeGeometry(0.75, 0.35, 12), color: 0xf8fafc, position: [0, 1.75, 0], rotation: [0, 0, Math.PI * 0.65] }
         ]),
-        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32, metalness: 0.45 })
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.4 })
       );
-      radarDishMesh.position.set(ringRadius + 2.8, 2.55, -3.5);
+      radarDishMesh.position.set(deckWidth * 0.44, 0, -5.8);
       scene.add(radarDishMesh);
     }
 
-    // L1 Falling Waterfall Mist Ribbon aligned to Blender OasisWaterPond cliff spillway (1 Points draw call!)
-    let waterfallGeo: THREE.BufferGeometry | null = null;
-    if (levelId === 1) {
-      const wfCount = 84;
-      const wfPos = new Float32Array(wfCount * 3);
-      for (let i = 0; i < wfCount; i++) {
-        const dropPhase = (i / wfCount) * 4.2;
-        wfPos[i * 3] = islandRadius * 1.02 + ((i % 7) - 3) * 0.14 + dropPhase * 0.12;
-        wfPos[i * 3 + 1] = 0.05 - dropPhase;
-        wfPos[i * 3 + 2] = islandRadius * 0.02 + ((i % 5) - 2) * 0.14;
-      }
-      waterfallGeo = new THREE.BufferGeometry();
-      waterfallGeo.setAttribute('position', new THREE.BufferAttribute(wfPos, 3));
-      scene.add(
-        new THREE.Points(
-          waterfallGeo,
-          new THREE.PointsMaterial({ color: 0xbae6fd, size: 0.28, transparent: true, opacity: 0.85 })
-        )
-      );
-    }
+    const walkwayParts: ColoredGeometryPart[] = [];
 
-    // Central Plaza Ring Beacon (+ Giant Orbital Station Halo Ring on Level 2, 0 extra draw calls)
-    const walkwayParts: ColoredGeometryPart[] = [
-      {
-        geometry: new THREE.TorusGeometry(2.2, 0.09, 8, 32),
-        color: theme.rimColor,
-        position: [0, 0.06, 0],
-        rotation: [Math.PI / 2, 0, 0]
-      },
-      ...(levelId === 2
-        ? [
-            {
-              geometry: new THREE.TorusGeometry(islandRadius + 1.25, 0.16, 10, 48),
-              color: 0x818cf8,
-              position: [0, 0.65, 0] as [number, number, number],
-              rotation: [Math.PI / 2 + 0.14, 0.08, 0] as [number, number, number]
-            }
-          ]
-        : [])
-    ];
-
-    // Microgravity Floating Asteroid 2010 PK Belt around Level 2 (1 InstancedMesh!)
+    // Microgravity Floating Asteroid Belt around Level 2 ISS Bay (1 InstancedMesh!)
     const orbitSatelliteTransforms: { angle: number; y: number; radOffset: number; scale: number }[] = [];
     let orbitSatellitesInst: THREE.InstancedMesh | null = null;
     if (theme.isZeroG) {
@@ -480,42 +379,40 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       for (let k = 0; k < 14; k++) {
         orbitSatelliteTransforms.push({
           angle: (k / 14) * Math.PI * 2,
-          y: 1.4 + Math.sin(k * 1.3) * 1.4,
-          radOffset: (k % 3) * 1.2,
+          y: 1.6 + Math.sin(k * 1.3) * 1.4,
+          radOffset: (k % 3) * 1.4,
           scale: 0.65 + (k % 4) * 0.28
         });
       }
       scene.add(orbitSatellitesInst);
     }
 
-    // Build Sculpted Station Booths, Batched Signboards & Bouncing ! Indicators (1 draw call each!)
+    // Arrange 3–4 Core Stations cleanly Left-to-Right along 1 -> 2 -> 3 -> 4 Promenade!
     const clickTargets: { group: THREE.Group; room: SpatialRoomNode; entrySpot: THREE.Vector3; pos: THREE.Vector3 }[] = [];
 
     const positionedRooms: PositionedRoom[] = rooms.map((room, idx) => {
-      const theta = (idx / roomCount) * Math.PI * 2 - Math.PI / 2;
-      const rx = Math.cos(theta) * ringRadius;
-      const rz = Math.sin(theta) * ringRadius;
-      const yawToCenter = Math.atan2(-rx, -rz);
+      const rx = (idx - (roomCount - 1) / 2) * stationSpacing;
+      const rz = -3.4;
       return {
         room,
         pos: new THREE.Vector3(rx, 0, rz),
-        yawToCenter
+        yawToCenter: 0
       };
     });
 
     const portalRingsInst = new THREE.InstancedMesh(
-      new THREE.TorusGeometry(0.72, 0.11, 10, 24, Math.PI * 1.15),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.42, roughness: 0.25 }),
+      new THREE.TorusGeometry(0.76, 0.11, 10, 24, Math.PI * 1.15),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.45, roughness: 0.25 }),
       roomCount
     );
     const curtainsInst = new THREE.InstancedMesh(
-      new THREE.CircleGeometry(0.65, 20),
+      new THREE.CircleGeometry(0.68, 20),
       new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.32, side: THREE.DoubleSide }),
       roomCount
     );
     const exclInst = new THREE.InstancedMesh(
       createFloatingExclamationGeometry(),
-      new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xf59e0b, emissiveIntensity: 0.58, roughness: 0.25 }),
+      new THREE.MeshStandardMaterial({ vertexColors: true, emissive: 0xf59e0b, emissiveIntensity: 0.65, roughness: 0.25 }),
       roomCount
     );
     const portalMeta: {
@@ -529,96 +426,100 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     activeEntryRef.current = null;
     const signboardItems: Parameters<typeof createCourtyardSignboardsMesh>[0] = [];
     const courtyardBuildingGeoms: THREE.BufferGeometry[] = [];
-    const rotEuler = new THREE.Euler();
-    const rotQuat = new THREE.Quaternion();
-    const unitScale = new THREE.Vector3(1, 1, 1);
-    const mat4 = new THREE.Matrix4();
 
     positionedRooms.forEach(({ room, pos, yawToCenter }, idx) => {
       const completed = isRoomCompleted(room);
       const isActive = !seqTarget.isAllDone && seqTarget.activeRoom?.id === room.id;
       const locked = !completed && !isActive && !isDemoMode;
-      const ridLower = room.id.toLowerCase();
-      const useBlenderCraft =
-        (levelId === 1 || levelId === 4) &&
-        (ridLower.includes('launch') || ridLower.includes('reentry'));
-      const bld = createStationBuildingMesh(room, completed, {
-        skipPortals: true,
-        skipLabelSprite: true,
-        skipRocketCraft: useBlenderCraft
-      });
-      bld.group.position.copy(pos);
-      bld.group.rotation.y = yawToCenter;
-      if (useBlenderCraft) {
-        attachBlenderSpaceship({
-          targetParent: bld.group,
-          position: [0, 0.22, -0.42],
-          rotationY: 0,
-          scale: 0.92,
-          isDisposed: () => isSceneDisposed
-        });
-      }
-      const archMesh = bld.group.children.find((c): c is THREE.Mesh => c instanceof THREE.Mesh);
-      if (archMesh) {
-        rotEuler.set(0, yawToCenter, 0);
-        rotQuat.setFromEuler(rotEuler);
-        mat4.compose(pos, rotQuat, unitScale);
-        const worldArchGeom = archMesh.geometry.clone();
-        worldArchGeom.applyMatrix4(mat4);
-        courtyardBuildingGeoms.push(worldArchGeom);
-        bld.group.remove(archMesh);
-        archMesh.geometry.dispose();
-        if (Array.isArray(archMesh.material)) {
-          archMesh.material.forEach((m) => m.dispose());
-        } else {
-          archMesh.material.dispose();
-        }
-      }
-      bld.portalRing.geometry.dispose();
-      (bld.portalRing.material as THREE.Material).dispose();
-      bld.curtain.geometry.dispose();
-      (bld.curtain.material as THREE.Material).dispose();
 
-      scene.add(bld.group);
-      disposableTextures.push(...bld.disposeTextures);
+      const stationRoot = new THREE.Group();
+      stationRoot.position.copy(pos);
+      scene.add(stationRoot);
 
-      const portalWorldPos = new THREE.Vector3(0, 0.88, 1.15)
-        .applyAxisAngle(new THREE.Vector3(0, 1, 0), yawToCenter)
-        .add(pos);
-      const exclPos = new THREE.Vector3(pos.x, 4.35, pos.z);
-      portalMeta.push({ basePos: portalWorldPos, exclPos, yaw: yawToCenter, completed, isActive });
-      const ringCol = new THREE.Color(
-        completed ? '#10b981' : isActive ? '#facc15' : locked ? '#475569' : room.accentHex
+      // Station Illuminated Pedestal
+      const padColor = completed ? 0x065f46 : isActive ? 0x1e3a8a : locked ? 0x1e293b : 0x0f172a;
+      const ringHex = completed ? '#10b981' : isActive ? '#facc15' : locked ? '#475569' : room.accentHex;
+      const padParts: ColoredGeometryPart[] = [
+        { geometry: new THREE.CylinderGeometry(2.15, 2.38, 0.22, 18), color: padColor, position: [0, 0.11, 0] },
+        { geometry: new THREE.TorusGeometry(2.18, 0.08, 8, 28), color: new THREE.Color(ringHex).getHex(), position: [0, 0.23, 0], rotation: [Math.PI / 2, 0, 0] }
+      ];
+      const padMesh = new THREE.Mesh(
+        mergeColoredParts(padParts),
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.38, metalness: 0.35 })
       );
+      stationRoot.add(padMesh);
+
+      // Compact procedural silhouette placeholder until Blender prop .glb finishes loading
+      const fallbackProp = new THREE.Mesh(
+        new THREE.BoxGeometry(1.5, 1.35, 0.9),
+        new THREE.MeshStandardMaterial({
+          color: locked ? 0x475569 : new THREE.Color(room.accentHex),
+          roughness: 0.45
+        })
+      );
+      fallbackProp.position.set(0, 0.88, -0.1);
+      stationRoot.add(fallbackProp);
+
+      // Distinct Indoor / Space Station Blender 3D Prop (.glb)
+      attachStationPropGlb({
+        propKey: room.propModel,
+        targetParent: stationRoot,
+        scale: room.propModel.startsWith('prop_') ? 1.48 : 1.52,
+        position: [0, 0.22, -0.15],
+        rotationY: 0,
+        fallbackNodes: [fallbackProp],
+        isDisposed: () => isSceneDisposed,
+        onLoaded: (g) => {
+          blenderEnvGroups.push(g);
+        }
+      });
+
+      const portalWorldPos = new THREE.Vector3(pos.x, 0.88, pos.z + 1.85);
+      const exclPos = new THREE.Vector3(pos.x, 4.45, pos.z);
+      portalMeta.push({ basePos: portalWorldPos, exclPos, yaw: yawToCenter, completed, isActive });
+      const ringCol = new THREE.Color(ringHex);
       portalRingsInst.setColorAt(idx, ringCol);
       curtainsInst.setColorAt(idx, ringCol);
 
       const roomLbl = getRoomLabel(room, language);
+      const stepPrefix = `${idx + 1}. `;
       signboardItems.push({
-        pos,
-        yawToCenter,
-        titleAr: locked ? `🔒 ${roomLbl.title}` : isActive ? `🎯 ${roomLbl.title}` : roomLbl.title,
+        pos: new THREE.Vector3(pos.x, 0.2, pos.z),
+        yawToCenter: 0,
+        titleAr: locked
+          ? `🔒 ${stepPrefix}${roomLbl.title}`
+          : isActive
+          ? `🎯 ${stepPrefix}${roomLbl.title}`
+          : completed
+          ? `✅ ${stepPrefix}${roomLbl.title}`
+          : `${stepPrefix}${roomLbl.title}`,
         icon: room.icon,
         accentHex: locked ? '#64748b' : isActive ? '#facc15' : room.accentHex,
         completed
       });
 
-      const dirToRoom = pos.clone().normalize();
-      const pathLen = Math.max(2, ringRadius - 3.6);
-      const pathCenter = dirToRoom.clone().multiplyScalar(2.1 + pathLen / 2);
+      // Lighted Horizontal Step Walkway connecting Station i -> i + 1 AND Spawn Plaza -> Active Station
+      if (idx < positionedRooms.length - 1) {
+        const nextPos = positionedRooms[idx + 1].pos;
+        const segLen = nextPos.x - pos.x - 4.1;
+        walkwayParts.push({
+          geometry: new THREE.BoxGeometry(Math.max(1, segLen), 0.05, 0.9),
+          color: completed ? 0x10b981 : 0x38bdf8,
+          position: [(pos.x + nextPos.x) * 0.5, 0.03, pos.z]
+        });
+      }
       walkwayParts.push({
-        geometry: new THREE.BoxGeometry(1.15, 0.05, pathLen),
-        color: completed ? 0x10b981 : isActive ? 0xfacc15 : locked ? 0x475569 : theme.walkwayColor,
-        position: [pathCenter.x, 0.03, pathCenter.z],
-        rotation: [0, yawToCenter, 0]
+        geometry: new THREE.BoxGeometry(0.95, 0.04, 4.6),
+        color: completed ? 0x10b981 : isActive ? 0xfacc15 : 0x334155,
+        position: [pos.x, 0.03, pos.z + 3.2]
       });
 
-      const entrySpot = pos.clone().sub(dirToRoom.clone().multiplyScalar(2.5));
+      const entrySpot = new THREE.Vector3(pos.x, 0, pos.z + 2.65);
       if (isActive) {
         activeTargetWorldPos = pos.clone();
         activeEntryRef.current = { room, entrySpot: entrySpot.clone() };
       }
-      clickTargets.push({ group: bld.group, room, entrySpot, pos });
+      clickTargets.push({ group: stationRoot, room, entrySpot, pos });
     });
 
     if (portalRingsInst.instanceColor) portalRingsInst.instanceColor.needsUpdate = true;
@@ -629,18 +530,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     scene.add(signboardsBatch.mesh);
     disposableTextures.push(signboardsBatch.texture);
 
-    let courtyardBuildingsMesh: THREE.Mesh | null = null;
-    if (courtyardBuildingGeoms.length > 0) {
-      const mergedBuildingsGeom = mergeGeometries(courtyardBuildingGeoms, false);
-      if (mergedBuildingsGeom) {
-        courtyardBuildingsMesh = new THREE.Mesh(
-          mergedBuildingsGeom,
-          new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.22, flatShading: true })
-        );
-        scene.add(courtyardBuildingsMesh);
-      }
-      courtyardBuildingGeoms.forEach((g) => g.dispose());
-    }
+    const courtyardBuildingsMesh: THREE.Mesh | null = null;
+    void courtyardBuildingGeoms;
 
     if (walkwayParts.length > 0) {
       const walkwaysMesh = new THREE.Mesh(
@@ -650,10 +541,11 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       scene.add(walkwaysMesh);
     }
 
-    // Articulated Robo Character wearing SPACE-FIT X IVA Suit (No EVA Helmet inside station)
+    // Articulated Robo Character wearing SPACE-FIT X IVA Suit facing the 1 -> 2 -> 3 stations
     const hero = buildSpaceFitXCharacter();
-    hero.group.scale.setScalar(1.06);
+    hero.group.scale.setScalar(1.08);
     hero.group.position.copy(playerPosRef.current);
+    hero.group.rotation.y = Math.PI;
     scene.add(hero.group);
 
     // Keyboard & Pointer Controls
@@ -793,9 +685,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       const elapsed = (now - startTime) / 1000;
 
       skyHandle.update(elapsed);
-      if (blenderEnvGroup) {
-        animateBlenderEnvironmentGlb(blenderEnvGroup, elapsed);
-      }
+      blenderEnvGroups.forEach((g) => animateBlenderEnvironmentGlb(g, elapsed));
 
       portalMeta.forEach((pm, idx) => {
         portalDummy.position.copy(pm.basePos);
@@ -828,17 +718,6 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
       if (radarDishMesh) {
         radarDishMesh.rotation.y = Math.sin(elapsed * 0.85) * 1.1;
-      }
-
-      if (waterfallGeo) {
-        const wfAttr = waterfallGeo.getAttribute('position') as THREE.BufferAttribute;
-        const wfArr = wfAttr.array as Float32Array;
-        for (let i = 0; i < wfAttr.count; i++) {
-          let y = wfArr[i * 3 + 1] - 0.065;
-          if (y < -4.2) y = 0.2;
-          wfArr[i * 3 + 1] = y;
-        }
-        wfAttr.needsUpdate = true;
       }
 
       if (orbitSatellitesInst) {
@@ -928,13 +807,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         moveSpeed = speed;
       }
 
-      // Soft Circular Island Perimeter Containment
-      const rFromCenter = Math.hypot(pos.x, pos.z);
-      if (rFromCenter > maxWalkRadius) {
-        const scale = maxWalkRadius / rFromCenter;
-        pos.x *= scale;
-        pos.z *= scale;
-      }
+      // Rectilinear Promenade Deck Containment
+      pos.x = Math.max(-halfDeckX, Math.min(halfDeckX, pos.x));
+      pos.z = Math.max(-5.6, Math.min(5.6, pos.z));
+      void maxWalkRadius;
 
       // Level-Specific Gravity Physics (1G / 0G / 0.16G) + Coyote Time + Landing Dust Puffs
       if (!isGroundedRef.current || pos.y > 0.02) {
@@ -988,13 +864,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       if (isBoredIdle && !boredVoiceFiredRef.current) {
         boredVoiceFiredRef.current = true;
         // 8s idle triggers silent visual speech bubble + animation only (no unprompted passive voice)
-        setIdleSpeechAr(
-          tr(
-            language,
-            'Follow the golden floor arrow to your next NASA mission! 🚀',
-            'اتبع السهم الذهبي على الأرض نحو مهمتك الفضائية التالية! 🚀'
-          )
-        );
+        setShowIdleHint(true);
       }
 
       const activeEmote: AstronautEmote =
@@ -1027,12 +897,12 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         cameraOrbitYawRef.current = lerpAngle(
           cameraOrbitYawRef.current,
           behindPlayerYaw,
-          1 - Math.exp(-1.9 * dt)
+          1 - Math.exp(-3.4 * dt)
         );
       }
 
       const followYaw = cameraOrbitYawRef.current;
-      const camDist = 10.6;
+      const camDist = 13.4;
       const horizDist = camDist * Math.cos(cameraOrbitPitchRef.current);
       const camHeight = 2.3 + camDist * Math.sin(cameraOrbitPitchRef.current);
       const desiredCamX = pos.x + Math.sin(followYaw) * horizDist;
@@ -1055,6 +925,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
     return () => {
       isSceneDisposed = true;
+      deckPitchIn.kill();
+      deckYawIn.kill();
+      gsap.killTweensOf(cameraOrbitPitchRef);
+      gsap.killTweensOf(cameraOrbitYawRef);
       cancelAnimationFrame(rafId);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
@@ -1149,7 +1023,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       data-testid={`spatial-room-map-3d-l${levelId}`}
       className="relative w-full h-full overflow-hidden select-none"
     >
-      {/* Full-Viewport 3D Island Courtyard Canvas */}
+      {/* Full-Viewport 3D Mission Deck Canvas */}
       <div
         ref={mountRef}
         data-testid="three-canvas-mount"
@@ -1179,15 +1053,21 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       )}
 
       {/* Playful Speech Bubble when Astronaut sits down bored after 8s */}
-      {idleSpeechAr && (
+      {showIdleHint && (
         <div
           dir={language === 'ar' ? 'rtl' : 'ltr'}
           data-testid="idle-speech-bubble"
-          className="pointer-events-none fixed bottom-32 sm:bottom-24 inset-x-0 z-30 flex justify-center px-4"
+          className="pointer-events-none fixed bottom-48 sm:bottom-24 inset-x-0 z-20 flex justify-center px-4"
         >
           <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-slate-900 border-[3px] border-sky-400 shadow-2xl font-hud font-black text-xs sm:text-sm animate-bounce">
             <img src="/assets/ui/speech_bubble.svg" alt="" className="w-6 h-6 shrink-0" />
-            <span>{idleSpeechAr}</span>
+            <span>
+              {tr(
+                language,
+                'Follow the golden floor arrow to your next NASA mission! 🚀',
+                'اتبع السهم الذهبي على الأرض نحو مهمتك الفضائية التالية! 🚀'
+              )}
+            </span>
           </div>
         </div>
       )}

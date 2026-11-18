@@ -889,7 +889,7 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
               className="px-4 py-2 rounded-xl bg-amber-400 text-slate-950 font-hud font-black text-xs cursor-pointer flex items-center gap-1.5"
             >
               <Wrench className="w-4 h-4" />
-              <span>{tr(language, 'Return to EVA Prep Room 🎒', 'العودة إلى EVA Prep Room 🎒')}</span>
+              <span>{tr(language, 'Return to EVA Prep Station 🎒', 'العودة إلى محطة تجهيز البدلة 🎒')}</span>
             </button>
           </div>
         )}
@@ -968,7 +968,7 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
     <div className="bg-slate-900/95 border-4 border-purple-400 rounded-3xl p-6 flex flex-col gap-4 shadow-2xl">
       <h2 className="font-hud font-black text-xl text-white flex items-center gap-2">
         <ShieldAlert className="w-6 h-6 text-amber-300" />
-        <span>{tr(language, 'Lunar Mission Control — Earth Return Authorization', 'مركز قيادة القمر — مراجعة الإذن بالعودة للأرض (Mission Control)')}</span>
+        <span>{tr(language, 'Lunar Mission Control — Earth Return Authorization', 'مركز قيادة القمر — مراجعة الإذن بالعودة للأرض')}</span>
       </h2>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-hud font-black">
@@ -991,7 +991,7 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
       {campaign.l3ReturnAuthorized ? (
         <div className="p-5 rounded-3xl bg-gradient-to-br from-emerald-950 to-slate-950 border-4 border-emerald-300 text-center space-y-3">
           <p className="font-mono font-black text-lg sm:text-2xl text-amber-300">
-            ALL SYSTEMS VERIFIED – RETURN TO EARTH AUTHORIZED!
+            {tr(language, 'ALL SYSTEMS VERIFIED – RETURN TO EARTH AUTHORIZED!', 'تم التحقق من الأنظمة بالكامل — أُقر إذن العودة للأرض!')}
           </p>
           <p className="font-hud font-bold text-sm text-white">
             {tr(
@@ -1039,7 +1039,7 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
               : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
           }`}
         >
-          {tr(language, 'INITIATE RETURN TO EARTH 🚀', 'INITIATE RETURN TO EARTH 🚀 (اعتماد العودة للأرض)')}
+          {tr(language, 'INITIATE RETURN TO EARTH 🚀', 'اعتماد انطلاق رحلة العودة للأرض 🚀')}
         </button>
       )}
     </div>

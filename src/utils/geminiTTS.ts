@@ -470,7 +470,7 @@ export class DialogueManager {
     if (text.includes('مستنيينك') || text.includes('يلا يا بطل') || text.includes('مغامرة الفضاء')) {
       return '/audio/robo/campaign/island_hop_welcome.mp3';
     }
-    if (text.includes('أهلًا') || text.includes('أهلاً') || text.includes('أهلا') || text.includes('مرحباً') || text.includes('الأرخبيل') || text.includes('روبو')) {
+    if (text.includes('أهلًا') || text.includes('أهلاً') || text.includes('أهلا') || text.includes('مرحباً') || text.includes('الفضاء') || text.includes('روبو')) {
       return '/audio/robo/pilot/pilot_01_welcome.mp3';
     }
     return null;

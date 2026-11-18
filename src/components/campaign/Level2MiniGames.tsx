@@ -514,7 +514,7 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
             }`}
           >
             <p className="font-hud font-black text-base text-white">
-              {tr(language, '2. Rest in Crew Quarters', '2. الراحة في Crew Quarters')}
+              {tr(language, '2. Rest in Crew Quarters', '2. الراحة في حجرة الطاقم')}
             </p>
             <p className="font-hud text-xs text-slate-200 mt-1">
               {restedCrew
@@ -709,7 +709,7 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
       {arrivalConfirmed ? (
         <div className="p-6 rounded-3xl bg-gradient-to-br from-indigo-950 via-slate-900 to-emerald-950 border-4 border-amber-300 text-center space-y-3">
           <p className="font-mono font-black text-xl sm:text-2xl text-amber-300">
-            LUNAR ARRIVAL CONFIRMED!
+            {tr(language, 'LUNAR ARRIVAL CONFIRMED!', 'تم تأكيد الوصول إلى القمر بنجاح!')}
           </p>
           <p className="font-hud font-black text-base text-white">
             {tr(

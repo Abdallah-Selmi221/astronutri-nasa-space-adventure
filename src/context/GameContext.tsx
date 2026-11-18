@@ -20,7 +20,7 @@ import {
 } from '../types/game';
 import { SolarStormData } from '../utils/nasaApi';
 import { TARGET_NUTRITION_REQUIREMENTS } from '../data/foodItems';
-import { CAMPAIGN_LEVELS } from '../data/campaignLevels';
+import { CAMPAIGN_LEVELS, MERGED_COMPANION_MINIGAMES } from '../data/campaignLevels';
 import { soundManager } from '../utils/sound';
 import { 
   hydrateGameState, 
@@ -909,8 +909,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'COMPLETE_CAMPAIGN_MINIGAME': {
       const curr = state.campaign || initialCampaignState;
       const { miniGameId, patch } = action.payload;
+      const merged = MERGED_COMPANION_MINIGAMES[miniGameId] || [];
       const completedMiniGames = Array.from(
-        new Set([...curr.completedMiniGames, miniGameId])
+        new Set([...curr.completedMiniGames, miniGameId, ...merged])
       ) as MiniGameId[];
       let unlockedLevels = [...curr.unlockedLevels];
       let unlockedRooms = [...state.unlockedRooms];
@@ -921,8 +922,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       let isReturnMissionComplete = state.isReturnMissionComplete;
       let launchPadState = state.launchPadState;
       let level2State = state.level2State;
+      const autoPatch: Partial<CampaignProgressState> = {};
 
-      // Cross-level automatic progression & legacy milestone sync
+      // Cross-level automatic progression & consolidated station sync
       if (miniGameId === 'l1_food_prep') {
         isNutritionMissionComplete = true;
         unlockedRooms = Array.from(new Set([...unlockedRooms, 'SuitRoom']));
@@ -930,8 +932,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       if (miniGameId === 'l1_medical_check') {
         isHumanHealthComplete = true;
       }
-      if (miniGameId === 'l1_spaceship_inspect') {
+      if (miniGameId === 'l1_spaceship_inspect' || miniGameId === 'l1_mission_launch') {
         isEngineMissionComplete = true;
+        autoPatch.l1SpaceshipInspected = true;
         unlockedRooms = Array.from(new Set([...unlockedRooms, 'EngineRoom', 'LaunchPad']));
       }
       const allL1Done = CAMPAIGN_LEVELS[1].miniGames.every((id) => completedMiniGames.includes(id));
@@ -941,23 +944,41 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         launchPadState = { ...launchPadState, isLevel1Complete: true };
         level2State = { ...level2State, isLevel2Active: true };
       }
+      if (miniGameId === 'l2_balanced_meal') {
+        autoPatch.l2HydrationPercent = 100;
+      }
+      if (miniGameId === 'l2_systems_neows') {
+        autoPatch.l2MotionRested = true;
+      }
       const allL2Done = CAMPAIGN_LEVELS[2].miniGames.every((id) => completedMiniGames.includes(id));
       if (miniGameId === 'l2_systems_neows' || allL2Done) {
         unlockedLevels = Array.from(new Set([...unlockedLevels, 3])) as CampaignLevelId[];
       }
-      const allL3Done = CAMPAIGN_LEVELS[3].miniGames.every((id) => completedMiniGames.includes(id));
-      const returnAuth = Boolean(patch?.l3ReturnAuthorized ?? curr.l3ReturnAuthorized);
-      if (returnAuth && allL3Done) {
-        unlockedLevels = Array.from(new Set([...unlockedLevels, 4])) as CampaignLevelId[];
-      }
-      if (miniGameId === 'l3_eva_prep') {
+      if (miniGameId === 'l3_resistance_training' || miniGameId === 'l3_eva_prep') {
         isSuitMissionComplete = true;
+        autoPatch.l3EvaSuitAssembled = true;
+        autoPatch.l3PackedTools =
+          curr.l3PackedTools.length >= 4
+            ? curr.l3PackedTools
+            : ['gripper', 'scoop', 'hammer', 'collection_bag'];
       }
       if (miniGameId === 'l3_solar_storm') {
         level2State = { ...level2State, isTradeOffResolved: true };
       }
       if (miniGameId === 'l3_lunar_samples') {
         level2State = { ...level2State, isEVASafeReturned: true };
+        autoPatch.l3ReturnAuthorized = true;
+      }
+      const allL3Done = CAMPAIGN_LEVELS[3].miniGames.every((id) => completedMiniGames.includes(id));
+      const returnAuth = Boolean(patch?.l3ReturnAuthorized ?? autoPatch.l3ReturnAuthorized ?? curr.l3ReturnAuthorized);
+      if (returnAuth && allL3Done) {
+        unlockedLevels = Array.from(new Set([...unlockedLevels, 4])) as CampaignLevelId[];
+      }
+      if (miniGameId === 'l4_departure_prep') {
+        autoPatch.l4EmergencyRepaired = true;
+      }
+      if (miniGameId === 'l4_earth_reentry') {
+        autoPatch.l4NavigationAligned = true;
       }
       if (miniGameId === 'l4_safe_landing') {
         isReturnMissionComplete = true;
@@ -976,6 +997,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         level2State,
         campaign: {
           ...curr,
+          ...autoPatch,
           ...(patch || {}),
           completedMiniGames,
           unlockedLevels

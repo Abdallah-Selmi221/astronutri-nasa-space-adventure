@@ -609,12 +609,12 @@ export function createFloatingLabelSprite(
     ctx.stroke();
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 23px sans-serif';
-    ctx.direction = 'rtl';
+    ctx.font = 'bold 21px sans-serif';
+    const text = `${icon} ${titleAr}${completed ? ' ✓' : ''}`;
+    ctx.direction = /[\u0600-\u06FF]/.test(text) ? 'rtl' : 'ltr';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const text = `${icon} ${titleAr}${completed ? ' ✓' : ''}`;
-    ctx.fillText(text.slice(0, 34), 192, 48);
+    ctx.fillText(text.slice(0, 38), 192, 48);
   }
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -661,12 +661,12 @@ export function createCourtyardSignboardsMesh(
       ctx.stroke();
 
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 23px sans-serif';
-      ctx.direction = 'rtl';
+      ctx.font = 'bold 21px sans-serif';
+      const label = `${item.icon} ${item.titleAr}${item.completed ? ' ✓' : ''}`;
+      ctx.direction = /[\u0600-\u06FF]/.test(label) ? 'rtl' : 'ltr';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const label = `${item.icon} ${item.titleAr}${item.completed ? ' ✓' : ''}`;
-      ctx.fillText(label.slice(0, 32), slotW / 2, y0 + slotH / 2);
+      ctx.fillText(label.slice(0, 38), slotW / 2, y0 + slotH / 2);
     });
   }
 

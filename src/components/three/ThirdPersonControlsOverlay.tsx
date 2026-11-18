@@ -116,7 +116,7 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
               soundManager.playClick();
               onAutoWalkNext();
             }}
-            className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-cyan-400 to-sky-400 hover:brightness-110 text-slate-950 font-hud font-black text-[11px] sm:text-xs border-2 border-white shadow-[0_4px_14px_rgba(34,211,238,0.45)] flex items-center gap-1.5 max-w-[235px] sm:max-w-[340px] cursor-pointer active:scale-95 transition-transform"
+            className="min-h-[38px] px-3.5 py-1.5 rounded-full bg-gradient-to-r from-cyan-400 via-sky-400 to-emerald-400 hover:brightness-110 text-slate-950 font-hud font-black text-[11px] sm:text-xs border-2 border-white shadow-[0_4px_14px_rgba(34,211,238,0.5)] flex items-center gap-1.5 max-w-[245px] sm:max-w-[340px] cursor-pointer active:scale-95 transition-transform"
           >
             <Compass className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">{autoWalkLabel}</span>

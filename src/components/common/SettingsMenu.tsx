@@ -205,14 +205,14 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                   onClose();
                 }}
                 className="p-2.5 rounded-2xl bg-slate-800/90 hover:bg-rose-600 text-slate-200 hover:text-white border-2 border-slate-600 transition-all active:scale-90 cursor-pointer"
-                aria-label="Close Settings / إغلاق الإعدادات"
+                aria-label={tr(language, 'Close Settings', 'إغلاق الإعدادات')}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-              {/* 0. JURY DEMO MODE: UNLOCK ALL 4 LEVELS / 33 ROOMS / 21 MINI-GAMES */}
+              {/* 0. JURY DEMO MODE: UNLOCK ALL 4 NODES / 14 STATIONS */}
               <div className="p-4 rounded-3xl bg-gradient-to-br from-emerald-950/90 via-cyan-950/85 to-slate-950 border-2 border-amber-400/80 shadow-[0_0_24px_rgba(251,191,36,0.22)] space-y-3">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div>
@@ -221,16 +221,16 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                       <span>
                         {tr(
                           language,
-                          '🚀 Jury Demo Mode: Unlock All 4 Levels (21 Missions)',
-                          '🚀 وضع لجنة التحكيم: فتح كل المراحل (21 مهمة)'
+                          '🚀 Jury Demo Mode: Unlock All 4 Nodes (14 Stations)',
+                          '🚀 وضع لجنة التحكيم: فتح كل المراحل (14 محطة)'
                         )}
                       </span>
                     </h3>
                     <p className="text-[11px] text-slate-200 font-bold mt-1 leading-relaxed">
                       {tr(
                         language,
-                        'Unlocks all 4 islands, 33 rooms, and pre-equips lunar tools & samples so judges can test any mission directly.',
-                        'يفتح المستويات الـ 4 وجميع الغرف (33 غرفة / 21 مهمة) مع تجهيز أدوات وعينات القمر لتجربة أي مستوى فوراً دون توقف.'
+                        'Unlocks all 4 space mission nodes, 14 guided stations, and pre-equips lunar gear & samples for immediate judging.',
+                        'يفتح المحطات الفضائية الـ 4 وجميع المحطات التفاعلية الـ 14 مع تجهيز أدوات وعينات القمر للتجربة الفورية.'
                       )}
                     </p>
                   </div>
@@ -287,10 +287,14 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                     </div>
                     <div>
                       <h3 className="font-hud font-black text-sm sm:text-base text-white">
-                        مستوى المؤثرات الصوتية (Master Volume)
+                        {tr(language, 'Sound Effects Volume', 'مستوى المؤثرات الصوتية')}
                       </h3>
                       <p className="text-[11px] text-slate-300 font-bold">
-                        تحكم في قوة أصوات الصواريخ والأزرار والتنبيهات
+                        {tr(
+                          language,
+                          'Adjust rocket ignition, chimes, and alert effects',
+                          'تحكم في قوة أصوات الصواريخ والأزرار والتنبيهات'
+                        )}
                       </p>
                     </div>
                   </div>
@@ -304,7 +308,9 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                         : 'bg-rose-900/90 text-rose-200 border-rose-400'
                     }`}
                   >
-                    {state.soundEnabled ? 'الصوت مفعل 🔊' : 'مكتوم 🔇'}
+                    {state.soundEnabled
+                      ? tr(language, 'Sound On 🔊', 'الصوت مفعل 🔊')
+                      : tr(language, 'Muted 🔇', 'مكتوم 🔇')}
                   </button>
                 </div>
 
@@ -340,10 +346,14 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                     </div>
                     <div>
                       <h3 className="font-hud font-black text-sm sm:text-base text-white">
-                        موسيقى الفضاء الحالمة (Background Music)
+                        {tr(language, 'Ambient Space Music', 'موسيقى الفضاء الحالمة')}
                       </h3>
                       <p className="text-[11px] text-slate-300 font-bold">
-                        ألحان هادئة ومريحة تساعد على التركيز والاستكشاف
+                        {tr(
+                          language,
+                          'Calm cosmic soundtrack while exploring missions',
+                          'ألحان هادئة ومريحة تساعد على التركيز والاستكشاف'
+                        )}
                       </p>
                     </div>
                   </div>
@@ -357,7 +367,9 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                         : 'bg-rose-900/90 text-rose-200 border-rose-400'
                     }`}
                   >
-                    {bgmEnabled ? 'الموسيقى مفعلة 🎵' : 'مكتومة 🔇'}
+                    {bgmEnabled
+                      ? tr(language, 'Music On 🎵', 'الموسيقى مفعلة 🎵')
+                      : tr(language, 'Muted 🔇', 'مكتومة 🔇')}
                   </button>
                 </div>
 
@@ -388,10 +400,14 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                   </div>
                   <div>
                     <h4 className="font-hud font-bold text-xs sm:text-sm text-white">
-                      إعادة سماع الترحيب والتعليمات
+                      {tr(language, 'Replay Voice Briefing', 'إعادة سماع الترحيب والتعليمات')}
                     </h4>
                     <p className="text-[10px] text-slate-300 font-bold">
-                      استمع إلى روبو يشرح لك خطوات المغامرة من جديد
+                      {tr(
+                        language,
+                        'Hear Companion Robo introduce the mission again',
+                        'استمع إلى روبو يشرح لك خطوات المغامرة من جديد'
+                      )}
                     </p>
                   </div>
                 </div>
@@ -401,11 +417,11 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                   onClick={handleReplayIntroduction}
                   className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-black text-xs border border-sky-300 shadow-md active:scale-95 transition-all shrink-0"
                 >
-                  استمع الآن 🔊
+                  {tr(language, 'Play Intro 🔊', 'استمع الآن 🔊')}
                 </button>
               </div>
 
-              {/* 2. ROBO VOICE TOGGLE (GEMINI TTS) */}
+              {/* 2. ROBO VOICE TOGGLE */}
               <div className="p-4 rounded-3xl bg-space-950/90 border-2 border-amber-400/40 shadow-inner flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className={`p-2.5 rounded-2xl border ${
@@ -417,10 +433,14 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                   </div>
                   <div>
                     <h3 className="font-hud font-black text-sm sm:text-base text-white flex items-center gap-1.5">
-                      <span>صوت المرشد روبو التفاعلي</span>
+                      <span>{tr(language, 'Interactive Robo Voice', 'صوت المرشد روبو التفاعلي')}</span>
                     </h3>
                     <p className="text-[11px] text-slate-300 font-bold">
-                      تشغيل أو إيقاف الشرح الصوتي باللهجة المصرية المحببة للأطفال
+                      {tr(
+                        language,
+                        'Enable or mute voice hints and mission announcements',
+                        'تشغيل أو إيقاف الشرح الصوتي باللهجة المصرية المحببة للأطفال'
+                      )}
                     </p>
                   </div>
                 </div>
@@ -434,11 +454,13 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                       : 'bg-slate-800 text-slate-300 border-slate-600'
                   }`}
                 >
-                  {roboVoiceEnabled ? 'صوت روبو: يعمل 🤖🔊' : 'صوت روبو: متوقف 🔕'}
+                  {roboVoiceEnabled
+                    ? tr(language, 'Robo Voice: On 🤖🔊', 'صوت روبو: يعمل 🤖🔊')
+                    : tr(language, 'Robo Voice: Off 🔕', 'صوت روبو: متوقف 🔕')}
                 </button>
               </div>
 
-              {/* 3. LANGUAGE SELECTOR (ENGLISH DEFAULT FOR GLOBAL JUDGES / ARABIC) */}
+              {/* 3. LANGUAGE SELECTOR (STRICT EN VS AR ISOLATION) */}
               <div className="p-4 rounded-3xl bg-space-950/90 border-2 border-purple-400/40 shadow-inner flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 rounded-2xl bg-purple-950 border border-purple-400 text-purple-300">
@@ -446,12 +468,12 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                   </div>
                   <div>
                     <h3 className="font-hud font-black text-sm sm:text-base text-white">
-                      {tr(language, 'Language / لغة الواجهة', 'لغة واجهة اللعبة (Language)')}
+                      {tr(language, 'Interface Language', 'لغة واجهة اللعبة')}
                     </h3>
                     <p className="text-[11px] text-slate-300 font-bold">
                       {tr(
                         language,
-                        'Switch instantly between Global English and Arabic RTL',
+                        'Switch instantly between Global English and Arabic',
                         'اختر اللغة المفضلة لعرض القوائم واتجاه الشاشة'
                       )}
                     </p>
@@ -468,7 +490,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    English 🌍
+                    {tr(language, 'English 🌍', 'الإنجليزية 🌍')}
                   </button>
                   <button
                     type="button"
@@ -479,7 +501,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    العربية 🇪🇬
+                    {tr(language, 'Arabic 🇪🇬', 'العربية 🇪🇬')}
                   </button>
                 </div>
               </div>
@@ -544,9 +566,19 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                   <div className="mb-3.5 p-3 rounded-2xl bg-amber-950/80 border-2 border-amber-500 text-amber-200 text-xs font-bold flex items-start gap-2.5">
                     <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
                     <div className="space-y-1">
-                      <p className="font-hud font-black text-amber-300">تنبيه: تعذر قراءة ملف التقدم السابق (Corrupted Save)</p>
+                      <p className="font-hud font-black text-amber-300">
+                        {tr(
+                          language,
+                          'Warning: Previous progress file could not be read',
+                          'تنبيه: تعذر قراءة ملف التقدم السابق'
+                        )}
+                      </p>
                       <p className="text-[11px] text-amber-200/90 leading-relaxed font-bold">
-                        تم إيقاف الحفظ التلقائي لحماية بياناتك الأصلية. يمكنك الاستمرار في اللعب، أو استخدام زر &quot;إعادة بدء المهمة&quot; أدناه لمسح الملف التالف والبدء من جديد.
+                        {tr(
+                          language,
+                          'Auto-save paused to protect your data. Continue playing or use Reset Progress below.',
+                          'تم إيقاف الحفظ التلقائي لحماية بياناتك الأصلية. يمكنك الاستمرار في اللعب، أو استخدام زر إعادة بدء المهمة أدناه.'
+                        )}
                       </p>
                     </div>
                   </div>
@@ -556,9 +588,19 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                   <div className="mb-3.5 p-3 rounded-2xl bg-cyan-950/80 border-2 border-cyan-400 text-cyan-200 text-xs font-bold flex items-start gap-2.5">
                     <Info className="w-5 h-5 text-cyan-300 shrink-0 mt-0.5" />
                     <div className="space-y-1">
-                      <p className="font-hud font-black text-cyan-300">معلومة: تم اكتشاف ملف حفظ من إصدار مستقبلي أحدث</p>
+                      <p className="font-hud font-black text-cyan-300">
+                        {tr(
+                          language,
+                          'Info: Save file from a newer engine version detected',
+                          'معلومة: تم اكتشاف ملف حفظ من إصدار مستقبلي أحدث'
+                        )}
+                      </p>
                       <p className="text-[11px] text-cyan-200/90 leading-relaxed font-bold">
-                        تم إيقاف الحفظ التلقائي لمنع الكتابة فوق تقدمك من الإصدار الأحدث. يمكنك اللعب بشكل طبيعي في هذه الجلسة.
+                        {tr(
+                          language,
+                          'Auto-save disabled to protect newer progress; play freely this session.',
+                          'تم إيقاف الحفظ التلقائي لمنع الكتابة فوق تقدمك من الإصدار الأحدث. يمكنك اللعب بشكل طبيعي في هذه الجلسة.'
+                        )}
                       </p>
                     </div>
                   </div>
@@ -568,10 +610,14 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                   <div>
                     <h3 className="font-hud font-black text-sm sm:text-base text-rose-200 flex items-center gap-2">
                       <RotateCcw className="w-4 h-4 text-rose-400" />
-                      <span>إعادة ضبط اللعبة بالكامل (Reset Game)</span>
+                      <span>{tr(language, 'Reset All Progress', 'إعادة ضبط اللعبة بالكامل')}</span>
                     </h3>
                     <p className="text-[11px] text-rose-200/80 font-bold mt-0.5">
-                      مسح الذاكرة المحفوظة والبدء من جديد من المرحلة الأولى
+                      {tr(
+                        language,
+                        'Clear saved memory and start fresh from Level 1',
+                        'مسح الذاكرة المحفوظة والبدء من جديد من المرحلة الأولى'
+                      )}
                     </p>
                   </div>
 

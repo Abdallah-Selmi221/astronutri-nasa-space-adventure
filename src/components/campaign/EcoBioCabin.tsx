@@ -9,6 +9,8 @@ import {
 import { EGYPTIAN_SINAI_SPACE_FOODS } from '../../data/foodItems';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
+import { useGameState } from '../../context/GameContext';
+import { tr } from '../../utils/i18n';
 import {
   CheckCircle2,
   Droplets,
@@ -36,6 +38,8 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
   onUpdateCampaign,
   onClose
 }) => {
+  const { language } = useGameState();
+  const langDir = language === 'ar' ? 'rtl' : 'ltr';
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
 
@@ -378,10 +382,16 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
     syncEcoPatch(ledOn, nutrientOn, next);
   };
 
-  const handleHarvestCrop = (cropId: string, cropNameAr: string) => {
+  const handleHarvestCrop = (cropId: string, cropNameDisplay: string) => {
     if (growthScore < 75) {
       soundManager.playCautionBeep();
-      dialogueManager.speak('شغّل إضاءة LED ومحلول المغذيات وإعادة تدوير الماء أولاً لتنمو المحاصيل المائية!');
+      dialogueManager.speak(
+        tr(
+          language,
+          'Turn on LED grow lights, NPK nutrient pump & water recycling first so crops flourish!',
+          'شغّل إضاءة LED ومحلول المغذيات وإعادة تدوير الماء أولاً لتنمو المحاصيل المائية!'
+        )
+      );
       return;
     }
     if (harvested.includes(cropId)) return;
@@ -389,11 +399,20 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
     const next = [...harvested, cropId];
     setHarvested(next);
     syncEcoPatch(ledOn, nutrientOn, waterLoopOn, next);
-    dialogueManager.speak(`تم حصاد ${cropNameAr} لدعم الفيتامينات والألياف مع الطعام المخزن!`);
+    dialogueManager.speak(
+      tr(
+        language,
+        `Harvested ${cropNameDisplay} to supply fresh vitamins and fiber alongside stored rations!`,
+        `تم حصاد ${cropNameDisplay} لدعم الفيتامينات والألياف مع الطعام المخزن!`
+      )
+    );
   };
 
   return (
-    <div className="rounded-3xl bg-slate-900/95 border-2 border-emerald-400/60 p-4 sm:p-5 space-y-4 shadow-2xl text-white" dir="rtl">
+    <div
+      className="rounded-3xl bg-slate-900/95 border-2 border-emerald-400/60 p-4 sm:p-5 space-y-4 shadow-2xl text-white"
+      dir={langDir}
+    >
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -402,17 +421,25 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
           </div>
           <div>
             <h3 className="font-hud font-black text-base sm:text-lg text-white">
-              🌱 كابينة الزراعة المائية الذاتية (Eco-Bio Cabin — المستوى {levelId})
+              {tr(
+                language,
+                `🌱 Self-Sustaining Hydroponic Eco-Bio Cabin (Node ${levelId})`,
+                `🌱 كابينة الزراعة المائية الذاتية (المرحلة ${levelId})`
+              )}
             </h3>
             <p className="text-xs text-emerald-200/90 font-bold">
-              إنتاج مكمل للكابوتشا والجرجير واللفت الفضائي بنظام LED ومحلول NPK والمياه المغلقة
+              {tr(
+                language,
+                'Grow supplemental Space Lettuce, Arugula & Turnips using tuned LED spectrum, NPK feed & closed water loop',
+                'إنتاج مكمل للكابوتشا والجرجير واللفت الفضائي بنظام الإضاءة الموجه ومحلول المغذيات والمياه المغلقة'
+              )}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 rounded-full text-xs font-black border bg-emerald-950/80 border-emerald-400 text-emerald-200">
-            {SCIENCE_BADGES.ISS_PROVEN.labelAr}
+            {tr(language, SCIENCE_BADGES.ISS_PROVEN.labelEn, SCIENCE_BADGES.ISS_PROVEN.labelAr)}
           </span>
           {onClose && (
             <button
@@ -423,13 +450,13 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
               }}
               className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold border border-slate-600 cursor-pointer"
             >
-              إغلاق ✕
+              {tr(language, 'Close ✕', 'إغلاق ✕')}
             </button>
           )}
         </div>
       </div>
 
-      {/* 3D Interactive Chamber Viewport (with clean 2.5D SVG fallback if WebGL unavailable) */}
+      {/* 3D Interactive Chamber Viewport */}
       <div className="relative rounded-2xl overflow-hidden border-2 border-cyan-400/40 bg-[#071324] h-64 sm:h-72">
         {!webglFailed ? (
           <div ref={mountRef} className="w-full h-full" />
@@ -437,21 +464,25 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
           <div className="w-full h-full flex items-center justify-around px-6 bg-gradient-to-b from-purple-950/50 to-slate-950">
             {HYDROPONIC_CROPS.map((c) => (
               <div key={c.id} className="flex flex-col items-center gap-2">
-                <img src={c.svgAsset} alt={c.nameAr} className="w-20 h-20 object-contain" />
-                <span className="text-xs font-black text-emerald-200">{c.nameAr}</span>
+                <img src={c.svgAsset} alt={tr(language, c.name, c.nameAr || c.name)} className="w-20 h-20 object-contain" />
+                <span className="text-xs font-black text-emerald-200">{tr(language, c.name, c.nameAr || c.name)}</span>
               </div>
             ))}
           </div>
         )}
 
-        {/* Top-left Growth Progress Pill */}
+        {/* Growth Progress Pill */}
         <div className="absolute top-3 left-3 px-3 py-1.5 rounded-2xl bg-slate-950/85 border border-emerald-400/50 text-xs font-black text-emerald-200 flex items-center gap-2">
-          <span>صحة النمو الحيوي: {growthScore}%</span>
+          <span>{tr(language, `Bio-Growth Health: ${growthScore}%`, `صحة النمو الحيوي: ${growthScore}%`)}</span>
         </div>
 
-        {/* Top-right Water Caveat Pill */}
+        {/* Water Caveat Pill */}
         <div className="absolute top-3 right-3 px-3 py-1.5 rounded-2xl bg-slate-950/85 border border-cyan-400/50 text-[11px] font-bold text-cyan-200">
-          💧 استرجاع ISS القياسي: {ISS_WATER_MILESTONE.recoveryPercent}% (يحتاج احتياطي طوارئ)
+          {tr(
+            language,
+            `💧 ISS Record Water Loop: ${ISS_WATER_MILESTONE.recoveryPercent}% (Backup tank required)`,
+            `💧 استرجاع المحطة القياسي للمياه: ${ISS_WATER_MILESTONE.recoveryPercent}% (يحتاج احتياطي طوارئ)`
+          )}
         </div>
       </div>
 
@@ -461,7 +492,7 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
           <div className="flex items-center justify-between">
             <span className="font-black text-xs text-fuchsia-200 flex items-center gap-1.5">
               <Lightbulb className="w-4 h-4" />
-              1. إضاءة LED للنمو
+              {tr(language, '1. LED Grow Array', '1. إضاءة النمو الموجهة')}
             </span>
             <button
               type="button"
@@ -470,11 +501,15 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
                 ledOn ? 'bg-fuchsia-500 text-white' : 'bg-slate-800 text-slate-300'
               }`}
             >
-              {ledOn ? 'مضاءة ✅' : 'تشغيل'}
+              {ledOn ? tr(language, 'Lit ✅', 'مضاءة ✅') : tr(language, 'Turn On', 'تشغيل')}
             </button>
           </div>
           <label className="block text-[11px] text-slate-300 font-bold">
-            طيف الأحمر/الأزرق للتمثيل الضوئي ({spectrumRatio}%):
+            {tr(
+              language,
+              `Red/Blue Photosynthesis Spectrum (${spectrumRatio}%):`,
+              `طيف الأحمر/الأزرق للتمثيل الضوئي (${spectrumRatio}%):`
+            )}
             <input
               type="range"
               min={30}
@@ -490,7 +525,7 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
           <div className="flex items-center justify-between">
             <span className="font-black text-xs text-emerald-200 flex items-center gap-1.5">
               <Droplets className="w-4 h-4" />
-              2. محلول المغذيات NPK
+              {tr(language, '2. NPK Nutrient Solution', '2. محلول المغذيات المعدنية')}
             </span>
             <button
               type="button"
@@ -499,11 +534,15 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
                 nutrientOn ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300'
               }`}
             >
-              {nutrientOn ? 'متوازن ✅' : 'ضخ المحلول'}
+              {nutrientOn ? tr(language, 'Balanced ✅', 'متوازن ✅') : tr(language, 'Pump Feed', 'ضخ المحلول')}
             </button>
           </div>
           <p className="text-[11px] text-slate-300 leading-relaxed">
-            استخلاص آمن لـ N وP وK بعد معالجة البقايا النباتية (يُمنع تماماً استخدام المخلفات البشرية غير المعالجة!).
+            {tr(
+              language,
+              'Cleanly reclaimed Nitrogen, Phosphorus & Potassium from treated plant compost (untreated human waste is strictly prohibited!).',
+              'استخلاص آمن لعناصر النيتروجين والفوسفور والبوتاسيوم بعد معالجة البقايا النباتية.'
+            )}
           </p>
         </div>
 
@@ -511,7 +550,7 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
           <div className="flex items-center justify-between">
             <span className="font-black text-xs text-cyan-200 flex items-center gap-1.5">
               <Recycle className="w-4 h-4" />
-              3. حلقة المياه المغلقة
+              {tr(language, '3. Closed Water Recovery Loop', '3. حلقة المياه المغلقة')}
             </span>
             <button
               type="button"
@@ -520,19 +559,24 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
                 waterLoopOn ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-300'
               }`}
             >
-              {waterLoopOn ? 'نشطة ✅' : 'تشغيل الحلقة'}
+              {waterLoopOn ? tr(language, 'Active ✅', 'نشطة ✅') : tr(language, 'Start Loop', 'تشغيل الحلقة')}
             </button>
           </div>
           <p className="text-[11px] text-slate-300 leading-relaxed">
-            تجميع بخار النتح لإعادته للخزان. بلغت ISS نسبة 98% (2023)، لكنها ليست مضمونة لكل مركبة مستقبلية.
+            {tr(
+              language,
+              'Reclaims plant transpiration moisture back into the reservoir. ISS hit 98% recovery (2023), though backup water remains mandatory.',
+              'تجميع بخار النتح لإعادته للخزان. بلغت محطة الفضاء نسبة 98%، لكنها تحتاج خزان طوارئ.'
+            )}
           </p>
         </div>
       </div>
 
-      {/* Harvest Crops (Kabocha Lettuce, Egyptian Arugula, Space Turnip) */}
+      {/* Harvest Crops */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {HYDROPONIC_CROPS.map((crop) => {
           const isPicked = harvested.includes(crop.id);
+          const cropDisplayName = tr(language, crop.name, crop.nameAr || crop.name);
           return (
             <div
               key={crop.id}
@@ -541,17 +585,19 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
               }`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <img src={crop.svgAsset} alt={crop.nameAr} className="w-12 h-12 object-contain shrink-0" />
+                <img src={crop.svgAsset} alt={cropDisplayName} className="w-12 h-12 object-contain shrink-0" />
                 <div className="min-w-0">
-                  <div className="font-black text-xs text-white truncate">{crop.nameAr}</div>
+                  <div className="font-black text-xs text-white truncate">{cropDisplayName}</div>
                   <div className="text-[10px] text-emerald-300 truncate">
-                    {crop.micronutrientsAr?.slice(0, 2).join(' • ')}
+                    {language === 'en'
+                      ? 'Fresh Vitamins • Crisp Fiber'
+                      : crop.micronutrientsAr?.slice(0, 2).join(' • ')}
                   </div>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => handleHarvestCrop(crop.id, crop.nameAr || crop.name)}
+                onClick={() => handleHarvestCrop(crop.id, cropDisplayName)}
                 className={`px-3 py-1.5 rounded-xl text-[11px] font-black shrink-0 cursor-pointer ${
                   isPicked
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400'
@@ -560,7 +606,7 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
                     : 'bg-slate-800 text-slate-400'
                 }`}
               >
-                {isPicked ? 'محصود ✅' : 'حصاد 🌱'}
+                {isPicked ? tr(language, 'Harvested ✅', 'محصود ✅') : tr(language, 'Harvest 🌱', 'حصاد 🌱')}
               </button>
             </div>
           );
@@ -572,20 +618,27 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <span className="font-black text-sky-200 flex items-center gap-1.5">
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            القاعدة العلمية لنظام NASA Veggie:
+            {tr(language, 'NASA Veggie Garden Scientific Rule:', 'القاعدة العلمية لحديقة الفضاء بناسا:')}
           </span>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-900 border border-sky-400 text-sky-200">
-            {SCIENCE_BADGES.PLANNING_ASSUMPTION.labelAr}
+            {tr(language, SCIENCE_BADGES.PLANNING_ASSUMPTION.labelEn, SCIENCE_BADGES.PLANNING_ASSUMPTION.labelAr)}
           </span>
         </div>
         <p className="text-slate-200 leading-relaxed">
-          المحاصيل المائية تُمد الطاقم بفيتامينات ومعادن وألياف وتنوع نفسي فقط، بينما{' '}
-          <strong>يبقى الطعام الفضائي المخزّن هو المصدر الأساسي المضمون لـ {DAILY_REFERENCE_ASSUMPTIONS.energyKcal.toLocaleString()} سعرة و{DAILY_REFERENCE_ASSUMPTIONS.proteinGrams} جم بروتين يومياً</strong>.
+          {tr(
+            language,
+            `Hydroponic greens supply fresh vitamins, fiber & morale boosts, while stored packaged space rations remain the reliable backbone for ${DAILY_REFERENCE_ASSUMPTIONS.energyKcal.toLocaleString()} kcal & ${DAILY_REFERENCE_ASSUMPTIONS.proteinGrams}g daily protein.`,
+            `المحاصيل المائية تُمد الطاقم بفيتامينات ومعادن وألياف وتنوع نفسي فقط، بينما يبقى الطعام الفضائي المخزّن هو المصدر الأساسي المضمون لـ ${DAILY_REFERENCE_ASSUMPTIONS.energyKcal.toLocaleString()} سعرة و${DAILY_REFERENCE_ASSUMPTIONS.proteinGrams} جم بروتين يومياً.`
+          )}
         </p>
         <p className="text-[11px] text-amber-200 flex items-center gap-1.5 font-bold">
           <ShieldAlert className="w-4 h-4 shrink-0 text-amber-400" />
           <span>
-            تحذير تربة المريخ ({SCIENCE_BADGES.EXPERIMENTAL.labelAr}): لا يمكن الزراعة مباشرة في تربة المريخ لأنها تحتوي على أملاح البيركلورات السامة!
+            {tr(
+              language,
+              `Mars Soil Caution (${SCIENCE_BADGES.EXPERIMENTAL.labelEn}): Astronauts cannot plant crops directly in Martian soil because it contains toxic perchlorate salts!`,
+              `تحذير تربة المريخ (${SCIENCE_BADGES.EXPERIMENTAL.labelAr}): لا يمكن الزراعة مباشرة في تربة المريخ لأنها تحتوي على أملاح البيركلورات السامة!`
+            )}
           </span>
         </p>
       </div>
@@ -605,24 +658,32 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
             className="flex items-center gap-2 font-hud font-black text-xs sm:text-sm text-purple-200 cursor-pointer"
           >
             <FlaskConical className="w-4 h-4 text-emerald-300" />
-            <span>مفاعل السبيرولينا الضوئي التفاعلي (ESA/MELiSSA) 🌿</span>
+            <span>{tr(language, 'Interactive Spirulina Photobioreactor (ESA / MELiSSA) 🌿', 'مفاعل السبيرولينا الضوئي التفاعلي لوكالة الفضاء الأوروبية 🌿')}</span>
           </button>
           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-900 border border-purple-400 text-purple-100">
-            🧪 تجريبية — أبحاث ESA/MELiSSA (وحدة مساعدة وليست غذاءً أساسياً)
+            {tr(
+              language,
+              '🧪 Experimental — ESA/MELiSSA Assistive Biotech',
+              '🧪 تجريبية — أبحاث مساعدة لإنتاج الأكسجين والكتلة الحيوية'
+            )}
           </span>
         </div>
 
         {showSpirulinaLab && (
           <div className="space-y-3 pt-1 text-xs">
             <p className="text-purple-100/90 leading-relaxed">
-              تدرس أبحاث ESA/MELiSSA (مثل ARTHROSPIRA-C) استزراع طحالب السبيرولينا لدعم توليد الأكسجين والكتلة الحيوية المكملة، وتظل <strong>تجربة بحثية مساعدة (TRL)</strong> بجانب مخزون الطعام الأساسي.
+              {tr(
+                language,
+                'ESA’s MELiSSA (e.g. ARTHROSPIRA-C) studies microalgae photobioreactors to generate oxygen and supplementary biomass alongside core mission rations.',
+                'تدرس أبحاث الفضاء استزراع طحالب السبيرولينا لدعم توليد الأكسجين والكتلة الحيوية المكملة، وتظل تجربة بحثية مساعدة بجانب مخزون الطعام الأساسي.'
+              )}
             </p>
 
             {/* Live Numeric Photobioreactor Controls */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <label className="p-2.5 rounded-xl bg-slate-950/80 border border-emerald-400/35 space-y-1">
                 <div className="flex justify-between font-black text-[11px] text-amber-200">
-                  <span>شدة الإضاءة 💡</span>
+                  <span>{tr(language, 'Light Intensity 💡', 'شدة الإضاءة 💡')}</span>
                   <span>{spirulinaParams.lightIntensity}%</span>
                 </div>
                 <input
@@ -640,7 +701,7 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
 
               <label className="p-2.5 rounded-xl bg-slate-950/80 border border-cyan-400/35 space-y-1">
                 <div className="flex justify-between font-black text-[11px] text-cyan-200">
-                  <span>تدفق فقاعات CO₂ 🫧</span>
+                  <span>{tr(language, 'CO2 Bubble Flow 🫧', 'تدفق فقاعات ثاني أكسيد الكربون 🫧')}</span>
                   <span>{spirulinaParams.co2Flow}%</span>
                 </div>
                 <input
@@ -658,9 +719,10 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
 
               <label className="p-2.5 rounded-xl bg-slate-950/80 border border-purple-400/35 space-y-1">
                 <div className="flex justify-between font-black text-[11px] text-purple-200">
-                  <span>درجة الحموضة pH ⚖️</span>
+                  <span>{tr(language, 'Culture pH ⚖️', 'درجة الحموضة ⚖️')}</span>
                   <span className={spirulinaPhOptimal ? 'text-emerald-300' : 'text-amber-300'}>
-                    {spirulinaParams.phLevel.toFixed(1)} {spirulinaPhOptimal ? '(مثالي)' : '(خارج 6.5-7.5)'}
+                    {spirulinaParams.phLevel.toFixed(1)}{' '}
+                    {spirulinaPhOptimal ? tr(language, '(Optimal)', '(مثالي)') : tr(language, '(Outside 6.5–7.5)', '(خارج 6.5-7.5)')}
                   </span>
                 </div>
                 <input
@@ -681,13 +743,13 @@ export const EcoBioCabin: React.FC<EcoBioCabinProps> = ({
             {/* Biomass & Supplemental Oxygen Readout */}
             <div className="grid grid-cols-2 gap-2.5">
               <div className="p-2.5 rounded-xl bg-emerald-950/60 border border-emerald-400/45 flex items-center justify-between">
-                <span className="font-bold text-emerald-200">نمو الكتلة الحيوية الخضراء:</span>
+                <span className="font-bold text-emerald-200">{tr(language, 'Green Biomass Growth:', 'نمو الكتلة الحيوية الخضراء:')}</span>
                 <span data-testid="spirulina-biomass-pct" className="font-mono font-black text-emerald-300 text-sm">
                   {spirulinaBiomassPct}%
                 </span>
               </div>
               <div className="p-2.5 rounded-xl bg-sky-950/60 border border-cyan-400/45 flex items-center justify-between">
-                <span className="font-bold text-cyan-200">أكسجين O₂ تكميلي مساعد:</span>
+                <span className="font-bold text-cyan-200">{tr(language, 'Supplemental O2 Output:', 'أكسجين تكميلي مساعد:')}</span>
                 <span className="font-mono font-black text-cyan-300 text-sm">
                   +{spirulinaO2LitersPerHour} L/h
                 </span>

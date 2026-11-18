@@ -1,6 +1,7 @@
 import React from 'react';
 import { AppLanguage } from '../../types/game';
 import { tr } from '../../utils/i18n';
+import { AstronautBioTwin } from './AstronautBioTwin';
 
 export type TelemetryMetricKey = 'bone' | 'muscle' | 'hydration' | 'filter';
 
@@ -55,6 +56,12 @@ export const BodyTelemetryMeters: React.FC<BodyTelemetryMetersProps> = ({
   titleAr = 'مؤشرات جسم الرائد والأنظمة',
   compact = false
 }) => {
+  const byKey = (k: TelemetryMetricKey, fallback: number) =>
+    metrics.find((m) => m.key === k)?.value ?? fallback;
+  const boneMuscleAvg = Math.round((byKey('bone', 92) + byKey('muscle', 92)) / 2);
+  const hydrVal = Math.round(byKey('hydration', 88));
+  const shieldReady = byKey('filter', 0) >= 85;
+
   return (
     <div
       data-testid="body-telemetry-meters"
@@ -64,8 +71,18 @@ export const BodyTelemetryMeters: React.FC<BodyTelemetryMetersProps> = ({
     >
       <div className="flex items-center justify-between text-[11px] font-hud font-black text-cyan-200">
         <span>🩺 {tr(language, titleEn, titleAr)}</span>
-        <span className="text-emerald-300">LIVE BIO</span>
+        <span className="text-emerald-300">{tr(language, 'LIVE BIO', 'مباشر')}</span>
       </div>
+
+      <AstronautBioTwin
+        compact
+        language={language}
+        rationsCount={3}
+        hydrationPct={hydrVal}
+        boneMusclePct={boneMuscleAvg}
+        suitCalibrated
+        radiationShielded={shieldReady}
+      />
 
       <div className={`grid grid-cols-1 ${metrics.length > 1 ? 'sm:grid-cols-2' : ''} gap-2.5`}>
         {metrics.map((m) => {

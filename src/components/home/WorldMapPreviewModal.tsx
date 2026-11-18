@@ -185,13 +185,13 @@ export const WorldMapPreviewModal: React.FC<WorldMapPreviewModalProps> = ({
               </div>
               <div>
                 <h2 className="font-hud font-black text-lg sm:text-2xl text-white flex items-center gap-2 flex-wrap">
-                  <span>خريطة الطيران بين الجزر (4 مراحل • 8 مهمات)</span>
+                  <span>خريطة مسار أرتميس الفضائية (4 مراحل • 14 محطة)</span>
                   <span className="casual-badge text-[11px] px-2.5 py-0.5">
-                    مسار أرتميس الكوني ✈️
+                    قيادة مهمات ناسا ✈️
                   </span>
                 </h2>
                 <p className="text-xs sm:text-sm text-cyan-200/85 font-bold">
-                  اضغط على أي جزيرة مفتوحة لتطير إليها أو تبدأ المهمة مباشرة!
+                  اضغط على أي محطة فضائية مفتوحة للانطلاق إليها أو بدء المهمة مباشرة!
                 </p>
               </div>
             </div>

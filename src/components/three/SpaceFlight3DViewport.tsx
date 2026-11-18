@@ -12,6 +12,8 @@ import {
   stepSmoothHorizontalVelocity
 } from './thirdPersonPhysics';
 import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
+import { useGameState } from '../../context/GameContext';
+import { tr } from '../../utils/i18n';
 import { soundManager } from '../../utils/sound';
 
 export interface SpaceFlight3DViewportProps {
@@ -21,7 +23,9 @@ export interface SpaceFlight3DViewportProps {
 
 interface FlightPlanetNode {
   id: string;
+  nameEn: string;
   nameAr: string;
+  gravityLabelEn: string;
   gravityLabelAr: string;
   pos: THREE.Vector3;
   sky: SkyMode;
@@ -34,7 +38,9 @@ interface FlightPlanetNode {
 const FLIGHT_PLANETS: FlightPlanetNode[] = [
   {
     id: 'earth',
+    nameEn: 'Earth',
     nameAr: 'الأرض',
+    gravityLabelEn: '1.0G 🌍 Earth Gravity',
     gravityLabelAr: '1.0G 🌍 جاذبية الأرض',
     pos: new THREE.Vector3(-14, 0.5, 2),
     sky: 'sunny',
@@ -45,7 +51,9 @@ const FLIGHT_PLANETS: FlightPlanetNode[] = [
   },
   {
     id: 'moon',
+    nameEn: 'Moon',
     nameAr: 'القمر',
+    gravityLabelEn: '0.16G 🌙 Lunar Gravity',
     gravityLabelAr: '0.16G 🌙 جاذبية القمر',
     pos: new THREE.Vector3(-4, 2.2, -9),
     sky: 'lunar',
@@ -56,7 +64,9 @@ const FLIGHT_PLANETS: FlightPlanetNode[] = [
   },
   {
     id: 'mars',
+    nameEn: 'Mars',
     nameAr: 'المريخ',
+    gravityLabelEn: '0.38G 🔴 Mars Gravity',
     gravityLabelAr: '0.38G 🔴 جاذبية المريخ',
     pos: new THREE.Vector3(7, 1.0, -4),
     sky: 'mars',
@@ -67,7 +77,9 @@ const FLIGHT_PLANETS: FlightPlanetNode[] = [
   },
   {
     id: 'saturn',
+    nameEn: 'Saturn',
     nameAr: 'زحل',
+    gravityLabelEn: '1.06G 🪐 Saturn Rings',
     gravityLabelAr: '1.06G 🪐 حلقات زحل',
     pos: new THREE.Vector3(16, 2.5, 5),
     sky: 'nebula',
@@ -82,6 +94,7 @@ export const SpaceFlight3DViewport: React.FC<SpaceFlight3DViewportProps> = ({
   activePlanetId,
   onSelectPlanetId
 }) => {
+  const { language } = useGameState();
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [nearestNode, setNearestNode] = useState<FlightPlanetNode>(FLIGHT_PLANETS[0]);
   const shipPosRef = useRef(new THREE.Vector3(-10, 1.6, 8));
@@ -309,14 +322,14 @@ export const SpaceFlight3DViewport: React.FC<SpaceFlight3DViewportProps> = ({
     >
       <div ref={mountRef} className="w-full h-full" />
       <div
-        dir="rtl"
+        dir={language === 'ar' ? 'rtl' : 'ltr'}
         className="pointer-events-none absolute top-3 right-3 z-10 px-3.5 py-1.5 rounded-full bg-slate-950/80 border border-cyan-300/65 text-xs font-hud font-black text-cyan-100 backdrop-blur-md"
       >
-        {nearestNode.gravityLabelAr}
+        {tr(language, nearestNode.gravityLabelEn, nearestNode.gravityLabelAr)}
       </div>
       <div className="absolute inset-x-0 bottom-0">
         <ThirdPersonControlsOverlay
-          promptLabelAr={`فحص كوكب ${nearestNode.nameAr}`}
+          promptLabelAr={tr(language, `Inspect ${nearestNode.nameEn}`, `فحص كوكب ${nearestNode.nameAr}`)}
           onInteract={() => {
             soundManager.playClick();
             onSelectPlanetId(nearestNode.id);
@@ -331,7 +344,7 @@ export const SpaceFlight3DViewport: React.FC<SpaceFlight3DViewportProps> = ({
             isBoostingRef.current = b;
           }}
           embedded
-          hintAr="WASD للطيران • Space ارتفاع • Shift تعزيز 🚀"
+          hintAr={tr(language, 'WASD Fly • Space Climb • Shift Boost 🚀', 'WASD للطيران • مسافة ارتفاع • شفت تعزيز 🚀')}
         />
       </div>
     </div>

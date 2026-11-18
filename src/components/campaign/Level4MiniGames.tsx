@@ -737,12 +737,14 @@ const SafeLandingGame: React.FC<{
       {splashdownDone && (
         <div className="rounded-3xl bg-gradient-to-br from-emerald-950/90 to-sky-950/90 border-2 border-emerald-400 p-5 text-center space-y-3 shadow-2xl">
           <div className="text-4xl">🌍🎉🚀</div>
-          <div className="text-xl font-black text-emerald-300 tracking-wide">MISSION ACCOMPLISHED!</div>
+          <div className="text-xl font-black text-emerald-300 tracking-wide">
+            {tr(language, 'MISSION ACCOMPLISHED!', 'اكتملت المهمة الفضائية بنجاح باهر!')}
+          </div>
           <p className="text-sm text-slate-100 leading-relaxed">
             {tr(
               language,
-              'The AstroNutri crew splashed down safely on Earth with valuable lunar samples after completing all 4 Levels and 21 Space Missions!',
-              'هبط طاقم أسترونوتري بسلام على كوكب الأرض ومعه عينات القمر الثمينة بعد اجتياز 4 مستويات و21 تحدياً فضائياً!'
+              'The AstroNutri crew splashed down safely on Earth with valuable lunar samples after completing all 4 Space Nodes and 14 Stations!',
+              'هبط طاقم أسترونوتري بسلام على كوكب الأرض ومعه عينات القمر الثمينة بعد اجتياز المراحل الأربع والـ 14 محطة فضائية!'
             )}
           </p>
           <div className="flex flex-wrap justify-center gap-3 pt-2">
@@ -751,7 +753,7 @@ const SafeLandingGame: React.FC<{
               onClick={onBackToLevel}
               className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs cursor-pointer"
             >
-              {tr(language, 'View Capsule Rooms', 'عرض غرف المركبة')}
+              {tr(language, 'View Capsule Stations', 'عرض محطات الكبسولة')}
             </button>
             <button
               type="button"
@@ -759,7 +761,7 @@ const SafeLandingGame: React.FC<{
               className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm flex items-center gap-1.5 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
-              {tr(language, 'Return to 3D World Archipelago', 'العودة لخريطة العالم الـ 3D')}
+              {tr(language, 'Return to 3D Space Map', 'العودة لخريطة الفضاء الـ 3D')}
             </button>
           </div>
         </div>

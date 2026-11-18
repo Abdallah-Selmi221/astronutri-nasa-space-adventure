@@ -1,7 +1,8 @@
 import React from 'react';
 import { SpaceFitXJointKey, SpaceFitXState } from '../../types/game';
-import { initialSpaceFitXState } from '../../context/GameContext';
+import { initialSpaceFitXState, useGameState } from '../../context/GameContext';
 import { soundManager } from '../../utils/sound';
+import { tr } from '../../utils/i18n';
 import {
   Activity,
   AlertTriangle,
@@ -20,12 +21,12 @@ interface SpaceFitXControlsHUDProps {
   onHighlightModule?: (moduleIndex: number | null) => void;
 }
 
-const JOINT_META: Array<{ key: SpaceFitXJointKey; labelAr: string; icon: string }> = [
-  { key: 'shoulders', labelAr: 'الكتفان', icon: '💪' },
-  { key: 'elbows', labelAr: 'المرفقان', icon: '🦾' },
-  { key: 'hips', labelAr: 'الوركان', icon: '🦵' },
-  { key: 'knees', labelAr: 'الركبتان', icon: '🛡️' },
-  { key: 'ankles', labelAr: 'الكاحلان', icon: '👟' }
+const JOINT_META: Array<{ key: SpaceFitXJointKey; labelEn: string; labelAr: string; icon: string }> = [
+  { key: 'shoulders', labelEn: 'Shoulders', labelAr: 'الكتفان', icon: '💪' },
+  { key: 'elbows', labelEn: 'Elbows', labelAr: 'المرفقان', icon: '🦾' },
+  { key: 'hips', labelEn: 'Hips', labelAr: 'الوركان', icon: '🦵' },
+  { key: 'knees', labelEn: 'Knees', labelAr: 'الركبتان', icon: '🛡️' },
+  { key: 'ankles', labelEn: 'Ankles', labelAr: 'الكاحلان', icon: '👟' }
 ];
 
 const MODE_LOADS: Record<'level1' | 'level2' | 'level3', Record<SpaceFitXJointKey, number>> = {
@@ -40,6 +41,8 @@ export const SpaceFitXControlsHUD: React.FC<SpaceFitXControlsHUDProps> = ({
   compact = false,
   onHighlightModule
 }) => {
+  const { language } = useGameState();
+  const langDir = language === 'ar' ? 'rtl' : 'ltr';
   const current: SpaceFitXState = suitState || initialSpaceFitXState;
 
   const setCompression = (level: 'low' | 'medium' | 'high') => {
@@ -96,15 +99,19 @@ export const SpaceFitXControlsHUD: React.FC<SpaceFitXControlsHUDProps> = ({
   };
 
   return (
-    <div className="space-y-3" dir="rtl">
+    <div className="space-y-3" dir={langDir}>
       {/* Banner */}
       <div className="p-3 rounded-2xl bg-gradient-to-l from-slate-900 via-[#0d1f3a] to-slate-900 border border-cyan-400/50 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-300 text-cyan-200 font-mono font-black text-[11px]">
-            AstroNutri • SPACE-FIT X (v1.0)
+            {tr(language, 'AstroNutri • SPACE-FIT X (v1.0)', 'أسترونوتري • بدلة SPACE-FIT X')}
           </span>
           <span className="text-xs font-bold text-slate-200">
-            بدلة تدريب وحماية داخلية (IVA — ليست بدلة سير خارجي)
+            {tr(
+              language,
+              'Indoor Intravehicular Training Suit (IVA — Not an external spacewalk suit)',
+              'بدلة تدريب وحماية داخلية (ليست بدلة ضغط للسير الفضائي الخارجي)'
+            )}
           </span>
         </div>
         {current.emergencyReleased ? (
@@ -113,7 +120,7 @@ export const SpaceFitXControlsHUD: React.FC<SpaceFitXControlsHUDProps> = ({
             onClick={() => setResistanceMode('level2')}
             className="px-3 py-1 rounded-xl bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer"
           >
-            إعادة قفل المقاومة ✓
+            {tr(language, 'Re-Engage Resistance ✓', 'إعادة قفل المقاومة ✓')}
           </button>
         ) : (
           <button
@@ -123,7 +130,7 @@ export const SpaceFitXControlsHUD: React.FC<SpaceFitXControlsHUDProps> = ({
             className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs border border-rose-200 shadow cursor-pointer flex items-center gap-1"
           >
             <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Release All Resistance • إفلات فوري</span>
+            <span>{tr(language, 'Quick-Release Tension', 'إفلات المقاومة فوراً')}</span>
           </button>
         )}
       </div>
@@ -135,10 +142,14 @@ export const SpaceFitXControlsHUD: React.FC<SpaceFitXControlsHUDProps> = ({
           <div className="flex items-center justify-between">
             <span className="font-hud font-black text-xs text-cyan-200 flex items-center gap-1.5">
               <Sliders className="w-4 h-4 text-cyan-400" />
-              <span>01 • الضغط الذكي (Compression)</span>
+              <span>{tr(language, '01 • Smart Compression', '01 • الضغط الذكي')}</span>
             </span>
             <span className="text-[10px] font-mono text-cyan-300 uppercase">
-              {current.compressionLevel}
+              {current.compressionLevel === 'low'
+                ? tr(language, 'LOW', 'خفيف')
+                : current.compressionLevel === 'medium'
+                ? tr(language, 'MEDIUM', 'متوسط')
+                : tr(language, 'HIGH', 'عالٍ')}
             </span>
           </div>
           <div className="grid grid-cols-3 gap-1.5">
@@ -153,7 +164,11 @@ export const SpaceFitXControlsHUD: React.FC<SpaceFitXControlsHUDProps> = ({
                     : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-cyan-400/60'
                 }`}
               >
-                {lvl === 'low' ? 'Low • خفيف' : lvl === 'medium' ? 'Med • متوسط' : 'High • عالٍ'}
+                {lvl === 'low'
+                  ? tr(language, 'Low', 'خفيف')
+                  : lvl === 'medium'
+                  ? tr(language, 'Medium', 'متوسط')
+                  : tr(language, 'High', 'عالٍ')}
               </button>
             ))}
           </div>
@@ -161,7 +176,7 @@ export const SpaceFitXControlsHUD: React.FC<SpaceFitXControlsHUDProps> = ({
           <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
             <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
               <Shield className="w-4 h-4 text-indigo-400" />
-              <span>03 • وسائد TPU الماصة للصدمات</span>
+              <span>{tr(language, '03 • TPU Impact Hex-Pads', '03 • وسائد TPU الماصة للصدمات')}</span>
             </span>
             <button
               type="button"
@@ -176,7 +191,7 @@ export const SpaceFitXControlsHUD: React.FC<SpaceFitXControlsHUDProps> = ({
                   : 'bg-slate-800 border-slate-600 text-slate-400'
               }`}
             >
-              {current.impactProtectionActive ? 'مفعّلة ✓' : 'مفكوكة'}
+              {current.impactProtectionActive ? tr(language, 'Active ✓', 'مفعّلة ✓') : tr(language, 'Detached', 'مفكوكة')}
             </button>
           </div>
 
@@ -184,7 +199,7 @@ export const SpaceFitXControlsHUD: React.FC<SpaceFitXControlsHUDProps> = ({
             <div className="flex items-center justify-between text-xs font-black text-emerald-300">
               <span className="flex items-center gap-1.5">
                 <BatteryCharging className="w-4 h-4" />
-                <span>07 • الطاقة والحصاد الحركي</span>
+                <span>{tr(language, '07 • Energy & Kinetic Harvest', '07 • الطاقة والحصاد الحركي')}</span>
               </span>
               <button
                 type="button"
@@ -195,20 +210,22 @@ export const SpaceFitXControlsHUD: React.FC<SpaceFitXControlsHUDProps> = ({
                 }}
                 className="px-2 py-0.5 rounded bg-slate-800 border border-emerald-400/40 text-[10px] text-emerald-200 cursor-pointer"
               >
-                {current.batteryAttached ? 'البطارية مثبتة ✓' : 'إعادة تركيب البطارية'}
+                {current.batteryAttached
+                  ? tr(language, 'Pack Locked ✓', 'البطارية مثبتة ✓')
+                  : tr(language, 'Attach Pack', 'إعادة تركيب البطارية')}
               </button>
             </div>
             <div className="grid grid-cols-3 gap-1.5 text-center text-[11px]">
               <div className="p-1.5 rounded-lg bg-slate-900 border border-slate-800">
-                <div className="text-slate-400 text-[9px]">الشحن</div>
+                <div className="text-slate-400 text-[9px]">{tr(language, 'Charge', 'الشحن')}</div>
                 <div className="font-black text-cyan-300">{current.batteryPercent}%</div>
               </div>
               <div className="p-1.5 rounded-lg bg-slate-900 border border-slate-800">
-                <div className="text-slate-400 text-[9px]">الاستهلاك</div>
+                <div className="text-slate-400 text-[9px]">{tr(language, 'Draw', 'الاستهلاك')}</div>
                 <div className="font-black text-amber-300">{current.powerDrawWatts}W</div>
               </div>
               <div className="p-1.5 rounded-lg bg-slate-900 border border-slate-800">
-                <div className="text-slate-400 text-[9px]">طاقة محصودة</div>
+                <div className="text-slate-400 text-[9px]">{tr(language, 'Harvested', 'طاقة محصودة')}</div>
                 <div className="font-black text-emerald-300">+{current.harvestedWh.toFixed(1)}Wh</div>
               </div>
             </div>
@@ -220,10 +237,14 @@ export const SpaceFitXControlsHUD: React.FC<SpaceFitXControlsHUDProps> = ({
           <div className="flex items-center justify-between">
             <span className="font-hud font-black text-xs text-sky-200 flex items-center gap-1.5">
               <Dumbbell className="w-4 h-4 text-sky-400" />
-              <span>02 • مقاومة مستقلة لكل مفصل</span>
+              <span>{tr(language, '02 • Per-Joint Cable Resistance', '02 • مقاومة مستقلة لكل مفصل')}</span>
             </span>
             <span className="text-[10px] font-mono text-amber-300">
-              {current.emergencyReleased ? 'RELEASED' : current.resistanceMode}
+              {current.emergencyReleased
+                ? tr(language, 'RELEASED', 'محررة')
+                : current.resistanceMode === 'custom'
+                ? tr(language, 'CUSTOM', 'مخصص')
+                : current.resistanceMode.toUpperCase()}
             </span>
           </div>
 
@@ -239,7 +260,7 @@ export const SpaceFitXControlsHUD: React.FC<SpaceFitXControlsHUDProps> = ({
                     : 'bg-slate-900 text-slate-300 border-slate-700'
                 }`}
               >
-                L{idx + 1}
+                {tr(language, `L${idx + 1}`, `م${idx + 1}`)}
               </button>
             ))}
             <span className={`py-1 rounded-lg text-[10px] font-black text-center border ${
@@ -247,7 +268,7 @@ export const SpaceFitXControlsHUD: React.FC<SpaceFitXControlsHUDProps> = ({
                 ? 'bg-amber-400/20 border-amber-400 text-amber-200'
                 : 'bg-slate-900/60 border-slate-800 text-slate-500'
             }`}>
-              Custom
+              {tr(language, 'Custom', 'مخصص')}
             </span>
           </div>
 
@@ -255,7 +276,7 @@ export const SpaceFitXControlsHUD: React.FC<SpaceFitXControlsHUDProps> = ({
             {JOINT_META.map((j) => (
               <div key={j.key} className="space-y-0.5">
                 <div className="flex justify-between text-[11px] font-bold text-slate-200">
-                  <span>{j.icon} {j.labelAr}</span>
+                  <span>{j.icon} {tr(language, j.labelEn, j.labelAr)}</span>
                   <span className="text-cyan-300 font-mono">{current.jointLoads[j.key]}%</span>
                 </div>
                 <input
@@ -276,24 +297,24 @@ export const SpaceFitXControlsHUD: React.FC<SpaceFitXControlsHUDProps> = ({
         <div className={`p-3.5 rounded-2xl bg-slate-950/90 border border-emerald-400/40 space-y-2.5 ${compact ? 'md:col-span-2' : ''}`}>
           <div className="font-hud font-black text-xs text-emerald-200 flex items-center gap-1.5">
             <Activity className="w-4 h-4 text-emerald-400" />
-            <span>05 • المراقبة الفسيولوجية الحية</span>
+            <span>{tr(language, '05 • Live Physiological Telemetry', '05 • المراقبة الفسيولوجية الحية')}</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-2 text-xs">
             <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-              <span className="text-slate-400 text-[10px]">❤️ نبض القلب</span>
-              <span className="font-mono font-black text-rose-300">{current.heartRateBpm} bpm</span>
+              <span className="text-slate-400 text-[10px]">{tr(language, '❤️ Heart Rate', '❤️ نبض القلب')}</span>
+              <span className="font-mono font-black text-rose-300">{current.heartRateBpm} {tr(language, 'bpm', 'ن/د')}</span>
             </div>
             <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-              <span className="text-slate-400 text-[10px]">🌡️ حرارة الجلد</span>
+              <span className="text-slate-400 text-[10px]">{tr(language, '🌡️ Skin Temp', '🌡️ حرارة الجلد')}</span>
               <span className="font-mono font-black text-amber-300">{current.skinTempC}°C</span>
             </div>
             <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-              <span className="text-slate-400 text-[10px]">⚡ حمل العضلات</span>
+              <span className="text-slate-400 text-[10px]">{tr(language, '⚡ Muscle Load', '⚡ حمل العضلات')}</span>
               <span className="font-mono font-black text-cyan-300">{current.muscleLoadPct}%</span>
             </div>
             <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-              <span className="text-slate-400 text-[10px]">📐 زاوية الركبة</span>
+              <span className="text-slate-400 text-[10px]">{tr(language, '📐 Knee Flex', '📐 زاوية الركبة')}</span>
               <span className="font-mono font-black text-emerald-300">{current.jointAngleDeg}°</span>
             </div>
           </div>
@@ -306,24 +327,28 @@ export const SpaceFitXControlsHUD: React.FC<SpaceFitXControlsHUDProps> = ({
             <div className="flex items-center justify-between text-xs font-black text-amber-200">
               <span className="flex items-center gap-1.5">
                 <Radiation className="w-4 h-4 text-amber-400" />
-                <span>06 • مقياس الجرعة الإشعاعية (Dosimeter)</span>
+                <span>{tr(language, '06 • Personal Radiation Dosimeter', '06 • مقياس الجرعة الإشعاعية')}</span>
               </span>
               <span className="font-mono text-[11px]">
                 {current.dosimeterCurrentMsv.toFixed(2)} / {current.dosimeterCumulativeMsv.toFixed(2)} mSv
               </span>
             </div>
             <p className="text-[10px] text-amber-100/90 leading-relaxed font-bold">
-              ⚠️ للرصد والبحث التجريبي الجزئي فقط — هذه البدلة الداخلية <strong>لا توفر حماية كاملة</strong> من إشعاع العواصف الشمسية (يلزم درع المركبة والملجأ).
+              {tr(
+                language,
+                '⚠️ Experimental monitoring only — this indoor suit does NOT replace spacecraft or lunar storm shelters during solar particle events.',
+                '⚠️ للرصد والبحث التجريبي الجزئي فقط — هذه البدلة الداخلية لا توفر حماية كاملة من إشعاع العواصف الشمسية (يلزم درع المركبة والملجأ).'
+              )}
             </p>
           </div>
 
           <div className="flex items-center justify-between p-2 rounded-xl bg-rose-950/35 border border-rose-400/35 text-[11px]">
             <span className="text-rose-200 font-bold flex items-center gap-1">
               <Zap className="w-3.5 h-3.5" />
-              <span>04 • حقيبة الطوارئ والإفلات:</span>
+              <span>{tr(language, '04 • Med & Quick-Release Pouch:', '04 • حقيبة الطوارئ والإفلات:')}</span>
             </span>
             <span className="font-black text-emerald-300">
-              {current.emergencyReleased ? 'تم التحرير الفوري 🔓' : 'مؤمّنة وجاهزة ✓'}
+              {current.emergencyReleased ? tr(language, 'Released 🔓', 'تم التحرير الفوري 🔓') : tr(language, 'Armed & Ready ✓', 'مؤمّنة وجاهزة ✓')}
             </span>
           </div>
         </div>

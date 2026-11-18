@@ -11,6 +11,7 @@ import { EGYPTIAN_SINAI_SPACE_FOODS, FOOD_DATABASE } from '../../data/foodItems'
 import { DAILY_REFERENCE_ASSUMPTIONS, SCIENCE_BADGES } from '../../data/science';
 import { SpaceFitXControlsHUD } from '../suit/SpaceFitXControlsHUD';
 import { BodyTelemetryMeters } from './BodyTelemetryMeters';
+import { AstronautBioTwin } from './AstronautBioTwin';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -507,9 +508,16 @@ const FoodPackingScene: React.FC<{
             ))}
           </AnimatePresence>
 
-          <div className="text-center space-y-1 relative z-10">
-            <div className="text-5xl">👨‍🚀🍽️</div>
-            <div className="font-hud font-black text-sm text-white">
+          <div className="text-center space-y-1 relative z-10 w-full">
+            <AstronautBioTwin
+              compact
+              language={language}
+              rationsCount={packed.length}
+              hydrationPct={Math.min(98, 72 + packed.length * 5)}
+              boneMusclePct={Math.min(100, 76 + packed.length * 6)}
+              suitCalibrated={false}
+            />
+            <div className="font-hud font-black text-sm text-white pt-1">
               {tr(language, 'Meal Tray & Cargo Crate', 'صينية الوجبة وصندوق الشحن')}
             </div>
             <div className="text-[11px] text-indigo-200">
@@ -567,7 +575,7 @@ const FoodPackingScene: React.FC<{
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
               safetyAlert ? 'bg-rose-600 text-white' : 'bg-emerald-500 text-slate-950'
             }`}>
-              {safetyAlert ? 'WARNING ⚠️' : 'Safety: SAFE ✅'}
+              {safetyAlert ? tr(language, 'WARNING ⚠️', 'تحذير ⚠️') : tr(language, 'Safety: SAFE ✅', 'آمن ✅')}
             </span>
           </div>
 
@@ -975,7 +983,7 @@ const MissionControlLaunchScene: React.FC<{
       {launchSuccess ? (
         <div className="p-5 rounded-3xl bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-950 border-4 border-emerald-300 text-center space-y-3">
           <p className="font-mono font-black text-lg sm:text-2xl text-amber-300 tracking-wide">
-            LAUNCH SUCCESSFUL! THE JOURNEY TO THE MOON BEGINS!
+            {tr(language, 'LAUNCH SUCCESSFUL! THE JOURNEY TO THE MOON BEGINS!', 'انطلاق ناجح! بدأت رحلة الصاروخ نحو القمر!')}
           </p>
           <p className="font-hud font-black text-base text-white">
             {tr(
@@ -1016,8 +1024,8 @@ const MissionControlLaunchScene: React.FC<{
           <Rocket className="w-6 h-6" />
           <span>
             {canLaunch
-              ? tr(language, 'INITIATE LAUNCH (3-2-1) 🚀', 'INITIATE LAUNCH • ابدأ العد التنازلي (3-2-1)')
-              : tr(language, 'Complete all 4 rooms & sync navigation 🔒', 'أكمل الغرف الأربع وزامن الملاحة للإطلاق 🔒')}
+              ? tr(language, 'INITIATE LAUNCH (3-2-1) 🚀', 'ابدأ العد التنازلي والإطلاق (3-2-1) 🚀')
+              : tr(language, 'Complete all station checks & sync navigation 🔒', 'أكمل محطات المهمة وزامن الملاحة للإطلاق 🔒')}
           </span>
         </button>
       )}

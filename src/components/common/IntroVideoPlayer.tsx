@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { Globe, Rocket, Sparkles, User, Volume2 } from 'lucide-react';
 import { useGameState } from '../../context/GameContext';
 import { buildSpaceFitXCharacter } from '../three/buildSpaceFitXCharacter';
-import { createCosmicSkyBackdrop, createFloatingIslandMesh } from '../three/archipelagoPrimitives';
+import gsap from 'gsap';
+import { createCosmicSkyBackdrop } from '../three/archipelagoPrimitives';
 import { soundManager } from '../../utils/sound';
 import { speakWebSpeechNonBlocking, tr } from '../../utils/i18n';
 import type { CadetAgeGroup } from '../../types/game';
@@ -24,8 +25,8 @@ const CUTSCENE_BEATS: Array<{
   },
   {
     atSec: 1.7,
-    en: '👨‍🚀 SPACE-FIT X: "4 Worlds, 21 Guided Missions & Real NASA DONKI / NeoWs / OSDR Data!"',
-    ar: '👨‍🚀 بدلة SPACE-FIT X: "4 عوالم و21 مهمة موجهة ببيانات ناسا الحقيقية!"'
+    en: '👨‍🚀 SPACE-FIT X: "4 Space Nodes, 14 Stations & Real NASA DONKI / NeoWs / OSDR Data!"',
+    ar: '👨‍🚀 بدلة SPACE-FIT X: "4 مراحل فضائية و14 محطة موجهة ببيانات ناسا الحقيقية!"'
   },
   {
     atSec: 3.4,
@@ -70,16 +71,53 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
     sun.position.set(6, 10, 7);
     scene.add(hemi, sun);
 
-    const island = createFloatingIslandMesh({
-      radius: 4.1,
-      topColor: 0x22c55e,
-      rimColor: 0x38bdf8,
-      rockColor: 0xb45309,
-      crystalColor: 0x22d3ee,
-      surfaceMode: 'grass'
+    const orbitalDeck = new THREE.Group();
+    const deckMat = new THREE.MeshStandardMaterial({
+      color: 0x162238,
+      metalness: 0.55,
+      roughness: 0.35
     });
-    island.position.set(0, -0.35, 0);
-    scene.add(island);
+    const deckBase = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.5, 0.36, 36), deckMat);
+    deckBase.position.y = -0.18;
+    const dockRing = new THREE.Mesh(
+      new THREE.TorusGeometry(4.22, 0.08, 12, 48),
+      new THREE.MeshBasicMaterial({ color: 0x22d3ee })
+    );
+    dockRing.rotation.x = Math.PI / 2;
+    const innerRing = new THREE.Mesh(
+      new THREE.TorusGeometry(2.3, 0.045, 10, 40),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.72 })
+    );
+    innerRing.rotation.x = Math.PI / 2;
+    innerRing.position.y = 0.02;
+    const moonBackdrop = new THREE.Mesh(
+      new THREE.SphereGeometry(2.1, 20, 14),
+      new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.85, metalness: 0.08 })
+    );
+    moonBackdrop.position.set(-7.5, 4.2, -13);
+    const earthBackdrop = new THREE.Mesh(
+      new THREE.SphereGeometry(3.4, 24, 16),
+      new THREE.MeshStandardMaterial({
+        color: 0x1d4ed8,
+        emissive: 0x075985,
+        emissiveIntensity: 0.35,
+        roughness: 0.65
+      })
+    );
+    earthBackdrop.position.set(8.8, 3.8, -16);
+    orbitalDeck.add(deckBase, dockRing, innerRing, moonBackdrop, earthBackdrop);
+    orbitalDeck.position.set(0, -0.35, 0);
+    scene.add(orbitalDeck);
+
+    // Smooth GSAP camera fly-in target
+    const introCamProxy = { x: 5.8, y: 4.1, z: 10.4 };
+    const camTween = gsap.to(introCamProxy, {
+      x: 1.35,
+      y: 1.85,
+      z: 5.1,
+      duration: 4.8,
+      ease: 'power3.out'
+    });
 
     // Mini showcase ringed planet in skyline
     const planetGroup = new THREE.Group();
@@ -120,8 +158,6 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
       rafId = requestAnimationFrame(tick);
       const elapsed = (now - startMs) / 1000;
       const flyT = Math.min(1, elapsed / 5.0);
-      // Smooth ease-out cubic fly-in
-      const ease = 1 - Math.pow(1 - flyT, 3);
 
       // Update React subtitle beat cleanly only when transitioning threshold
       const bucket = elapsed < 1.7 ? 0 : elapsed < 3.4 ? 1 : 2;
@@ -145,11 +181,12 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
       });
       hero.group.rotation.y = Math.sin(elapsed * 0.6) * 0.28;
 
-      // 5-second fly-in from wide shot -> charismatic hero close-up + subtle gentle idle orbit after
-      const idleSway = Math.max(0, elapsed - 5.0) * 0.25;
-      const camX = THREE.MathUtils.lerp(5.2, 1.35, ease) + Math.sin(idleSway) * 0.45;
-      const camY = THREE.MathUtils.lerp(3.6, 1.85, ease);
-      const camZ = THREE.MathUtils.lerp(9.6, 5.1, ease);
+      // GSAP-driven fly-in + gentle post-arrival orbit sway
+      const idleSway = Math.max(0, elapsed - 4.8) * 0.25;
+      const camX = introCamProxy.x + Math.sin(idleSway) * 0.45;
+      const camY = introCamProxy.y;
+      const camZ = introCamProxy.z;
+      dockRing.rotation.z = elapsed * 0.16;
       camera.position.set(camX, camY, camZ);
       camera.lookAt(0, 1.15, 0.2);
 
@@ -158,6 +195,7 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
     rafId = requestAnimationFrame(tick);
 
     return () => {
+      camTween.kill();
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', handleResize);
       sky.dispose();
@@ -198,8 +236,8 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
       }
       speakWebSpeechNonBlocking(
         language === 'ar'
-          ? `أهلاً بك يا ${cleanedName}! انطلق في مغامرة أسترونوتري!`
-          : `Welcome Cadet ${cleanedName}! Launching into the 3D Space Archipelago!`,
+          ? `أهلاً بك يا ${cleanedName}! انطلق في مهمة أسترونوتري من الأرض إلى القمر!`
+          : `Welcome Cadet ${cleanedName}! Launching into the Earth-to-Moon Space Map!`,
         language
       );
     }, 0);
@@ -214,7 +252,7 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
     const text =
       language === 'ar'
         ? 'مرحباً بك في أكاديمية ناسا أسترونوتري! اختر لغتك واضغط ابدأ المغامرة للانطلاق إلى الفضاء.'
-        : 'Welcome to AstroNutri NASA Space Academy! Choose your profile and tap Start Adventure to explore the 3D islands.';
+        : 'Welcome to AstroNutri NASA Space Academy! Choose your profile and tap Start Adventure to explore the Earth-to-Moon space missions.';
     speakWebSpeechNonBlocking(text, language);
   };
 
@@ -239,7 +277,7 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-950/80 border-2 border-cyan-300/80 backdrop-blur-md shadow-lg">
           <Sparkles className="w-4 h-4 text-yellow-300" />
           <span className="font-hud font-black text-xs sm:text-base text-white tracking-wide">
-            AstroNutri • NASA Space Apps Edition
+            {tr(language, 'AstroNutri • NASA Space Apps Edition', 'أسترونوتري • تحدي ناسا لتطبيقات الفضاء')}
           </span>
         </div>
 
@@ -270,7 +308,7 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
                 language === 'en' ? 'bg-cyan-400 text-slate-950 shadow' : 'text-slate-200 hover:text-white'
               }`}
             >
-              EN
+              {tr(language, 'EN', 'الإنجليزية')}
             </button>
             <button
               type="button"
@@ -283,7 +321,7 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
                 language === 'ar' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-200 hover:text-white'
               }`}
             >
-              عربي
+              {tr(language, 'Arabic', 'العربية')}
             </button>
           </div>
         </div>
@@ -299,7 +337,7 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
             {tr(language, currentBeat.en, currentBeat.ar)}
           </p>
           <div className="mt-1.5 flex items-center justify-center gap-2 text-[10px] font-mono text-cyan-300">
-            <span>3D FLY-IN CUTSCENE</span>
+            <span>{tr(language, '3D FLY-IN CUTSCENE', 'مشهد طيران ثلاثي الأبعاد')}</span>
             <div className="w-24 h-1.5 rounded-full bg-slate-800 overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-cyan-400 to-amber-400 transition-all duration-150"
@@ -328,7 +366,7 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
               </p>
             </div>
             <span className="self-start sm:self-auto px-2.5 py-1 rounded-full bg-emerald-950/90 border border-emerald-400/70 text-[10px] font-hud font-black text-emerald-200 whitespace-nowrap">
-              {tr(language, '4 Worlds • 21 Guided Missions', '4 عوالم • 21 مهمة موجهة')}
+              {tr(language, '4 Space Nodes • 14 Stations', '4 مراحل فضائية • 14 محطة')}
             </span>
           </div>
 

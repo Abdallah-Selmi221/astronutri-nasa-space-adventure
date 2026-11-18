@@ -16,6 +16,7 @@ import { MiniGameId } from '../../types/game';
 import { tr, speakWebSpeechNonBlocking } from '../../utils/i18n';
 import { soundManager } from '../../utils/sound';
 import { openNasaDrawer } from '../common/NasaMissionControlDrawer';
+import { MissionInventoryBar } from './MissionInventoryBar';
 
 export interface MiniGameShellProps {
   miniGameId: MiniGameId;
@@ -32,8 +33,9 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
   onContinueNext,
   children
 }) => {
-  const { language, ageGroup, setLanguage } = useGameState();
+  const { state, language, ageGroup, setLanguage } = useGameState();
   const [briefingAccepted, setBriefingAccepted] = useState<boolean>(isCompleted);
+  const campaign = state.campaign;
 
   useEffect(() => {
     setBriefingAccepted(isCompleted);
@@ -71,7 +73,7 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
             className="px-3 py-2 rounded-2xl bg-slate-800 hover:bg-cyan-700 text-white font-hud font-black text-xs sm:text-sm border border-cyan-400/40 flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors"
           >
             {isAr ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
-            <span>{tr(language, 'Island Map', 'خريطة الجزيرة')}</span>
+            <span>{tr(language, 'Mission Deck', 'منصة المهمة')}</span>
           </button>
 
           <div className="min-w-0">
@@ -113,7 +115,7 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
             }}
             className="px-2.5 py-1.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-amber-200 border border-amber-300/60 text-xs font-hud font-black cursor-pointer"
           >
-            {isAr ? 'عربي | EN' : 'EN | عربي'}
+            {isAr ? '🌐 اللغة: عربي' : '🌐 EN • AR'}
           </button>
 
           <button
@@ -126,10 +128,21 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
             className="px-2.5 py-1.5 rounded-2xl bg-cyan-950 hover:bg-cyan-900 text-cyan-200 border border-cyan-400/60 text-xs font-hud font-black flex items-center gap-1 cursor-pointer"
           >
             <Satellite className="w-3.5 h-3.5 text-cyan-300" />
-            <span>NASA</span>
+            <span>{tr(language, 'NASA', 'بيانات ناسا')}</span>
           </button>
         </div>
       </header>
+
+      {/* Persistent Mission Carry-Over Inventory & Biometrics Bar */}
+      {campaign && (
+        <div className="flex justify-center">
+          <MissionInventoryBar
+            campaign={campaign}
+            activeLevelId={spec.levelId}
+            language={language}
+          />
+        </div>
+      )}
 
       {/* Completion Victory Banner */}
       {isCompleted && (
@@ -183,7 +196,7 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
                 }}
                 className="px-4 py-2 rounded-2xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-hud font-black text-xs sm:text-sm shadow cursor-pointer"
               >
-                {tr(language, 'Return to 3D Island', 'العودة للجزيرة ثلاثية الأبعاد')}
+                {tr(language, 'Return to Mission Deck', 'العودة لمنصة المهمة')}
               </button>
             )}
           </div>

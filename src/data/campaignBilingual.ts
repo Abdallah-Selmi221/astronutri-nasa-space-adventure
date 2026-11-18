@@ -26,71 +26,57 @@ export const LEVEL_TITLES_BILINGUAL: Record<
   { badge: string; shortEn: string; shortAr: string; titleEn: string; titleAr: string; subtitleEn: string; subtitleAr: string }
 > = {
   1: {
-    badge: '🌍',
-    shortEn: 'Earth Prep',
-    shortAr: 'الأرض والانطلاق',
-    titleEn: 'Level 1: Earth Preparation',
-    titleAr: 'المستوى 1: التحضير على الأرض',
-    subtitleEn: '5 sequential pre-launch steps across Earth Academy before liftoff to the Moon',
-    subtitleAr: '5 مهام تجهيز متسلسلة قبل انطلاق الصاروخ إلى القمر'
+    badge: '🚀',
+    shortEn: 'Earth Pad',
+    shortAr: 'منصة الأرض',
+    titleEn: 'Node 1: Earth Launchpad Prep',
+    titleAr: 'المحطة 1: التجهيز في منصة إطلاق الأرض',
+    subtitleEn: '4 guided stations from the Space Kitchen to the Rocket Launchpad',
+    subtitleAr: '4 محطات متسلسلة من المطبخ الفضائي حتى منصة إطلاق الصاروخ للقمر'
   },
   2: {
-    badge: '🛸',
-    shortEn: 'Zero-G Transit',
-    shortAr: 'المدار 0G',
-    titleEn: 'Level 2: Zero-G Orbit Transit',
-    titleAr: 'المستوى 2: الرحلة في انعدام الجاذبية',
-    subtitleEn: '6 microgravity challenges & NASA NeoWs radar navigation on route to Lunar Orbit',
-    subtitleAr: '6 تحديات في انعدام الجاذبية وصولاً إلى مدار القمر'
+    badge: '🛰️',
+    shortEn: 'ISS Orbit',
+    shortAr: 'محطة الفضاء',
+    titleEn: 'Node 2: ISS Low-Earth Orbit',
+    titleAr: 'المحطة 2: محطة الفضاء الدولية 0G',
+    subtitleEn: '3 orbital microgravity challenges & NASA NeoWs asteroid radar navigation',
+    subtitleAr: '3 محطات متسلسلة في انعدام الجاذبية وصولاً إلى مدار القمر'
   },
   3: {
-    badge: '🌙',
-    shortEn: 'Lunar Base',
-    shortAr: 'مستعمرة القمر',
-    titleEn: 'Level 3: Artemis Lunar Outpost',
-    titleAr: 'المستوى 3: مستعمرة القمر أرتميس',
-    subtitleEn: '5 habitat, solar-storm & lunar geology missions before Earth return authorization',
-    subtitleAr: '5 مهام علمية مترابطة وعاصفة DONKI قبل الإذن بالعودة'
+    badge: '🌕',
+    shortEn: 'Moon Base',
+    shortAr: 'قاعدة القمر',
+    titleEn: 'Node 3: Moon Shackleton Base',
+    titleAr: 'المحطة 3: قاعدة القمر الحيوية شاكلتون',
+    subtitleEn: '4 lunar biodome operations: ECLSS water, ARED workouts, DONKI shield & geology',
+    subtitleAr: '4 محطات قمرية: تدوير المياه، تمارين العظام، درع DONKI، وجمع العينات'
   },
   4: {
     badge: '🪂',
-    shortEn: 'Earth Return',
+    shortEn: 'Re-Entry',
     shortAr: 'العودة للأرض',
-    titleEn: 'Level 4: Return to Earth',
-    titleAr: 'المستوى 4: رحلة العودة إلى الأرض',
-    subtitleEn: '5 critical Orion re-entry, repair & parachute splashdown steps home',
-    subtitleAr: '5 تحديات حاسمة حتى الهبوط الآمن على الأرض'
+    titleEn: 'Node 4: Orion Earth Re-Entry',
+    titleAr: 'المحطة 4: كبسولة العودة والهبوط',
+    subtitleEn: '3 critical return stations: cargo lock, PICA-X heat shield & parachute splashdown',
+    subtitleAr: '3 محطات حاسمة: تأمين العينات، الدرع الحراري، ونشر مظلات الهبوط'
   }
 };
 
 export const ROOM_OBJECTIVE_EN: Record<string, string> = {
   food_storage: 'Pack crumb-free space meals with balanced nutrients',
-  equipment_room: 'Inspect and stow essential EVA & flight hardware',
-  medical_room: 'Verify hydration, rest & flight surgeon clearance',
-  spaceship_bay: 'Inspect O2, power, comms & thermal systems',
-  mission_control: 'Final readiness check & Earth return authorization',
-  launch_area: 'Initiate 3-2-1 rocket ignition to orbit',
-  corridor: 'Use cabin handrails to glide safely in zero gravity',
-  cockpit: 'Capture & velcro all 5 floating tools before impact',
-  hydration_station: 'Drink safely via sealed zero-G valve pouch',
-  crew_quarters: 'Rest inside anchored sleep bags & buckle up',
-  medical_bay: 'Check fluid shift & cabin vestibular health',
-  communication_room: 'Run live NASA NeoWs asteroid corridor radar',
-  habitat: 'Monitor lunar crew living telemetry',
-  fitness_room: 'Complete ARED resistance reps with SPACE-FIT X',
-  food_nutrition_lab: 'Inspect hydroponics & Spirulina oxygen backup',
-  water_recycling_room: 'Restore 98% ISS-style ECLSS water filtration',
-  power_solar_control: 'Balance station shields, ECLSS & farm watts',
-  eva_prep_room: 'Assemble xEMU pressure suit & pack 4 tools',
-  emergency_shelter: 'Respond to NASA DONKI solar proton wave alert',
-  solar_panel_field: 'Protect lunar arrays during CME flare',
-  lunar_rover_parking: 'Stage geological sampling traverse',
-  lunar_exploration_zone: 'Collect basalt & regolith in 0.16G gravity',
-  central_corridor: 'Deploy chutes cleanly for ocean splashdown',
-  cargo_sample_storage: 'Verify lunar sample containment & life support',
-  cockpit_navigation: 'Align re-entry corridor & test 1.3s DSN delay',
-  systems_check_station: 'Control PICA-X heat shield angle through plasma',
-  equipment_maintenance: 'Isolate & repair mid-flight capsule fault'
+  equipment_room: 'Inspect flight hardware and calibrate SPACE-FIT X',
+  medical_room: 'Verify hydration, sleep and flight surgeon clearance',
+  launch_area: 'Complete pre-flight check and ignite launch countdown',
+  corridor: 'Glide along orbital handrails safely in zero gravity',
+  communication_room: 'Steer clear of asteroids on NASA NeoWs radar',
+  water_recycling_room: 'Restore 98% ECLSS water filtration and hydroponics',
+  fitness_room: 'Train bones with SPACE-FIT X & pack EVA tools',
+  emergency_shelter: 'Balance base power against NASA DONKI solar waves',
+  lunar_exploration_zone: 'Collect 3 lunar samples and authorize Earth return',
+  cargo_sample_storage: 'Verify lunar sample containment and life support',
+  systems_check_station: 'Steer the PICA-X heat shield safely through plasma',
+  central_corridor: 'Deploy Orion parachutes cleanly for ocean splashdown'
 };
 
 export const MINI_GAME_BRIEFINGS: Record<MiniGameId, MiniGameBriefing> = {

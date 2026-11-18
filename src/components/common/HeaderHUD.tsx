@@ -59,7 +59,7 @@ export const HeaderHUD: React.FC = () => {
               className="casual-pill h-11 sm:h-13 px-3 flex items-center justify-center font-hud font-black text-xs text-white cursor-pointer hover:brightness-110"
               aria-label={tr(language, 'Switch Language', 'تغيير اللغة')}
             >
-              {language === 'en' ? 'EN | عربي' : 'عربي | EN'}
+              {language === 'en' ? '🌐 Switch: AR' : '🌐 الإنجليزية'}
             </motion.button>
 
             {/* NASA Live Data Button */}

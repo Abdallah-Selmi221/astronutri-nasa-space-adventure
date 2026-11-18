@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameState } from '../../context/GameContext';
+import { tr } from '../../utils/i18n';
 import { AnimatedRobo, RoboState } from '../common/AnimatedRobo';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { soundManager } from '../../utils/sound';
@@ -115,7 +116,7 @@ export interface HumanHealthProps {
 }
 
 export const HumanHealth: React.FC<HumanHealthProps> = ({ onComplete }) => {
-  const { setLocation, completeHumanHealth } = useGameState();
+  const { language, setLocation, completeHumanHealth } = useGameState();
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
   const [roboState, setRoboState] = useState<RoboState>('EXPLAINING');
@@ -234,7 +235,7 @@ export const HumanHealth: React.FC<HumanHealthProps> = ({ onComplete }) => {
                 : 'bg-slate-900/80 text-slate-200 hover:bg-slate-800 border-2 border-white/20'
             }`}
           >
-            تمرين مقاومة العضلات ARED 💪
+            <span>{tr(language, 'Muscle Resistance Training ARED 💪', 'تمرين مقاومة العضلات 💪')}</span>
           </button>
           <button
             type="button"
@@ -245,7 +246,7 @@ export const HumanHealth: React.FC<HumanHealthProps> = ({ onComplete }) => {
                 : 'bg-slate-900/80 text-slate-200 hover:bg-slate-800 border-2 border-white/20'
             }`}
           >
-            🧠 أسئلة الصحة والفيزياء ({HEALTH_PHYSICS_QUESTIONS.length})
+            {tr(language, `🧠 Health & Physics Quiz (${HEALTH_PHYSICS_QUESTIONS.length})`, `🧠 أسئلة الصحة والفيزياء (${HEALTH_PHYSICS_QUESTIONS.length})`)}
           </button>
         </div>
       </div>
@@ -254,7 +255,9 @@ export const HumanHealth: React.FC<HumanHealthProps> = ({ onComplete }) => {
         <div className="relative z-10 w-full max-w-4xl mx-auto my-auto py-4">
           <InteractiveQuizDeck
             questions={HEALTH_PHYSICS_QUESTIONS}
+            titleEn="Astronaut Health & Flight Physics Quiz"
             titleAr="تحدي صحة رواد الفضاء وفيزياء الطيران"
+            subtitleEn="Answer questions on bone health, microgravity, Orion heat shields & re-entry!"
             subtitleAr="أجب عن أسئلة العظام، الجاذبية، درع الحماية الحراري، وعودة كبسولة أوريون!"
             accent="emerald"
             milestoneCount={3}

@@ -11,6 +11,8 @@ import {
   getSourceVerificationStatus
 } from '../../data/science';
 import { soundManager } from '../../utils/sound';
+import { useGameState } from '../../context/GameContext';
+import { tr } from '../../utils/i18n';
 import { BookOpen, CheckCircle2, ShieldCheck, AlertTriangle, X, Filter } from 'lucide-react';
 
 interface ScientificSourcesModalProps {
@@ -22,6 +24,8 @@ export const ScientificSourcesModal: React.FC<ScientificSourcesModalProps> = ({
   isOpen,
   onClose
 }) => {
+  const { language } = useGameState();
+  const langDir = language === 'ar' ? 'rtl' : 'ltr';
   const [badgeFilter, setBadgeFilter] = useState<'ALL' | ScienceBadgeType>('ALL');
 
   const filteredPillars =
@@ -39,7 +43,7 @@ export const ScientificSourcesModal: React.FC<ScientificSourcesModalProps> = ({
       {isOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-md"
-          dir="rtl"
+          dir={langDir}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.96, y: 12 }}
@@ -55,10 +59,18 @@ export const ScientificSourcesModal: React.FC<ScientificSourcesModalProps> = ({
                 </div>
                 <div>
                   <h2 className="font-hud font-black text-base sm:text-xl text-white">
-                    مصادر علمية ونظام التغذية البيئية الفضائية (Space Eco-Nutrition System)
+                    {tr(
+                      language,
+                      'Scientific Sources & Space Eco-Nutrition System',
+                      'المصادر العلمية ونظام التغذية الفضائية المستدامة'
+                    )}
                   </h2>
                   <p className="text-xs text-cyan-300 font-bold">
-                    10 ركائز علمية موثقة + 13 مرجعاً رسمياً من ناسا وإيسا • تصنيف صريح للحقائق والتجارب والتبسيط
+                    {tr(
+                      language,
+                      '10 Verified Science Pillars + 13 Official NASA & ESA References • Clear Fact vs. Sim Classification',
+                      '10 ركائز علمية موثقة + 13 مرجعاً رسمياً من ناسا وإيسا • تصنيف صريح للحقائق والتبسيط'
+                    )}
                   </p>
                 </div>
               </div>
@@ -67,7 +79,7 @@ export const ScientificSourcesModal: React.FC<ScientificSourcesModalProps> = ({
                 type="button"
                 onClick={handleClose}
                 className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center border border-slate-600 cursor-pointer"
-                aria-label="إغلاق"
+                aria-label={tr(language, 'Close', 'إغلاق')}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -79,7 +91,13 @@ export const ScientificSourcesModal: React.FC<ScientificSourcesModalProps> = ({
               <div className="space-y-2">
                 <div className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                   <Filter className="w-4 h-4 text-cyan-400" />
-                  <span>تصفية الحقائق حسب مستوى الجاهزية العلمية (TRL & Verification):</span>
+                  <span>
+                    {tr(
+                      language,
+                      'Filter facts by NASA Technology Readiness Level (TRL) & Verification:',
+                      'تصفية الحقائق حسب مستوى الجاهزية العلمية والتوثيق:'
+                    )}
+                  </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -94,7 +112,7 @@ export const ScientificSourcesModal: React.FC<ScientificSourcesModalProps> = ({
                         : 'bg-slate-800 text-slate-200 border-slate-600 hover:border-cyan-400'
                     }`}
                   >
-                    الكل ({SCIENCE_PILLARS.length})
+                    {tr(language, `All (${SCIENCE_PILLARS.length})`, `الكل (${SCIENCE_PILLARS.length})`)}
                   </button>
                   {(Object.keys(SCIENCE_BADGES) as ScienceBadgeType[]).map((bt) => {
                     const meta = SCIENCE_BADGES[bt];
@@ -113,65 +131,81 @@ export const ScientificSourcesModal: React.FC<ScientificSourcesModalProps> = ({
                             : meta.colorClass + ' opacity-85 hover:opacity-100'
                         }`}
                       >
-                        {meta.labelAr} • {meta.labelEn}
+                        {tr(language, meta.labelEn, meta.labelAr)}
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Quick Highlight Cards: 70kg Planning Assumption + 98% Water Recovery */}
+              {/* Quick Highlight Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 <div className="p-4 rounded-2xl bg-sky-950/45 border-2 border-sky-400/50 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-hud font-black text-sm text-sky-200">
-                      📐 مرجع التغذية التخطيطي ({DAILY_REFERENCE_ASSUMPTIONS.bodyMassKg} كجم / {DAILY_REFERENCE_ASSUMPTIONS.missionDays} يوم)
+                      {tr(
+                        language,
+                        `📐 Planning Nutrition Baseline (${DAILY_REFERENCE_ASSUMPTIONS.bodyMassKg} kg / ${DAILY_REFERENCE_ASSUMPTIONS.missionDays} days)`,
+                        `📐 مرجع التغذية التخطيطي (${DAILY_REFERENCE_ASSUMPTIONS.bodyMassKg} كجم / ${DAILY_REFERENCE_ASSUMPTIONS.missionDays} يوم)`
+                      )}
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-900 border border-sky-400 text-sky-200">
-                      {SCIENCE_BADGES.PLANNING_ASSUMPTION.labelAr}
+                      {tr(language, SCIENCE_BADGES.PLANNING_ASSUMPTION.labelEn, SCIENCE_BADGES.PLANNING_ASSUMPTION.labelAr)}
                     </span>
                   </div>
                   <div className="grid grid-cols-5 gap-1.5 text-center text-[11px] font-bold">
                     <div className="p-2 rounded-xl bg-slate-950/75 border border-slate-800">
                       <div className="text-amber-300 font-black">{DAILY_REFERENCE_ASSUMPTIONS.energyKcal}</div>
-                      <div className="text-[10px] text-slate-400">kcal</div>
+                      <div className="text-[10px] text-slate-400">{tr(language, 'kcal', 'سعرة')}</div>
                     </div>
                     <div className="p-2 rounded-xl bg-slate-950/75 border border-slate-800">
                       <div className="text-emerald-300 font-black">{DAILY_REFERENCE_ASSUMPTIONS.proteinGrams}g</div>
-                      <div className="text-[10px] text-slate-400">بروتين</div>
+                      <div className="text-[10px] text-slate-400">{tr(language, 'Protein', 'بروتين')}</div>
                     </div>
                     <div className="p-2 rounded-xl bg-slate-950/75 border border-slate-800">
                       <div className="text-sky-300 font-black">{DAILY_REFERENCE_ASSUMPTIONS.carbsGrams}g</div>
-                      <div className="text-[10px] text-slate-400">كربوهيدرات</div>
+                      <div className="text-[10px] text-slate-400">{tr(language, 'Carbs', 'كربوهيدرات')}</div>
                     </div>
                     <div className="p-2 rounded-xl bg-slate-950/75 border border-slate-800">
                       <div className="text-yellow-300 font-black">{DAILY_REFERENCE_ASSUMPTIONS.fatsGrams}g</div>
-                      <div className="text-[10px] text-slate-400">دهون</div>
+                      <div className="text-[10px] text-slate-400">{tr(language, 'Fats', 'دهون')}</div>
                     </div>
                     <div className="p-2 rounded-xl bg-slate-950/75 border border-slate-800">
                       <div className="text-pink-300 font-black">{DAILY_REFERENCE_ASSUMPTIONS.fiberGramsRange}</div>
-                      <div className="text-[10px] text-slate-400">ألياف</div>
+                      <div className="text-[10px] text-slate-400">{tr(language, 'Fiber', 'ألياف')}</div>
                     </div>
                   </div>
                   <p className="text-[11px] text-sky-100/90 leading-relaxed">
-                    {DAILY_REFERENCE_ASSUMPTIONS.disclaimerAr} (البروتين: {DAILY_REFERENCE_ASSUMPTIONS.proteinPerKg} جم/كجم، النطاق {DAILY_REFERENCE_ASSUMPTIONS.proteinRangePerKg}).
+                    {tr(
+                      language,
+                      `${DAILY_REFERENCE_ASSUMPTIONS.disclaimerEn} (Protein: ${DAILY_REFERENCE_ASSUMPTIONS.proteinPerKg} g/kg, range ${DAILY_REFERENCE_ASSUMPTIONS.proteinRangePerKg}).`,
+                      `${DAILY_REFERENCE_ASSUMPTIONS.disclaimerAr} (البروتين: ${DAILY_REFERENCE_ASSUMPTIONS.proteinPerKg} جم/كجم، النطاق ${DAILY_REFERENCE_ASSUMPTIONS.proteinRangePerKg}).`
+                    )}
                   </p>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-emerald-950/40 border-2 border-emerald-400/50 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-hud font-black text-sm text-emerald-200">
-                      💧 استرجاع المياه {ISS_WATER_MILESTONE.recoveryPercent}% على ISS ({ISS_WATER_MILESTONE.dateLabel})
+                      {tr(
+                        language,
+                        `💧 ISS ${ISS_WATER_MILESTONE.recoveryPercent}% Water Recovery (${ISS_WATER_MILESTONE.dateLabel})`,
+                        `💧 استرجاع المياه ${ISS_WATER_MILESTONE.recoveryPercent}% على المحطة الدولية (${ISS_WATER_MILESTONE.dateLabel})`
+                      )}
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-900 border border-emerald-400 text-emerald-200">
-                      {SCIENCE_BADGES.ISS_PROVEN.labelAr}
+                      {tr(language, SCIENCE_BADGES.ISS_PROVEN.labelEn, SCIENCE_BADGES.ISS_PROVEN.labelAr)}
                     </span>
                   </div>
                   <p className="text-xs text-slate-200 leading-relaxed">
-                    تحقق الإنجاز عبر <strong>{ISS_WATER_MILESTONE.systemName}</strong> بجمع ماء التنفس والعرق والبول ومياه النظافة.
+                    {tr(
+                      language,
+                      `Achieved via ${ISS_WATER_MILESTONE.systemName} reclaiming humidity, breath condensate, sweat, and wastewater.`,
+                      `تحقق الإنجاز عبر نظام ${ISS_WATER_MILESTONE.systemName} بجمع ماء التنفس والعرق ومياه النظافة وإعادة تنقيتها.`
+                    )}
                   </p>
                   <p className="text-[11px] text-amber-200 font-bold leading-relaxed">
-                    {ISS_WATER_MILESTONE.caveatAr}
+                    {tr(language, ISS_WATER_MILESTONE.caveatEn, ISS_WATER_MILESTONE.caveatAr)}
                   </p>
                 </div>
               </div>
@@ -189,23 +223,28 @@ export const ScientificSourcesModal: React.FC<ScientificSourcesModalProps> = ({
                       <div className="space-y-1.5">
                         <div className="flex items-start justify-between gap-2">
                           <h3 className="font-hud font-black text-sm text-white leading-snug">
-                            {pillar.titleAr}
+                            {tr(language, pillar.titleEn, pillar.titleAr)}
                           </h3>
                           <span
                             className={`px-2 py-0.5 rounded-full text-[10px] font-black border shrink-0 ${badgeMeta.colorClass}`}
                           >
-                            {pillar.badgeLabelAr}
+                            {tr(language, badgeMeta.labelEn, pillar.badgeLabelAr)}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-200 leading-relaxed">{pillar.textAr}</p>
-                        <p className="text-[11px] text-slate-400 leading-relaxed" dir="ltr">
-                          {pillar.textEn}
+                        <p className="text-xs text-slate-200 leading-relaxed">
+                          {tr(language, pillar.textEn, pillar.textAr)}
                         </p>
                       </div>
                       {source && (
                         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-cyan-950/70 border border-cyan-400/35 text-[11px] text-cyan-200 font-bold w-fit">
                           <ShieldCheck className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
-                          <span>المرجع #{source.index}: {source.title} ({source.year})</span>
+                          <span>
+                            {tr(
+                              language,
+                              `Ref #${source.index}: ${source.title} (${source.year})`,
+                              `المرجع #${source.index}: ${source.titleAr} (${source.year})`
+                            )}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -213,15 +252,23 @@ export const ScientificSourcesModal: React.FC<ScientificSourcesModalProps> = ({
                 })}
               </div>
 
-              {/* All 13 Official References Table (Static In-Game Reference Cards - Zero External Links) */}
+              {/* All 13 Official References Table */}
               <div className="rounded-3xl bg-slate-950/85 border border-cyan-500/35 p-4 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="font-hud font-black text-sm sm:text-base text-cyan-200">
-                    📚 بطاقات المراجع العلمية الرسمية (13 مرجعاً داخل التطبيق)
+                    {tr(
+                      language,
+                      '📚 Official Scientific Reference Cards (13 Built-In Archives)',
+                      '📚 بطاقات المراجع العلمية الرسمية (13 مرجعاً داخل التطبيق)'
+                    )}
                   </h3>
                   {SCIENCE_LINK_CHECKED_AT && (
                     <span className="text-[11px] text-emerald-300 font-bold">
-                      أرشيف علمي موثق داخل اللعبة • إصدار: {SCIENCE_LINK_CHECKED_AT.slice(0, 10)}
+                      {tr(
+                        language,
+                        `Offline Verified Archive • Updated: ${SCIENCE_LINK_CHECKED_AT.slice(0, 10)}`,
+                        `أرشيف علمي موثق داخل اللعبة • إصدار: ${SCIENCE_LINK_CHECKED_AT.slice(0, 10)}`
+                      )}
                     </span>
                   )}
                 </div>
@@ -238,15 +285,14 @@ export const ScientificSourcesModal: React.FC<ScientificSourcesModalProps> = ({
                       >
                         <div className="min-w-0 space-y-1">
                           <div className="font-black text-xs text-white leading-snug">
-                            {src.index}. {src.title}
+                            {src.index}. {tr(language, src.title, src.titleAr)}
                           </div>
-                          <div className="text-[11px] text-cyan-100/90 font-bold">{src.titleAr}</div>
                           <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                             <span className="px-2 py-0.5 rounded-full bg-indigo-950/90 border border-indigo-400/50 text-indigo-200 text-[10px] font-black">
-                              إصدار {src.year}
+                              {tr(language, `Year ${src.year}`, `إصدار ${src.year}`)}
                             </span>
                             <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-600 text-slate-300 text-[10px] font-bold">
-                              مرجع علمي معتمد
+                              {tr(language, 'Verified Reference', 'مرجع علمي معتمد')}
                             </span>
                           </div>
                         </div>
@@ -255,12 +301,12 @@ export const ScientificSourcesModal: React.FC<ScientificSourcesModalProps> = ({
                           {needsReview ? (
                             <span className="px-2 py-0.5 rounded-full bg-amber-950 border border-amber-400 text-amber-200 text-[10px] font-black flex items-center gap-1">
                               <AlertTriangle className="w-3 h-3" />
-                              <span>قيد التحديث</span>
+                              <span>{tr(language, 'Pending Review', 'قيد التحديث')}</span>
                             </span>
                           ) : (
                             <span className="px-2 py-0.5 rounded-full bg-emerald-950 border border-emerald-400 text-emerald-200 text-[10px] font-black flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3" />
-                              <span>موثق</span>
+                              <span>{tr(language, 'Verified', 'موثق')}</span>
                             </span>
                           )}
                           <ShieldCheck className="w-4 h-4 text-cyan-400" />

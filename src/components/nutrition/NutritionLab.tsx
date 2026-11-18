@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameState } from '../../context/GameContext';
+import { tr } from '../../utils/i18n';
 import { FoodItem } from '../../types/game';
 import { FOOD_DATABASE, NASA_OFFICIAL_REFERENCES } from '../../data/foodItems';
 import { NUTRITION_QUIZ_QUESTIONS } from '../../data/questionBanks';
@@ -41,6 +42,7 @@ const DEFAULT_ROBO_TEXT =
 export const NutritionLab: React.FC = () => {
   const {
     state,
+    language,
     setLocation,
     addFoodItem,
     removeFoodItem,
@@ -317,7 +319,7 @@ export const NutritionLab: React.FC = () => {
             className="casual-btn-primary px-3.5 py-2 text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer"
           >
             <Brain className="w-4 h-4" />
-            <span>تحدي التغذية ({NUTRITION_QUIZ_QUESTIONS.length})</span>
+            <span>{tr(language, `Nutrition Quiz (${NUTRITION_QUIZ_QUESTIONS.length})`, `تحدي التغذية (${NUTRITION_QUIZ_QUESTIONS.length})`)}</span>
           </button>
 
           <button
@@ -326,7 +328,7 @@ export const NutritionLab: React.FC = () => {
             className="casual-btn-cyan px-3.5 py-2 text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer"
           >
             <BookOpen className="w-4 h-4" />
-            <span>مراجع ناسا العلمية</span>
+            <span>{tr(language, 'NASA Science Sources', 'مراجع ناسا العلمية')}</span>
           </button>
 
           {packedCount > 0 && (
@@ -586,19 +588,21 @@ export const NutritionLab: React.FC = () => {
             >
               <div className="flex items-center justify-between">
                 <span className="font-hud font-black text-base sm:text-lg text-amber-200">
-                  🥗 مسابقة أبطال التغذية الفضائية
+                  {tr(language, '🥗 Space Nutrition Champions Quiz', '🥗 مسابقة أبطال التغذية الفضائية')}
                 </span>
                 <button
                   type="button"
                   onClick={() => setShowNutritionQuizModal(false)}
                   className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-600 text-white font-hud font-black text-xs sm:text-sm cursor-pointer"
                 >
-                  إغلاق ✕
+                  {tr(language, 'Close ✕', 'إغلاق ✕')}
                 </button>
               </div>
               <InteractiveQuizDeck
                 questions={NUTRITION_QUIZ_QUESTIONS}
+                titleEn="NASA Space Food & Nutrition Quiz"
                 titleAr="تحدي غذاء رواد الفضاء من ناسا"
+                subtitleEn="Discover crumb-free Sinai Honey, zero-G fluid control & calcium protection!"
                 subtitleAr="تعرف على سر العسل السيناوي، منع الفتات في 0G، والبوتاسيوم لحماية العظام!"
                 accent="emerald"
                 milestoneCount={3}

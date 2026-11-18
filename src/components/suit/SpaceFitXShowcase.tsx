@@ -3,8 +3,9 @@ import * as THREE from 'three';
 import { SpaceFitXState } from '../../types/game';
 import { buildSpaceFitXCharacter } from '../three/buildSpaceFitXCharacter';
 import { SpaceFitXControlsHUD } from './SpaceFitXControlsHUD';
-import { initialSpaceFitXState } from '../../context/GameContext';
+import { initialSpaceFitXState, useGameState } from '../../context/GameContext';
 import { soundManager } from '../../utils/sound';
+import { tr } from '../../utils/i18n';
 import { RotateCw, ShieldCheck, Sparkles, X } from 'lucide-react';
 
 interface SpaceFitXShowcaseProps {
@@ -17,13 +18,62 @@ interface SpaceFitXShowcaseProps {
 type ViewAngle = 'front' | 'rear' | 'left' | 'right';
 
 const MODULE_DESCRIPTIONS = [
-  { id: 1, title: '01 • Smart Compression', titleAr: 'الضغط الذكي المتدرج', descAr: 'حساسات ضغط ومناطق شدّ لدعم الدورة الدموية دون كبت الحركة.' },
-  { id: 2, title: '02 • Independent Resistance', titleAr: 'مقاومة مستقلة للمفاصل', descAr: 'كابلات مقاومة على الكتفين والمرفقين والوركين والركبتين والكاحلين.' },
-  { id: 3, title: '03 • Impact Protection', titleAr: 'وسائد حماية سداسية', descAr: 'بطانات TPU مرنة لحماية المفاصل والعمود الفقري من ارتطام الجدار في 0G.' },
-  { id: 4, title: '04 • Emergency Response', titleAr: 'الاستجابة السريعة للطوارئ', descAr: 'زر Quick-Release لفك المقاومة فوراً مع حقيبة إسعافات طبية.' },
-  { id: 5, title: '05 • Physiological Monitoring', titleAr: 'المراقبة الفسيولوجية', descAr: 'حساسات لقياس نبض القلب وحرارة الجلد وحمل العضلات وزوايا المفاصل.' },
-  { id: 6, title: '06 • Personal Dosimeter', titleAr: 'مقياس الإشعاع الشخصي', descAr: 'مؤشر للجرعة الحالية والتراكمية (مراقبة وبحث جزئي — ليس درعاً كاملاً).' },
-  { id: 7, title: '07 • Energy & Harvesting', titleAr: 'حزمة الطاقة والحصاد الحركي', descAr: 'بطارية خلفية قابلة للفك تشحن جزئياً عبر الطاقة الحركية أثناء التمرين.' }
+  {
+    id: 1,
+    num: '01',
+    titleEn: '01 • Smart Compression',
+    titleAr: '01 • الضغط الذكي المتدرج',
+    descEn: 'Graduated compression panels & pressure sensors supporting blood flow without restricting motion.',
+    descAr: 'حساسات ضغط ومناطق شدّ لدعم الدورة الدموية دون كبت الحركة.'
+  },
+  {
+    id: 2,
+    num: '02',
+    titleEn: '02 • Independent Resistance',
+    titleAr: '02 • مقاومة مستقلة للمفاصل',
+    descEn: 'Calibrated cable pulleys across shoulders, elbows, hips, knees & ankles for 0G strength training.',
+    descAr: 'كابلات مقاومة على الكتفين والمرفقين والوركين والركبتين والكاحلين.'
+  },
+  {
+    id: 3,
+    num: '03',
+    titleEn: '03 • Impact Protection',
+    titleAr: '03 • وسائد حماية سداسية',
+    descEn: 'Flexible hexagonal TPU shock pads shielding joints and spine from cabin wall bumps in 0G.',
+    descAr: 'بطانات TPU مرنة لحماية المفاصل والعمود الفقري من ارتطام الجدار في 0G.'
+  },
+  {
+    id: 4,
+    num: '04',
+    titleEn: '04 • Emergency Response',
+    titleAr: '04 • الاستجابة السريعة للطوارئ',
+    descEn: 'Instant Quick-Release lever freeing all resistance cables paired with a trauma first-aid pouch.',
+    descAr: 'زر إطلاق سريع لفك المقاومة فوراً مع حقيبة إسعافات طبية.'
+  },
+  {
+    id: 5,
+    num: '05',
+    titleEn: '05 • Physiological Monitoring',
+    titleAr: '05 • المراقبة الفسيولوجية',
+    descEn: 'Live sensors tracking heart rate, skin temperature, muscle load & joint flexion angles.',
+    descAr: 'حساسات لقياس نبض القلب وحرارة الجلد وحمل العضلات وزوايا المفاصل.'
+  },
+  {
+    id: 6,
+    num: '06',
+    titleEn: '06 • Personal Dosimeter',
+    titleAr: '06 • مقياس الإشعاع الشخصي',
+    descEn: 'Real-time & cumulative dose monitor (experimental tracking only—not a full radiation shield).',
+    descAr: 'مؤشر للجرعة الحالية والتراكمية (مراقبة وبحث جزئي — ليس درعاً كاملاً).'
+  },
+  {
+    id: 7,
+    num: '07',
+    titleEn: '07 • Energy & Harvesting',
+    titleAr: '07 • حزمة الطاقة والحصاد الحركي',
+    descEn: 'Swappable dorsal battery pack partially recharging via kinetic motion during workouts.',
+    descAr: 'بطارية خلفية قابلة للفك تشحن جزئياً عبر الطاقة الحركية أثناء التمرين.'
+  }
 ];
 
 const VIEW_ANGLES: Record<ViewAngle, number> = {
@@ -39,6 +89,8 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
   onChangeSuitState,
   onClose
 }) => {
+  const { language } = useGameState();
+  const langDir = language === 'ar' ? 'rtl' : 'ltr';
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [viewAngle, setViewAngle] = useState<ViewAngle>('front');
   const [highlightModule, setHighlightModule] = useState<number | null>(null);
@@ -162,7 +214,7 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/90 backdrop-blur-lg"
-      dir="rtl"
+      dir={langDir}
     >
       <div className="w-full max-w-6xl max-h-[92vh] overflow-y-auto rounded-[2rem] bg-slate-900 border-2 border-cyan-400/70 p-4 sm:p-6 text-white shadow-2xl space-y-4">
         {/* Header */}
@@ -170,14 +222,18 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-hud font-black text-lg sm:text-2xl text-white">
-                🦺 بدلة SPACE-FIT X (Prototype 1.0) — AstroNutri
+                {tr(language, '🦺 SPACE-FIT X Suit (Prototype 1.0) — AstroNutri', '🦺 بدلة SPACE-FIT X — أسترونوتري')}
               </h2>
               <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400 text-cyan-200 font-mono text-[11px] font-black">
-                IVA COUNTERMEASURE GARMENT
+                {tr(language, 'IVA COUNTERMEASURE GARMENT', 'بدلة تدريب داخلية ذكية')}
               </span>
             </div>
             <p className="text-xs text-slate-300 mt-0.5">
-              بدلة تدريب وحماية ذكية داخل المحطة بـ 7 أنظمة متكاملة (وليست بدلة ضغط للسير الفضائي EVA).
+              {tr(
+                language,
+                '7-module smart intravehicular training & countermeasure suit (distinct from pressurized EVA spacewalk suits).',
+                'بدلة تدريب وحماية ذكية داخل المحطة بـ 7 أنظمة متكاملة (وليست بدلة ضغط للسير الفضائي الخارجي).'
+              )}
             </p>
           </div>
 
@@ -191,7 +247,7 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
                   : 'bg-slate-800 text-slate-200 border-slate-700'
               }`}
             >
-              معاينة 3D تفاعلية
+              {tr(language, 'Interactive 3D View', 'معاينة 3D تفاعلية')}
             </button>
             <button
               type="button"
@@ -202,13 +258,13 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
                   : 'bg-slate-800 text-slate-200 border-slate-700'
               }`}
             >
-              بطاقات التصميم والعتاد
+              {tr(language, 'Design & Hardware Sheets', 'بطاقات التصميم والعتاد')}
             </button>
             <button
               type="button"
               onClick={onClose}
               className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-rose-600 text-white flex items-center justify-center cursor-pointer"
-              aria-label="إغلاق معرض البدلة"
+              aria-label={tr(language, 'Close Suit Showcase', 'إغلاق معرض البدلة')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -220,21 +276,29 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
             <div className="rounded-2xl bg-slate-950 border border-cyan-400/40 p-3 space-y-2">
               <img
                 src="/assets/suit/space_fit_x_front_rear.jpg"
-                alt="AstroNutri SPACE-FIT X Front and Rear"
+                alt={tr(language, 'AstroNutri SPACE-FIT X Front and Rear', 'منظور أمامي وخلفي لبدلة SPACE-FIT X')}
                 className="w-full rounded-xl object-cover"
               />
               <div className="text-xs font-bold text-cyan-200">
-                منظور أمامي وخلفي — شعار AstroNutri ومقياس الجرعة وحزمة الطاقة الخلفية
+                {tr(
+                  language,
+                  'Front & Rear Perspective — AstroNutri crest, personal dosimeter & dorsal kinetic battery pack',
+                  'منظور أمامي وخلفي — شعار أسترونوتري ومقياس الجرعة وحزمة الطاقة الخلفية'
+                )}
               </div>
             </div>
             <div className="rounded-2xl bg-slate-950 border border-indigo-400/40 p-3 space-y-2">
               <img
                 src="/assets/suit/space_fit_x_hardware.jpg"
-                alt="AstroNutri SPACE-FIT X Hardware Modules"
+                alt={tr(language, 'AstroNutri SPACE-FIT X Hardware Modules', 'مكونات عتاد بدلة SPACE-FIT X')}
                 className="w-full rounded-xl object-cover"
               />
               <div className="text-xs font-bold text-indigo-200">
-                تفاصيل المكونات الـ 4: نسيج الضغط الذكي، بكرات المقاومة والإفلات السريع، وسائد TPU السداسية، ووحدة البطارية
+                {tr(
+                  language,
+                  '4 Hardware Callouts: smart compression weave, quick-release cable reels, TPU hex pads & battery pack',
+                  'تفاصيل المكونات الـ 4: نسيج الضغط الذكي، بكرات المقاومة والإفلات السريع، وسائد TPU السداسية، ووحدة البطارية'
+                )}
               </div>
             </div>
           </div>
@@ -271,7 +335,7 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
                 )}
                 <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-slate-950/85 border border-cyan-400/50 text-[11px] font-bold text-cyan-200 flex items-center gap-1">
                   <RotateCw className="w-3.5 h-3.5" />
-                  <span>اسحب لتدوير البدلة 360°</span>
+                  <span>{tr(language, 'Drag to Rotate Suit 360°', 'اسحب لتدوير البدلة 360°')}</span>
                 </div>
               </div>
 
@@ -290,7 +354,13 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
                         : 'bg-slate-800 text-slate-200 border-slate-700 hover:border-cyan-400'
                     }`}
                   >
-                    {ang === 'front' ? 'أمامي' : ang === 'rear' ? 'خلفي' : ang === 'left' ? 'يسار' : 'يمين'}
+                    {ang === 'front'
+                      ? tr(language, 'Front', 'أمامي')
+                      : ang === 'rear'
+                      ? tr(language, 'Rear', 'خلفي')
+                      : ang === 'left'
+                      ? tr(language, 'Left', 'يسار')
+                      : tr(language, 'Right', 'يمين')}
                   </button>
                 ))}
               </div>
@@ -307,17 +377,21 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
                       soundManager.playClick();
                       setHighlightModule(highlightModule === m.id ? null : m.id);
                     }}
-                    className={`p-2.5 rounded-2xl border text-right transition-all cursor-pointer ${
+                    className={`p-2.5 rounded-2xl border ${language === 'ar' ? 'text-right' : 'text-left'} transition-all cursor-pointer ${
                       highlightModule === m.id
                         ? 'bg-cyan-950/80 border-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.3)]'
                         : 'bg-slate-950/80 border-slate-800 hover:border-cyan-500/50'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1">
-                      <span className="font-hud font-black text-xs text-cyan-200">{m.titleAr}</span>
-                      <span className="text-[10px] font-mono text-slate-400">{m.title.split('•')[0]}</span>
+                      <span className="font-hud font-black text-xs text-cyan-200">
+                        {tr(language, m.titleEn, m.titleAr)}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400">#{m.num}</span>
                     </div>
-                    <p className="text-[11px] text-slate-300 mt-0.5 leading-snug">{m.descAr}</p>
+                    <p className="text-[11px] text-slate-300 mt-0.5 leading-snug">
+                      {tr(language, m.descEn, m.descAr)}
+                    </p>
                   </button>
                 ))}
               </div>
@@ -325,8 +399,12 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
               <div className="p-2.5 rounded-2xl bg-sky-950/50 border border-sky-400/40 text-xs text-sky-100 flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-cyan-300 shrink-0" />
                 <span>
-                  <Sparkles className="w-3.5 h-3.5 inline ml-1 text-amber-300" />
-                  جرّب تحريك الأزرار بالأسفل لرؤية التفاعل المباشر على البدلة الـ 3D (ضغط ذكي، كابلات المقاومة، زر الإفلات، والبطارية)!
+                  <Sparkles className="w-3.5 h-3.5 inline mx-1 text-amber-300" />
+                  {tr(
+                    language,
+                    'Adjust the sliders below to watch live 3D reactions on your suit (compression, cable resistance, release & battery)!',
+                    'جرّب تحريك الأزرار بالأسفل لرؤية التفاعل المباشر على البدلة الـ 3D (ضغط ذكي، كابلات المقاومة، زر الإفلات، والبطارية)!'
+                  )}
                 </span>
               </div>
 
@@ -337,10 +415,10 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-hud font-black text-xs text-amber-300">
-                    🎨 تخصيص مظهر رائد الفضاء 3D (AstroNutri)
+                    {tr(language, '🎨 3D Astronaut Appearance Customizer', '🎨 تخصيص مظهر رائد الفضاء 3D')}
                   </span>
                   <span className="text-[10px] text-cyan-200 font-bold">
-                    يُحفظ تلقائياً في العالم والجزر ✨
+                    {tr(language, 'Auto-saved across all missions ✨', 'يُحفظ تلقائياً في جميع المراحل ✨')}
                   </span>
                 </div>
 
@@ -359,7 +437,7 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
                         : 'bg-slate-800 text-slate-200 border-slate-700'
                     }`}
                   >
-                    🪖 خوذة الفضاء الزجاجية (EVA)
+                    {tr(language, '🪖 Gold Glass Space Helmet (EVA)', '🪖 خوذة الفضاء الزجاجية')}
                   </button>
                   <button
                     type="button"
@@ -374,7 +452,7 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
                         : 'bg-slate-800 text-slate-200 border-slate-700'
                     }`}
                   >
-                    🎧 سماعة القيادة بدون خوذة (IVA)
+                    {tr(language, '🎧 Command Comms Headset (IVA)', '🎧 سماعة القيادة بدون خوذة')}
                   </button>
                 </div>
 
@@ -382,10 +460,10 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                   {(
                     [
-                      { id: 'cyan_black', label: 'SPACE-FIT X', dot: 'bg-cyan-400' },
-                      { id: 'nasa_white', label: 'NASA أبيض', dot: 'bg-blue-400' },
-                      { id: 'gold_emerald', label: 'ذهبي زمردي', dot: 'bg-emerald-400' },
-                      { id: 'mars_crimson', label: 'المريخ القرمزي', dot: 'bg-rose-400' }
+                      { id: 'cyan_black', labelEn: 'SPACE-FIT X', labelAr: 'أزرق سماوي', dot: 'bg-cyan-400' },
+                      { id: 'nasa_white', labelEn: 'NASA White', labelAr: 'أبيض ناسا', dot: 'bg-blue-400' },
+                      { id: 'gold_emerald', labelEn: 'Emerald Gold', labelAr: 'ذهبي زمردي', dot: 'bg-emerald-400' },
+                      { id: 'mars_crimson', labelEn: 'Mars Crimson', labelAr: 'المريخ القرمزي', dot: 'bg-rose-400' }
                     ] as const
                   ).map((th) => {
                     const active = (effectiveSuit.suitTheme ?? 'cyan_black') === th.id;
@@ -405,7 +483,7 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
                         }`}
                       >
                         <span className={`w-2.5 h-2.5 rounded-full ${th.dot} border border-white/70 shrink-0`} />
-                        <span className="truncate">{th.label}</span>
+                        <span className="truncate">{tr(language, th.labelEn, th.labelAr)}</span>
                       </button>
                     );
                   })}
@@ -426,7 +504,7 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
                         : 'bg-slate-800 text-slate-200 border-slate-700'
                     }`}
                   >
-                    🫧 حقيبة الحياة ECLSS
+                    {tr(language, '🫧 ECLSS Life Pack', '🫧 حقيبة الحياة المعاد تدويرها')}
                   </button>
                   <button
                     type="button"
@@ -441,7 +519,7 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
                         : 'bg-slate-800 text-slate-200 border-slate-700'
                     }`}
                   >
-                    🚀 حقيبة نفاثات 0G
+                    {tr(language, '🚀 Zero-G Thruster Pack', '🚀 حقيبة نفاثات انعدام الوزن')}
                   </button>
                 </div>
               </div>
@@ -454,19 +532,23 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
                     soundManager.playClick();
                     setTabMode('renderSheet');
                   }}
-                  className="group rounded-2xl bg-slate-950/90 hover:bg-slate-900 border-2 border-cyan-400/45 hover:border-cyan-300 p-2 text-right transition-all cursor-pointer flex items-center gap-2.5"
+                  className={`group rounded-2xl bg-slate-950/90 hover:bg-slate-900 border-2 border-cyan-400/45 hover:border-cyan-300 p-2 ${language === 'ar' ? 'text-right' : 'text-left'} transition-all cursor-pointer flex items-center gap-2.5`}
                 >
                   <img
                     src="/assets/suit/space_fit_x_front_rear.jpg"
-                    alt="AstroNutri SPACE-FIT X Front and Rear"
+                    alt="SPACE-FIT X Front and Rear"
                     className="w-16 h-14 rounded-xl object-cover shrink-0 border border-white/15 group-hover:scale-105 transition-transform"
                   />
                   <div className="min-w-0">
                     <div className="font-hud font-black text-xs text-cyan-200 truncate">
-                      منظور التصميم Studio View
+                      {tr(language, 'Studio Blueprint View', 'منظور التصميم الهندسي')}
                     </div>
                     <div className="text-[10px] text-slate-300 leading-snug mt-0.5">
-                      عرض أمامي وخلفي كامل لشعار AstroNutri وبدلة IVA
+                      {tr(
+                        language,
+                        'Full front & rear AstroNutri crest & IVA layout',
+                        'عرض أمامي وخلفي كامل لشعار أسترونوتري والبدلة'
+                      )}
                     </div>
                   </div>
                 </button>
@@ -476,19 +558,23 @@ export const SpaceFitXShowcase: React.FC<SpaceFitXShowcaseProps> = ({
                     soundManager.playClick();
                     setTabMode('renderSheet');
                   }}
-                  className="group rounded-2xl bg-slate-950/90 hover:bg-slate-900 border-2 border-indigo-400/45 hover:border-indigo-300 p-2 text-right transition-all cursor-pointer flex items-center gap-2.5"
+                  className={`group rounded-2xl bg-slate-950/90 hover:bg-slate-900 border-2 border-indigo-400/45 hover:border-indigo-300 p-2 ${language === 'ar' ? 'text-right' : 'text-left'} transition-all cursor-pointer flex items-center gap-2.5`}
                 >
                   <img
                     src="/assets/suit/space_fit_x_hardware.jpg"
-                    alt="AstroNutri SPACE-FIT X Hardware Callouts"
+                    alt="SPACE-FIT X Hardware Callouts"
                     className="w-16 h-14 rounded-xl object-cover shrink-0 border border-white/15 group-hover:scale-105 transition-transform"
                   />
                   <div className="min-w-0">
                     <div className="font-hud font-black text-xs text-indigo-200 truncate">
-                      تفاصيل العتاد والـ 7 وحدات
+                      {tr(language, '7-Module Hardware Details', 'تفاصيل العتاد والـ 7 وحدات')}
                     </div>
                     <div className="text-[10px] text-slate-300 leading-snug mt-0.5">
-                      اضغط لتكبير مخططات الضغط، الكابلات، والبطارية
+                      {tr(
+                        language,
+                        'Tap to zoom compression, pulleys & kinetic pack diagrams',
+                        'اضغط لتكبير مخططات الضغط، الكابلات، والبطارية'
+                      )}
                     </div>
                   </div>
                 </button>

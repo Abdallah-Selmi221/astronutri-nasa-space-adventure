@@ -48,10 +48,11 @@ export class GameErrorBoundary extends Component<GameErrorBoundaryProps, GameErr
 
   public render(): ReactNode {
     if (this.state.hasError) {
+      const isAr = typeof document !== 'undefined' && document.documentElement.lang === 'ar';
       return (
         <div
           className="flex-1 min-h-[75vh] flex items-center justify-center p-4 sm:p-8 bg-gradient-to-b from-indigo-950 via-slate-900 to-space-950"
-          dir="rtl"
+          dir={isAr ? 'rtl' : 'ltr'}
         >
           <div className="casual-card max-w-md w-full p-6 sm:p-8 text-center flex flex-col items-center gap-4 border-4 border-amber-300">
             <div className="w-16 h-16 rounded-full bg-amber-400/20 border-3 border-amber-300 flex items-center justify-center shadow-lg">
@@ -59,10 +60,12 @@ export class GameErrorBoundary extends Component<GameErrorBoundaryProps, GameErr
             </div>
 
             <h2 className="font-hud font-black text-xl sm:text-2xl text-white">
-              أوه! توقفت شاشة الفضاء للحظة 🛠️
+              {isAr ? 'أوه! توقفت شاشة الفضاء للحظة 🛠️' : 'Oops! This Space Screen Paused 🛠️'}
             </h2>
             <p className="font-hud font-bold text-sm text-cyan-100 leading-relaxed">
-              لا تقلق يا بطل! لم يضع أي من تقدمك أو نجومك. اضغط لإعادة تحميل الشاشة أو العودة لأرخبيل الجزر.
+              {isAr
+                ? 'لا تقلق يا بطل! لم يضع أي من تقدمك أو نجومك. اضغط لإعادة تحميل الشاشة أو العودة لخريطة الفضاء.'
+                : 'Don’t worry Cadet! None of your mission progress or stars were lost. Tap to reload or return to the Space Map.'}
             </p>
 
             <div className="flex flex-wrap items-center justify-center gap-3 w-full pt-2">
@@ -72,7 +75,7 @@ export class GameErrorBoundary extends Component<GameErrorBoundaryProps, GameErr
                 className="casual-btn-primary px-6 py-3 text-sm sm:text-base flex items-center gap-2 cursor-pointer"
               >
                 <RotateCcw className="w-5 h-5" />
-                <span>إعادة المحاولة 🚀</span>
+                <span>{isAr ? 'إعادة المحاولة 🚀' : 'Retry Screen 🚀'}</span>
               </button>
 
               {this.props.onGoHome && (
@@ -82,7 +85,7 @@ export class GameErrorBoundary extends Component<GameErrorBoundaryProps, GameErr
                   className="casual-btn-cyan px-6 py-3 text-sm sm:text-base flex items-center gap-2 cursor-pointer"
                 >
                   <Home className="w-5 h-5" />
-                  <span>خريطة الجزر 🌍</span>
+                  <span>{isAr ? 'خريطة الفضاء 🌍' : 'Space Map 🌍'}</span>
                 </button>
               )}
             </div>

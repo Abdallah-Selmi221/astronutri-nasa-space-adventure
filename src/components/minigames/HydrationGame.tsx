@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
+import { useGameState } from '../../context/GameContext';
+import { tr } from '../../utils/i18n';
 import { Droplets, AlertTriangle, CheckCircle2, RotateCcw } from 'lucide-react';
 
 interface HydrationGameProps {
@@ -9,6 +11,8 @@ interface HydrationGameProps {
 }
 
 export const HydrationGame: React.FC<HydrationGameProps> = ({ onComplete }) => {
+  const { language } = useGameState();
+  const langDir = language === 'ar' ? 'rtl' : 'ltr';
   const [hydrationLevel, setHydrationLevel] = useState<number>(15);
   const [waterWaste, setWaterWaste] = useState<number>(0);
   const [isPressing, setIsPressing] = useState<boolean>(false);
@@ -36,8 +40,14 @@ export const HydrationGame: React.FC<HydrationGameProps> = ({ onComplete }) => {
     }));
     setEscapingDrops((prev) => [...prev, ...newDrops]);
 
-    void dialogueManager.speak('توقف وابلع يا بطل! الضغط الطويل يطيّر قطرات الماء في الكابينة!');
-  }, []);
+    void dialogueManager.speak(
+      tr(
+        language,
+        'Pause and swallow! Holding continuously sprays floating water droplets inside the cabin!',
+        'توقف وابلع يا بطل! الضغط الطويل يطيّر قطرات الماء في الكابينة!'
+      )
+    );
+  }, [language]);
 
   const updateLoop = useCallback(() => {
     if (!isPressing || isFinished) return;
@@ -61,7 +71,13 @@ export const HydrationGame: React.FC<HydrationGameProps> = ({ onComplete }) => {
       if (next >= 100) {
         setIsFinished(true);
         soundManager.playFanfare();
-        void dialogueManager.speak('يا سلام! ارتويت تماماً بدون هدر قطرات في الفضاء! 🌟');
+        void dialogueManager.speak(
+          tr(
+            language,
+            'Awesome! You stayed 100% hydrated without wasting floating water drops! 🌟',
+            'يا سلام! ارتويت تماماً بدون هدر قطرات في الفضاء! 🌟'
+          )
+        );
         if (onComplete) onComplete();
         return 100;
       }
@@ -69,7 +85,7 @@ export const HydrationGame: React.FC<HydrationGameProps> = ({ onComplete }) => {
     });
 
     animationFrameRef.current = requestAnimationFrame(updateLoop);
-  }, [isPressing, isFinished, triggerWasteWarning, onComplete]);
+  }, [isPressing, isFinished, triggerWasteWarning, onComplete, language]);
 
   useEffect(() => {
     if (isPressing && !isFinished) {
@@ -117,7 +133,7 @@ export const HydrationGame: React.FC<HydrationGameProps> = ({ onComplete }) => {
   return (
     <div
       className="relative w-full max-w-xl mx-auto p-5 sm:p-7 rounded-[2.5rem] bg-gradient-to-b from-sky-950/95 via-slate-900/95 to-slate-950/95 border-4 border-cyan-400 shadow-[0_0_50px_rgba(6,182,212,0.35)] select-none text-white flex flex-col items-center gap-5"
-      dir="rtl"
+      dir={langDir}
     >
       {/* Title & Status */}
       <div className="w-full flex items-center justify-between border-b border-cyan-500/30 pb-3">
@@ -127,10 +143,14 @@ export const HydrationGame: React.FC<HydrationGameProps> = ({ onComplete }) => {
           </div>
           <div>
             <h3 className="font-hud font-black text-lg sm:text-xl text-white">
-              تحدي شرب الماء الآمن في انعدام الجاذبية
+              {tr(language, 'Zero-G Safe Hydration Challenge', 'تحدي شرب الماء الآمن في انعدام الجاذبية')}
             </h3>
             <p className="text-xs font-hud font-bold text-cyan-200">
-              اضغط مع الاستمرار للشرب، وتوقف كل ثانيتين للبلع حتى لا تتطاير القطرات!
+              {tr(
+                language,
+                'Press and hold to sip, then pause every 2s to swallow so droplets don’t float away!',
+                'اضغط مع الاستمرار للشرب، وتوقف كل ثانيتين للبلع حتى لا تتطاير القطرات!'
+              )}
             </p>
           </div>
         </div>
@@ -139,7 +159,7 @@ export const HydrationGame: React.FC<HydrationGameProps> = ({ onComplete }) => {
           type="button"
           onClick={handleReset}
           className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-600 transition-all cursor-pointer"
-          title="إعادة المحاولة"
+          title={tr(language, 'Retry', 'إعادة المحاولة')}
         >
           <RotateCcw className="w-4 h-4" />
         </button>
@@ -234,7 +254,7 @@ export const HydrationGame: React.FC<HydrationGameProps> = ({ onComplete }) => {
             className="absolute top-2 bg-rose-600/90 text-white font-hud font-black text-xs px-3 py-1 rounded-full border border-white flex items-center gap-1 shadow-lg"
           >
             <AlertTriangle className="w-4 h-4 text-yellow-300" />
-            <span>حاسب! قطرات الماء طارت! ابلع وتوقف!</span>
+            <span>{tr(language, 'Careful! Droplets escaped! Release to swallow!', 'حاسب! قطرات الماء طارت! ابلع وتوقف!')}</span>
           </motion.div>
         )}
       </div>
@@ -245,7 +265,7 @@ export const HydrationGame: React.FC<HydrationGameProps> = ({ onComplete }) => {
         <div className="p-3 rounded-2xl bg-slate-900/80 border-2 border-cyan-400/50">
           <div className="flex items-center justify-between text-xs font-hud font-bold text-cyan-200 mb-1">
             <span className="flex items-center gap-1">
-              <Droplets className="w-3.5 h-3.5 text-cyan-400" /> مستوى الارتواء
+              <Droplets className="w-3.5 h-3.5 text-cyan-400" /> {tr(language, 'Hydration Level', 'مستوى الارتواء')}
             </span>
             <span className="text-white font-black">{Math.round(hydrationLevel)}%</span>
           </div>
@@ -261,7 +281,7 @@ export const HydrationGame: React.FC<HydrationGameProps> = ({ onComplete }) => {
         <div className="p-3 rounded-2xl bg-slate-900/80 border-2 border-rose-500/50">
           <div className="flex items-center justify-between text-xs font-hud font-bold text-rose-200 mb-1">
             <span className="flex items-center gap-1">
-              <AlertTriangle className="w-3.5 h-3.5 text-rose-400" /> هدر القطرات المتطايرة
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-400" /> {tr(language, 'Floating Waste', 'هدر القطرات المتطايرة')}
             </span>
             <span className="text-white font-black">{Math.round(waterWaste)}%</span>
           </div>
@@ -290,13 +310,17 @@ export const HydrationGame: React.FC<HydrationGameProps> = ({ onComplete }) => {
               : 'btn-chunky-adventure text-slate-950'
           }`}
         >
-          <span>{isPressing ? 'جاري الشرب والامتصاص 🥤 (ابلع كل ثانيتين!)' : 'اضغط مع الاستمرار للشرب 🧃'}</span>
+          <span>
+            {isPressing
+              ? tr(language, 'Sipping in 0G 🥤 (Pause every 2s to swallow!)', 'جاري الشرب والامتصاص 🥤 (ابلع كل ثانيتين!)')
+              : tr(language, 'Press & Hold to Drink 🧃', 'اضغط مع الاستمرار للشرب 🧃')}
+          </span>
           <Droplets className="w-6 h-6 animate-pulse" />
         </button>
       ) : (
         <div className="w-full py-3 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-hud font-black text-base sm:text-lg flex items-center justify-center gap-2 shadow-lg animate-bounce">
           <CheckCircle2 className="w-6 h-6" />
-          <span>تم الارتواء بالكامل بنجاح 100%! أحسنت يا بطل! 🚀</span>
+          <span>{tr(language, '100% Hydrated Successfully! Well done Cadet! 🚀', 'تم الارتواء بالكامل بنجاح 100%! أحسنت يا بطل! 🚀')}</span>
         </div>
       )}
     </div>

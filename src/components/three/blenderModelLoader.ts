@@ -267,6 +267,68 @@ export function animateBlenderEnvironmentGlb(root: THREE.Object3D, elapsed: numb
   }
 }
 
+export type SpaceNodeModelKey =
+  | 'earth_launchpad'
+  | 'iss_orbit_station'
+  | 'lunar_biodome_base'
+  | 'orion_reentry_capsule';
+
+export type StationPropModelKey =
+  | SpaceNodeModelKey
+  | 'prop_kitchen_counter'
+  | 'prop_suit_rack'
+  | 'prop_medical_pod'
+  | 'prop_hydro_rack'
+  | 'prop_storm_console';
+
+export function attachSpaceNodeGlb(opts: {
+  modelKey: SpaceNodeModelKey;
+  targetParent: THREE.Object3D;
+  scale?: number;
+  position?: [number, number, number];
+  rotationY?: number;
+  fallbackNodes?: THREE.Object3D[];
+  isDisposed: () => boolean;
+  onLoaded?: (nodeGlb: THREE.Group) => void;
+}): void {
+  const s = opts.scale ?? 1.85;
+  attachGlbScene({
+    url: `/models/${opts.modelKey}.glb`,
+    name: `Blender_${opts.modelKey}`,
+    targetParent: opts.targetParent,
+    scale: [s, s, s],
+    position: opts.position ?? [0, 0, 0],
+    rotationY: opts.rotationY ?? 0,
+    fallbackNodes: opts.fallbackNodes,
+    isDisposed: opts.isDisposed,
+    onLoaded: opts.onLoaded
+  });
+}
+
+export function attachStationPropGlb(opts: {
+  propKey: StationPropModelKey;
+  targetParent: THREE.Object3D;
+  scale?: number;
+  position?: [number, number, number];
+  rotationY?: number;
+  fallbackNodes?: THREE.Object3D[];
+  isDisposed: () => boolean;
+  onLoaded?: (propGlb: THREE.Group) => void;
+}): void {
+  const s = opts.scale ?? 1.25;
+  attachGlbScene({
+    url: `/models/${opts.propKey}.glb`,
+    name: `BlenderProp_${opts.propKey}`,
+    targetParent: opts.targetParent,
+    scale: [s, s, s],
+    position: opts.position ?? [0, 0, 0],
+    rotationY: opts.rotationY ?? 0,
+    fallbackNodes: opts.fallbackNodes,
+    isDisposed: opts.isDisposed,
+    onLoaded: opts.onLoaded
+  });
+}
+
 export function getLoadedGlbUrls(): string[] {
   return Array.from(loadedUrls);
 }

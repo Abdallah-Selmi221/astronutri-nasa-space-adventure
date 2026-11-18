@@ -9,7 +9,9 @@ import { shuffleArray } from '../../utils/shuffle';
 
 interface InteractiveQuizDeckProps {
   questions: readonly QuizQuestion[];
+  titleEn?: string;
   titleAr: string;
+  subtitleEn?: string;
   subtitleAr?: string;
   accent?: 'cyan' | 'emerald' | 'amber';
   milestoneCount?: number;
@@ -28,7 +30,9 @@ const OPTION_BADGE_COLORS = [
 
 export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
   questions,
+  titleEn = 'NASA Space Quiz',
   titleAr,
+  subtitleEn,
   subtitleAr,
   accent = 'cyan',
   milestoneCount = 3,
@@ -130,16 +134,16 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`px-3 py-1 rounded-full text-xs font-hud font-black text-white bg-gradient-to-r ${accentBadge} border shadow-sm`}>
-              🧠 {titleAr}
+              🧠 {tr(language, titleEn, titleAr)}
             </span>
             <span className="casual-badge px-3 py-1 text-xs font-hud font-black flex items-center gap-1.5">
               <Star className="w-3.5 h-3.5 fill-amber-950" />
               <span>{stats.correctCount} / {safeQuestions.length}</span>
             </span>
           </div>
-          {subtitleAr && (
+          {(subtitleEn || subtitleAr) && (
             <p className="text-xs sm:text-sm font-hud font-bold text-slate-200 mt-1.5">
-              {subtitleAr}
+              {tr(language, subtitleEn ?? 'Answer questions to earn your explorer badge!', subtitleAr ?? '')}
             </p>
           )}
         </div>
@@ -153,7 +157,7 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
             }}
             className="px-2.5 py-1.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-amber-300/60 text-xs font-hud font-black text-amber-200 cursor-pointer"
           >
-            {language === 'en' ? 'EN | عربي' : 'عربي | EN'}
+            {language === 'en' ? 'Switch: AR' : 'اللغة: عربي'}
           </button>
           <button
             type="button"
@@ -238,11 +242,11 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
                 {tr(language, `Question ${currentIdx + 1} of ${safeQuestions.length}`, `سؤال ${currentIdx + 1} من ${safeQuestions.length}`)}
               </span>
               <span className="text-[10px] font-hud font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/35 border border-indigo-300/50 text-indigo-100">
-                🛰️ {currentQ.nasaBadgeAr}
+                🛰️ {tr(language, currentQ.nasaBadgeEn, currentQ.nasaBadgeAr)}
               </span>
             </div>
-            <h3 dir="rtl" className="font-hud font-black text-base sm:text-lg text-white leading-relaxed">
-              {currentQ.questionAr}
+            <h3 dir={language === 'ar' ? 'rtl' : 'ltr'} className="font-hud font-black text-base sm:text-lg text-white leading-relaxed">
+              {tr(language, currentQ.questionEn, currentQ.questionAr)}
             </h3>
           </div>
         </div>
@@ -268,7 +272,7 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
                 data-testid={`quiz-option-${option.id}`}
                 data-correct={option.isCorrect ? 'true' : 'false'}
                 onClick={() => handleSelectOption(option)}
-                className={`w-full text-right p-3.5 rounded-2xl border-2 border-b-4 font-hud font-bold text-sm sm:text-base transition-all cursor-pointer flex items-center justify-between gap-3 active:translate-y-0.5 ${
+                className={`w-full ${language === 'ar' ? 'text-right' : 'text-left'} p-3.5 rounded-2xl border-2 border-b-4 font-hud font-bold text-sm sm:text-base transition-all cursor-pointer flex items-center justify-between gap-3 active:translate-y-0.5 ${
                   showCorrectHighlight || revealCorrect
                     ? 'bg-emerald-500/35 border-emerald-300 text-white shadow-[0_4px_0_#047857]'
                     : showWrongHighlight
@@ -282,7 +286,9 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
                   >
                     {optionLetters[optIdx] || optIdx + 1}
                   </span>
-                  <span dir="rtl" className="leading-snug">{option.labelAr}</span>
+                  <span dir={language === 'ar' ? 'rtl' : 'ltr'} className="leading-snug">
+                    {tr(language, option.labelEn, option.labelAr)}
+                  </span>
                 </div>
                 {(showCorrectHighlight || revealCorrect) && <Check className="w-5 h-5 text-emerald-300 shrink-0" />}
                 {showWrongHighlight && <X className="w-5 h-5 text-rose-300 shrink-0" />}
@@ -300,17 +306,23 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
                 : 'bg-amber-950/60 border-amber-400/60'
             }`}
           >
-            <div dir="rtl" className="flex items-start gap-2 font-hud font-bold text-sm text-white">
+            <div dir={language === 'ar' ? 'rtl' : 'ltr'} className="flex items-start gap-2 font-hud font-bold text-sm text-white">
               <Sparkles className="w-4 h-4 text-amber-300 shrink-0 mt-0.5" />
-              <span>{selectedOption.feedbackAr}</span>
+              <span>{tr(language, selectedOption.feedbackEn, selectedOption.feedbackAr)}</span>
             </div>
             <div className="rounded-xl bg-slate-950/70 border border-cyan-400/30 p-2.5 flex items-start gap-2 text-xs font-hud font-bold text-cyan-100">
               <Radio className="w-4 h-4 text-cyan-300 shrink-0 mt-0.5" />
               <div>
                 <span className="text-cyan-300 font-black">
-                  {tr(language, `NASA Science (${currentQ.nasaBadgeAr}): `, `حقيقة من ناسا (${currentQ.nasaBadgeAr}): `)}
+                  {tr(
+                    language,
+                    `NASA Science (${currentQ.nasaBadgeEn}): `,
+                    `حقيقة من ناسا (${currentQ.nasaBadgeAr}): `
+                  )}
                 </span>
-                <span dir="rtl">{currentQ.nasaConnectionAr}</span>
+                <span dir={language === 'ar' ? 'rtl' : 'ltr'}>
+                  {tr(language, currentQ.nasaConnectionEn, currentQ.nasaConnectionAr)}
+                </span>
               </div>
             </div>
           </div>
@@ -324,7 +336,7 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
           onClick={handlePrev}
           className="px-4 py-2.5 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-white/25 font-hud font-bold text-xs sm:text-sm text-slate-100 flex items-center gap-1.5 cursor-pointer"
         >
-          <ChevronRight className="w-4 h-4" />
+          {language === 'ar' ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           <span>{tr(language, 'Previous Question', 'السؤال السابق')}</span>
         </button>
 
@@ -334,7 +346,7 @@ export const InteractiveQuizDeck: React.FC<InteractiveQuizDeckProps> = ({
           className="casual-btn-cyan px-5 py-2.5 text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer"
         >
           <span>{tr(language, 'Next Question', 'السؤال التالي')}</span>
-          <ChevronLeft className="w-4 h-4" />
+          {language === 'ar' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </button>
       </div>
     </section>

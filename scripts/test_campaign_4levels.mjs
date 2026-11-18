@@ -1,6 +1,7 @@
 // scripts/test_campaign_4levels.mjs
-// Automated verification for the 4-level / 33-room / 21-minigame campaign registry,
-// sequential unlock gates, cross-game & cross-level continuity, and save-state persistence.
+// Automated verification for the streamlined 4-Node / 14-Station campaign registry,
+// sequential unlock gates, cross-game & cross-level continuity, Phase 1 Blender GLB assets,
+// strict bilingual quiz isolation, and save-state persistence.
 import fs from 'fs';
 import path from 'path';
 import { buildSync } from 'esbuild';
@@ -38,7 +39,7 @@ const loadTsModule = async (relPath) => {
   return import(url);
 };
 
-const { CAMPAIGN_LEVELS, MINI_GAME_SPECS } = await loadTsModule('src/data/campaignLevels.ts');
+const { CAMPAIGN_LEVELS, MINI_GAME_SPECS, MERGED_COMPANION_MINIGAMES } = await loadTsModule('src/data/campaignLevels.ts');
 const { NASA_OSDR_METRICS, NASA_ENGINEERING_TRADEOFFS } = await loadTsModule('src/services/nasa/nasaOSDR.ts');
 const {
   SCIENCE_BADGES,
@@ -70,32 +71,36 @@ function assert(condition, message) {
 }
 
 console.log('===============================================================');
-console.log('  AstroNutri 4-Level / 21-Mini-Game Registry & Continuity Test');
+console.log('  AstroNutri Streamlined 4-Node / 14-Station Continuity Test');
 console.log('===============================================================');
 
-// 1. Exact Level, Room (33), and Mini-Game (21) counts
+// 1. Exact Streamlined Node (4), Linear Station (14), and Consolidated Mini-Game counts
 const levelIds = Object.keys(CAMPAIGN_LEVELS).map(Number).sort((a, b) => a - b);
 assert(
   JSON.stringify(levelIds) === JSON.stringify([1, 2, 3, 4]),
-  'CAMPAIGN_LEVELS defines sequential levels [1, 2, 3, 4]'
+  'CAMPAIGN_LEVELS defines sequential Space Nodes [1, 2, 3, 4]'
 );
 
 const roomCounts = levelIds.map((id) => CAMPAIGN_LEVELS[id].rooms.length);
 assert(
-  JSON.stringify(roomCounts) === JSON.stringify([6, 7, 12, 8]),
-  `Exact room counts per level are [6, 7, 12, 8] (got ${JSON.stringify(roomCounts)}, total 33)`
+  JSON.stringify(roomCounts) === JSON.stringify([4, 3, 4, 3]),
+  `Streamlined station counts per level are [4, 3, 4, 3] (got ${JSON.stringify(roomCounts)}, total 14)`
 );
 
 const miniGameCounts = levelIds.map((id) => CAMPAIGN_LEVELS[id].miniGames.length);
 assert(
-  JSON.stringify(miniGameCounts) === JSON.stringify([5, 6, 5, 5]),
-  `Exact mini-game counts per level are [5, 6, 5, 5] (got ${JSON.stringify(miniGameCounts)}, total 21)`
+  JSON.stringify(miniGameCounts) === JSON.stringify([4, 3, 4, 3]),
+  `Streamlined mini-game step counts per level are [4, 3, 4, 3] (got ${JSON.stringify(miniGameCounts)}, total 14)`
 );
 
 const totalMiniGamesInSpecs = Object.keys(MINI_GAME_SPECS).length;
-assert(totalMiniGamesInSpecs === 21, `MINI_GAME_SPECS has 21 entries (got ${totalMiniGamesInSpecs})`);
+assert(totalMiniGamesInSpecs === 21, `MINI_GAME_SPECS keeps all 21 backward-compatible specs (got ${totalMiniGamesInSpecs})`);
+assert(
+  Object.keys(MERGED_COMPANION_MINIGAMES).length >= 6,
+  `MERGED_COMPANION_MINIGAMES maps companion steps (${Object.keys(MERGED_COMPANION_MINIGAMES).length} mappings)`
+);
 
-// 2. Verify every miniGame referenced in levels exists in MINI_GAME_SPECS and maps to a real room
+// 2. Verify every station miniGame and all 21 MINI_GAME_SPECS map cleanly to real streamlined rooms
 let allMappedCorrectly = true;
 for (const lvlId of levelIds) {
   const lvl = CAMPAIGN_LEVELS[lvlId];
@@ -108,21 +113,49 @@ for (const lvlId of levelIds) {
     }
   }
 }
-assert(allMappedCorrectly, 'All 21 mini-games map cleanly to matching levelId and roomId');
+for (const [mgId, spec] of Object.entries(MINI_GAME_SPECS)) {
+  const lvl = CAMPAIGN_LEVELS[spec.levelId];
+  if (!lvl || !lvl.rooms.some((r) => r.id === spec.roomId)) {
+    allMappedCorrectly = false;
+    console.error(`  Compat spec mismatch: ${mgId} -> level ${spec.levelId}, room ${spec.roomId}`);
+  }
+}
+assert(allMappedCorrectly, 'All 14 core station steps & 21 compat specs map to real streamlined rooms');
 
-// 3. Level 3 Mission Control & Level 3 -> Level 4 Cross-Level Continuity definitions
-const l3MissionControl = CAMPAIGN_LEVELS[3].rooms.find((r) => r.id === 'mission_control');
-assert(
-  Boolean(l3MissionControl && l3MissionControl.consoleAction === 'l3_return_auth'),
-  'Level 3 includes Mission Control consoleAction = l3_return_auth for Level 4 unlock'
-);
-
-const l3EvaPrep = CAMPAIGN_LEVELS[3].rooms.find((r) => r.id === 'eva_prep_room');
+// 3. Level 3 Shackleton Return Auth & Fitness/EVA Prep station continuity + Phase 1 Blender GLB models
 const l3LunarExplore = CAMPAIGN_LEVELS[3].rooms.find((r) => r.id === 'lunar_exploration_zone');
 assert(
-  l3EvaPrep?.miniGameId === 'l3_eva_prep' && l3LunarExplore?.miniGameId === 'l3_lunar_samples',
-  'Level 3 maps EVA Prep Room (l3_eva_prep) and Lunar Exploration Zone (l3_lunar_samples) for tool dependency'
+  Boolean(
+    l3LunarExplore &&
+      l3LunarExplore.miniGameId === 'l3_lunar_samples' &&
+      l3LunarExplore.consoleAction === 'l3_return_auth'
+  ),
+  'Level 3 maps Shackleton Biodome (l3_lunar_samples + l3_return_auth) for Earth return authorization'
 );
+
+const l3FitnessBay = CAMPAIGN_LEVELS[3].rooms.find((r) => r.id === 'fitness_room');
+assert(
+  l3FitnessBay?.miniGameId === 'l3_resistance_training' &&
+    Boolean(l3FitnessBay?.mergedMiniGames?.includes('l3_eva_prep')),
+  'Level 3 consolidates ARED Fitness & EVA Tool Prep seamlessly in fitness_room'
+);
+
+const phase1GlbModels = [
+  'earth_launchpad.glb',
+  'iss_orbit_station.glb',
+  'lunar_biodome_base.glb',
+  'orion_reentry_capsule.glb',
+  'prop_kitchen_counter.glb',
+  'prop_suit_rack.glb',
+  'prop_medical_pod.glb',
+  'prop_hydro_rack.glb',
+  'prop_storm_console.glb'
+];
+const allGlbsValid = phase1GlbModels.every((fname) => {
+  const p = path.resolve('public/models', fname);
+  return fs.existsSync(p) && fs.statSync(p).size > 1000 && fs.statSync(p).size < 500 * 1024;
+});
+assert(allGlbsValid, 'All 9 Phase 1 Blender .glb space assets exist in public/models/ and stay under 500 KB each');
 
 // 4. NASA OSDR & Trade-Offs dataset integrity
 assert(NASA_OSDR_METRICS.length === 4, `NASA_OSDR_METRICS contains 4 studies (got ${NASA_OSDR_METRICS.length})`);
@@ -293,6 +326,7 @@ const allDecks = [
   ['HEALTH_PHYSICS_QUESTIONS', HEALTH_PHYSICS_QUESTIONS]
 ];
 let totalQuizQuestions = 0;
+let allEnFieldsIsolated = true;
 const globalIndexCounts = [0, 0, 0, 0];
 for (const [deckName, deck] of allDecks) {
   assert(deck.length === 14, `${deckName} has 14 questions (got ${deck.length})`);
@@ -304,6 +338,17 @@ for (const [deckName, deck] of allDecks) {
     const correctCount = q.options.filter((o) => o.isCorrect).length;
     if (q.options.length !== 4 || correctCount !== 1 || correctPos !== q.correctIndex) {
       all4OptsAndValid = false;
+    }
+    const enFields = [
+      q.questionEn,
+      q.nasaConnectionEn,
+      q.nasaBadgeEn,
+      ...q.options.map((o) => o.labelEn),
+      ...q.options.map((o) => o.feedbackEn)
+    ];
+    if (enFields.some((s) => !s || typeof s !== 'string' || s.trim().length < 2 || /[\u0600-\u06FF]/.test(s))) {
+      allEnFieldsIsolated = false;
+      console.error(`  EN isolation check failed on ${q.id}`);
     }
     if (correctPos >= 0 && correctPos < 4) {
       deckCounts[correctPos]++;
@@ -319,6 +364,10 @@ for (const [deckName, deck] of allDecks) {
 assert(
   totalQuizQuestions === 42 && globalIndexCounts.every((c) => c >= 10),
   `All 42 quiz questions distributed evenly across indices [0,1,2,3]: ${JSON.stringify(globalIndexCounts)}`
+);
+assert(
+  allEnFieldsIsolated,
+  'All 42 quiz questions have complete English translations with zero Arabic characters in EN fields'
 );
 
 const sampleInput = [1, 2, 3, 4];

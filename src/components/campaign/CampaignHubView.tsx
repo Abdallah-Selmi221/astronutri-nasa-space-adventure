@@ -11,6 +11,7 @@ import { Level1MiniGames } from './Level1MiniGames';
 import { Level2MiniGames } from './Level2MiniGames';
 import { Level3MiniGames } from './Level3MiniGames';
 import { Level4MiniGames } from './Level4MiniGames';
+import { MissionInventoryBar } from './MissionInventoryBar';
 import { EcoBioCabin } from './EcoBioCabin';
 import { ScientificSourcesModal } from './ScientificSourcesModal';
 import { SettingsMenu } from '../common/SettingsMenu';
@@ -90,6 +91,15 @@ export const CampaignHubView: React.FC = () => {
   }, []);
 
   const totalStarsScore = 250 + campaign.completedMiniGames.length * 25 + state.cargoItems.length * 15;
+  const totalStreamlinedMissions = ([1, 2, 3, 4] as CampaignLevelId[]).reduce(
+    (sum, id) => sum + CAMPAIGN_LEVELS[id].miniGames.length,
+    0
+  );
+  const doneStreamlinedMissions = ([1, 2, 3, 4] as CampaignLevelId[]).reduce(
+    (sum, id) =>
+      sum + CAMPAIGN_LEVELS[id].miniGames.filter((mg) => campaign.completedMiniGames.includes(mg)).length,
+    0
+  );
 
   const handleSelectLevel = (levelId: CampaignLevelId) => {
     if (!campaign.unlockedLevels.includes(levelId)) {
@@ -157,8 +167,8 @@ export const CampaignHubView: React.FC = () => {
               1️⃣{' '}
               {tr(
                 language,
-                'Explore 3D Floating Islands: Use WASD/joystick or tap "Go to Next Mission" and follow the golden floor arrow!',
-                'تجول في الجزر الثلاثية الأبعاد بالتحكم أو بزر "اذهب للمهمة التالية" واتبع السهم الذهبي على الأرض!'
+                'Explore 3D Space Mission Decks: Use WASD/joystick or tap "Go" and follow the golden floor arrow!',
+                'تجول في منصات المهمات الفضائية ثلاثية الأبعاد بالتحكم أو بزر "اذهب" واتبع السهم الذهبي على الأرض!'
               )}
             </li>
             <li>
@@ -207,7 +217,10 @@ export const CampaignHubView: React.FC = () => {
 
     if (isL3ReturnConsole) {
       return (
-        <div className="min-h-screen w-full pt-24 pb-10 px-4 sm:px-6 max-w-4xl mx-auto space-y-4" dir="rtl">
+        <div
+          className="min-h-screen w-full pt-24 pb-10 px-4 sm:px-6 max-w-4xl mx-auto space-y-4"
+          dir={langDir}
+        >
           <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/95 border-2 border-purple-400/60 rounded-3xl p-4 shadow-xl">
             <div className="flex items-center gap-2">
               <button
@@ -215,8 +228,14 @@ export const CampaignHubView: React.FC = () => {
                 onClick={handleBackToLevel}
                 className="px-4 py-2 rounded-2xl bg-slate-800 hover:bg-purple-700 text-white font-hud font-black text-xs sm:text-sm border border-purple-400/50 flex items-center gap-1.5 cursor-pointer"
               >
-                <ArrowRight className="w-4 h-4" />
-                <span>خريطة المستوى 3 (12 غرفة)</span>
+                <ArrowRight className={`w-4 h-4 ${language === 'en' ? 'rotate-180' : ''}`} />
+                <span>
+                  {tr(
+                    language,
+                    `Level 3 Deck (${activeLevelSpec.rooms.length} Stations)`,
+                    `خريطة المستوى 3 (${activeLevelSpec.rooms.length} محطات)`
+                  )}
+                </span>
               </button>
               <button
                 type="button"
@@ -228,15 +247,23 @@ export const CampaignHubView: React.FC = () => {
                 className="px-3 py-2 rounded-2xl bg-slate-950/90 hover:bg-slate-800 text-cyan-100 font-hud font-black text-xs border border-cyan-300/75 flex items-center gap-1.5 cursor-pointer"
               >
                 <Satellite className="w-3.5 h-3.5 text-cyan-300" />
-                <span>NASA</span>
+                <span>{tr(language, 'NASA Data', 'بيانات ناسا')}</span>
               </button>
             </div>
-            <div className="text-right">
+            <div className={language === 'ar' ? 'text-right' : 'text-left'}>
               <div className="font-hud font-black text-base sm:text-lg text-white">
-                🛸 مركز قيادة القمر — إذن العودة للأرض
+                {tr(
+                  language,
+                  '🛸 Lunar Command — Earth Return Authorization',
+                  '🛸 مركز قيادة القمر — إذن العودة للأرض'
+                )}
               </div>
               <div className="text-xs text-purple-300 font-bold">
-                مراجعة جميع تحديات القمر وتفويض انطلاق المستوى 4
+                {tr(
+                  language,
+                  'Review lunar science findings & authorize Orion launch to Node 4',
+                  'مراجعة جميع نتائج القمر وتفويض انطلاق مرحلة العودة للأرض'
+                )}
               </div>
             </div>
           </div>
@@ -335,7 +362,7 @@ export const CampaignHubView: React.FC = () => {
     }
   }
 
-  // ==================== VIEW 2: FULL-VIEWPORT 3D ISLAND & ROOM PORTALS ====================
+  // ==================== VIEW 2: FULL-VIEWPORT 3D MISSION DECK & STATIONS ====================
   if (campaign.viewMode === 'level_hub') {
     const levelDoneCount = activeLevelSpec.miniGames.filter((id) =>
       campaign.completedMiniGames.includes(id)
@@ -352,7 +379,7 @@ export const CampaignHubView: React.FC = () => {
         className="relative w-full h-[100dvh] overflow-hidden bg-[#07122b] text-white"
         dir={langDir}
       >
-        {/* Full-Viewport 3D Island & Third-Person Character Scene */}
+        {/* Full-Viewport 3D Mission Deck & Third-Person Astronaut Scene */}
         <div className="absolute inset-0 w-full h-full z-0">
           <SpatialRoomMap3D
             levelId={activeLevelId}
@@ -367,17 +394,19 @@ export const CampaignHubView: React.FC = () => {
           dir="ltr"
           className="pointer-events-none fixed top-2.5 inset-x-2 sm:inset-x-4 z-30 flex items-start justify-between gap-1 sm:gap-2"
         >
-          {/* Physical Top-Left: Back to Archipelago + Gold Star & Mission Progress */}
+          {/* Physical Top-Left: Back to Space Map + Gold Star & Mission Progress */}
           <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 shrink-0">
             <button
               type="button"
+              data-testid="hud-back-world-btn"
               onClick={handleBackToWorldMap}
-              className="casual-btn-cyan px-2.5 sm:px-3 py-1.5 text-xs flex items-center gap-1 cursor-pointer shrink-0 rounded-full"
-              aria-label={tr(language, 'Archipelago', 'الأرخبيل')}
+              className="casual-btn-cyan min-h-[38px] px-2.5 sm:px-3.5 py-1.5 text-[11px] sm:text-xs flex items-center gap-1 cursor-pointer shrink-0 rounded-full"
+              aria-label={tr(language, 'Back to Space Map', 'الخريطة الرئيسية')}
               dir={langDir}
             >
-              <ArrowRight className={`w-3.5 h-3.5 ${language === 'en' ? 'rotate-180' : ''}`} />
-              <span className="hidden sm:inline">{tr(language, 'Archipelago', 'الأرخبيل')}</span>
+              <ArrowRight className={`w-3.5 h-3.5 shrink-0 ${language === 'en' ? 'rotate-180' : ''}`} />
+              <span className="sm:hidden">{tr(language, 'Space Map', 'الخريطة الرئيسية')}</span>
+              <span className="hidden sm:inline">{tr(language, 'Back to Space Map', 'الخريطة الرئيسية')}</span>
             </button>
 
             <div
@@ -410,8 +439,8 @@ export const CampaignHubView: React.FC = () => {
               }}
               className="px-2 sm:px-2.5 py-1.5 rounded-full bg-slate-950/80 hover:bg-slate-800 text-cyan-200 font-hud font-black text-[11px] border-2 border-cyan-400/75 backdrop-blur-md shadow-lg cursor-pointer whitespace-nowrap"
             >
-              <span className="sm:hidden">{language === 'en' ? 'عربي' : 'EN'}</span>
-              <span className="hidden sm:inline">{language === 'en' ? 'EN | عربي' : 'عربي | EN'}</span>
+              <span className="sm:hidden">{language === 'en' ? 'AR' : 'إنجليزي'}</span>
+              <span className="hidden sm:inline">{language === 'en' ? 'Switch: AR' : 'اللغة: عربي'}</span>
             </button>
 
             {activeLevelId === 3 && allLevelGamesDone && !campaign.l3ReturnAuthorized && (
@@ -434,10 +463,11 @@ export const CampaignHubView: React.FC = () => {
                 openNasaDrawer();
               }}
               className="px-2 sm:px-3 py-1.5 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-100 font-hud font-black text-xs border-2 border-cyan-300/75 backdrop-blur-md shadow-lg flex items-center gap-1 cursor-pointer whitespace-nowrap"
-              aria-label="NASA"
+              aria-label={tr(language, 'NASA Data', 'بيانات ناسا')}
+              dir={langDir}
             >
               <Satellite className="w-3.5 h-3.5 text-cyan-300" />
-              <span className="hidden sm:inline">NASA</span>
+              <span className="hidden sm:inline">{tr(language, 'NASA', 'بيانات ناسا')}</span>
             </button>
 
             <button
@@ -448,7 +478,7 @@ export const CampaignHubView: React.FC = () => {
                 setIsMobileMenuOpen((v) => !v);
               }}
               className="px-2 sm:px-3 py-1.5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_3px_0_#b45309] flex items-center gap-1 cursor-pointer whitespace-nowrap"
-              aria-label="Menu"
+              aria-label={tr(language, 'Menu', 'القائمة')}
               dir={langDir}
             >
               {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -457,10 +487,10 @@ export const CampaignHubView: React.FC = () => {
           </div>
         </header>
 
-        {/* Kid-Friendly Top-Center Guided Mission Banner (Step 1 of N + Tap-to-Walk) */}
+        {/* Kid-Friendly Top-Center Guided Mission Banner + Persistent Inventory Bar */}
         <div
           dir={langDir}
-          className="pointer-events-none fixed top-14 sm:top-3.5 inset-x-0 z-20 flex justify-center px-3"
+          className="pointer-events-none fixed top-14 sm:top-3.5 inset-x-0 z-20 flex flex-col items-center gap-1.5 px-3"
         >
           <button
             type="button"
@@ -479,6 +509,7 @@ export const CampaignHubView: React.FC = () => {
               </span>
             )}
           </button>
+          <MissionInventoryBar campaign={campaign} activeLevelId={activeLevelId} language={language} />
         </div>
 
         {/* Clean Unified Pause & Navigation Drawer (Level Hub) */}
@@ -509,7 +540,7 @@ export const CampaignHubView: React.FC = () => {
                 className="p-2.5 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-hud font-black text-xs border-2 border-sky-200/80 shadow-[0_3px_0_#075985] flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <DoorOpen className="w-4 h-4" />
-                <span>{tr(language, `Stations (${activeLevelSpec.rooms.length})`, `الغرف (${activeLevelSpec.rooms.length})`)}</span>
+                <span>{tr(language, `Stations (${activeLevelSpec.rooms.length})`, `المحطات (${activeLevelSpec.rooms.length})`)}</span>
               </button>
 
               <button
@@ -523,7 +554,7 @@ export const CampaignHubView: React.FC = () => {
                 className="p-2.5 rounded-2xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_3px_0_#0e7490] flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Shield className="w-4 h-4" />
-                <span>SPACE-FIT X</span>
+                <span>{tr(language, 'SPACE-FIT X', 'بدلة الفضاء')}</span>
               </button>
 
               {activeLevelId <= 3 && (
@@ -761,13 +792,13 @@ export const CampaignHubView: React.FC = () => {
     );
   }
 
-  // ==================== VIEW 1: FULL-VIEWPORT 3D ARCHIPELAGO WORLD MAP ====================
+  // ==================== VIEW 1: FULL-VIEWPORT 3D NASA SPACE TRAJECTORY MAP ====================
   return (
     <div
       className="relative w-full h-[100dvh] overflow-hidden bg-[#07122b] text-white"
       dir={langDir}
     >
-      {/* Full-Viewport 3D Floating Islands Archipelago */}
+      {/* Full-Viewport 3D Earth-to-Moon Orbital Trajectory */}
       <div className="absolute inset-0 w-full h-full z-0">
         <WorldNavigator3D
           campaign={campaign}
@@ -776,12 +807,12 @@ export const CampaignHubView: React.FC = () => {
         />
       </div>
 
-      {/* Minimalist Corner Kids HUD (World Archipelago: Gold Stars Left, EN/AR + NASA + Menu Right) */}
+      {/* Minimalist Corner Kids HUD (Space Command: Gold Stars Left, EN/AR + NASA + Menu Right) */}
       <header
         dir="ltr"
         className="pointer-events-none fixed top-2.5 inset-x-2 sm:inset-x-4 z-30 flex items-start justify-between gap-1 sm:gap-2"
       >
-        {/* Physical Top-Left: Gold Star Counter + Primary Play Button */}
+        {/* Physical Top-Left: Gold Star Counter + Space Mission Command Pill + Play Button */}
         <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 shrink-0">
           <div
             dir={langDir}
@@ -796,7 +827,7 @@ export const CampaignHubView: React.FC = () => {
               {totalStarsScore}
             </span>
             <span className="hidden sm:inline text-[11px] font-bold text-slate-200 border-x border-white/20 px-1.5 whitespace-nowrap">
-              {campaign.completedMiniGames.length}/21
+              {doneStreamlinedMissions}/{totalStreamlinedMissions}
             </span>
           </div>
 
@@ -807,7 +838,7 @@ export const CampaignHubView: React.FC = () => {
                 [...campaign.unlockedLevels].sort((a, b) => b - a)[0] || 1;
               handleSelectLevel(highestUnlocked);
             }}
-            className="casual-btn-emerald px-2.5 sm:px-3 py-1.5 text-xs cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-full"
+            className="casual-btn-emerald min-h-[38px] px-2.5 sm:px-3 py-1.5 text-xs cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-full"
             dir={langDir}
           >
             <Play className="w-3.5 h-3.5 fill-white" />
@@ -826,8 +857,8 @@ export const CampaignHubView: React.FC = () => {
             }}
             className="px-2 sm:px-2.5 py-1.5 rounded-full bg-slate-950/80 hover:bg-slate-800 text-cyan-200 font-hud font-black text-[11px] border-2 border-cyan-400/75 backdrop-blur-md shadow-lg cursor-pointer whitespace-nowrap"
           >
-            <span className="sm:hidden">{language === 'en' ? 'عربي' : 'EN'}</span>
-            <span className="hidden sm:inline">{language === 'en' ? 'EN | عربي' : 'عربي | EN'}</span>
+            <span className="sm:hidden">{language === 'en' ? 'AR' : 'إنجليزي'}</span>
+            <span className="hidden sm:inline">{language === 'en' ? 'Switch: AR' : 'اللغة: عربي'}</span>
           </button>
 
           <button
@@ -839,10 +870,11 @@ export const CampaignHubView: React.FC = () => {
               openNasaDrawer();
             }}
             className="px-2 sm:px-3 py-1.5 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-100 font-hud font-black text-xs border-2 border-cyan-300/75 backdrop-blur-md shadow-lg cursor-pointer flex items-center gap-1 whitespace-nowrap"
-            aria-label="NASA"
+            aria-label={tr(language, 'NASA Data', 'بيانات ناسا')}
+            dir={langDir}
           >
             <Satellite className="w-3.5 h-3.5 text-cyan-300" />
-            <span className="hidden sm:inline">NASA</span>
+            <span className="hidden sm:inline">{tr(language, 'NASA', 'بيانات ناسا')}</span>
           </button>
 
           <button
@@ -855,14 +887,14 @@ export const CampaignHubView: React.FC = () => {
                 dialogueManager.speak(
                   tr(
                     language,
-                    'Welcome Cadet! Follow the golden floor arrow or tap Play to launch your first NASA mission!',
-                    'أهلاً يا بطل! اتبع السهم الذهبي في الأرخبيل أو اضغط ابدأ لدخول الـ 21 تحدياً!'
+                    'Welcome Cadet! Pick an Earth-to-Moon orbital node or tap Play to launch your next NASA mission!',
+                    'أهلاً يا بطل! اختر محطة على مسار الأرض إلى القمر أو اضغط ابدأ لدخول المحطات الفضائية!'
                   )
                 );
               }
             }}
             className="p-2 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-200 border-2 border-cyan-300/60 backdrop-blur-md shadow-lg cursor-pointer"
-            aria-label="Robo Voice"
+            aria-label={tr(language, 'Robo Voice', 'صوت روبو')}
           >
             <Volume2 className={`w-4 h-4 ${isAudioPlaying ? 'animate-pulse text-amber-300' : ''}`} />
           </button>
@@ -875,7 +907,7 @@ export const CampaignHubView: React.FC = () => {
               setIsMobileMenuOpen((v) => !v);
             }}
             className="px-2.5 sm:px-3 py-1.5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_3px_0_#b45309] flex items-center gap-1 cursor-pointer whitespace-nowrap"
-            aria-label="Menu"
+            aria-label={tr(language, 'Menu', 'القائمة')}
             dir={langDir}
           >
             {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -883,6 +915,14 @@ export const CampaignHubView: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {/* Top-Center Persistent Carry-Over Inventory Bar (World Map, below Node Selector Strip) */}
+      <div
+        dir={langDir}
+        className="pointer-events-none fixed top-[104px] sm:top-14 inset-x-0 z-20 flex justify-center px-3"
+      >
+        <MissionInventoryBar campaign={campaign} activeLevelId={activeLevelId} language={language} />
+      </div>
 
       {/* Unified Pause & Arcade Menu Drawer (World Map) */}
       {isMobileMenuOpen && (
@@ -903,7 +943,7 @@ export const CampaignHubView: React.FC = () => {
               </span>
             </div>
             <span className="text-[11px] font-hud font-black text-amber-300 whitespace-nowrap">
-              ⭐ {totalStarsScore} • {campaign.completedMiniGames.length}/21
+              ⭐ {totalStarsScore} • {doneStreamlinedMissions}/{totalStreamlinedMissions}
             </span>
           </div>
 
@@ -919,7 +959,7 @@ export const CampaignHubView: React.FC = () => {
               className="p-2.5 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-hud font-black text-xs border-2 border-sky-200/80 shadow-[0_3px_0_#075985] flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Layers className="w-4 h-4" />
-              <span>{tr(language, 'Levels (4)', 'المستويات (4)')}</span>
+              <span>{tr(language, 'Space Nodes (4)', 'مراحل المسار (4)')}</span>
             </button>
 
             <button
@@ -933,7 +973,7 @@ export const CampaignHubView: React.FC = () => {
               className="p-2.5 rounded-2xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_3px_0_#0e7490] flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Shield className="w-4 h-4" />
-              <span>SPACE-FIT X</span>
+              <span>{tr(language, 'SPACE-FIT X', 'بدلة الفضاء')}</span>
             </button>
 
             <button
@@ -1017,8 +1057,8 @@ export const CampaignHubView: React.FC = () => {
                 <h2 className="font-hud font-black text-lg sm:text-xl text-cyan-200">
                   {tr(
                     language,
-                    '🚀 Sequential Campaign Map (4 Levels • 21 Missions)',
-                    '🚀 خريطة المستويات المتسلسلة (4 مستويات • 21 مهمة)'
+                    '🚀 Earth-to-Moon Orbital Map (4 Nodes • 14 Stations)',
+                    '🚀 مسار الرحلة من الأرض إلى القمر (4 مراحل • 14 محطة)'
                   )}
                 </h2>
                 <p className="text-xs text-slate-400">
@@ -1073,8 +1113,8 @@ export const CampaignHubView: React.FC = () => {
                         <span className="text-xs font-bold text-slate-300">
                           {tr(
                             language,
-                            `${lvl.rooms.length} Rooms • ${total} Missions`,
-                            `${lvl.rooms.length} غرف • ${total} مهام`
+                            `${lvl.rooms.length} Stations`,
+                            `${lvl.rooms.length} محطات`
                           )}
                         </span>
                       </div>
@@ -1125,12 +1165,12 @@ export const CampaignHubView: React.FC = () => {
                         {unlocked ? (
                           <>
                             <Rocket className="w-4 h-4" />
-                            <span>{tr(language, `Enter Level ${lvlId} Island`, `دخول جزيرة المستوى ${lvlId}`)}</span>
+                            <span>{tr(language, `Enter Node ${lvlId}`, `دخول المرحلة ${lvlId}`)}</span>
                           </>
                         ) : (
                           <>
                             <Lock className="w-4 h-4" />
-                            <span>{tr(language, `Complete Level ${lvlId - 1} First`, `أكمل المستوى ${lvlId - 1} أولاً`)}</span>
+                            <span>{tr(language, `Complete Node ${lvlId - 1} First`, `أكمل المرحلة ${lvlId - 1} أولاً`)}</span>
                           </>
                         )}
                       </button>
@@ -1143,7 +1183,13 @@ export const CampaignHubView: React.FC = () => {
             <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800 text-xs text-slate-400">
               <div className="flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>NASA OSDR Biological Datasets & Eco-Nutrition System</span>
+                <span>
+                  {tr(
+                    language,
+                    'NASA OSDR Biological Datasets & Eco-Nutrition System',
+                    'بيانات ناسا الحيوية OSDR ونظام التغذية الفضائية المستدامة'
+                  )}
+                </span>
               </div>
               <div className="flex items-center gap-1">
                 <Star className="w-4 h-4 text-amber-300 fill-amber-300" />
