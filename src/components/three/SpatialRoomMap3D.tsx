@@ -17,9 +17,11 @@ import {
 } from './archipelagoPrimitives';
 import {
   animateBlenderEnvironmentGlb,
+  attachSectorDeckGlb,
   attachStationPropGlb,
   getLoadedGlbUrls
 } from './blenderModelLoader';
+import { evalSectorFloorHeight } from './terrainMath';
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
 import {
   createDustPuffSystem,
@@ -345,6 +347,12 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     dir.position.set(16, 26, 18);
     dir.castShadow = qInit.shadowsEnabled;
     dir.shadow.mapSize.set(1024, 1024);
+    dir.shadow.camera.near = 2;
+    dir.shadow.camera.far = 75;
+    dir.shadow.camera.left = -20;
+    dir.shadow.camera.right = 20;
+    dir.shadow.camera.top = 12;
+    dir.shadow.camera.bottom = -12;
     dirLightRef.current = dir;
     scene.add(dir);
     const fill = new THREE.DirectionalLight(theme.rimColor, 0.72);
@@ -386,14 +394,25 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       mergeColoredParts(deckParts),
       new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.46, metalness: 0.28, flatShading: true })
     );
+    deckMesh.receiveShadow = true;
     scene.add(deckMesh);
 
     const disposableTextures: THREE.Texture[] = [];
     const blenderEnvGroups: THREE.Group[] = [];
 
-    // Subtle Distant Orbit Beacon Landmark
+    attachSectorDeckGlb({
+      levelId,
+      targetParent: scene,
+      fallbackNodes: [deckMesh],
+      isDisposed: () => isSceneDisposed,
+      onLoaded: (sectorGlb) => {
+        blenderEnvGroups.push(sectorGlb);
+      }
+    });
+
+    // Subtle Distant Orbit Beacon Landmark on Lunar Sector
     let radarDishMesh: THREE.Mesh | null = null;
-    if (levelId === 1 || levelId === 3) {
+    if (levelId === 3) {
       radarDishMesh = new THREE.Mesh(
         mergeColoredParts([
           { geometry: new THREE.CylinderGeometry(0.16, 0.24, 1.6, 8), color: 0xe2e8f0, position: [0, 0.8, 0] },
@@ -510,6 +529,12 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         fallbackNodes: [fallbackProp],
         isDisposed: () => isSceneDisposed,
         onLoaded: (g) => {
+          g.traverse((node) => {
+            if (node instanceof THREE.Mesh) {
+              node.castShadow = true;
+              node.receiveShadow = true;
+            }
+          });
           blenderEnvGroups.push(g);
         }
       });
@@ -584,6 +609,11 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     // Articulated Robo Character wearing SPACE-FIT X IVA Suit facing the 1 -> 2 -> 3 stations
     const hero = buildSpaceFitXCharacter();
     hero.group.scale.setScalar(1.08);
+    hero.group.traverse((node) => {
+      if (node instanceof THREE.Mesh) {
+        node.castShadow = true;
+      }
+    });
     hero.group.position.copy(playerPosRef.current);
     hero.group.rotation.y = Math.PI;
     scene.add(hero.group);
@@ -863,26 +893,36 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       pos.z = Math.max(-5.6, Math.min(5.6, pos.z));
       void maxWalkRadius;
 
-      // Level-Specific Gravity Physics (1G / 0G / 0.16G) + Coyote Time + Landing Dust Puffs
-      if (!isGroundedRef.current || pos.y > 0.02) {
+      // Level-Specific Gravity Physics (1G / 0G / 0.16G) + Sculpted Floor Height + Landing Dust Puffs
+      const floorY = evalSectorFloorHeight(levelId, pos.x, pos.z);
+      const puffCount = Math.max(1, Math.round((levelId === 3 ? 8 : 5) * qCfg.particleDensity));
+      if (!isGroundedRef.current || pos.y > floorY + 0.02) {
         playerVelYRef.current -= theme.gravity * dt;
         pos.y += playerVelYRef.current * dt;
-        if (pos.y <= 0) {
+        if (pos.y <= floorY) {
           if (!isGroundedRef.current) {
-            dustSystem.emit(pos.x, 0, pos.z, biomeDustColor, levelId === 3 ? 8 : 5, 1.8);
+            dustSystem.emit(pos.x, floorY, pos.z, biomeDustColor, puffCount, 1.8);
           }
-          pos.y = 0;
+          pos.y = floorY;
           playerVelYRef.current = 0;
           isGroundedRef.current = true;
           lastGroundedMsRef.current = now;
         }
       } else {
+        pos.y = floorY;
         lastGroundedMsRef.current = now;
         if (sprint && moveSpeed > 3.5) {
           sprintDustTimerRef.current += dt;
           if (sprintDustTimerRef.current >= 0.14) {
             sprintDustTimerRef.current = 0;
-            dustSystem.emit(pos.x, 0, pos.z, biomeDustColor, 2, 0.9);
+            dustSystem.emit(
+              pos.x,
+              floorY,
+              pos.z,
+              biomeDustColor,
+              Math.max(1, Math.round(2 * qCfg.particleDensity)),
+              0.9
+            );
           }
         }
       }

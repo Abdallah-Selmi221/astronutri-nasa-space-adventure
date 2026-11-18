@@ -133,6 +133,9 @@ export const initialCampaignState: CampaignProgressState = {
   l4EmergencyRepaired: false,
   l4ReentrySafe: false,
   l4MissionAccomplished: false,
+  cabinFilterHealthPct: 100,
+  thrusterFuelBonus: 0,
+  crewAdaptionScore: 60,
   spaceFitX: initialSpaceFitXState
 };
 
@@ -924,13 +927,23 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       let level2State = state.level2State;
       const autoPatch: Partial<CampaignProgressState> = {};
 
-      // Cross-level automatic progression & consolidated station sync
+      // Cross-level automatic progression & real consequence telemetry sync
       if (miniGameId === 'l1_food_prep') {
         isNutritionMissionComplete = true;
         unlockedRooms = Array.from(new Set([...unlockedRooms, 'SuitRoom']));
+        const foods = patch?.l1SelectedFoodIds ?? curr.l1SelectedFoodIds;
+        const wt = patch?.l1FoodWeightKg ?? curr.l1FoodWeightKg;
+        const hasSinai = foods.includes('sinai_honey');
+        autoPatch.thrusterFuelBonus = Math.min(3, (hasSinai ? 2 : 1) + (wt > 0 && wt <= 16 ? 1 : 0));
+        autoPatch.cabinFilterHealthPct = patch?.cabinFilterHealthPct ?? curr.cabinFilterHealthPct ?? 100;
+        autoPatch.crewAdaptionScore = Math.min(100, (curr.crewAdaptionScore ?? 60) + 12);
+      }
+      if (miniGameId === 'l1_equipment_prep') {
+        autoPatch.crewAdaptionScore = Math.min(100, (curr.crewAdaptionScore ?? 60) + 6);
       }
       if (miniGameId === 'l1_medical_check') {
         isHumanHealthComplete = true;
+        autoPatch.crewAdaptionScore = Math.min(100, (curr.crewAdaptionScore ?? 60) + 12);
       }
       if (miniGameId === 'l1_spaceship_inspect' || miniGameId === 'l1_mission_launch') {
         isEngineMissionComplete = true;
@@ -946,6 +959,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       }
       if (miniGameId === 'l2_balanced_meal') {
         autoPatch.l2HydrationPercent = 100;
+        autoPatch.crewAdaptionScore = Math.min(100, (curr.crewAdaptionScore ?? 72) + 10);
       }
       if (miniGameId === 'l2_systems_neows') {
         autoPatch.l2MotionRested = true;
@@ -954,13 +968,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       if (miniGameId === 'l2_systems_neows' || allL2Done) {
         unlockedLevels = Array.from(new Set([...unlockedLevels, 3])) as CampaignLevelId[];
       }
-      if (miniGameId === 'l3_resistance_training' || miniGameId === 'l3_eva_prep') {
+      if (miniGameId === 'l3_eva_prep') {
         isSuitMissionComplete = true;
         autoPatch.l3EvaSuitAssembled = true;
-        autoPatch.l3PackedTools =
-          curr.l3PackedTools.length >= 4
-            ? curr.l3PackedTools
-            : ['gripper', 'scoop', 'hammer', 'collection_bag'];
+      }
+      if (miniGameId === 'l3_resistance_training') {
+        isSuitMissionComplete = true;
+        autoPatch.l3EvaSuitAssembled = true;
       }
       if (miniGameId === 'l3_solar_storm') {
         level2State = { ...level2State, isTradeOffResolved: true };

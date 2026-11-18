@@ -262,7 +262,7 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
     <div
       data-testid="intro-welcome-screen"
       dir={language === 'ar' ? 'rtl' : 'ltr'}
-      className="fixed inset-0 z-50 bg-[#04091a] flex flex-col justify-between overflow-y-auto overflow-x-hidden select-none"
+      className="fixed inset-0 z-50 bg-[#04091a] flex flex-col justify-between scrollable-panel select-none"
     >
       {/* Live 5-Second In-Engine 3D Orbital Cutscene Backdrop */}
       <div
@@ -432,6 +432,14 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
             <span>{tr(language, 'Start Adventure', 'ابدأ المغامرة')}</span>
             <span>🚀</span>
           </button>
+
+          <div className="sm:hidden text-center text-[10px] font-hud font-bold text-cyan-200/85 pt-0.5">
+            {tr(
+              language,
+              '📱 Tip: Rotate to Landscape for best 3D play • Left thumb moves • Right thumb turns camera',
+              '📱 نصيحة: لف الموبايل بالعرض لأفضل تجربة 3D • اليسار للحركة • اليمين للكاميرا'
+            )}
+          </div>
         </div>
       </div>
     </div>

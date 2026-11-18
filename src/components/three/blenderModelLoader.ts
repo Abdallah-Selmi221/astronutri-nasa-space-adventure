@@ -265,6 +265,34 @@ export function animateBlenderEnvironmentGlb(root: THREE.Object3D, elapsed: numb
     asteroid.rotation.x = elapsed * 0.31;
     asteroid.position.y = 0.26 + Math.sin(elapsed * 1.25) * 0.06;
   }
+
+  const rocketFlame = root.getObjectByName('RocketFlameCone');
+  if (rocketFlame) {
+    const flamePulse = 0.88 + Math.sin(elapsed * 16.0) * 0.22;
+    rocketFlame.scale.set(1 + Math.cos(elapsed * 12) * 0.08, flamePulse, 1 + Math.cos(elapsed * 12) * 0.08);
+  }
+
+  const issArray = root.getObjectByName('ISSolarArray');
+  if (issArray) {
+    issArray.rotation.x = Math.sin(elapsed * 0.55) * 0.32 + 0.14;
+  }
+
+  const medHalo = root.getObjectByName('MedHaloRing');
+  if (medHalo) {
+    medHalo.position.y = 0.85 + Math.sin(elapsed * 2.1) * 0.12;
+    medHalo.rotation.z = Math.sin(elapsed * 1.6) * 0.16;
+  }
+
+  const hydroBubbles = root.getObjectByName('HydroBubbles');
+  if (hydroBubbles) {
+    hydroBubbles.position.y = Math.sin(elapsed * 3.0) * 0.035;
+    hydroBubbles.scale.setScalar(1 + Math.sin(elapsed * 3.8) * 0.045);
+  }
+
+  const spinRadar = root.getObjectByName('SpinRadar');
+  if (spinRadar) {
+    spinRadar.rotation.y = elapsed * 0.95;
+  }
 }
 
 export type SpaceNodeModelKey =
@@ -352,6 +380,39 @@ export function attachMassiveSpaceIsland(opts: {
         if (node instanceof THREE.Mesh) {
           node.receiveShadow = true;
           node.castShadow = true;
+        }
+      });
+      opts.onLoaded?.(glb);
+    }
+  });
+}
+
+const SECTOR_DECK_URLS: Record<1 | 2 | 3 | 4, string> = {
+  1: '/models/sector1_earth_colony.glb',
+  2: '/models/sector2_iss_atrium.glb',
+  3: '/models/sector3_lunar_biodome.glb',
+  4: '/models/sector4_orion_recovery.glb'
+};
+
+export function attachSectorDeckGlb(opts: {
+  levelId: 1 | 2 | 3 | 4;
+  targetParent: THREE.Object3D;
+  fallbackNodes?: THREE.Object3D[];
+  isDisposed: () => boolean;
+  onLoaded?: (sectorGlb: THREE.Group) => void;
+}): void {
+  attachGlbScene({
+    url: SECTOR_DECK_URLS[opts.levelId],
+    name: `BlenderSectorDeck_${opts.levelId}`,
+    targetParent: opts.targetParent,
+    scale: [1, 1, 1],
+    position: [0, 0, 0],
+    fallbackNodes: opts.fallbackNodes,
+    isDisposed: opts.isDisposed,
+    onLoaded: (glb) => {
+      glb.traverse((node) => {
+        if (node instanceof THREE.Mesh) {
+          node.receiveShadow = true;
         }
       });
       opts.onLoaded?.(glb);

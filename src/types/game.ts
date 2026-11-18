@@ -233,6 +233,10 @@ export interface CampaignProgressState {
   ecoWaterRecyclingOk?: boolean;
   ecoCropsHarvested?: string[];
   ecoPowerSplit?: { water: number; hydro: number; shield: number };
+  // Cross-Stage Cause-and-Effect Telemetry
+  cabinFilterHealthPct?: number;
+  thrusterFuelBonus?: number;
+  crewAdaptionScore?: number;
   // SPACE-FIT X (Prototype 1.0) IVA Countermeasure Garment State
   spaceFitX?: SpaceFitXState;
 }

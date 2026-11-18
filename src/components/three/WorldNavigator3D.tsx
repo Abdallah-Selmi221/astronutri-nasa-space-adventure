@@ -12,7 +12,6 @@ import { createCosmicSkyBackdrop } from './archipelagoPrimitives';
 import {
   animateBlenderEnvironmentGlb,
   attachBlenderPlanetsFromPack,
-  attachBlenderSpaceship,
   attachMassiveSpaceIsland,
   attachSpaceNodeGlb,
   disposeObject3D,
@@ -23,6 +22,7 @@ import { getQualityRenderConfig, useDisplaySettings } from '../../utils/displayS
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
 import { createFloorGuideArrowSystem, lerpAngle } from './thirdPersonPhysics';
 import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
+import { clampOverworldPosition, evalOverworldTerrainHeight } from './terrainMath';
 
 interface WorldNavigator3DProps {
   campaign: CampaignProgressState;
@@ -161,16 +161,24 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   const suitStateRef = useRef<SpaceFitXState | undefined>(suitState);
   suitStateRef.current = suitState;
 
-  // Orbital trajectory state (0..1 spline parameter along Nodes 1 -> 2 -> 3 -> 4)
+  // Orbital auto-fly trajectory state (0..1 spline parameter along Nodes 1 -> 2 -> 3 -> 4)
   const initialIdx = Math.max(0, TRAJECTORY_NODES.findIndex((n) => n.levelId === activeTargetLevelId));
+  const initNode = TRAJECTORY_NODES[initialIdx];
+  const initGroundY = evalOverworldTerrainHeight(initNode.center.x, initNode.center.z + 1.65);
   const splineTRef = useRef<number>(initialIdx / 3);
   const targetSplineTRef = useRef<number>(initialIdx / 3);
+  const isAutoFlyingRef = useRef<boolean>(false);
   const pendingEnterLevelRef = useRef<CampaignLevelId | null>(null);
 
-  // Free flight & camera controls
+  // Terrain Walk + Jetpack Boost + Free Orbital Flight state
   const isFlightModeRef = useRef<boolean>(false);
-  const freeCraftPosRef = useRef<THREE.Vector3>(TRAJECTORY_NODES[initialIdx].center.clone().add(new THREE.Vector3(0, 2.2, 0)));
-  const freeCraftYawRef = useRef<number>(Math.PI / 2);
+  const freeCraftPosRef = useRef<THREE.Vector3>(
+    new THREE.Vector3(initNode.center.x, initGroundY, initNode.center.z + 1.65)
+  );
+  const freeCraftVelYRef = useRef<number>(0);
+  const isGroundedRef = useRef<boolean>(true);
+  const freeCraftYawRef = useRef<number>(0);
+  const lockWarnCooldownRef = useRef<number>(0);
   const joystickVecRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const isBoostingRef = useRef<boolean>(false);
   const ascendUntilRef = useRef<number>(0);
@@ -236,24 +244,32 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       return;
     }
     const idx = Math.max(0, TRAJECTORY_NODES.findIndex((n) => n.levelId === lid));
+    const destNode = TRAJECTORY_NODES[idx];
     soundManager.playClick();
     setFocusedLevel(lid);
     isFlightModeRef.current = false;
     setIsFlightMode(false);
-    targetSplineTRef.current = idx / 3;
-    pendingEnterLevelRef.current = enterWhenDocked ? lid : null;
-    gsap.to(targetOrbitYawRef, {
-      current: Math.max(-0.34, Math.min(0.34, -TRAJECTORY_NODES[idx].center.x * 0.018)),
-      duration: 0.85,
-      ease: 'power2.out'
-    });
-
-    // If spacecraft is already docked cleanly at that node, enter immediately!
-    if (enterWhenDocked && Math.abs(splineTRef.current - idx / 3) < 0.03) {
+    const distXZ = Math.hypot(
+      freeCraftPosRef.current.x - destNode.center.x,
+      freeCraftPosRef.current.z - destNode.center.z
+    );
+    if (enterWhenDocked && distXZ < 2.65) {
+      isAutoFlyingRef.current = false;
       pendingEnterLevelRef.current = null;
       soundManager.playDropSuccess();
       onSelectLevelRef.current(lid);
+      return;
     }
+
+    splineTRef.current = Math.max(0, Math.min(1, (freeCraftPosRef.current.x + 11.0) / 22.0));
+    targetSplineTRef.current = idx / 3;
+    isAutoFlyingRef.current = true;
+    pendingEnterLevelRef.current = enterWhenDocked ? lid : null;
+    gsap.to(targetOrbitYawRef, {
+      current: Math.max(-0.34, Math.min(0.34, -destNode.center.x * 0.018)),
+      duration: 0.85,
+      ease: 'power2.out'
+    });
   };
 
   const toggleFreeFlight = () => {
@@ -261,11 +277,26 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     soundManager.playClick();
     const next = !isFlightModeRef.current;
     isFlightModeRef.current = next;
+    isAutoFlyingRef.current = false;
     setIsFlightMode(next);
     pendingEnterLevelRef.current = null;
     if (next) {
-      const node = TRAJECTORY_NODES.find((n) => n.levelId === focusedLevelRef.current) || TRAJECTORY_NODES[0];
-      freeCraftPosRef.current.copy(node.center).add(new THREE.Vector3(0, 2.4, 2.2));
+      freeCraftPosRef.current.y = Math.max(
+        freeCraftPosRef.current.y + 1.6,
+        evalOverworldTerrainHeight(freeCraftPosRef.current.x, freeCraftPosRef.current.z) + 2.2
+      );
+      ascendUntilRef.current = performance.now() + 260;
+    } else {
+      const clamped = clampOverworldPosition(
+        freeCraftPosRef.current.x,
+        freeCraftPosRef.current.z,
+        unlockedLevelsRef.current
+      );
+      freeCraftPosRef.current.x = clamped.x;
+      freeCraftPosRef.current.z = clamped.z;
+      freeCraftPosRef.current.y = evalOverworldTerrainHeight(clamped.x, clamped.z);
+      freeCraftVelYRef.current = 0;
+      isGroundedRef.current = true;
     }
   };
 
@@ -533,47 +564,79 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       nodeGroups.push({ cfg, root, ring, halo });
     });
 
-    // 4. Player's Animated Spacecraft + SPACE-FIT X Astronaut Pilot
+    // 4. Player's Articulated 3D SPACE-FIT X Explorer Astronaut + Jetpack Thruster Emitter
     const playerCraftRoot = new THREE.Group();
     scene.add(playerCraftRoot);
-    const craftFallback = new THREE.Mesh(
-      mergeColoredParts([
-        { geometry: new THREE.ConeGeometry(0.55, 1.5, 8), color: 0xf8fafc, rotation: [Math.PI / 2, 0, 0] },
-        { geometry: new THREE.BoxGeometry(1.55, 0.14, 0.65), color: 0x38bdf8, position: [0, -0.05, -0.25] }
-      ]),
-      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35 })
-    );
-    playerCraftRoot.add(craftFallback);
-    attachBlenderSpaceship({
-      targetParent: playerCraftRoot,
-      position: [0, 0, 0],
-      rotationY: 0,
-      scale: 1.15,
-      fallbackNodes: [craftFallback],
-      isDisposed: () => isDisposed
+    const suitHeroMat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.34,
+      metalness: 0.22
     });
-
-    const thrusterHalo = new THREE.Mesh(
-      new THREE.ConeGeometry(0.32, 0.95, 10),
-      new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.78 })
-    );
-    thrusterHalo.rotation.x = -Math.PI / 2;
-    thrusterHalo.position.set(0, 0, -1.25);
-    playerCraftRoot.add(thrusterHalo);
-
-    // Lightweight 2-draw-call merged SPACE-FIT X Pilot Astronaut + Hovering Robo Companion
-    const pilotMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.25 });
-    const pilotBust = new THREE.Mesh(
+    const torsoHeadMesh = new THREE.Mesh(
       mergeColoredParts([
-        { geometry: new THREE.CylinderGeometry(0.24, 0.28, 0.44, 10), color: 0x0f172a, position: [0, 0.22, 0] },
-        { geometry: new THREE.BoxGeometry(0.32, 0.22, 0.28), color: 0x22d3ee, position: [0, 0.28, -0.02] },
-        { geometry: new THREE.SphereGeometry(0.24, 12, 10), color: 0xe2e8f0, position: [0, 0.56, 0] },
-        { geometry: new THREE.SphereGeometry(0.2, 10, 8), color: 0xf59e0b, position: [0, 0.56, 0.08] }
+        // Torso + chest emblem
+        { geometry: new THREE.BoxGeometry(0.46, 0.56, 0.28), color: 0xf8fafc, position: [0, 0.84, 0] },
+        { geometry: new THREE.BoxGeometry(0.24, 0.16, 0.05), color: 0x38bdf8, position: [0, 0.9, 0.15] },
+        // Jetpack + dual cyan thruster nozzles
+        { geometry: new THREE.BoxGeometry(0.36, 0.44, 0.18), color: 0x1e293b, position: [0, 0.86, -0.2] },
+        { geometry: new THREE.CylinderGeometry(0.06, 0.08, 0.16, 8), color: 0x22d3ee, position: [-0.1, 0.58, -0.22] },
+        { geometry: new THREE.CylinderGeometry(0.06, 0.08, 0.16, 8), color: 0x22d3ee, position: [0.1, 0.58, -0.22] },
+        // Helmet + amber gold visor
+        { geometry: new THREE.SphereGeometry(0.26, 12, 10), color: 0xffffff, position: [0, 1.32, 0] },
+        { geometry: new THREE.SphereGeometry(0.19, 10, 8), color: 0xf59e0b, position: [0, 1.31, 0.11] }
       ]),
-      pilotMat
+      suitHeroMat
     );
-    pilotBust.position.set(0, 0.38, 0.08);
-    playerCraftRoot.add(pilotBust);
+    torsoHeadMesh.castShadow = true;
+
+    const leftArm = new THREE.Mesh(
+      mergeColoredParts([{ geometry: new THREE.CapsuleGeometry(0.075, 0.28, 4, 8), color: 0xe2e8f0, position: [0, -0.16, 0] }]),
+      suitHeroMat
+    );
+    leftArm.position.set(-0.31, 1.04, 0);
+    leftArm.castShadow = true;
+
+    const rightArm = new THREE.Mesh(
+      mergeColoredParts([{ geometry: new THREE.CapsuleGeometry(0.075, 0.28, 4, 8), color: 0xe2e8f0, position: [0, -0.16, 0] }]),
+      suitHeroMat
+    );
+    rightArm.position.set(0.31, 1.04, 0);
+    rightArm.castShadow = true;
+
+    const leftLeg = new THREE.Mesh(
+      mergeColoredParts([
+        { geometry: new THREE.CapsuleGeometry(0.085, 0.34, 4, 8), color: 0xcbd5e1, position: [0, -0.22, 0] },
+        { geometry: new THREE.BoxGeometry(0.14, 0.12, 0.22), color: 0x0f172a, position: [0, -0.46, 0.04] }
+      ]),
+      suitHeroMat
+    );
+    leftLeg.position.set(-0.13, 0.54, 0);
+    leftLeg.castShadow = true;
+
+    const rightLeg = new THREE.Mesh(
+      mergeColoredParts([
+        { geometry: new THREE.CapsuleGeometry(0.085, 0.34, 4, 8), color: 0xcbd5e1, position: [0, -0.22, 0] },
+        { geometry: new THREE.BoxGeometry(0.14, 0.12, 0.22), color: 0x0f172a, position: [0, -0.46, 0.04] }
+      ]),
+      suitHeroMat
+    );
+    rightLeg.position.set(0.13, 0.54, 0);
+    rightLeg.castShadow = true;
+
+    playerCraftRoot.add(torsoHeadMesh, leftArm, rightArm, leftLeg, rightLeg);
+
+    // Lightweight InstancedMesh Jetpack Thruster Exhaust Particles (1 draw call)
+    const thrusterCount = 10;
+    const thrusterGeo = new THREE.SphereGeometry(0.13, 6, 6);
+    const thrusterMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.78 });
+    const thrusterInst = new THREE.InstancedMesh(thrusterGeo, thrusterMat, thrusterCount);
+    scene.add(thrusterInst);
+    const thrusterDummy = new THREE.Object3D();
+    const thrusterParticles = Array.from({ length: thrusterCount }, (_, i) => ({
+      pos: new THREE.Vector3(),
+      vel: new THREE.Vector3(0, -1, 0),
+      life: (i / thrusterCount) * 0.45
+    }));
 
     const roboMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.35 });
     const roboDrone = new THREE.Mesh(
@@ -744,105 +807,235 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       if (keysDown.has('s') || keysDown.has('arrowdown')) inputZ += 1;
       const inLen = Math.hypot(inputX, inputZ);
 
+      // Transform camera-relative inputs using current orbit yaw
+      const sinYaw = Math.sin(orbitYawRef.current);
+      const cosYaw = Math.cos(orbitYawRef.current);
+      const moveWorldX = inLen > 0.08 ? (inputX * cosYaw + inputZ * sinYaw) / inLen : 0;
+      const moveWorldZ = inLen > 0.08 ? (-inputX * sinYaw + inputZ * cosYaw) / inLen : 0;
+
       if (isFlightModeRef.current) {
         if (inLen > 0.08) {
           lastActivityRef.current = now;
-          const speed = (isBoostingRef.current ? 16 : 9.5) * dt;
-          freeCraftPosRef.current.x = Math.max(-24, Math.min(24, freeCraftPosRef.current.x + (inputX / inLen) * speed));
-          freeCraftPosRef.current.z = Math.max(-14, Math.min(14, freeCraftPosRef.current.z + (inputZ / inLen) * speed));
-          const yaw = Math.atan2(inputX, inputZ);
+          const speed = (isBoostingRef.current ? 16.5 : 10.5) * dt;
+          freeCraftPosRef.current.x = Math.max(-22, Math.min(22, freeCraftPosRef.current.x + moveWorldX * speed));
+          freeCraftPosRef.current.z = Math.max(-13, Math.min(13, freeCraftPosRef.current.z + moveWorldZ * speed));
+          const yaw = Math.atan2(moveWorldX, moveWorldZ);
           freeCraftYawRef.current = lerpAngle(freeCraftYawRef.current, yaw, 1 - Math.exp(-10 * dt));
         }
-        if (now < ascendUntilRef.current) {
-          freeCraftPosRef.current.y = Math.min(10, freeCraftPosRef.current.y + 7.5 * dt);
-        } else if (freeCraftPosRef.current.y > 2.2) {
-          freeCraftPosRef.current.y = Math.max(2.2, freeCraftPosRef.current.y - 3.0 * dt);
+        if (now < ascendUntilRef.current || isBoostingRef.current) {
+          freeCraftPosRef.current.y = Math.min(10.5, freeCraftPosRef.current.y + 7.2 * dt);
+        } else {
+          const minHoverY = evalOverworldTerrainHeight(freeCraftPosRef.current.x, freeCraftPosRef.current.z) + 1.85;
+          if (freeCraftPosRef.current.y > minHoverY) {
+            freeCraftPosRef.current.y = Math.max(minHoverY, freeCraftPosRef.current.y - 2.8 * dt);
+          }
         }
         playerCraftRoot.position.copy(freeCraftPosRef.current);
-        playerCraftRoot.rotation.set(0, freeCraftYawRef.current, inLen > 0.1 ? -inputX * 0.18 : 0);
+        playerCraftRoot.rotation.set(inLen > 0.1 ? 0.28 : 0.08, freeCraftYawRef.current, inLen > 0.1 ? -inputX * 0.16 : 0);
+      } else if (isAutoFlyingRef.current) {
+        const diff = targetSplineTRef.current - splineTRef.current;
+        if (Math.abs(diff) > 0.005) {
+          const step = Math.sign(diff) * Math.min(Math.abs(diff), 0.72 * dt);
+          splineTRef.current += step;
+        } else {
+          splineTRef.current = targetSplineTRef.current;
+          isAutoFlyingRef.current = false;
+          const dockedNode = TRAJECTORY_NODES[Math.round(splineTRef.current * 3)] || TRAJECTORY_NODES[0];
+          freeCraftPosRef.current.set(
+            dockedNode.center.x,
+            evalOverworldTerrainHeight(dockedNode.center.x, dockedNode.center.z + 1.4),
+            dockedNode.center.z + 1.4
+          );
+          freeCraftVelYRef.current = 0;
+          isGroundedRef.current = true;
+          const queued = pendingEnterLevelRef.current;
+          if (queued) {
+            pendingEnterLevelRef.current = null;
+            soundManager.playDropSuccess();
+            onSelectLevelRef.current(queued);
+          }
+        }
+        const craftPt = trajectoryCurve.getPointAt(Math.max(0, Math.min(1, splineTRef.current)));
+        const lookPt = trajectoryCurve.getPointAt(Math.min(1, splineTRef.current + 0.015));
+        freeCraftPosRef.current.set(craftPt.x, craftPt.y + 1.4 + Math.sin(elapsed * 4) * 0.14, craftPt.z);
+        playerCraftRoot.position.copy(freeCraftPosRef.current);
+        tmpNextPt.set(lookPt.x, playerCraftRoot.position.y, lookPt.z);
+        if (playerCraftRoot.position.distanceToSquared(tmpNextPt) > 0.0001) {
+          playerCraftRoot.lookAt(tmpNextPt);
+          freeCraftYawRef.current = playerCraftRoot.rotation.y;
+        }
+        playerCraftRoot.rotation.x = 0.25;
+      } else {
+        // Walk directly across sculpted Terra-Island hills, lunar crater & unlocked Laser Bridges + Jetpack Hop
+        if (inLen > 0.08) {
+          lastActivityRef.current = now;
+          const walkSpeed = (isBoostingRef.current ? 9.6 : 5.6) * dt;
+          const rawNextX = freeCraftPosRef.current.x + moveWorldX * walkSpeed;
+          const rawNextZ = freeCraftPosRef.current.z + moveWorldZ * walkSpeed;
+          const clamped = clampOverworldPosition(rawNextX, rawNextZ, unlockedLevelsRef.current);
+          freeCraftPosRef.current.x = clamped.x;
+          freeCraftPosRef.current.z = clamped.z;
+          if (clamped.blockedBySector && now > lockWarnCooldownRef.current) {
+            lockWarnCooldownRef.current = now + 2200;
+            showLockedWarning(clamped.blockedBySector);
+          }
+          const targetYaw = Math.atan2(moveWorldX, moveWorldZ);
+          freeCraftYawRef.current = lerpAngle(freeCraftYawRef.current, targetYaw, 1 - Math.exp(-12 * dt));
+        }
 
-        // Focus nearest node during free flight
+        const groundY = evalOverworldTerrainHeight(freeCraftPosRef.current.x, freeCraftPosRef.current.z);
+        if (now < ascendUntilRef.current && isGroundedRef.current) {
+          freeCraftVelYRef.current = isBoostingRef.current ? 7.6 : 6.0;
+          isGroundedRef.current = false;
+        } else if (isBoostingRef.current && now < ascendUntilRef.current + 180) {
+          freeCraftVelYRef.current = Math.max(freeCraftVelYRef.current, 3.4);
+          isGroundedRef.current = false;
+        }
+
+        if (!isGroundedRef.current || freeCraftPosRef.current.y > groundY + 0.02) {
+          const grav = isBoostingRef.current ? 8.5 : 14.5;
+          freeCraftVelYRef.current -= grav * dt;
+          freeCraftPosRef.current.y += freeCraftVelYRef.current * dt;
+          if (freeCraftPosRef.current.y <= groundY) {
+            freeCraftPosRef.current.y = groundY;
+            freeCraftVelYRef.current = 0;
+            isGroundedRef.current = true;
+          }
+        } else {
+          freeCraftPosRef.current.y = groundY;
+        }
+
+        playerCraftRoot.position.copy(freeCraftPosRef.current);
+        playerCraftRoot.rotation.set(
+          isBoostingRef.current && inLen > 0.1 ? 0.16 : 0,
+          freeCraftYawRef.current,
+          0
+        );
+      }
+
+      // Focus nearest unlocked Sector Node during walk or flight
+      if (!isAutoFlyingRef.current) {
         let bestLid = focusedLevelRef.current;
         let bestDist = Infinity;
         for (const n of TRAJECTORY_NODES) {
-          const d = playerCraftRoot.position.distanceTo(n.center);
+          const d = Math.hypot(
+            playerCraftRoot.position.x - n.center.x,
+            playerCraftRoot.position.z - n.center.z
+          );
           if (d < bestDist) {
             bestDist = d;
             bestLid = n.levelId;
           }
         }
-        if (bestLid !== focusedLevelRef.current) {
+        if (bestDist < 4.5 && bestLid !== focusedLevelRef.current) {
           setFocusedLevel(bestLid);
-        }
-      } else {
-        // Check if manual input switches to free flight or nudges spline target
-        if (inLen > 0.45) {
-          const nextDelta = Math.sign(inputX) * 0.25 * dt;
-          splineTRef.current = Math.max(0, Math.min(1, splineTRef.current + nextDelta));
-          targetSplineTRef.current = splineTRef.current;
-        } else {
-          const diff = targetSplineTRef.current - splineTRef.current;
-          if (Math.abs(diff) > 0.004) {
-            const step = Math.sign(diff) * Math.min(Math.abs(diff), 0.55 * dt);
-            splineTRef.current += step;
-          } else {
-            splineTRef.current = targetSplineTRef.current;
-            const queued = pendingEnterLevelRef.current;
-            if (queued) {
-              pendingEnterLevelRef.current = null;
-              soundManager.playDropSuccess();
-              onSelectLevelRef.current(queued);
-            }
-          }
-        }
-
-        const craftPt = trajectoryCurve.getPointAt(Math.max(0, Math.min(1, splineTRef.current)));
-        const lookPt = trajectoryCurve.getPointAt(Math.min(1, splineTRef.current + 0.015));
-        playerCraftRoot.position.set(craftPt.x, craftPt.y + 2.3 + Math.sin(elapsed * 2.2) * 0.15, craftPt.z);
-        tmpNextPt.set(lookPt.x, playerCraftRoot.position.y, lookPt.z);
-        if (playerCraftRoot.position.distanceToSquared(tmpNextPt) > 0.0001) {
-          playerCraftRoot.lookAt(tmpNextPt);
         }
       }
 
-      // Pulse thruster flame
-      const thrustScale = 0.85 + Math.sin(elapsed * 18) * 0.18;
-      thrusterHalo.scale.set(1, thrustScale, 1);
-
-      // Update Pilot Astronaut animation + Space Floor Guide Arrow pointing toward Next Mission
+      // Update Idle Speech Hint
       const idleSec = (now - lastActivityRef.current) / 1000;
       if (idleSec > 8.5) {
         setShowIdleHint(true);
       }
 
-      // Animate lightweight Pilot Bust + Robo Companion
+      // Animate Articulated SPACE-FIT X Astronaut Limbs + Jetpack Exhaust Particles + Robo Companion
       const isCelebrating = now < celebrateUntilRef.current;
+      const jetActive =
+        isFlightModeRef.current ||
+        isAutoFlyingRef.current ||
+        isBoostingRef.current ||
+        now < ascendUntilRef.current ||
+        !isGroundedRef.current;
+      const isWalkingGround = !jetActive && inLen > 0.08 && isGroundedRef.current;
       const themeHex =
         suitStateRef.current?.suitTheme === 'mars_crimson'
           ? 0xf43f5e
           : suitStateRef.current?.suitTheme === 'gold_emerald'
           ? 0x10b981
           : 0x22d3ee;
-      pilotMat.emissive.setHex(inLen > 0.1 ? themeHex : 0x000000);
-      pilotMat.emissiveIntensity = inLen > 0.1 ? 0.18 : 0;
-      pilotBust.position.y = 0.38 + (isCelebrating ? Math.abs(Math.sin(elapsed * 8)) * 0.28 : Math.sin(elapsed * 2.4) * 0.04);
-      pilotBust.rotation.y = isCelebrating ? elapsed * 4 : Math.sin(elapsed * 1.4) * 0.15;
-      roboDrone.position.y = 0.95 + Math.sin(elapsed * 3.4) * 0.14;
+
+      suitHeroMat.emissive.setHex(jetActive ? themeHex : 0x000000);
+      suitHeroMat.emissiveIntensity = jetActive ? 0.22 : 0;
+
+      if (isCelebrating) {
+        const wave = Math.sin(elapsed * 8.5);
+        leftArm.rotation.set(-2.4 + wave * 0.35, 0, -0.35);
+        rightArm.rotation.set(-2.4 - wave * 0.35, 0, 0.35);
+        leftLeg.rotation.set(0, 0, 0);
+        rightLeg.rotation.set(0, 0, 0);
+        torsoHeadMesh.position.y = Math.abs(wave) * 0.22;
+      } else if (jetActive) {
+        leftArm.rotation.set(-0.35, 0, -0.42);
+        rightArm.rotation.set(-0.35, 0, 0.42);
+        leftLeg.rotation.set(0.28 + Math.sin(elapsed * 5) * 0.1, 0, 0);
+        rightLeg.rotation.set(0.18 - Math.sin(elapsed * 5) * 0.1, 0, 0);
+        torsoHeadMesh.position.y = Math.sin(elapsed * 4) * 0.04;
+      } else if (isWalkingGround) {
+        const stride = Math.sin(elapsed * (isBoostingRef.current ? 12 : 9.2));
+        leftLeg.rotation.set(stride * 0.65, 0, 0);
+        rightLeg.rotation.set(-stride * 0.65, 0, 0);
+        leftArm.rotation.set(-stride * 0.55, 0, 0.08);
+        rightArm.rotation.set(stride * 0.55, 0, -0.08);
+        torsoHeadMesh.position.y = Math.abs(stride) * 0.045;
+      } else {
+        leftLeg.rotation.set(0, 0, 0);
+        rightLeg.rotation.set(0, 0, 0);
+        leftArm.rotation.set(Math.sin(elapsed * 1.6) * 0.05, 0, 0.08);
+        rightArm.rotation.set(-Math.sin(elapsed * 1.6) * 0.05, 0, -0.08);
+        torsoHeadMesh.position.y = Math.sin(elapsed * 2.1) * 0.025;
+      }
+
+      // Jetpack thruster InstancedMesh update
+      thrusterMat.color.setHex(isBoostingRef.current ? 0xfbbf24 : themeHex);
+      const backSin = Math.sin(freeCraftYawRef.current);
+      const backCos = Math.cos(freeCraftYawRef.current);
+      for (let i = 0; i < thrusterCount; i++) {
+        const p = thrusterParticles[i];
+        p.life += dt;
+        if (jetActive) {
+          if (p.life > 0.42) {
+            p.life = 0;
+            const side = i % 2 === 0 ? -0.1 : 0.1;
+            p.pos.set(
+              playerCraftRoot.position.x - backSin * 0.24 + backCos * side,
+              playerCraftRoot.position.y + 0.56,
+              playerCraftRoot.position.z - backCos * 0.24 - backSin * side
+            );
+            p.vel.set(
+              -backSin * 1.4 + (Math.random() - 0.5) * 0.5,
+              -2.8 - Math.random() * 1.4,
+              -backCos * 1.4 + (Math.random() - 0.5) * 0.5
+            );
+          }
+          p.pos.addScaledVector(p.vel, dt);
+          thrusterDummy.position.copy(p.pos);
+          const sc = Math.max(0.01, (1 - p.life / 0.42) * (isBoostingRef.current ? 1.3 : 0.9));
+          thrusterDummy.scale.setScalar(sc);
+        } else {
+          thrusterDummy.position.copy(playerCraftRoot.position);
+          thrusterDummy.scale.setScalar(0.0001);
+        }
+        thrusterDummy.updateMatrix();
+        thrusterInst.setMatrixAt(i, thrusterDummy.matrix);
+      }
+      thrusterInst.instanceMatrix.needsUpdate = true;
+
+      roboDrone.position.y = 1.42 + Math.sin(elapsed * 3.4) * 0.14;
       roboDrone.rotation.y = Math.sin(elapsed * 1.8) * 0.45;
 
       floorArrow.update(
-        new THREE.Vector3(playerCraftRoot.position.x, playerCraftRoot.position.y - 1.6, playerCraftRoot.position.z),
+        new THREE.Vector3(playerCraftRoot.position.x, playerCraftRoot.position.y + 0.14, playerCraftRoot.position.z),
         activeTargetNode.center,
-        playerCraftRoot.position.y - 1.6,
+        playerCraftRoot.position.y + 0.14,
         elapsed
       );
 
       // Smooth Follow Camera framed along Earth-to-Moon trajectory
       const camTarget = isFlightModeRef.current
         ? playerCraftRoot.position
-        : playerCraftRoot.position.clone().lerp(new THREE.Vector3(0, 0.8, 0), 0.62);
+        : playerCraftRoot.position.clone().lerp(new THREE.Vector3(0, 0.8, 0), inLen > 0.1 ? 0.36 : 0.58);
 
-      const camDist = isFlightModeRef.current ? 12.5 : 27.5;
+      const camDist = isFlightModeRef.current ? 12.5 : inLen > 0.1 ? 22.0 : 27.0;
       const desiredX = camTarget.x + Math.sin(orbitYawRef.current) * camDist * 0.45;
       const desiredY = camTarget.y + 4.8 + orbitPitchRef.current * 9.5;
       const desiredZ = camTarget.z + Math.cos(orbitYawRef.current) * camDist;
@@ -876,8 +1069,14 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       window.removeEventListener('resize', onResize);
       skyHandle.dispose();
       floorArrow.dispose();
-      pilotBust.geometry.dispose();
-      pilotMat.dispose();
+      torsoHeadMesh.geometry.dispose();
+      leftArm.geometry.dispose();
+      rightArm.geometry.dispose();
+      leftLeg.geometry.dispose();
+      rightLeg.geometry.dispose();
+      suitHeroMat.dispose();
+      thrusterGeo.dispose();
+      thrusterMat.dispose();
       roboDrone.geometry.dispose();
       roboMat.dispose();
       disposableTextures.forEach((t) => t.dispose());
@@ -1060,8 +1259,8 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         onAutoWalkNext={() => flyCraftToNode(activeTargetLevelId, true)}
         autoWalkLabel={tr(
           language,
-          `Fly to Next Mission: ${nextMeta.shortEn}`,
-          `انطلق للمهمة التالية: ${nextMeta.shortAr}`
+          `Auto-Fly to Active Sector: ${nextMeta.shortEn}`,
+          `طيران ذاتي للقطاع النشط: ${nextMeta.shortAr}`
         )}
         onJoystickMove={(vec) => {
           lastActivityRef.current = performance.now();
@@ -1078,20 +1277,20 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         }}
         gravityLabelAr={
           isFlightMode
-            ? tr(language, 'Orbital Free Flight', 'طيران فضائي حر')
+            ? tr(language, 'Orbital Jetpack Flight', 'طيران نفاث حر')
             : tr(language, focusedNode.telemetryEn, focusedNode.telemetryAr)
         }
         hintAr={
           isFlightMode
             ? tr(
                 language,
-                'WASD Fly • Space Boost Up • F Dock to Route',
-                'WASD للطيران • Space للارتفاع • F للعودة للمسار'
+                'WASD Fly • Space Boost Up • Shift Thruster • F Land on Terrain',
+                'تحرك بالطيران الحر • Space للارتفاع • Shift للدفع • F للهبوط على التضاريس'
               )
             : tr(
                 language,
-                'Tap any Node or Fly to Launch • F Free Flight • E Enter',
-                'اضغط أي محطة للإقلاع • F للطيران الحر • E للدخول'
+                'WASD Walk Hills & Bridges • Shift Jetpack • F Free Fly • E Enter Sector',
+                'امشِ فوق التلال والجسور • Shift نفاث • F طيران حر • E دخول القطاع'
               )
         }
       />

@@ -3,6 +3,7 @@ import gsap from 'gsap';
 import { AppLanguage, CampaignLevelId, CampaignProgressState } from '../../types/game';
 import { tr } from '../../utils/i18n';
 import { soundManager } from '../../utils/sound';
+import { computeCrossStageEffects } from '../../utils/consequences';
 import { AstronautBioTwin } from './AstronautBioTwin';
 
 export interface MissionInventoryBarProps {
@@ -84,6 +85,7 @@ export const MissionInventoryBar: React.FC<MissionInventoryBarProps> = ({
   language
 }) => {
   const s = computeMissionInventoryStatus(campaign, activeLevelId);
+  const effects = computeCrossStageEffects(campaign);
   const isAr = language === 'ar';
   const [isBioOpen, setIsBioOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -119,7 +121,7 @@ export const MissionInventoryBar: React.FC<MissionInventoryBarProps> = ({
         data-testid="mission-inventory-bar"
         className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 px-2 py-1 rounded-2xl bg-slate-950/78 border border-cyan-400/45 backdrop-blur-md shadow-xl text-[10px] sm:text-[11px] font-hud font-black"
       >
-        {/* Rations Carry-Over */}
+        {/* Rations & Thruster Boost Carry-Over */}
         <span
           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${
             s.rationsRemaining > 0
@@ -131,9 +133,9 @@ export const MissionInventoryBar: React.FC<MissionInventoryBarProps> = ({
           <span>
             {tr(language, 'Rations', 'الوجبات')}: {s.rationsRemaining}
           </span>
-          {s.rationsConsumed > 0 && (
-            <span className="text-[9px] text-amber-300 opacity-90">
-              (-{s.rationsConsumed})
+          {effects.thrusterFuelBonus > 0 && (
+            <span className="text-[9px] text-emerald-300">
+              +{effects.thrusterFuelBonus}⚡
             </span>
           )}
         </span>
