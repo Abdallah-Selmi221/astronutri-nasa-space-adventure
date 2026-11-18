@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { RotateCcw, CheckCircle2, AlertCircle, Droplets, Sparkles } from 'lucide-react';
 import { soundManager } from '../../utils/sound';
+import { useGameState } from '../../context/GameContext';
+import { tr } from '../../utils/i18n';
 
 // Directions: 0 = Top, 1 = Right, 2 = Bottom, 3 = Left
 export type Direction = 0 | 1 | 2 | 3;
@@ -53,6 +55,7 @@ function getOppositeDir(dir: Direction): Direction {
 }
 
 export const PipePuzzle: React.FC<PipePuzzleProps> = ({ isProcessorFailed, onPuzzleSolved }) => {
+  const { language } = useGameState();
   const [grid, setGrid] = useState<PipeCell[]>(() =>
     INITIAL_TILES.map((t) => ({
       id: t.id,
@@ -253,10 +256,14 @@ export const PipePuzzle: React.FC<PipePuzzleProps> = ({ isProcessorFailed, onPuz
           <Droplets className={`w-5 h-5 ${isFlowComplete ? 'text-cyan-400 animate-bounce' : 'text-amber-400'}`} />
           <div>
             <h4 className="font-hud font-black text-xs sm:text-sm text-white">
-              لغز إصلاح أنابيب تدوير المياه (ECLSS Loop)
+              {tr(language, 'Water Recovery Pipe Loop (ECLSS)', 'لغز إصلاح أنابيب تدوير المياه (ECLSS Loop)')}
             </h4>
             <span className="text-[10px] text-slate-400">
-              قم بتدوير الأنابيب بالنقر أو اللمس لتوصيل مدخل العادم بمصفي التنقية
+              {tr(
+                language,
+                'Tap/click pipes to rotate and connect wastewater inlet to filtration outlet',
+                'قم بتدوير الأنابيب بالنقر أو اللمس لتوصيل مدخل العادم بمصفي التنقية'
+              )}
             </span>
           </div>
         </div>
@@ -265,10 +272,10 @@ export const PipePuzzle: React.FC<PipePuzzleProps> = ({ isProcessorFailed, onPuz
           type="button"
           onClick={scramblePipes}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-space-800 hover:bg-space-700 text-slate-300 hover:text-white text-xs font-bold transition-all border border-slate-700 active:scale-95"
-          title="إعادة خلط الأنابيب"
+          title={tr(language, 'Scramble pipes', 'إعادة خلط الأنابيب')}
         >
           <RotateCcw className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">إعادة خلط</span>
+          <span className="hidden sm:inline">{tr(language, 'Reset', 'إعادة خلط')}</span>
         </button>
       </div>
 
@@ -277,7 +284,7 @@ export const PipePuzzle: React.FC<PipePuzzleProps> = ({ isProcessorFailed, onPuz
         {/* Inlet Indicator (Left) */}
         <div className="absolute -left-2 sm:left-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1 z-10">
           <span className="text-[9px] font-black text-amber-300 bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-600/50 shadow">
-            مدخل العادم 🚿
+            {tr(language, 'Wastewater In 🚿', 'مدخل العادم 🚿')}
           </span>
           <div className="w-3 h-3 rounded-full bg-amber-400 animate-ping" />
         </div>
@@ -305,7 +312,11 @@ export const PipePuzzle: React.FC<PipePuzzleProps> = ({ isProcessorFailed, onPuz
                     : 'bg-space-950 border-slate-800 hover:border-slate-600'
                 }`}
                 style={{ touchAction: 'manipulation' }}
-                aria-label={`أنبوب صف ${cell.row + 1} عمود ${cell.col + 1} - اضغط للتدوير`}
+                aria-label={tr(
+                  language,
+                  `Pipe row ${cell.row + 1} col ${cell.col + 1} rotate`,
+                  `أنبوب صف ${cell.row + 1} عمود ${cell.col + 1} - اضغط للتدوير`
+                )}
               >
                 {renderPipeGraphic(cell.type, isFlowing)}
                 <span className="absolute bottom-1 right-1 text-[8px] font-mono text-slate-500 select-none">
@@ -323,7 +334,7 @@ export const PipePuzzle: React.FC<PipePuzzleProps> = ({ isProcessorFailed, onPuz
               ? 'text-emerald-300 bg-emerald-950/90 border-emerald-500'
               : 'text-cyan-300 bg-cyan-950/80 border-cyan-600/50'
           }`}>
-            خزان الشرب 💧
+            {tr(language, 'Drink Tank 💧', 'خزان الشرب 💧')}
           </span>
           <div className={`w-3 h-3 rounded-full ${isFlowComplete ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-500'}`} />
         </div>
@@ -335,19 +346,19 @@ export const PipePuzzle: React.FC<PipePuzzleProps> = ({ isProcessorFailed, onPuz
           {isFlowComplete ? (
             <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>اكتمل تدفق المياه بنجاح! تم استرجاع 98% من الماء.</span>
+              <span>{tr(language, 'Circuit sealed! 98% potable water recovered.', 'اكتمل تدفق المياه بنجاح! تم استرجاع 98% من الماء.')}</span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5 text-amber-300 font-bold">
               <AlertCircle className="w-4 h-4 text-amber-400 animate-pulse" />
-              <span>المسار غير مكتمل: قم بتدوير الأنابيب حتى يتدفق الماء للأمام.</span>
+              <span>{tr(language, 'Loop open: rotate tiles so water flows right.', 'المسار غير مكتمل: قم بتدوير الأنابيب حتى يتدفق الماء للأمام.')}</span>
             </div>
           )}
         </div>
 
         {isFlowComplete && (
           <span className="text-[11px] font-black text-cyan-300 flex items-center gap-1">
-            <Sparkles className="w-3.5 h-3.5" /> تم الإصلاح
+            <Sparkles className="w-3.5 h-3.5" /> {tr(language, 'Sealed', 'تم الإصلاح')}
           </span>
         )}
       </div>

@@ -141,6 +141,11 @@ assert(
 );
 
 const phase1GlbModels = [
+  'massive_space_island_world.glb',
+  'sector1_earth_colony.glb',
+  'sector2_iss_atrium.glb',
+  'sector3_lunar_biodome.glb',
+  'sector4_orion_recovery.glb',
   'earth_launchpad.glb',
   'iss_orbit_station.glb',
   'lunar_biodome_base.glb',
@@ -155,7 +160,7 @@ const allGlbsValid = phase1GlbModels.every((fname) => {
   const p = path.resolve('public/models', fname);
   return fs.existsSync(p) && fs.statSync(p).size > 1000 && fs.statSync(p).size < 500 * 1024;
 });
-assert(allGlbsValid, 'All 9 Phase 1 Blender .glb space assets exist in public/models/ and stay under 500 KB each');
+assert(allGlbsValid, `All ${phase1GlbModels.length} sculpted & articulated Blender .glb assets exist in public/models/ and stay under 500 KB each`);
 
 // 4. NASA OSDR & Trade-Offs dataset integrity
 assert(NASA_OSDR_METRICS.length === 4, `NASA_OSDR_METRICS contains 4 studies (got ${NASA_OSDR_METRICS.length})`);

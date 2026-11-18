@@ -8,6 +8,7 @@ import { BodyTelemetryMeters } from './BodyTelemetryMeters';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { AlertTriangle, CheckCircle2, Flame, Navigation, Radio, ShieldCheck, Wrench } from 'lucide-react';
+import { computeCrossStageEffects } from '../../utils/consequences';
 
 interface Level4Props {
   miniGameId: MiniGameId;
@@ -82,114 +83,141 @@ const DeparturePrepGame: React.FC<{
   onComplete: () => void;
 }> = ({ campaign, onComplete }) => {
   const { language } = useGameState();
-  const [cargoChecks, setCargoChecks] = useState<Record<string, boolean>>({
-    oxygen: false,
-    power: false,
-    lifeSupport: false,
-    comms: false,
-    samplesSealed: false
-  });
+  const rawCollected = campaign.l3CollectedSamples || [];
+  const sampleItems = (rawCollected.length > 0 ? rawCollected : (['basalt_rock', 'regolith_dust', 'crater_pebbles'] as LunarSampleId[])).map(
+    (sid) => ({
+      id: sid,
+      massKg: sid === 'basalt_rock' ? 22 : sid === 'regolith_dust' ? 16 : 18,
+      info: SAMPLE_LABELS[sid]
+    })
+  );
+  const [bayAssignment, setBayAssignment] = useState<Record<string, 'left' | 'right'>>({});
+  const [inlineFaultFixed, setInlineFaultFixed] = useState<boolean>(
+    campaign.completedMiniGames.includes('l4_departure_prep') ||
+      campaign.completedMiniGames.includes('l4_spacecraft_emergency')
+  );
 
-  const collectedSamples = campaign.l3CollectedSamples || [];
-  const allCargoChecked = Object.values(cargoChecks).every(Boolean);
-
-  const toggleCheck = (key: string) => {
-    soundManager.playClick();
-    setCargoChecks((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
+  const leftMassKg = sampleItems.reduce((s, item) => s + (bayAssignment[item.id] === 'left' ? item.massKg : 0), 0);
+  const rightMassKg = sampleItems.reduce((s, item) => s + (bayAssignment[item.id] === 'right' ? item.massKg : 0), 0);
+  const assignedCount = sampleItems.filter((item) => bayAssignment[item.id]).length;
+  const totalSampleKg = leftMassKg + rightMassKg;
+  const varianceKg = Math.abs(leftMassKg - rightMassKg);
+  const comBalanced = assignedCount === sampleItems.length && totalSampleKg <= 100 && varianceKg <= 15;
+  const allReady = comBalanced && inlineFaultFixed;
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl bg-amber-950/35 border border-amber-500/35 p-4">
-        <div className="font-bold text-amber-200 text-sm mb-2">
-          {tr(
-            language,
-            `📦 Verify Lunar Samples Stowed from Level 3 (${collectedSamples.length} samples)`,
-            `📦 التحقق من عينات القمر الواردة من المستوى 3 (${collectedSamples.length} عينة)`
-          )}
-        </div>
-        {collectedSamples.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {collectedSamples.map((sid) => {
-              const info = SAMPLE_LABELS[sid];
-              return (
-                <span
-                  key={sid}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-xs font-bold text-emerald-200"
-                >
-                  <span>{info?.icon || '🪨'}</span>
-                  <span>{info ? tr(language, info.nameEn, info.nameAr) : sid}</span>
-                </span>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-xs text-amber-200/90">
+      <div className="rounded-2xl bg-amber-950/35 border border-amber-500/35 p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="font-bold text-amber-200 text-sm">
             {tr(
               language,
-              'Reference sample canister secured in cargo locker.',
-              'ملاحظة: دخلتَ المستوى 4 مباشرة أو لم تُخزَّن عينات؛ يتم تأمين كبسولة العينات القياسية المرجعية في المخزن.'
+              `⚖️ Orion Left/Right Sample Bay Center-of-Mass Balancer (${sampleItems.length} canisters)`,
+              `⚖️ موازنة مركز كتلة عينات القمر في أوريون (${sampleItems.length} حاويات)`
             )}
           </div>
-        )}
+          <span className={`px-2.5 py-0.5 rounded-full text-xs font-hud font-black border ${
+            comBalanced ? 'bg-emerald-950 border-emerald-400 text-emerald-300' : 'bg-amber-950 border-amber-400 text-amber-200'
+          }`}>
+            {tr(language, `Δ ${varianceKg} kg (Target ≤ 15 kg)`, `الفرق ${varianceKg} كجم (الهدف ≤ 15 كجم)`)}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 text-xs font-hud font-black">
+          <div className="p-2.5 rounded-xl bg-slate-950/80 border border-sky-400/50 text-sky-200 flex justify-between">
+            <span>{tr(language, '◀ Left Cargo Bay', '◀ الجناح الأيسر')}</span>
+            <span>{leftMassKg} kg</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-950/80 border border-indigo-400/50 text-indigo-200 flex justify-between">
+            <span>{tr(language, 'Right Cargo Bay ▶', 'الجناح الأيمن ▶')}</span>
+            <span>{rightMassKg} kg</span>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          {sampleItems.map((item) => {
+            const side = bayAssignment[item.id];
+            return (
+              <div
+                key={item.id}
+                className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-700 flex flex-wrap items-center justify-between gap-2"
+              >
+                <div className="flex items-center gap-2 text-xs font-bold text-white">
+                  <span className="text-lg">{item.info?.icon || '🪨'}</span>
+                  <span>{item.info ? tr(language, item.info.nameEn, item.info.nameAr) : item.id}</span>
+                  <span className="px-2 py-0.5 rounded bg-slate-800 text-amber-300">{item.massKg} kg</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundManager.playClick();
+                      setBayAssignment((prev) => ({ ...prev, [item.id]: 'left' }));
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-hud font-black cursor-pointer ${
+                      side === 'left' ? 'bg-sky-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    {tr(language, 'Left Bay', 'يسار')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundManager.playClick();
+                      setBayAssignment((prev) => ({ ...prev, [item.id]: 'right' }));
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-hud font-black cursor-pointer ${
+                      side === 'right' ? 'bg-indigo-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    {tr(language, 'Right Bay', 'يمين')}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {[
-          { key: 'oxygen', icon: '🫧', en: 'Oxygen Tanks Verified (100% O2)', ar: 'فحص خزانات الأكسجين (O₂ 100%)' },
-          { key: 'power', icon: '⚡', en: 'Fuel Cells & Battery Balance', ar: 'توازن خلايا الطاقة والبطاريات' },
-          { key: 'lifeSupport', icon: '🌡️', en: 'Capsule Pressure & Thermal Stable', ar: 'استقرار ضغط وحرارة الكبسولة' },
-          { key: 'comms', icon: '📡', en: 'Deep Space Network (DSN) Aligned', ar: 'مواءمة هوائي شبكة الفضاء العميق' },
-          { key: 'samplesSealed', icon: '🔒', en: 'Seal & Lock Lunar Sample Locker', ar: 'إغلاق وتثبيت حاوية عينات القمر' }
-        ].map((item) => {
-          const ok = cargoChecks[item.key];
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => toggleCheck(item.key)}
-              className={`p-3.5 rounded-2xl border-2 flex items-center justify-between transition-all cursor-pointer ${
-                language === 'ar' ? 'text-right' : 'text-left'
-              } ${
-                ok
-                  ? 'bg-emerald-950/65 border-emerald-400 text-white'
-                  : 'bg-slate-900/75 border-slate-700 text-slate-200 hover:border-amber-400'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <span className="text-xl">{item.icon}</span>
-                <span className="font-bold text-sm">{tr(language, item.en, item.ar)}</span>
-              </div>
-              <span className="text-xs font-black px-2 py-0.5 rounded-full bg-slate-950/70">
-                {ok ? tr(language, '✅ Verified', '✅ مؤكد') : tr(language, 'Check', 'افحص')}
-              </span>
-            </button>
-          );
-        })}
+      {/* Phase 2: Embedded Spacecraft Emergency Circuit Breaker Repair */}
+      <div className="rounded-2xl border-2 border-rose-400/50 bg-slate-950/75 p-3 space-y-2">
+        <div className="flex items-center justify-between text-xs font-hud font-black">
+          <span className="text-rose-200">
+            🔧 {tr(language, 'Phase 2: In-Flight Fault Diagnostic & Circuit Breaker', 'المرحلة 2: تشخيص العطل وإصلاح قاطع الدائرة')}
+          </span>
+          <span className={inlineFaultFixed ? 'text-emerald-300' : 'text-amber-300'}>
+            {inlineFaultFixed ? tr(language, 'Breaker Fixed ✓', 'تم الإصلاح ✓') : tr(language, 'Resolve Fault Below', 'أصلح العطل بالأسفل')}
+          </span>
+        </div>
+        {!inlineFaultFixed && (
+          <EmergencyRepairGame onComplete={() => setInlineFaultFixed(true)} />
+        )}
       </div>
 
       <button
         type="button"
         onClick={() => {
-          if (!allCargoChecked) return;
+          if (!allReady) return;
           soundManager.playDropSuccess();
           dialogueManager.speak(
             tr(
               language,
-              'Lunar samples sealed and Orion systems checked! Ready for Trans-Earth departure!',
-              'تم تأمين عينات القمر وفحص الأنظمة بنجاح! مستعدون للعودة إلى كوكب الأرض!'
+              'Lunar sample bay balanced and spacecraft fault resolved! Ready for Earth corridor!',
+              'تم اتزان عينات القمر وإصلاح العطل بنجاح! مستعدون للعودة إلى الأرض!'
             )
           );
           onComplete();
         }}
-        disabled={!allCargoChecked}
+        disabled={!allReady}
         className={`w-full py-3.5 rounded-2xl font-black text-base transition-all ${
-          allCargoChecked
+          allReady
             ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg cursor-pointer'
             : 'bg-slate-800 text-slate-500 cursor-not-allowed'
         }`}
       >
-        {tr(language, 'Confirm Departure Readiness to Earth →', 'تأكيد جاهزية المغادرة والعودة للأرض ←')}
+        {allReady
+          ? tr(language, 'Confirm Balanced Payload & Launch Home →', 'تأكيد اتزان الحمولة والعودة للأرض ←')
+          : tr(language, 'Balance Left/Right Bays (Δ ≤ 15 kg) & Fix Fault 🔒', 'وازن الجناحين (فرق ≤ 15 كجم) وأصلح العطل 🔒')}
       </button>
     </div>
   );
@@ -446,14 +474,20 @@ const EmergencyRepairGame: React.FC<{ onComplete: () => void }> = ({ onComplete 
   );
 };
 
-const ReentryShieldGame: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
+const ReentryShieldGame: React.FC<{ campaign: CampaignProgressState; onComplete: () => void }> = ({
+  campaign,
+  onComplete
+}) => {
   const { language } = useGameState();
+  const effects = computeCrossStageEffects(campaign);
+  const [dsnLinked, setDsnLinked] = useState(false);
   const [tilesChecked, setTilesChecked] = useState<Record<number, boolean>>({ 0: false, 1: false, 2: false });
   const [reentryStarted, setReentryStarted] = useState(false);
   const [shieldAngle, setShieldAngle] = useState(0);
   const [reentryProgress, setReentryProgress] = useState(0);
   const [reentryError, setReentryError] = useState<string | null>(null);
   const reentryDoneRef = useRef(false);
+  const plasmaCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const gLoadMetric = NASA_OSDR_METRICS.find((m) => m.id === 'osdr_reentry_gload') || NASA_OSDR_METRICS[3];
   const allTilesOk = Object.values(tilesChecked).every(Boolean);
@@ -461,15 +495,57 @@ const ReentryShieldGame: React.FC<{ onComplete: () => void }> = ({ onComplete })
   const reentryFinished = reentryProgress >= 100;
 
   useEffect(() => {
+    const canvas = plasmaCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    let rafId = 0;
+    const startMs = performance.now();
+    const render = () => {
+      rafId = window.requestAnimationFrame(render);
+      const t = (performance.now() - startMs) / 1000;
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const cx = canvas.width * 0.5;
+      const cy = canvas.height * 0.55;
+      // Plasma bow shock arc
+      ctx.strokeStyle = !reentryStarted ? '#38bdf8' : Math.abs(shieldAngle) <= 18 ? '#fb923c' : '#f43f5e';
+      ctx.lineWidth = reentryStarted ? 6 + Math.sin(t * 16) * 2 : 2.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy + 12, 46, Math.PI * 1.12, Math.PI * 1.88);
+      ctx.stroke();
+
+      // Rotated Orion capsule & PICA-X shield
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate((shieldAngle * Math.PI) / 180);
+      ctx.fillStyle = '#ea580c';
+      ctx.fillRect(-30, 8, 60, 10);
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.moveTo(-26, 8);
+      ctx.lineTo(0, -24);
+      ctx.lineTo(26, 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    };
+    render();
+    return () => window.cancelAnimationFrame(rafId);
+  }, [shieldAngle, reentryStarted]);
+
+  useEffect(() => {
     if (!reentryStarted || reentryFinished) return;
+    const turbulenceScale = effects.crewAdaptionScore >= 80 ? 5.5 : 8.5;
     const timer = window.setInterval(() => {
       setShieldAngle((prev) => {
-        const drift = (Math.random() - 0.5) * 8;
+        const drift = (Math.random() - 0.5) * turbulenceScale;
         return Math.max(-35, Math.min(35, Math.round(prev + drift)));
       });
     }, 450);
     return () => window.clearInterval(timer);
-  }, [reentryStarted, reentryFinished]);
+  }, [reentryStarted, reentryFinished, effects.crewAdaptionScore]);
 
   useEffect(() => {
     if (!reentryStarted || reentryFinished) return;
@@ -548,16 +624,40 @@ const ReentryShieldGame: React.FC<{ onComplete: () => void }> = ({ onComplete })
         ))}
       </div>
 
+      {/* Phase 1: Inline 1.3s Deep Space Network (DSN) Trajectory Lock */}
+      <div className="rounded-2xl border-2 border-indigo-400/50 bg-slate-950/80 p-3 space-y-2">
+        <div className="flex items-center justify-between text-xs font-hud font-black">
+          <span className="text-indigo-200">
+            📡 {tr(language, 'Phase 1: 1.3s DSN Corridor Trajectory Sync', 'المرحلة 1: بث الشبكة الفضائية DSN وتثبيت المسار')}
+          </span>
+          <span className={dsnLinked ? 'text-emerald-300' : 'text-amber-300'}>
+            {dsnLinked ? tr(language, 'DSN Vector Locked ✓', 'المسار معتمد ✓') : tr(language, 'Align ±4° & Ping', 'قم بالمحاذاة والاتصال')}
+          </span>
+        </div>
+        {!dsnLinked && <NavigationEarthGame onComplete={() => setDsnLinked(true)} />}
+      </div>
+
+      {/* Live Plasma & PICA-X Angle Canvas */}
+      <div className="rounded-2xl bg-slate-950 border border-orange-500/40 p-2.5 flex flex-col items-center gap-1.5">
+        <div className="w-full flex justify-between text-[11px] font-hud font-bold px-1">
+          <span className="text-orange-300">{tr(language, '🔥 Plasma Re-Entry Attitude Visualizer', '🔥 زاوية اختراق الغلاف الجوي والدرع الحراري')}</span>
+          <span className="text-cyan-300">
+            {tr(language, `Crew Stability Assist: ${effects.crewAdaptionScore}%`, `دعم استقرار الطاقم: ${effects.crewAdaptionScore}%`)}
+          </span>
+        </div>
+        <canvas ref={plasmaCanvasRef} width={340} height={94} className="w-full max-w-md h-24 rounded-xl" />
+      </div>
+
       {!reentryStarted ? (
         <button
           type="button"
-          disabled={!allTilesOk}
+          disabled={!allTilesOk || !dsnLinked}
           onClick={() => {
             soundManager.playClick();
             setReentryStarted(true);
           }}
           className={`w-full py-3.5 rounded-2xl font-black text-base transition-all ${
-            allTilesOk
+            allTilesOk && dsnLinked
               ? 'bg-gradient-to-r from-orange-500 to-rose-600 text-white shadow-lg cursor-pointer'
               : 'bg-slate-800 text-slate-500 cursor-not-allowed'
           }`}
@@ -628,6 +728,94 @@ const SafeLandingGame: React.FC<{
   const [mainDeployed, setMainDeployed] = useState(false);
   const [splashdownDone, setSplashdownDone] = useState(false);
   const splashTriggeredRef = useRef(false);
+  const landingCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = landingCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    let rafId = 0;
+    const startMs = performance.now();
+    const render = () => {
+      rafId = window.requestAnimationFrame(render);
+      const t = (performance.now() - startMs) / 1000;
+      const w = canvas.width;
+      const h = canvas.height;
+      const sky = ctx.createLinearGradient(0, 0, 0, h);
+      sky.addColorStop(0, '#0c4a6e');
+      sky.addColorStop(0.75, '#0284c7');
+      sky.addColorStop(1, '#0369a1');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h);
+
+      // Ocean waves at bottom
+      const oceanY = h - 22;
+      ctx.fillStyle = '#0ea5e9';
+      ctx.fillRect(0, oceanY, w, 22);
+      ctx.strokeStyle = '#bae6fd';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let x = 0; x <= w; x += 12) {
+        const wy = oceanY + Math.sin(x * 0.08 + t * 4) * 2.5;
+        if (x === 0) ctx.moveTo(x, wy);
+        else ctx.lineTo(x, wy);
+      }
+      ctx.stroke();
+
+      const progressFrac = Math.max(0, Math.min(1, 1 - altitudeM / 9600));
+      const capY = 26 + progressFrac * (oceanY - 40);
+      const capX = w * 0.5 + Math.sin(t * 2.4) * (mainDeployed ? 4 : 8);
+
+      // Draw Chutes
+      if (mainDeployed) {
+        [-16, 0, 16].forEach((ox) => {
+          ctx.strokeStyle = '#e2e8f0';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(capX, capY - 6);
+          ctx.lineTo(capX + ox, capY - 22);
+          ctx.stroke();
+          ctx.fillStyle = ox === 0 ? '#ffffff' : '#f97316';
+          ctx.beginPath();
+          ctx.arc(capX + ox, capY - 22, 8, Math.PI, 0);
+          ctx.fill();
+        });
+      } else if (drogueDeployed) {
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(capX, capY - 6);
+        ctx.lineTo(capX, capY - 20);
+        ctx.stroke();
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.arc(capX, capY - 20, 7, Math.PI, 0);
+        ctx.fill();
+      }
+
+      // Orion capsule
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.moveTo(capX, capY - 7);
+      ctx.lineTo(capX - 10, capY + 6);
+      ctx.lineTo(capX + 10, capY + 6);
+      ctx.closePath();
+      ctx.fill();
+
+      // Splashdown rings on water
+      if (splashdownDone) {
+        const ringR = 14 + ((t * 28) % 28);
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(capX, oceanY + 4, ringR, ringR * 0.35, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    };
+    render();
+    return () => window.cancelAnimationFrame(rafId);
+  }, [altitudeM, drogueDeployed, mainDeployed, splashdownDone]);
 
   useEffect(() => {
     if (splashdownDone) return;
@@ -676,6 +864,7 @@ const SafeLandingGame: React.FC<{
   return (
     <div className="space-y-4">
       <div className="rounded-2xl bg-slate-900/80 border border-emerald-500/35 p-4 space-y-3">
+        <canvas ref={landingCanvasRef} width={360} height={116} className="w-full max-w-lg mx-auto h-28 rounded-xl border border-sky-400/40" />
         <div className="grid grid-cols-2 gap-3 text-center">
           <div className="rounded-xl bg-slate-950/75 p-3 border border-slate-800">
             <div className="text-xs text-slate-400">{tr(language, 'Altitude Above Ocean', 'الارتفاع عن سطح المحيط')}</div>
@@ -790,7 +979,7 @@ export const Level4MiniGames: React.FC<Level4Props> = ({
     case 'l4_spacecraft_emergency':
       return <EmergencyRepairGame onComplete={() => onCompleteMiniGame('l4_spacecraft_emergency')} />;
     case 'l4_earth_reentry':
-      return <ReentryShieldGame onComplete={() => onCompleteMiniGame('l4_earth_reentry')} />;
+      return <ReentryShieldGame campaign={campaign} onComplete={() => onCompleteMiniGame('l4_earth_reentry')} />;
     case 'l4_safe_landing':
     default:
       return (

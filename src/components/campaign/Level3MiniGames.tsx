@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { motion } from 'framer-motion';
 import {
@@ -12,11 +12,13 @@ import { tr } from '../../utils/i18n';
 import { nasaCache } from '../../services/nasa/nasaCache';
 import { NASA_ENGINEERING_TRADEOFFS, NASA_OSDR_METRICS } from '../../services/nasa/nasaOSDR';
 import { ISS_WATER_MILESTONE, SCIENCE_BADGES } from '../../data/science';
+import { computeCrossStageEffects } from '../../utils/consequences';
 import { SpaceFitXControlsHUD } from '../suit/SpaceFitXControlsHUD';
+import { PipePuzzle } from '../lunar/PipePuzzle';
 import { BodyTelemetryMeters } from './BodyTelemetryMeters';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
-import { AlertTriangle, CheckCircle2, ShieldAlert, Sun, Wrench } from 'lucide-react';
+import { AlertTriangle, Droplets, Lock, ShieldAlert, Sun, Unlock, Wrench } from 'lucide-react';
 
 interface Level3Props {
   miniGameId: MiniGameId | 'l3_return_auth';
@@ -100,17 +102,22 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
   onBackToLevel
 }) => {
   const { language } = useGameState();
+  const effects = computeCrossStageEffects(campaign);
 
-  // 3.1 Resistance Training (Leg -> Arm -> Core sequence)
+  // 3.1 Resistance Training (ARED Rhythm Force Gauge + Manual 4-EVA Tool Packing)
   const [exStage, setExStage] = useState<'leg' | 'arm' | 'core' | 'done'>(
     campaign.completedMiniGames.includes('l3_resistance_training') ? 'done' : 'leg'
   );
   const [exReps, setExReps] = useState<number>(0);
+  const [aredCursor, setAredCursor] = useState<number>(50);
+  const [aredFeedback, setAredFeedback] = useState<string | null>(null);
+  const [packedTools, setPackedTools] = useState<LunarToolId[]>(campaign.l3PackedTools);
 
-  // 3.2 Water Recycling 4-step
-  const [waterStep, setWaterStep] = useState<number>(campaign.l3WaterRecycled ? 4 : 0);
+  // 3.2 Water Recycling BFS Pipe Solver + Hydroponic Bio-Tank
+  const [pipeSolved, setPipeSolved] = useState<boolean>(campaign.l3WaterRecycled);
+  const [waterRecycledDone, setWaterRecycledDone] = useState<boolean>(campaign.l3WaterRecycled);
 
-  // 3.3 Solar Storm DONKI
+  // 3.3 Solar Storm DONKI (Active 10s Defense + Blast Door + 3-Slider Power Split)
   const [stormStep, setStormStep] = useState<number>(campaign.l3SolarStormSheltered ? 4 : 0);
   const [tradeOffChoice, setTradeOffChoice] = useState<'shield_o2' | 'farm_only' | null>(
     campaign.l3SolarStormSheltered ? 'shield_o2' : null
@@ -118,13 +125,15 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
   const [powerSplit, setPowerSplit] = useState<{ water: number; hydro: number; shield: number }>(
     campaign.ecoPowerSplit || { water: 40, hydro: 20, shield: 40 }
   );
+  const [blastDoorSealed, setBlastDoorSealed] = useState<boolean>(campaign.l3SolarStormSheltered);
+  const [stormDefenseActive, setStormDefenseActive] = useState<boolean>(false);
+  const [stormRemainMs, setStormRemainMs] = useState<number>(campaign.l3SolarStormSheltered ? 0 : 10000);
   const latestStorm = nasaCache.getLatestSolarStorm();
 
   // 3.4 EVA Prep (Part A suit + Part B 4 scientific tools)
   const [suitParts, setSuitParts] = useState<string[]>(
     campaign.l3EvaSuitAssembled ? ['helmet', 'gloves', 'boots', 'backpack', 'o2_comms'] : []
   );
-  const [packedTools, setPackedTools] = useState<LunarToolId[]>(campaign.l3PackedTools);
 
   // 3.5 Lunar Sample Collection (0.16G + Oxygen + Tool Dependency!)
   const [suitO2, setSuitO2] = useState<number>(100);
@@ -133,25 +142,92 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
     campaign.completedMiniGames.includes('l3_lunar_samples')
   );
   const [missingToolError, setMissingToolError] = useState<string | null>(null);
+  const [dustBurstTick, setDustBurstTick] = useState<number>(0);
+  const craterCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Countdown for Solar Storm shelter wait (step 3 -> 4)
+  // Oscillating ARED timing cursor for 3.1
   useEffect(() => {
-    if (miniGameId === 'l3_solar_storm' && stormStep === 3) {
-      const t = window.setTimeout(() => {
-        setStormStep(4);
-        soundManager.playFanfare();
-        void dialogueManager.speak(
-          tr(
-            language,
-            'Solar proton wave passed safely while sheltered!',
-            'انتهت العاصفة الشمسية بأمان داخل الملجأ!'
-          )
-        );
-        onCompleteMiniGame('l3_solar_storm', { l3SolarStormSheltered: true });
-      }, 2200);
-      return () => window.clearTimeout(t);
-    }
-  }, [miniGameId, stormStep, onCompleteMiniGame, language]);
+    if (miniGameId !== 'l3_resistance_training' || exStage === 'done') return;
+    const tStart = performance.now();
+    const timer = window.setInterval(() => {
+      const elapsed = (performance.now() - tStart) / 1000;
+      const spd = effects.crewAdaptionScore >= 80 ? 2.15 : 2.75;
+      setAredCursor(Math.round(50 + Math.sin(elapsed * spd) * 44));
+    }, 45);
+    return () => window.clearInterval(timer);
+  }, [miniGameId, exStage, effects.crewAdaptionScore]);
+
+  // 10s Active NASA DONKI CME Storm Defense timer for 3.3
+  useEffect(() => {
+    if (miniGameId !== 'l3_solar_storm' || !stormDefenseActive || stormStep >= 4) return;
+    const timer = window.setInterval(() => {
+      const shieldedOk = blastDoorSealed && powerSplit.shield >= 45 && powerSplit.water >= 30 && powerSplit.shield + powerSplit.water + powerSplit.hydro <= 100;
+      setStormRemainMs((prev) => {
+        if (!shieldedOk) return prev; // hold progress until player seals door & raises shield power!
+        const next = Math.max(0, prev - 100);
+        if (next === 0) {
+          setStormDefenseActive(false);
+          setStormStep(4);
+          soundManager.playFanfare();
+          void dialogueManager.speak(
+            tr(
+              language,
+              'Solar proton wave passed safely while sheltered!',
+              'انتهت العاصفة الشمسية بأمان داخل الملجأ!'
+            )
+          );
+          onCompleteMiniGame('l3_solar_storm', { l3SolarStormSheltered: true });
+        }
+        return next;
+      });
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [miniGameId, stormDefenseActive, stormStep, blastDoorSealed, powerSplit, onCompleteMiniGame, language]);
+
+  // 0.16G Lunar Crater Dust Physics Canvas for 3.5
+  useEffect(() => {
+    const canvas = craterCanvasRef.current;
+    if (!canvas || miniGameId !== 'l3_lunar_samples') return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    let rafId = 0;
+    const motes = Array.from({ length: 24 }, (_, i) => ({
+      x: 35 + ((i * 29) % (canvas.width - 70)),
+      y: canvas.height - 14 - (i % 5) * 6,
+      vx: ((i % 2 === 0 ? 1 : -1) * (0.4 + (i % 3) * 0.25)),
+      vy: dustBurstTick > 0 ? -(1.4 + (i % 4) * 0.45) : -0.25
+    }));
+    const draw = () => {
+      rafId = window.requestAnimationFrame(draw);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Crater rim curve
+      ctx.fillStyle = '#334155';
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height - 10);
+      ctx.quadraticCurveTo(canvas.width * 0.5, canvas.height - 26, canvas.width, canvas.height - 10);
+      ctx.lineTo(canvas.width, canvas.height);
+      ctx.lineTo(0, canvas.height);
+      ctx.fill();
+
+      motes.forEach((m) => {
+        m.vy += 0.018; // gentle 0.16G settle
+        m.x += m.vx;
+        m.y += m.vy;
+        if (m.y >= canvas.height - 14) {
+          m.y = canvas.height - 14;
+          m.vy = -(0.5 + Math.random() * 1.1);
+        }
+        if (m.x < 8 || m.x > canvas.width - 8) m.vx *= -1;
+        ctx.fillStyle = '#cbd5e1';
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    };
+    draw();
+    return () => window.cancelAnimationFrame(rafId);
+  }, [miniGameId, dustBurstTick]);
 
   // ---------------------------------------------------------------------------
   // 3.1 RESISTANCE TRAINING CHALLENGE (Leg -> Arm -> Core)
@@ -171,6 +247,36 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
     const boneScore = exStage === 'done' ? 100 : exStage === 'core' ? 86 : exStage === 'arm' ? 72 : 55 + exReps * 5;
     const muscleScore = exStage === 'done' ? 98 : exStage === 'core' ? 84 : exStage === 'arm' ? 70 : 52 + exReps * 5;
 
+    const isSweetSpot = aredCursor >= 32 && aredCursor <= 68;
+    const allToolsPacked = packedTools.length >= EVA_TOOLS.length;
+    const completeFitnessStation = (toolsToSave: LunarToolId[]) => {
+      soundManager.playFanfare();
+      void dialogueManager.speak(
+        tr(
+          language,
+          'Awesome! ARED workout and 4 lunar geological tools packed! Head outside onto the Moon!',
+          'عاش يا بطل! أتممت تمارين المقاومة وجهزت أدوات القمر الأربع بنجاح!'
+        )
+      );
+      onCompleteMiniGame('l3_resistance_training', {
+        l3BoneMuscleScore: 100,
+        l3EvaSuitAssembled: true,
+        l3PackedTools: toolsToSave
+      });
+    };
+
+    const toggleFitnessTool = (toolId: LunarToolId) => {
+      soundManager.playClick();
+      const next = packedTools.includes(toolId)
+        ? packedTools.filter((t) => t !== toolId)
+        : [...packedTools, toolId];
+      setPackedTools(next);
+      onUpdateCampaign({ l3PackedTools: next });
+      if (exStage === 'done' && next.length >= EVA_TOOLS.length) {
+        completeFitnessStation(next);
+      }
+    };
+
     const doRep = () => {
       if (exStage === 'done') return;
       if (suit.emergencyReleased) {
@@ -179,19 +285,25 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
       }
       soundManager.playClick();
       const avgLoad = Math.round(Object.values(suit.jointLoads).reduce((a, b) => a + b, 0) / 5);
-      const harvestedGain = Number((0.6 + avgLoad * 0.015).toFixed(1));
+      const sweetBonus = isSweetSpot ? 1.4 : 0.7;
+      const harvestedGain = Number((sweetBonus + avgLoad * 0.015).toFixed(1));
+      setAredFeedback(
+        isSweetSpot
+          ? tr(language, `🔥 SWEET SPOT! +${harvestedGain} Wh kinetic charge`, `🔥 توقيت مثالي! +${harvestedGain} واط-ساعة طاقة`)
+          : tr(language, `✓ Safe Form Rep (+${harvestedGain} Wh)`, `✓ تكرار سليم (+${harvestedGain} واط-ساعة)`)
+      );
       onUpdateCampaign({
         spaceFitX: {
           ...suit,
           heartRateBpm: Math.min(162, Math.max(108, suit.heartRateBpm + 4)),
-          muscleLoadPct: Math.min(98, Math.max(avgLoad, suit.muscleLoadPct + 6)),
+          muscleLoadPct: Math.min(98, Math.max(avgLoad, suit.muscleLoadPct + (isSweetSpot ? 9 : 6))),
           jointAngleDeg: exStage === 'leg' ? 78 : exStage === 'arm' ? 54 : 32,
           harvestedWh: Number((suit.harvestedWh + harvestedGain).toFixed(1)),
           batteryPercent: Math.min(100, suit.batteryPercent + 2)
         }
       });
 
-      const nextReps = exReps + 1;
+      const nextReps = exReps + (isSweetSpot ? 2 : 1);
       if (nextReps >= 3) {
         soundManager.playDropSuccess();
         setExReps(0);
@@ -199,15 +311,9 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
         else if (exStage === 'arm') setExStage('core');
         else if (exStage === 'core') {
           setExStage('done');
-          soundManager.playFanfare();
-          void dialogueManager.speak(
-            tr(
-              language,
-              'Awesome! Resistance training with SPACE-FIT X protected bones and harvested kinetic battery energy!',
-              'عاش يا بطل! تمارين المقاومة ببدلة SPACE-FIT X حمت عظامنا وحصدت طاقة حركية للبطارية!'
-            )
-          );
-          onCompleteMiniGame('l3_resistance_training', { l3BoneMuscleScore: 100 });
+          if (packedTools.length >= EVA_TOOLS.length) {
+            completeFitnessStation(packedTools);
+          }
         }
       } else {
         setExReps(nextReps);
@@ -259,19 +365,90 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
             </p>
           )}
           {exStage !== 'done' && (
-            <button
-              type="button"
-              disabled={suit.emergencyReleased}
-              onClick={doRep}
-              className={`px-8 py-4 rounded-2xl font-hud font-black text-lg border-2 border-white transition-transform ${
-                suit.emergencyReleased
-                  ? 'bg-slate-800 text-slate-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 cursor-pointer hover:scale-105'
-              }`}
-            >
-              {tr(language, `Pull SPACE-FIT X Cables (${exReps}/3) 🏋️`, `اسحب كابلات SPACE-FIT X وحصد طاقة (${exReps}/3) 🏋️`)}
-            </button>
+            <div className="space-y-3 max-w-md mx-auto">
+              <div className="space-y-1 text-left">
+                <div className="flex justify-between text-[11px] font-hud font-bold">
+                  <span className="text-cyan-200">{tr(language, 'ARED Force Rhythm Zone', 'نطاق قوة السحب المثالي')}</span>
+                  <span className={isSweetSpot ? 'text-emerald-300' : 'text-amber-200'}>
+                    {isSweetSpot ? tr(language, 'GREEN SWEET SPOT!', 'النطاق الأخضر المثالي!') : `${aredCursor}%`}
+                  </span>
+                </div>
+                <div className="relative h-5 rounded-full bg-slate-900 border border-slate-700 overflow-hidden">
+                  <div className="absolute inset-y-0 left-[32%] right-[32%] bg-emerald-500/35 border-x-2 border-emerald-400" />
+                  <div
+                    className="absolute top-0 bottom-0 w-3 -ml-1.5 rounded-full bg-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.9)]"
+                    style={{ left: `${aredCursor}%` }}
+                  />
+                </div>
+              </div>
+              {aredFeedback && <p className="text-xs font-hud font-bold text-emerald-300">{aredFeedback}</p>}
+              <button
+                type="button"
+                disabled={suit.emergencyReleased}
+                onClick={doRep}
+                className={`px-8 py-3.5 rounded-2xl font-hud font-black text-base sm:text-lg border-2 border-white transition-transform ${
+                  suit.emergencyReleased
+                    ? 'bg-slate-800 text-slate-400 cursor-not-allowed'
+                    : isSweetSpot
+                    ? 'bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 text-slate-950 cursor-pointer scale-[1.03]'
+                    : 'bg-gradient-to-r from-sky-400 to-cyan-500 text-slate-950 cursor-pointer hover:scale-105'
+                }`}
+              >
+                {tr(language, `Pull ARED Bar (${exReps}/3) 🏋️`, `اسحب قضيب ARED (${exReps}/3) 🏋️`)}
+              </button>
+            </div>
           )}
+        </div>
+
+        {/* Manual Interactive 4-EVA Geological Tool Packing Rack (Required for Crater Samples) */}
+        <div className="p-4 rounded-2xl bg-slate-950/90 border-2 border-amber-400/55 space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-hud font-black text-xs sm:text-sm text-amber-200">
+              🎒 {tr(
+                language,
+                `Pack 4 Geological EVA Tools (${packedTools.length}/4 Required for Crater Samples):`,
+                `جهّز الأدوات الجيولوجية الأربع (${packedTools.length}/4 مطلوبة في الفوهة):`
+              )}
+            </span>
+            {exStage === 'done' && allToolsPacked && !campaign.completedMiniGames.includes('l3_resistance_training') && (
+              <button
+                type="button"
+                onClick={() => completeFitnessStation(packedTools)}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-400 text-slate-950 font-hud font-black text-xs cursor-pointer"
+              >
+                {tr(language, 'Complete Station ✅', 'إنهاء المحطة ✅')}
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {EVA_TOOLS.map((tool) => {
+              const packed = packedTools.includes(tool.id);
+              return (
+                <button
+                  key={tool.id}
+                  type="button"
+                  data-testid={`pack-tool-${tool.id}`}
+                  onClick={() => toggleFitnessTool(tool.id)}
+                  className={`p-3 rounded-xl border-2 flex items-center justify-between cursor-pointer transition-all ${
+                    packed
+                      ? 'bg-emerald-950 border-emerald-400 text-white'
+                      : 'bg-slate-900 border-amber-400/60 text-slate-200 hover:border-cyan-400'
+                  }`}
+                >
+                  <div className={`flex items-center gap-2 ${language === 'ar' ? 'text-right' : 'text-left'}`}>
+                    <span className="text-xl">{tool.icon}</span>
+                    <div>
+                      <p className="font-hud font-black text-xs">{tr(language, tool.nameEn, `${tool.nameAr} (${tool.nameEn})`)}</p>
+                      <p className="text-[10px] text-cyan-200">{tr(language, tool.purposeEn, tool.purposeAr)}</p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-hud font-black text-amber-300">
+                    {packed ? tr(language, 'Packed ✅', 'محزوم ✅') : tr(language, 'Pack +', 'أضف +')}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <SpaceFitXControlsHUD
@@ -284,54 +461,10 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
   }
 
   // ---------------------------------------------------------------------------
-  // 3.2 WATER RECYCLING SYSTEM (Isolate -> Open -> Clean/Replace Filter -> Reassemble & Test)
+  // 3.2 WATER RECYCLING & HYDROPONIC LETTUCE LOOP (BFS PipePuzzle + BioTank)
   // ---------------------------------------------------------------------------
   if (miniGameId === 'l3_water_recycling') {
-    const steps = [
-      {
-        titleEn: '1. Isolate System Valves',
-        titleAr: '1. عزل صمامات النظام (Isolate System)',
-        btnEn: 'Shut Isolation Valve 🔒',
-        btnAr: 'إغلاق صمام العزل 🔒'
-      },
-      {
-        titleEn: '2. Open ECLSS Maintenance Panel',
-        titleAr: '2. فتح لوحة الصيانة (Open Maintenance Panel)',
-        btnEn: 'Open Hatch Panel 🔓',
-        btnAr: 'فتح اللوحة المعدنية 🔓'
-      },
-      {
-        titleEn: '3. Replace Clogged Carbon Filter',
-        titleAr: '3. تنظيف واستبدال الفلتر المسدود (Clean/Replace Filter)',
-        btnEn: 'Install Fresh Carbon Filter 🧽',
-        btnAr: 'تركيب الفلتر الكربوني النظيف 🧽'
-      },
-      {
-        titleEn: '4. Reassemble & Verify 98% Purity',
-        titleAr: '4. إعادة التجميع واختبار نقاء المياه (Reassemble & Test)',
-        btnEn: 'Test 98% Water Recovery 💧',
-        btnAr: 'إعادة الإغلاق وفحص النقاء 98% 💧'
-      }
-    ];
-
-    const filterPct = waterStep === 0 ? 15 : waterStep === 1 ? 45 : waterStep === 2 ? 95 : 98;
-
-    const advanceWaterStep = () => {
-      soundManager.playPressurizeHiss();
-      const next = waterStep + 1;
-      setWaterStep(next);
-      if (next >= 4) {
-        soundManager.playFanfare();
-        void dialogueManager.speak(
-          tr(
-            language,
-            'ECLSS filter replaced! Lunar water recovery restored to 98% purity!',
-            'تم إصلاح نظام تدوير المياه ECLSS والمياه نقية بنسبة 98%!'
-          )
-        );
-        onCompleteMiniGame('l3_water_recycling', { l3WaterRecycled: true });
-      }
-    };
+    const recoveryPct = waterRecycledDone ? 98 : pipeSolved ? 95 : 48;
 
     return (
       <div className="bg-slate-900/95 border-2 border-cyan-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
@@ -340,8 +473,8 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
           titleEn="ECLSS Filter & Water Recovery Telemetry"
           titleAr="حالة الفلتر واسترجاع المياه (ECLSS)"
           metrics={[
-            { key: 'filter', value: filterPct },
-            { key: 'hydration', value: waterStep >= 3 ? 98 : 48 + waterStep * 15 }
+            { key: 'filter', value: recoveryPct },
+            { key: 'hydration', value: recoveryPct }
           ]}
         />
 
@@ -366,69 +499,57 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
                 'تجمع المحطة ماء التنفس والعرق والبول ومياه النظافة وإعداد الطعام بمساعدة Brine Processor Assembly.'
               )}
             </p>
-            <p className="text-[11px] text-amber-200 font-bold leading-relaxed">
-              {tr(
-                language,
-                'Hardware needs periodic resupply/filter swaps — still not a perpetual closed loop.',
-                ISS_WATER_MILESTONE.caveatAr
-              )}
-            </p>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-indigo-950/55 border border-indigo-400/50 space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-hud font-black text-xs sm:text-sm text-indigo-200">
-                {tr(language, '🫧 Oxygen via Water Electrolysis (ECLSS)', '🫧 توليد الأكسجين بالتحليل الكهربائي للماء (ECLSS)')}
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-950 border border-emerald-400 text-emerald-200 shrink-0">
-                {tr(language, SCIENCE_BADGES.ISS_PROVEN.labelEn, SCIENCE_BADGES.ISS_PROVEN.labelAr)}
-              </span>
+          <div className="p-3.5 rounded-2xl bg-emerald-950/55 border border-emerald-400/50 space-y-1.5">
+            <div className="flex items-center justify-between text-xs font-hud font-black text-emerald-200">
+              <span>{tr(language, '🌱 Lunar Hydroponic Spirulina & Lettuce Tank', '🌱 حوض الزراعة المائية والسبيرولينا')}</span>
+              <span>{pipeSolved ? tr(language, '98% Fed ✓', 'مُغذّى 98% ✓') : tr(language, 'Waiting Flow', 'بانتظار الماء')}</span>
             </div>
-            <p className="text-[11px] text-slate-200 leading-relaxed">
-              {tr(
-                language,
-                'ECLSS splits purified water to generate breathable O2 and scrubs CO2; plants & Spirulina act as backup.',
-                'تشطر أجهزة ECLSS الماء كهربائياً لتوفير O₂ وتسحب CO₂ وتحافظ على الضغط والرطوبة، بينما تبقى النباتات والسبيرولينا وحدات مساعدة فقط.'
-              )}
+            <div className="h-3 rounded-full bg-slate-950 border border-emerald-500/40 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-all duration-500"
+                style={{ width: `${recoveryPct}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-emerald-100">
+              {pipeSolved
+                ? tr(language, '🌱 Fresh lunar lettuce & Spirulina thriving on 98% recovered ECLSS loop!', '🌱 الخس القمري والسبيرولينا ينموان بنجاح باستخدام 98% من المياه المعاد تدويرها!')
+                : tr(language, 'Solve the 3x3 ECLSS pipe loop below to route purified water to the greenhouse.', 'وصل أنابيب الشبكة 3×3 بالأسفل لإيصال الماء النقي لحوض النباتات.')}
             </p>
           </div>
         </div>
 
-        <div className="space-y-3">
-          {steps.map((st, idx) => {
-            const done = waterStep > idx;
-            const current = waterStep === idx;
-            return (
-              <div
-                key={st.titleAr}
-                className={`p-4 rounded-2xl border-2 flex flex-wrap items-center justify-between gap-2 ${
-                  done
-                    ? 'bg-emerald-950 border-emerald-400 text-emerald-100'
-                    : current
-                    ? 'bg-sky-900 border-amber-300 text-white'
-                    : 'bg-slate-800/60 border-slate-700 text-slate-400'
-                }`}
-              >
-                <span className="font-hud font-black text-sm sm:text-base">
-                  {tr(language, st.titleEn, st.titleAr)}
-                </span>
-                {done ? (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                ) : current ? (
-                  <button
-                    type="button"
-                    onClick={advanceWaterStep}
-                    className="px-4 py-2 rounded-xl bg-amber-400 text-slate-950 font-hud font-black text-xs sm:text-sm cursor-pointer"
-                  >
-                    {tr(language, st.btnEn, st.btnAr)}
-                  </button>
-                ) : (
-                  <span className="text-xs font-hud">{tr(language, 'Pending previous step', 'بانتظار الخطوة السابقة')}</span>
-                )}
-              </div>
+        <PipePuzzle isProcessorFailed={false} onPuzzleSolved={() => setPipeSolved(true)} />
+
+        <button
+          type="button"
+          disabled={!pipeSolved}
+          onClick={() => {
+            setWaterRecycledDone(true);
+            soundManager.playFanfare();
+            void dialogueManager.speak(
+              tr(
+                language,
+                'ECLSS water circuit restored to 98% purity and lunar greenhouse nourished!',
+                'تم إصلاح دائرة المياه ECLSS بنسبة 98% وتغذية حوض النباتات القمري!'
+              )
             );
-          })}
-        </div>
+            onCompleteMiniGame('l3_water_recycling', { l3WaterRecycled: true });
+          }}
+          className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 flex items-center justify-center gap-2 ${
+            pipeSolved
+              ? 'bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950 border-white cursor-pointer'
+              : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+          }`}
+        >
+          <Droplets className="w-5 h-5" />
+          <span>
+            {pipeSolved
+              ? tr(language, 'Seal 98% Water Loop & Feed Greenhouse 💧🌱', 'اعتماد نقاء المياه 98% وتغذية النباتات 💧🌱')
+              : tr(language, 'Connect Wastewater Inlet to Drink Tank first 🔒', 'وصّل شبكة الأنابيب أعلاه أولاً 🔒')}
+          </span>
+        </button>
       </div>
     );
   }
@@ -506,151 +627,125 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {[
-            {
-              en: '1. Halt Moonwalk (EVA) & Stow Gear',
-              ar: '1. إيقاف السير القمري (Halt EVA) وتأمين المعدات'
-            },
-            {
-              en: '2. Power Split: Prioritize Shields & O2 ⚡🛡️',
-              ar: '2. موازنة الطاقة: توجيه الكهرباء للدروع والأكسجين ⚡🛡️'
-            },
-            {
-              en: '3. Enter Radiation Storm Shelter & Seal Hatch',
-              ar: '3. دخول ملجأ الطوارئ الإشعاعي وإحكام الباب'
-            },
-            {
-              en: '4. Wait for Proton Flux All-Clear',
-              ar: '4. انتظار زوال الإشعاع (All-Clear)'
-            }
-          ].map((item, idx) => {
-            const done = stormStep > idx;
-            const current = stormStep === idx;
-            return (
-              <div
-                key={item.en}
-                className={`p-4 rounded-2xl border-2 ${
-                  done
-                    ? 'bg-emerald-950 border-emerald-400 text-emerald-100'
-                    : current
-                    ? 'bg-amber-950/90 border-amber-300 text-white'
-                    : 'bg-slate-800/60 border-slate-700 text-slate-400'
-                }`}
-              >
-                <p className="font-hud font-black text-sm">{tr(language, item.en, item.ar)}</p>
-                {idx === 1 && current && (
-                  <div className="mt-2 space-y-2.5">
-                    <p className="text-xs font-hud text-amber-200">
-                      {tr(
-                        language,
-                        'CME alert! Should we route power to radiation shields & O2 or keep hydroponic grow-lights at full blast?',
-                        tradeoff.dilemmaAr
-                      )}
-                    </p>
+        {/* Active 10s DONKI CME Storm Defense Controls */}
+        <div className="p-4 rounded-2xl bg-slate-950/90 border-2 border-amber-400/50 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="font-hud font-black text-sm text-amber-200">
+                {stormStep >= 4
+                  ? tr(language, '✅ Solar Proton Storm Cleared Safely!', '✅ انتهت العاصفة الشمسية بأمان!')
+                  : stormDefenseActive
+                  ? tr(
+                      language,
+                      `⏳ Active Shield Defense: ${(stormRemainMs / 1000).toFixed(1)}s remaining`,
+                      `⏳ صمود الدرع ضد الإشعاع: ${(stormRemainMs / 1000).toFixed(1)} ثانية`
+                    )
+                  : tr(language, '🛡️ 10s Active DONKI Storm Defense Simulator', '🛡️ محاكاة الدفاع النشط ضد العاصفة (10 ثوانٍ)')}
+              </p>
+              <p className="text-[11px] text-slate-300">
+                {tr(language, tradeoff.dilemmaEn, tradeoff.dilemmaAr)}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                soundManager.playPressurizeHiss();
+                setBlastDoorSealed((s) => !s);
+              }}
+              className={`px-3.5 py-2 rounded-xl font-hud font-black text-xs flex items-center gap-1.5 cursor-pointer border-2 ${
+                blastDoorSealed
+                  ? 'bg-emerald-950 border-emerald-400 text-emerald-200'
+                  : 'bg-rose-950 border-rose-400 text-rose-200 animate-pulse'
+              }`}
+            >
+              {blastDoorSealed ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+              <span>
+                {blastDoorSealed
+                  ? tr(language, 'Blast Door Sealed ✓', 'البوابة المدرعة مغلقة ✓')
+                  : tr(language, 'Seal Blast Door! 🚪', 'أغلق البوابة المدرعة! 🚪')}
+              </span>
+            </button>
+          </div>
 
-                    <div className="p-3 rounded-xl bg-slate-950/85 border border-amber-400/40 space-y-2">
-                      <div className="flex items-center justify-between text-[11px] font-black text-amber-200">
-                        <span>{tr(language, '⚡ Base Power Split (100% max):', '⚡ موازنة طاقة القاعدة (100%):')}</span>
-                        <span className="px-2 py-0.5 rounded-full text-[9px] bg-amber-950 border border-amber-400">
-                          {tr(language, SCIENCE_BADGES.GAME_RULE.labelEn, SCIENCE_BADGES.GAME_RULE.labelAr)}
-                        </span>
-                      </div>
-                      {[
-                        { key: 'shield' as const, label: tr(language, '🛡️ Radiation Shield (Need ≥ 45%)', '🛡️ دروع الإشعاع (مطلوب ≥ 45%)'), color: 'accent-amber-400' },
-                        { key: 'water' as const, label: tr(language, '💧 ECLSS Water & Air (Need ≥ 30%)', '💧 تدوير المياه والهواء ECLSS (مطلوب ≥ 30%)'), color: 'accent-cyan-400' },
-                        { key: 'hydro' as const, label: tr(language, '🌱 Hydroponic Lights (Dim during storm)', '🌱 إضاءة الزراعة المائية (تُخفّض أثناء العاصفة)'), color: 'accent-emerald-400' }
-                      ].map((row) => (
-                        <div key={row.key} className="space-y-0.5">
-                          <div className="flex justify-between text-[10px] font-bold text-slate-200">
-                            <span>{row.label}</span>
-                            <span>{powerSplit[row.key]}%</span>
-                          </div>
-                          <input
-                            type="range"
-                            min={0}
-                            max={100}
-                            step={5}
-                            value={powerSplit[row.key]}
-                            onChange={(e) => {
-                              const nextVal = Number(e.target.value);
-                              const updated = { ...powerSplit, [row.key]: nextVal };
-                              setPowerSplit(updated);
-                              onUpdateCampaign({ ecoPowerSplit: updated });
-                            }}
-                            className={`w-full cursor-pointer ${row.color}`}
-                          />
-                        </div>
-                      ))}
-                      <div className="text-[10px] font-bold text-slate-300">
-                        {tr(
-                          language,
-                          `Total Load: ${powerSplit.shield + powerSplit.water + powerSplit.hydro}% (Target ≤ 100%)`,
-                          `إجمالي السحب: ${powerSplit.shield + powerSplit.water + powerSplit.hydro}% (الهدف ≤ 100%)`
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const totalPower = powerSplit.shield + powerSplit.water + powerSplit.hydro;
-                          if (powerSplit.shield < 45 || powerSplit.water < 30 || totalPower > 100) {
-                            soundManager.playAlertSiren();
-                            setTradeOffChoice('farm_only');
-                            return;
-                          }
-                          soundManager.playClick();
-                          setTradeOffChoice('shield_o2');
-                          setStormStep(2);
-                        }}
-                        className="px-3 py-1.5 rounded-xl bg-emerald-400 text-slate-950 font-hud font-black text-xs cursor-pointer"
-                      >
-                        {tr(language, 'Route Power to Shields & O2 ✅', 'توجيه الطاقة للدروع والأكسجين أولاً ✅')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          soundManager.playAlertSiren();
-                          setTradeOffChoice('farm_only');
-                        }}
-                        className="px-3 py-1.5 rounded-xl bg-rose-900 text-rose-100 font-hud font-bold text-xs cursor-pointer"
-                      >
-                        {tr(language, 'Keep Grow-Lights High Only', 'تجاهل الدروع وتشغيل الإضاءة فقط')}
-                      </button>
-                    </div>
-                    {tradeOffChoice === 'farm_only' && (
-                      <p className="text-xs text-rose-300 font-hud font-bold">
-                        {tr(
-                          language,
-                          'Danger! Set Shields ≥ 45%, ECLSS ≥ 30%, and total load ≤ 100%!',
-                          `خطر! ${tradeoff.optimalDecisionAr} (اضبط الدروع ≥ 45% والمياه ≥ 30% والمجموع ≤ 100%!)`
-                        )}
-                      </p>
-                    )}
-                  </div>
-                )}
-                {idx !== 1 && idx !== 3 && current && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      soundManager.playPressurizeHiss();
-                      setStormStep(idx + 1);
-                    }}
-                    className="mt-2 px-4 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-hud font-black text-xs cursor-pointer"
-                  >
-                    {tr(language, 'Execute Step 🛡️', 'نفّذ الإجراء الآن 🛡️')}
-                  </button>
-                )}
-                {idx === 3 && current && (
-                  <p className="mt-2 text-xs text-amber-300 font-hud font-bold animate-pulse">
-                    {tr(language, 'Monitoring solar proton decay...', 'جاري فحص انخفاض مستوى الإشعاع...')}
-                  </p>
-                )}
+          <div className="p-3 rounded-xl bg-slate-900/90 border border-amber-400/35 space-y-2">
+            <div className="flex items-center justify-between text-[11px] font-black text-amber-200">
+              <span>{tr(language, '⚡ Base Power Allocation (Total ≤ 100%):', '⚡ توزيع طاقة القاعدة (المجموع ≤ 100%):')}</span>
+              <span className={powerSplit.shield + powerSplit.water + powerSplit.hydro > 100 ? 'text-rose-300' : 'text-emerald-300'}>
+                {powerSplit.shield + powerSplit.water + powerSplit.hydro}%
+              </span>
+            </div>
+            {[
+              { key: 'shield' as const, label: tr(language, '🛡️ Radiation Shield (Need ≥ 45%)', '🛡️ دروع الإشعاع (مطلوب ≥ 45%)'), color: 'accent-amber-400' },
+              { key: 'water' as const, label: tr(language, '💧 ECLSS Water & Air (Need ≥ 30%)', '💧 تدوير المياه والهواء ECLSS (مطلوب ≥ 30%)'), color: 'accent-cyan-400' },
+              { key: 'hydro' as const, label: tr(language, '🌱 Hydroponic Lights (Dim during storm)', '🌱 إضاءة الزراعة المائية (تُخفّض أثناء العاصفة)'), color: 'accent-emerald-400' }
+            ].map((row) => (
+              <div key={row.key} className="space-y-0.5">
+                <div className="flex justify-between text-[10px] font-bold text-slate-200">
+                  <span>{row.label}</span>
+                  <span>{powerSplit[row.key]}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={powerSplit[row.key]}
+                  onChange={(e) => {
+                    const nextVal = Number(e.target.value);
+                    const updated = { ...powerSplit, [row.key]: nextVal };
+                    setPowerSplit(updated);
+                    onUpdateCampaign({ ecoPowerSplit: updated });
+                  }}
+                  className={`w-full cursor-pointer ${row.color}`}
+                />
               </div>
-            );
-          })}
+            ))}
+          </div>
+
+          {stormStep < 4 && (
+            <div className="space-y-2">
+              <div className="h-2.5 rounded-full bg-slate-900 border border-slate-700 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-100"
+                  style={{ width: `${Math.round(((10000 - stormRemainMs) / 10000) * 100)}%` }}
+                />
+              </div>
+              {!stormDefenseActive ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const totalPower = powerSplit.shield + powerSplit.water + powerSplit.hydro;
+                    if (!blastDoorSealed || powerSplit.shield < 45 || powerSplit.water < 30 || totalPower > 100) {
+                      soundManager.playAlertSiren();
+                      setTradeOffChoice('farm_only');
+                      return;
+                    }
+                    soundManager.playClick();
+                    setTradeOffChoice('shield_o2');
+                    setStormDefenseActive(true);
+                  }}
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-hud font-black text-sm cursor-pointer border-2 border-white"
+                >
+                  {tr(language, 'Start 10s Storm Defense & Hold Shield! 🛡️', 'ابدأ صمود العاصفة (10 ثوانٍ) 🛡️')}
+                </button>
+              ) : (
+                <p className="text-xs font-hud font-bold text-center text-cyan-200">
+                  {blastDoorSealed && powerSplit.shield >= 45 && powerSplit.water >= 30 && powerSplit.shield + powerSplit.water + powerSplit.hydro <= 100
+                    ? tr(language, '🛡️ Shield holding steady against CME plasma burst!', '🛡️ الدرع يصد العاصفة الشمسية بنجاح!')
+                    : tr(language, '⚠️ Restore Shield ≥ 45%, ECLSS ≥ 30%, Total ≤ 100% & Seal Door!', '⚠️ اضبط الدرع ≥ 45% والمياه ≥ 30% والمجموع ≤ 100% وأغلق البوابة!')}
+                </p>
+              )}
+              {tradeOffChoice === 'farm_only' && !stormDefenseActive && (
+                <p className="text-xs text-rose-300 font-hud font-bold text-center">
+                  {tr(
+                    language,
+                    'Seal the blast door, set Shield ≥ 45%, ECLSS ≥ 30%, and Total ≤ 100% first!',
+                    'أغلق البوابة واضبط الدروع ≥ 45% والمياه ≥ 30% والمجموع ≤ 100% أولاً!'
+                  )}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -842,6 +937,7 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
       }
 
       soundManager.playCrystalSparkle();
+      setDustBurstTick((t) => t + 1);
       setSuitO2((o2) => Math.max(35, o2 - 15));
       const next = [...collectedSamples, site.sampleId];
       setCollectedSamples(next);
@@ -885,14 +981,23 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
             </div>
             <button
               type="button"
-              onClick={() => onJumpToRoom('eva_prep_room', 'l3_eva_prep')}
+              onClick={() => onJumpToRoom('fitness_room', 'l3_resistance_training')}
               className="px-4 py-2 rounded-xl bg-amber-400 text-slate-950 font-hud font-black text-xs cursor-pointer flex items-center gap-1.5"
             >
               <Wrench className="w-4 h-4" />
-              <span>{tr(language, 'Return to EVA Prep Station 🎒', 'العودة إلى محطة تجهيز البدلة 🎒')}</span>
+              <span>{tr(language, 'Return to Fitness & EVA Tool Rack 🎒', 'العودة إلى محطة التمارين وحقيبة الأدوات 🎒')}</span>
             </button>
           </div>
         )}
+
+        {/* 0.16G Low-Gravity Crater Dust Settling Canvas */}
+        <div className="rounded-2xl bg-slate-950/90 border border-slate-700 p-2.5 space-y-1">
+          <div className="flex items-center justify-between text-[11px] font-hud font-bold text-slate-300">
+            <span>{tr(language, '🌑 0.16G Lunar Regolith Plume & Crater Rim Sensor', '🌑 مستشعر غبار القمر (جاذبية 0.16G)')}</span>
+            <span className="text-amber-300">{tr(language, `${collectedSamples.length}/3 Samples Sealed`, `${collectedSamples.length}/3 عينات`)}</span>
+          </div>
+          <canvas ref={craterCanvasRef} width={380} height={64} className="w-full h-16 rounded-xl" />
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {LUNAR_SITES.map((site) => {
@@ -946,9 +1051,40 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
           }`}
         >
           {loggedObservations
-            ? tr(language, 'Samples Saved ✅ Head to Mission Control for Earth Return', 'تم حفظ عينات القمر ✅ توجه لمركز القيادة لإذن العودة')
-            : tr(language, `Log Samples & Return to Base (${collectedSamples.length}/3)`, `تسجيل العينات والعودة للقاعدة (${collectedSamples.length}/3)`)}
+            ? tr(language, 'Samples Saved ✅ Ready for Earth Return Gate', 'تم حفظ عينات القمر ✅ جاهز لإذن العودة')
+            : tr(language, `Log Samples & Seal Container (${collectedSamples.length}/3)`, `تسجيل العينات وإغلاق الحاوية (${collectedSamples.length}/3)`)}
         </button>
+
+        {loggedObservations && (
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-950 border-2 border-purple-400 text-center space-y-2.5">
+            {campaign.l3ReturnAuthorized ? (
+              <button
+                type="button"
+                data-testid="mission-next-level-btn"
+                onClick={() => {
+                  soundManager.playClick();
+                  onNextLevel();
+                }}
+                className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-300 to-emerald-400 text-slate-950 font-hud font-black text-sm sm:text-base border-2 border-white cursor-pointer"
+              >
+                {tr(language, 'Earth Return Authorized! Launch Level 4 🌍🚀', 'تم اعتماد العودة! انطلق للمرحلة 4 🌍🚀')}
+              </button>
+            ) : (
+              <button
+                type="button"
+                data-testid="authorize-earth-return-btn"
+                onClick={() => {
+                  soundManager.playFanfare();
+                  confetti({ particleCount: 140, spread: 90 });
+                  onAuthorizeReturn();
+                }}
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-300 to-orange-400 text-slate-950 font-hud font-black text-base border-2 border-white shadow-lg cursor-pointer"
+              >
+                {tr(language, '🚀 Authorize Earth Return & Unlock Level 4 🌍', '🚀 اعتماد تصريح العودة وفتح المرحلة الرابعة 🌍')}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   }

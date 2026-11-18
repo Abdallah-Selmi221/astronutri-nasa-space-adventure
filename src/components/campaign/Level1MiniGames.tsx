@@ -276,10 +276,48 @@ const FoodPackingScene: React.FC<{
   );
   const [safetyAlert, setSafetyAlert] = useState<string | null>(null);
   const [safeToast, setSafeToast] = useState<string | null>(null);
+  const [cabinFilterPct, setCabinFilterPct] = useState<number>(campaign.cabinFilterHealthPct ?? 100);
+  const [isDragOverTray, setIsDragOverTray] = useState<boolean>(false);
+  const hepaCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [crumbParticles, setCrumbParticles] = useState<
     Array<{ id: number; emoji: string; x: number; y: number; dx: number; dy: number }>
   >([]);
   const particleTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const canvas = hepaCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    let rafId = 0;
+    const sparks = Array.from({ length: 24 }, (_, idx) => ({
+      x: (idx * 17) % canvas.width,
+      y: 8 + ((idx * 13) % (canvas.height - 16)),
+      vx: 0.9 + (idx % 4) * 0.35
+    }));
+    const renderLoop = () => {
+      rafId = window.requestAnimationFrame(renderLoop);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const isClogged = cabinFilterPct < 90 || safetyAlert !== null;
+      ctx.fillStyle = isClogged ? 'rgba(69,10,10,0.55)' : 'rgba(6,78,59,0.35)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // HEPA filter ribs at right edge
+      for (let ry = 4; ry < canvas.height - 4; ry += 8) {
+        ctx.fillStyle = isClogged ? '#f59e0b' : '#34d399';
+        ctx.fillRect(canvas.width - 12, ry, 8, 4);
+      }
+      sparks.forEach((p, idx) => {
+        p.x += p.vx * (isClogged ? 0.45 : 1.35);
+        if (p.x > canvas.width - 14) p.x = 4;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y + Math.sin(p.x * 0.08 + idx) * 2.2, isClogged ? 2.5 : 1.9, 0, Math.PI * 2);
+        ctx.fillStyle = isClogged ? '#fbbf24' : '#38bdf8';
+        ctx.fill();
+      });
+    };
+    renderLoop();
+    return () => window.cancelAnimationFrame(rafId);
+  }, [cabinFilterPct, safetyAlert]);
   const [foodMissionDone, setFoodMissionDone] = useState<boolean>(
     campaign.completedMiniGames.includes('l1_food_prep')
   );
@@ -342,6 +380,7 @@ const FoodPackingScene: React.FC<{
     if (isHazardous) {
       soundManager.playAlertSiren();
       setSafeToast(null);
+      setCabinFilterPct((prev) => Math.max(48, prev - 14));
       spawnFloating0GParticles(Boolean(entry.hasCrumbs));
       setSafetyAlert(
         tr(
@@ -361,6 +400,7 @@ const FoodPackingScene: React.FC<{
     }
     soundManager.playClick();
     setSafetyAlert(null);
+    setCabinFilterPct((prev) => Math.min(100, prev + 4));
     setSelectedIds((prev) => {
       if (prev.includes(entry.id)) {
         setSafeToast(null);
@@ -440,6 +480,11 @@ const FoodPackingScene: React.FC<{
                 <button
                   key={entry.id}
                   type="button"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', entry.id);
+                    e.dataTransfer.effectAllowed = 'copy';
+                  }}
                   data-testid={`pantry-item-${entry.id}`}
                   onClick={() => toggleItem(entry)}
                   className={`p-2.5 rounded-2xl border-2 flex items-center justify-between gap-2 transition-all cursor-pointer ${
@@ -483,8 +528,25 @@ const FoodPackingScene: React.FC<{
           </div>
         </div>
 
-        {/* CENTER: Astronaut Chef & Meal Tray + Floating 0G Crumb/Droplet FX */}
-        <div className="lg:col-span-4 rounded-2xl bg-gradient-to-b from-indigo-950/80 to-slate-950 border-2 border-indigo-400/50 p-4 flex flex-col items-center justify-between gap-3 min-h-[380px] relative overflow-hidden">
+        {/* CENTER: Astronaut Chef & Drag-or-Tap Meal Tray + HEPA Airflow Physics */}
+        <div
+          data-testid="food-tray-dropzone"
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragOverTray(true);
+          }}
+          onDragLeave={() => setIsDragOverTray(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragOverTray(false);
+            const droppedId = e.dataTransfer.getData('text/plain');
+            const entry = PANTRY_ENTRIES.find((p) => p.id === droppedId);
+            if (entry) toggleItem(entry);
+          }}
+          className={`lg:col-span-4 rounded-2xl bg-gradient-to-b from-indigo-950/80 to-slate-950 border-2 p-4 flex flex-col items-center justify-between gap-3 min-h-[380px] relative overflow-hidden transition-colors ${
+            isDragOverTray ? 'border-emerald-300 ring-2 ring-emerald-400/60' : 'border-indigo-400/50'
+          }`}
+        >
           {/* Zero-G Floating Crumbs / Droplets Visualizer */}
           <AnimatePresence>
             {crumbParticles.map((p) => (
@@ -518,10 +580,29 @@ const FoodPackingScene: React.FC<{
               suitCalibrated={false}
             />
             <div className="font-hud font-black text-sm text-white pt-1">
-              {tr(language, 'Meal Tray & Cargo Crate', 'صينية الوجبة وصندوق الشحن')}
+              {tr(language, 'Meal Tray & HEPA Filter', 'صينية الوجبة وفلتر الهواء')}
             </div>
             <div className="text-[11px] text-indigo-200">
-              {tr(language, 'Tap pantry foods to pack safe rations', 'اضغط على الطعام لإضافته إلى الصندوق الآمن')}
+              {tr(
+                language,
+                'Drag OR Tap zero-crumb foods here to earn Orbit Fuel!',
+                'اسحب أو اضغط الأطعمة الآمنة هنا لكسب وقود الدفع!'
+              )}
+            </div>
+            <div className="mt-1.5 rounded-xl bg-slate-950/85 border border-cyan-500/40 p-2 space-y-1">
+              <div className="flex items-center justify-between text-[10px] font-hud font-bold">
+                <span className="text-cyan-200">
+                  {tr(language, `Cabin HEPA Airflow: ${cabinFilterPct}%`, `كفاءة فلتر الكابينة: ${cabinFilterPct}%`)}
+                </span>
+                <span className="text-amber-300">
+                  {tr(
+                    language,
+                    `+${(selectedIds.includes('sinai_honey') ? 2 : selectedIds.length > 0 ? 1 : 0) + (totalKg > 0 && totalKg <= 16 ? 1 : 0)}⚡ Fuel`,
+                    `+${(selectedIds.includes('sinai_honey') ? 2 : selectedIds.length > 0 ? 1 : 0) + (totalKg > 0 && totalKg <= 16 ? 1 : 0)}⚡ دفع`
+                  )}
+                </span>
+              </div>
+              <canvas ref={hepaCanvasRef} width={220} height={34} className="w-full h-8 rounded-lg" />
             </div>
           </div>
 
@@ -718,6 +799,21 @@ const EquipmentInspectionScene: React.FC<{
   };
 
   const validItemsCount = EQUIP_INSPECTION_LIST.filter((i) => i.shouldPack).length;
+  const EQUIP_MASS_KG: Record<string, number> = {
+    med_kit: 3.5,
+    tool_set: 4.5,
+    comms_headset: 2.0,
+    oxygen_gauge: 3.0,
+    sleep_bag: 4.0,
+    game_console: 6.5,
+    broken_helmet: 5.5
+  };
+  const packedKg = EQUIP_INSPECTION_LIST.reduce(
+    (sum, item) => sum + (decisions[item.id] === 'packed' ? (EQUIP_MASS_KG[item.id] ?? 3.0) : 0),
+    0
+  );
+  const maxEquipKg = 18;
+  const beamTiltDeg = Math.max(-14, Math.min(14, (packedKg - maxEquipKg) * 2.4));
   const resolvedCorrectly = EQUIP_INSPECTION_LIST.every((item) => {
     const d = decisions[item.id];
     return (item.shouldPack && d === 'packed') || (!item.shouldPack && d === 'rejected');
@@ -737,6 +833,36 @@ const EquipmentInspectionScene: React.FC<{
         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-950 border border-amber-400 text-amber-200">
           {tr(language, `Valid hardware needed: ${validItemsCount}`, `المعدات الصالحة المطلوبة: ${validItemsCount}`)}
         </span>
+      </div>
+
+      {/* Interactive Launch Loadout Balance Beam (<= 18 kg) */}
+      <div className="rounded-2xl bg-slate-950/90 border border-amber-400/40 p-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex-1 w-full space-y-1">
+          <div className="flex items-center justify-between text-xs font-hud font-black">
+            <span className={packedKg > maxEquipKg ? 'text-rose-300' : 'text-emerald-300'}>
+              {tr(
+                language,
+                `⚖️ Loadout Beam: ${packedKg.toFixed(1)} / ${maxEquipKg} kg`,
+                `⚖️ ميزان الحمولة: ${packedKg.toFixed(1)} / ${maxEquipKg} كجم`
+              )}
+            </span>
+            <span className="text-slate-300">
+              {packedKg > maxEquipKg
+                ? tr(language, 'Overweight!', 'وزن زائد!')
+                : resolvedCorrectly
+                ? tr(language, 'Balanced ✓', 'متوازن ✓')
+                : tr(language, 'Within Limit', 'ضمن الحد المسموح')}
+            </span>
+          </div>
+          <svg viewBox="0 0 260 44" className="w-full h-11 overflow-visible">
+            <polygon points="130,24 120,40 140,40" fill="#64748b" />
+            <g transform={`rotate(${beamTiltDeg}, 130, 22)`}>
+              <rect x="26" y="19" width="208" height="6" rx="3" fill={packedKg > maxEquipKg ? '#f43f5e' : '#34d399'} />
+              <rect x="36" y="6" width="38" height="12" rx="3" fill="#38bdf8" />
+              <rect x="186" y="6" width="38" height="12" rx="3" fill="#fbbf24" />
+            </g>
+          </svg>
+        </div>
       </div>
 
       {feedback && (
@@ -857,11 +983,14 @@ const MissionControlLaunchScene: React.FC<{
 }> = ({ campaign, onComplete, onNextLevel, onBackToLevel }) => {
   const { language } = useGameState();
   const [navSynced, setNavSynced] = useState(false);
+  const [loxPct, setLoxPct] = useState(52);
+  const [lh2Pct, setLh2Pct] = useState(56);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [launchSuccess, setLaunchSuccess] = useState(
     campaign.completedMiniGames.includes('l1_mission_launch')
   );
   const timersRef = useRef<number[]>([]);
+  const gantryCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     return () => {
@@ -869,12 +998,97 @@ const MissionControlLaunchScene: React.FC<{
     };
   }, []);
 
+  const propCalibrated = loxPct >= 68 && loxPct <= 84 && lh2Pct >= 68 && lh2Pct <= 84;
   const isDemoUnlocked = campaign.unlockedLevels.length >= 4;
   const reqFood = campaign.completedMiniGames.includes('l1_food_prep') || isDemoUnlocked;
   const reqEquip = campaign.completedMiniGames.includes('l1_equipment_prep') || isDemoUnlocked;
   const reqMed = campaign.completedMiniGames.includes('l1_medical_check') || isDemoUnlocked;
-  const reqShip = campaign.completedMiniGames.includes('l1_spaceship_inspect') || isDemoUnlocked;
+  const reqShip = propCalibrated || isDemoUnlocked || launchSuccess;
   const canLaunch = reqFood && reqEquip && reqMed && reqShip && navSynced;
+
+  useEffect(() => {
+    const canvas = gantryCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    let rafId = 0;
+    const startMs = performance.now();
+    const render = () => {
+      rafId = window.requestAnimationFrame(render);
+      const t = (performance.now() - startMs) / 1000;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Night sky gradient
+      const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      bg.addColorStop(0, '#020617');
+      bg.addColorStop(1, '#1e1b4b');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Launch tower gantry on left
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(36, 22, 16, 128);
+      // Retractable umbilical arm
+      const armRetract = launchSuccess || (countdown !== null && countdown <= 1) ? -22 : 0;
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(52, 54);
+      ctx.lineTo(94 + armRetract, 54);
+      ctx.stroke();
+
+      const liftY = launchSuccess ? -52 : countdown !== null ? Math.sin(t * 28) * 1.5 : 0;
+      const rx = 104;
+      const ry = 36 + liftY;
+
+      // Cryogenic vapor wisps when fueled
+      for (let i = 0; i < 6; i++) {
+        const wispX = rx + 10 + Math.sin(t * 2 + i) * 14;
+        const wispY = ry + 32 + ((t * 16 + i * 11) % 34);
+        ctx.fillStyle = 'rgba(186,230,253,0.28)';
+        ctx.beginPath();
+        ctx.arc(wispX, wispY, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Fiery SLS exhaust plume on ignition / launch
+      if (launchSuccess || countdown !== null) {
+        const flameH = launchSuccess ? 58 + Math.sin(t * 32) * 8 : 26 + Math.sin(t * 25) * 6;
+        ctx.fillStyle = '#f97316';
+        ctx.beginPath();
+        ctx.moveTo(rx - 10, ry + 86);
+        ctx.lineTo(rx + 26, ry + 86);
+        ctx.lineTo(rx + 8, ry + 86 + flameH);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#fde047';
+        ctx.beginPath();
+        ctx.arc(rx + 8, ry + 90, 9, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Twin White SRBs + Orange Artemis Core
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(rx - 8, ry + 20, 8, 66);
+      ctx.fillRect(rx + 16, ry + 20, 8, 66);
+      ctx.fillStyle = '#ea580c';
+      ctx.fillRect(rx, ry + 12, 16, 74);
+      // White upper stage & Orion cone
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.moveTo(rx + 8, ry - 8);
+      ctx.lineTo(rx, ry + 12);
+      ctx.lineTo(rx + 16, ry + 12);
+      ctx.closePath();
+      ctx.fill();
+
+      // Pad base
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(18, 146, canvas.width - 36, 12);
+    };
+    render();
+    return () => window.cancelAnimationFrame(rafId);
+  }, [countdown, launchSuccess]);
 
   const startCountdown = () => {
     if (!canLaunch || countdown !== null) return;
@@ -904,20 +1118,22 @@ const MissionControlLaunchScene: React.FC<{
     <div className="bg-slate-900/95 border-2 border-purple-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
       {/* Launch Pad Illustrated Window + Telemetry Checklist */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-        <div className="md:col-span-5 rounded-2xl bg-gradient-to-b from-[#081b3b] to-slate-950 border-2 border-cyan-400/50 p-4 flex flex-col items-center justify-center relative overflow-hidden min-h-[190px]">
-          <div className="text-[11px] font-black text-cyan-200 absolute top-2.5 right-3">
-            {tr(language, '🪟 Live Launch Pad Window', '🪟 نافذة منصة الإطلاق المباشرة')}
+        <div className="md:col-span-5 rounded-2xl bg-gradient-to-b from-[#081b3b] to-slate-950 border-2 border-cyan-400/50 p-3 flex flex-col items-center justify-between gap-2 relative overflow-hidden min-h-[190px]">
+          <div className="text-[11px] font-black text-cyan-200 self-end">
+            {tr(language, '🪟 Artemis Gantry Live View', '🪟 منصة إطلاق أرتميس المباشرة')}
           </div>
-          <div className={`text-6xl transition-transform duration-700 ${launchSuccess ? '-translate-y-12 scale-110' : ''}`}>
-            🚀
-          </div>
-          <div className="w-32 h-3 rounded-full bg-slate-700 mt-3 border border-slate-500" />
-          <div className="text-[11px] font-bold text-slate-300 mt-2">
+          <canvas
+            ref={gantryCanvasRef}
+            width={216}
+            height={162}
+            className="w-full max-w-[230px] h-40 rounded-xl border border-cyan-500/30"
+          />
+          <div className="text-[11px] font-bold text-slate-300">
             {launchSuccess
               ? tr(language, '🔥 Ascending to Orbit!', '🔥 تم الإقلاع نحو المدار!')
               : canLaunch
               ? tr(language, 'Go for Ignition', 'جاهز للاشتعال الكامل')
-              : tr(language, 'Awaiting checks & navigation sync', 'في انتظار اكتمال الفحوصات ومزامنة الملاحة')}
+              : tr(language, 'Calibrate LOX/LH2 & sync navigation', 'عاير صمامَي الوقود وزامن الملاحة')}
           </div>
         </div>
 
@@ -932,7 +1148,7 @@ const MissionControlLaunchScene: React.FC<{
               { ok: reqFood, label: tr(language, '1. Food Pantry', '1. مخزن الطعام (Food)') },
               { ok: reqEquip, label: tr(language, '2. Gear Check', '2. فحص المعدات (Equipment)') },
               { ok: reqMed, label: tr(language, '3. Medical OK', '3. الفحص الطبي (Medical)') },
-              { ok: reqShip, label: tr(language, '4. Ship Systems', '4. أنظمة المركبة (Rocket)') }
+              { ok: reqShip, label: tr(language, '4. LOX/LH2 Propellant', '4. صمامات الوقود LOX/LH2') }
             ].map((r) => (
               <div
                 key={r.label}
@@ -944,6 +1160,47 @@ const MissionControlLaunchScene: React.FC<{
                 <span>{r.label}</span>
               </div>
             ))}
+          </div>
+
+          <div className="p-3 rounded-2xl bg-slate-950/85 border border-cyan-500/40 space-y-2 text-xs">
+            <div className="flex items-center justify-between font-hud font-black">
+              <span className="text-cyan-200">
+                {tr(language, '⚗️ Cryogenic Propellant Valves (Target: 68%–84%)', '⚗️ معايرة صمامات الوقود (النطاق الأخضر: 68%–84%)')}
+              </span>
+              <span className={propCalibrated ? 'text-emerald-300' : 'text-amber-300'}>
+                {propCalibrated ? tr(language, 'Sealed ✓', 'متوازن ✓') : tr(language, 'Adjust Sliders', 'اضبط المؤشرات')}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="space-y-1 block">
+                <span className="flex justify-between text-[11px] font-bold text-sky-200">
+                  <span>{tr(language, 'LOX Oxygen', 'الأكسجين السائل LOX')}</span>
+                  <span className={loxPct >= 68 && loxPct <= 84 ? 'text-emerald-300' : 'text-amber-300'}>{loxPct}%</span>
+                </span>
+                <input
+                  type="range"
+                  min={30}
+                  max={100}
+                  value={loxPct}
+                  onChange={(e) => setLoxPct(Number(e.target.value))}
+                  className="w-full accent-sky-400 cursor-pointer"
+                />
+              </label>
+              <label className="space-y-1 block">
+                <span className="flex justify-between text-[11px] font-bold text-amber-200">
+                  <span>{tr(language, 'LH2 Hydrogen', 'الهيدروجين السائل LH2')}</span>
+                  <span className={lh2Pct >= 68 && lh2Pct <= 84 ? 'text-emerald-300' : 'text-amber-300'}>{lh2Pct}%</span>
+                </span>
+                <input
+                  type="range"
+                  min={30}
+                  max={100}
+                  value={lh2Pct}
+                  onChange={(e) => setLh2Pct(Number(e.target.value))}
+                  className="w-full accent-amber-400 cursor-pointer"
+                />
+              </label>
+            </div>
           </div>
 
           {/* Interactive Fault Resolution: Sync Navigation Data */}
@@ -1043,10 +1300,46 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
 }) => {
   const { language } = useGameState();
   const [hydrationFixed, setHydrationFixed] = useState(campaign.l1MedicalCleared);
+  const [hydrationHoldMs, setHydrationHoldMs] = useState(campaign.l1MedicalCleared ? 1500 : 0);
+  const [sleepBedHour, setSleepBedHour] = useState<number>(campaign.l1MedicalCleared ? 22 : 24);
   const [sleepFixed, setSleepFixed] = useState(campaign.l1MedicalCleared);
+  const holdTimerRef = useRef<number | null>(null);
   const [checkedShip, setCheckedShip] = useState<string[]>(
     campaign.l1SpaceshipInspected ? L1_SHIP_SYSTEMS.map((s) => s.id) : []
   );
+
+  useEffect(() => {
+    return () => {
+      if (holdTimerRef.current !== null) window.clearInterval(holdTimerRef.current);
+    };
+  }, []);
+
+  const startHydrationHold = () => {
+    if (hydrationFixed || holdTimerRef.current !== null) return;
+    soundManager.playClick();
+    holdTimerRef.current = window.setInterval(() => {
+      setHydrationHoldMs((prev) => {
+        const next = prev + 100;
+        if (next >= 1500) {
+          if (holdTimerRef.current !== null) {
+            window.clearInterval(holdTimerRef.current);
+            holdTimerRef.current = null;
+          }
+          soundManager.playDropSuccess();
+          setHydrationFixed(true);
+          return 1500;
+        }
+        return next;
+      });
+    }, 90);
+  };
+
+  const stopHydrationHold = () => {
+    if (holdTimerRef.current !== null) {
+      window.clearInterval(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  };
 
   if (miniGameId === 'l1_food_prep') {
     return (
@@ -1107,43 +1400,64 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
             <p className="font-hud text-xs mt-1 text-slate-200">
               {hydrationFixed
                 ? tr(language, 'Optimal hydration: 96%!', 'ترطيب مثالي: 96%!')
-                : tr(language, 'Mild dehydration (62%)! Drink water before launch.', 'تحذير جفاف طفيف (62%)! اشرب ماء قبل الإطلاق.')}
+                : tr(language, 'Hold hydration valve for 1.5s to rehydrate before launch.', 'اضغط مطوّلاً 1.5 ثانية لملء الترطيب قبل الإطلاق.')}
             </p>
+            <div className="mt-2 h-2.5 w-full rounded-full bg-slate-950 overflow-hidden border border-cyan-500/40">
+              <div
+                className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-all duration-100"
+                style={{ width: `${Math.min(100, Math.round((hydrationHoldMs / 1500) * 100))}%` }}
+              />
+            </div>
             {!hydrationFixed && (
-              <button
-                type="button"
-                onClick={() => {
-                  soundManager.playDropSuccess();
-                  setHydrationFixed(true);
-                }}
-                className="mt-3 px-3 py-1.5 rounded-xl bg-cyan-500 text-slate-950 font-hud font-black text-xs cursor-pointer"
-              >
-                {tr(language, 'Fix: Drink Water 💧', 'عالج: شرب الماء 💧')}
-              </button>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onPointerDown={startHydrationHold}
+                  onPointerUp={stopHydrationHold}
+                  onPointerLeave={stopHydrationHold}
+                  className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-hud font-black text-xs cursor-pointer select-none"
+                >
+                  {tr(language, 'Hold Valve 1.5s 💧', 'اضغط الصمام 1.5ث 💧')}
+                </button>
+              </div>
             )}
           </div>
 
           <div className={`p-4 rounded-2xl border-2 ${sleepFixed ? 'bg-emerald-950/70 border-emerald-400' : 'bg-amber-950/70 border-amber-400'}`}>
             <p className="font-hud font-black text-base text-white">
-              {tr(language, '😴 Sleep & Recovery', '😴 مؤشر النوم والراحة')}
+              {tr(language, '😴 Circadian Sleep (10 PM → 6 AM)', '😴 الساعة البيولوجية (10 م ← 6 ص)')}
             </p>
             <p className="font-hud text-xs mt-1 text-slate-200">
               {sleepFixed
-                ? tr(language, 'Well-rested: 8.5 hours!', 'نوم كافٍ: 8.5 ساعات!')
-                : tr(language, 'Alert: Only 5h sleep logged! Rest crew now.', 'تنبيه: 5 ساعات نوم فقط! اضبط راحة الطاقم.')}
+                ? tr(language, 'Aligned 10 PM → 6 AM (8h restorative cycle!)', 'مضبوط 10 م ← 6 ص (8 ساعات نوم متكاملة!)')
+                : tr(language, 'Slide bedtime to 10 PM (22:00) for an 8h sleep cycle.', 'اسحب وقت النوم إلى 10 مساءً (22:00) لإتمام 8 ساعات.')}
             </p>
-            {!sleepFixed && (
-              <button
-                type="button"
-                onClick={() => {
-                  soundManager.playCrystalSparkle();
-                  setSleepFixed(true);
+            <div className="mt-2 space-y-1">
+              <div className="flex justify-between text-[11px] font-bold text-indigo-200">
+                <span>{tr(language, `Bedtime: ${sleepBedHour}:00`, `وقت النوم: ${sleepBedHour}:00`)}</span>
+                <span className={sleepFixed ? 'text-emerald-300' : 'text-amber-300'}>
+                  {sleepFixed ? '8.0h ✓' : `${Math.max(4, 30 - sleepBedHour - 2).toFixed(0)}h`}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={20}
+                max={24}
+                step={1}
+                value={sleepBedHour}
+                onChange={(e) => {
+                  const hr = Number(e.target.value);
+                  setSleepBedHour(hr);
+                  if (hr <= 22 && hr >= 21) {
+                    soundManager.playCrystalSparkle();
+                    setSleepFixed(true);
+                  } else {
+                    setSleepFixed(false);
+                  }
                 }}
-                className="mt-3 px-3 py-1.5 rounded-xl bg-indigo-400 text-slate-950 font-hud font-black text-xs cursor-pointer"
-              >
-                {tr(language, 'Fix: Complete 8h Rest 🛏️', 'عالج: إتمام 8 ساعات راحة 🛏️')}
-              </button>
-            )}
+                className="w-full accent-indigo-400 cursor-pointer"
+              />
+            </div>
           </div>
         </div>
 

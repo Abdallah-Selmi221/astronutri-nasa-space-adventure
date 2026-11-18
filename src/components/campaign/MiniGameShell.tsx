@@ -18,6 +18,7 @@ import { soundManager } from '../../utils/sound';
 import { openNasaDrawer } from '../common/NasaMissionControlDrawer';
 import { MissionInventoryBar } from './MissionInventoryBar';
 import { StageStoryBanner } from './StageStoryBanner';
+import { MiniGameDemoOverlay } from './MiniGameDemoOverlay';
 
 export interface MiniGameShellProps {
   miniGameId: MiniGameId;
@@ -36,10 +37,12 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
 }) => {
   const { state, language, ageGroup, setLanguage } = useGameState();
   const [briefingAccepted, setBriefingAccepted] = useState<boolean>(isCompleted);
+  const [demoDismissed, setDemoDismissed] = useState<boolean>(isCompleted);
   const campaign = state.campaign;
 
   useEffect(() => {
     setBriefingAccepted(isCompleted);
+    setDemoDismissed(isCompleted);
   }, [miniGameId, isCompleted]);
 
   const spec = MINI_GAME_SPECS[miniGameId];
@@ -92,19 +95,35 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
 
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
           {briefingAccepted && (
-            <button
-              type="button"
-              data-testid="reopen-briefing-btn"
-              onClick={() => {
-                soundManager.playClick();
-                setBriefingAccepted(false);
-              }}
-              className="px-2.5 py-1.5 rounded-2xl bg-indigo-950/90 hover:bg-indigo-900 text-indigo-100 border border-indigo-400/60 text-xs font-hud font-black flex items-center gap-1 cursor-pointer"
-            >
-              <span>🤖</span>
-              <span className="hidden sm:inline">{tr(language, 'Show Robo Briefing', 'عرض شرح روبو')}</span>
-              <span className="sm:hidden">{tr(language, 'Tip', 'شرح')}</span>
-            </button>
+            <>
+              {demoDismissed && (
+                <button
+                  type="button"
+                  data-testid="replay-demo-btn"
+                  onClick={() => {
+                    soundManager.playClick();
+                    setDemoDismissed(false);
+                  }}
+                  className="px-2.5 py-1.5 rounded-2xl bg-cyan-950/90 hover:bg-cyan-900 text-cyan-100 border border-cyan-400/60 text-xs font-hud font-black flex items-center gap-1 cursor-pointer"
+                >
+                  <span>🎬</span>
+                  <span className="hidden sm:inline">{tr(language, 'Watch 5s Demo', 'مشاهدة العرض')}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                data-testid="reopen-briefing-btn"
+                onClick={() => {
+                  soundManager.playClick();
+                  setBriefingAccepted(false);
+                }}
+                className="px-2.5 py-1.5 rounded-2xl bg-indigo-950/90 hover:bg-indigo-900 text-indigo-100 border border-indigo-400/60 text-xs font-hud font-black flex items-center gap-1 cursor-pointer"
+              >
+                <span>🤖</span>
+                <span className="hidden sm:inline">{tr(language, 'Show Robo Briefing', 'عرض شرح روبو')}</span>
+                <span className="sm:hidden">{tr(language, 'Tip', 'شرح')}</span>
+              </button>
+            </>
           )}
 
           <button
@@ -286,6 +305,12 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
             </button>
           </div>
         </motion.section>
+      ) : !demoDismissed ? (
+        <MiniGameDemoOverlay
+          key={`demo-${miniGameId}`}
+          miniGameId={miniGameId}
+          onFinish={() => setDemoDismissed(true)}
+        />
       ) : (
         /* Stage 2: Interactive Mini-Game Workspace */
         <motion.section

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { CampaignProgressState, MiniGameId } from '../../types/game';
 import { useGameState } from '../../context/GameContext';
@@ -9,8 +9,9 @@ import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { NASA_OSDR_METRICS } from '../../services/nasa/nasaOSDR';
 import { DAILY_REFERENCE_ASSUMPTIONS, SCIENCE_BADGES } from '../../data/science';
+import { computeCrossStageEffects } from '../../utils/consequences';
 import { BodyTelemetryMeters } from './BodyTelemetryMeters';
-import { ArrowDown, ArrowUp, CheckCircle2, Hand, Radar, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, Flame, Hand, Radar, ShieldCheck } from 'lucide-react';
 
 interface Level2Props {
   miniGameId: MiniGameId;
@@ -63,10 +64,21 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
   onBackToLevel
 }) => {
   const { language } = useGameState();
+  const effects = computeCrossStageEffects(campaign);
 
-  // 2.1 Zero-G Handrail Momentum
+  // 2.1 Zero-G Handrail Momentum & Velcro Salvage
+  const CORRIDOR_VELCRO_ITEMS = [
+    { id: 'wrench', pct: 28, icon: '🔧', en: 'Zero-G Wrench', ar: 'مفتاح ربط طائر' },
+    { id: 'pouch', pct: 52, icon: '🥗', en: 'Sealed Ration', ar: 'كيس طعام' },
+    { id: 'sensor', pct: 72, icon: '📡', en: 'Comms Sensor', ar: 'حساس اتصال' }
+  ];
   const [roboX, setRoboX] = useState<number>(8); // 0..92 %
   const [velX, setVelX] = useState<number>(0);
+  const [salvagedItems, setSalvagedItems] = useState<string[]>(
+    campaign.completedMiniGames.includes('l2_zerog_movement')
+      ? ['wrench', 'pouch', 'sensor']
+      : campaign.l2SecuredObjects
+  );
   const [handrailWon, setHandrailWon] = useState<boolean>(
     campaign.completedMiniGames.includes('l2_zerog_movement')
   );
@@ -76,9 +88,14 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
   const [stowed, setStowed] = useState<string[]>(campaign.l2SecuredObjects);
   const [selectedFloating, setSelectedFloating] = useState<string | null>(null);
 
-  // 2.3 Balanced Meal
+  // 2.3 Balanced Meal + Inline Embedded HydrationGame
   const [trayGroups, setTrayGroups] = useState<string[]>(
     campaign.completedMiniGames.includes('l2_balanced_meal') ? MEAL_GROUPS.map((g) => g.id) : []
+  );
+  const [inlineHydrationDone, setInlineHydrationDone] = useState<boolean>(
+    campaign.l2HydrationPercent >= 90 ||
+      campaign.completedMiniGames.includes('l2_hydration') ||
+      campaign.completedMiniGames.includes('l2_balanced_meal')
   );
 
   // 2.5 Motion Sickness & Rest
@@ -86,7 +103,7 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
   const [restedCrew, setRestedCrew] = useState<boolean>(campaign.l2MotionRested);
   const [medSupportSent, setMedSupportSent] = useState<boolean>(campaign.l2MotionRested);
 
-  // 2.6 Final Systems & Live 3-Lane NASA NeoWs Asteroid Dodge
+  // 2.6 Final Systems & Live NASA NeoWs Asteroid Dodge
   const [sysChecks, setSysChecks] = useState<string[]>(
     campaign.completedMiniGames.includes('l2_systems_neows')
       ? ['oxygen', 'water', 'power', 'comms', 'navigation']
@@ -98,18 +115,67 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
   const [dodgesCleared, setDodgesCleared] = useState<number>(
     campaign.completedMiniGames.includes('l2_systems_neows') ? 2 : 0
   );
+  const [boostCharges, setBoostCharges] = useState<number>(effects.thrusterFuelBonus);
+  const [vestibularChecked, setVestibularChecked] = useState<boolean>(
+    campaign.l2MotionRested || campaign.completedMiniGames.includes('l2_systems_neows')
+  );
   const [radarToast, setRadarToast] = useState<string | null>(null);
   const [arrivalConfirmed, setArrivalConfirmed] = useState<boolean>(
     campaign.completedMiniGames.includes('l2_systems_neows')
   );
   const asteroid2010PK = nasaCache.getAsteroid('3542519');
+  const neowsCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Physics loop for 2.1 Zero-G Corridor
+  useEffect(() => {
+    const canvas = neowsCanvasRef.current;
+    if (!canvas || miniGameId !== 'l2_systems_neows') return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    let rafId = 0;
+    const stars = Array.from({ length: 26 }, (_, i) => ({
+      x: (i * 23) % canvas.width,
+      y: 6 + ((i * 17) % (canvas.height - 12)),
+      speed: 1.4 + (asteroid2010PK.relativeVelocityKmS || 10) * 0.14
+    }));
+    const draw = () => {
+      rafId = window.requestAnimationFrame(draw);
+      ctx.fillStyle = '#020617';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      stars.forEach((s) => {
+        s.x -= s.speed;
+        if (s.x < 0) s.x = canvas.width;
+        ctx.fillStyle = 'rgba(186,230,253,0.72)';
+        ctx.fillRect(s.x, s.y, 4, 1.5);
+      });
+      // Trajectory target scan line
+      ctx.strokeStyle = 'rgba(56,189,248,0.28)';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(0, (shuttleLane + 0.5) * (canvas.height / 3));
+      ctx.lineTo(canvas.width, (shuttleLane + 0.5) * (canvas.height / 3));
+      ctx.stroke();
+      ctx.setLineDash([]);
+    };
+    draw();
+    return () => window.cancelAnimationFrame(rafId);
+  }, [miniGameId, shuttleLane, asteroid2010PK.relativeVelocityKmS]);
+
+  // Physics loop for 2.1 Zero-G Corridor & Velcro Salvage
   useEffect(() => {
     if (miniGameId !== 'l2_zerog_movement' || handrailWon) return;
     const timer = window.setInterval(() => {
       setRoboX((x) => {
         const next = x + velX;
+        CORRIDOR_VELCRO_ITEMS.forEach((vItem) => {
+          if (Math.abs(next - vItem.pct) <= 8) {
+            setSalvagedItems((prev) => {
+              if (prev.includes(vItem.id)) return prev;
+              soundManager.playDropSuccess();
+              return [...prev, vItem.id];
+            });
+          }
+        });
+
         if (next >= 86) {
           if (Math.abs(velX) <= 1.2) {
             setHandrailWon(true);
@@ -117,11 +183,13 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
             void dialogueManager.speak(
               tr(
                 language,
-                'Awesome! You reached the airlock safely using the handrail brake in zero gravity!',
-                'عاش يا بطل! وصلت لنهاية الممر باستخدام الدرابزين بأمان في انعدام الجاذبية!'
+                'Awesome! You salvaged the zero-G tools and docked safely using the handrail brake!',
+                'عاش يا بطل! التقطت الأدوات الطافية ووصلت لنهاية الممر باستخدام الدرابزين بأمان!'
               )
             );
-            onCompleteMiniGame('l2_zerog_movement');
+            onCompleteMiniGame('l2_zerog_movement', {
+              l2SecuredObjects: ['wrench', 'pouch', 'sensor']
+            });
             return 88;
           } else {
             soundManager.playAlertSiren();
@@ -201,12 +269,45 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
             <span>🚪</span>
             <span>{tr(language, 'GOAL', 'هدف')}</span>
           </div>
+          {CORRIDOR_VELCRO_ITEMS.map((item) => {
+            const caught = salvagedItems.includes(item.id);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  if (!caught) {
+                    soundManager.playDropSuccess();
+                    setSalvagedItems((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
+                  }
+                }}
+                style={{ right: `${item.pct}%` }}
+                className={`absolute top-8 -translate-x-1/2 px-2 py-1 rounded-xl border text-xs font-hud font-black transition-all cursor-pointer ${
+                  caught
+                    ? 'bg-emerald-950/70 border-emerald-400 text-emerald-300 opacity-50 scale-90'
+                    : 'bg-sky-950/90 border-cyan-300 text-white animate-bounce shadow-lg'
+                }`}
+                title={tr(language, item.en, item.ar)}
+              >
+                {item.icon} {caught ? '✓' : ''}
+              </button>
+            );
+          })}
           <div
             style={{ right: `${roboX}%` }}
             className="absolute top-1/2 -translate-y-1/2 text-4xl transition-all duration-75"
           >
             🧑‍🚀
           </div>
+        </div>
+        <div className="flex items-center justify-between text-xs font-hud font-bold text-cyan-200 px-1">
+          <span>
+            {tr(
+              language,
+              `Floating Velcro Gear Salvaged: ${salvagedItems.length}/3 (auto-collect on pass or tap)`,
+              `الأدوات الملتقطة بانعدام الجاذبية: ${salvagedItems.length}/3 (مر بها أو اضغطها)`
+            )}
+          </span>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-950/90 rounded-2xl p-3 border border-slate-700">
@@ -354,9 +455,27 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
       setTrayGroups((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
     };
     const balanced = trayGroups.length >= MEAL_GROUPS.length;
+    const readyToConfirmMeal = balanced && inlineHydrationDone;
 
     return (
       <div className="bg-slate-900/95 border-2 border-emerald-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
+        {/* Stage 1 -> Stage 2 Live Consequence Banner */}
+        <div className="p-3 rounded-2xl bg-slate-950/90 border border-cyan-500/45 flex flex-wrap items-center justify-between gap-2 text-xs font-hud font-bold">
+          <span className="text-cyan-200">
+            🔗 {tr(
+              language,
+              `Level 1 Carry-Over: Cabin HEPA Filter ${effects.cabinFilterHealthPct}%`,
+              `تأثير المرحلة 1: نقاء فلتر الكابينة ${effects.cabinFilterHealthPct}%`
+            )}
+          </span>
+          <span className={effects.thrusterFuelBonus > 0 ? 'text-amber-300' : 'text-slate-400'}>
+            ⚡ {tr(
+              language,
+              `Compact Fuel Boost Ready: +${effects.thrusterFuelBonus}⚡`,
+              `وقود الدفع الإضافي للمدار: +${effects.thrusterFuelBonus}⚡`
+            )}
+          </span>
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="font-hud font-bold text-sm text-emerald-200">
             {tr(
@@ -412,9 +531,26 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
           })}
         </div>
 
+        {/* Phase 2: Embedded Inline Zero-G Hydration Valve Challenge */}
+        <div className="rounded-2xl border-2 border-cyan-400/50 bg-slate-950/75 p-3 space-y-2">
+          <div className="flex items-center justify-between text-xs font-hud font-black">
+            <span className="text-cyan-200">
+              💧 {tr(language, 'Phase 2: Orbit Zero-G Hydration Valve', 'المرحلة 2: صمام الترطيب في انعدام الجاذبية')}
+            </span>
+            <span className={inlineHydrationDone ? 'text-emerald-300' : 'text-amber-300'}>
+              {inlineHydrationDone
+                ? tr(language, 'Hydration Sealed ✓ (100%)', 'الترطيب مكتمل ✓ (100%)')
+                : tr(language, 'Complete valve below', 'أكمل تحدي الترطيب بالأسفل')}
+            </span>
+          </div>
+          {!inlineHydrationDone && (
+            <HydrationGame onComplete={() => setInlineHydrationDone(true)} />
+          )}
+        </div>
+
         <button
           type="button"
-          disabled={!balanced}
+          disabled={!readyToConfirmMeal}
           onClick={() => {
             soundManager.playFanfare();
             void dialogueManager.speak(
@@ -424,15 +560,17 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
                 'وجبة فضائية متوازنة مية في المية! هتدينا طاقة وبروتين في الرحلة!'
               )
             );
-            onCompleteMiniGame('l2_balanced_meal');
+            onCompleteMiniGame('l2_balanced_meal', { l2HydrationPercent: 100 });
           }}
           className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 ${
-            balanced
+            readyToConfirmMeal
               ? 'bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 border-white cursor-pointer'
               : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
           }`}
         >
-          {tr(language, 'Confirm Balanced Space Meal 🍱', 'تأكيد الوجبة المتوازنة 🍱')}
+          {readyToConfirmMeal
+            ? tr(language, 'Confirm Balanced Space Meal 🍱', 'تأكيد الوجبة المتوازنة 🍱')
+            : tr(language, 'Select all 4 food groups & complete Orbit Hydration 🔒', 'اختر المجموعات الأربع وأكمل تحدي الترطيب 🔒')}
         </button>
       </div>
     );
@@ -581,7 +719,7 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
     }
   ];
   const allSysChecked = sysChecks.length >= systems.length;
-  const readyForMoon = allSysChecked && dodgesCleared >= 2;
+  const readyForMoon = allSysChecked && dodgesCleared >= 2 && vestibularChecked;
 
   return (
     <div className="bg-slate-900/95 border-2 border-amber-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
@@ -599,6 +737,37 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
             )}
           </p>
         </div>
+        <canvas
+          ref={neowsCanvasRef}
+          width={156}
+          height={46}
+          className="rounded-xl border border-cyan-500/40 shrink-0"
+        />
+      </div>
+
+      {/* Inline Vestibular Fluid Shift Check (OSDR-354) */}
+      <div className="p-3 rounded-2xl bg-slate-950/90 border border-pink-400/45 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <span className="font-hud font-bold text-pink-200">
+          🧬 {tr(
+            language,
+            'Vestibular Adaptation Check: Counteract 0G fluid shift before lunar landing',
+            'فحص التوازن في 0G: تأكيد استقرار السوائل والأذن الداخلية قبل الهبوط'
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            soundManager.playDropSuccess();
+            setVestibularChecked(true);
+          }}
+          className={`px-3 py-1.5 rounded-xl font-hud font-black cursor-pointer ${
+            vestibularChecked
+              ? 'bg-emerald-500 text-slate-950'
+              : 'bg-pink-400 hover:bg-pink-300 text-slate-950'
+          }`}
+        >
+          {vestibularChecked ? tr(language, 'Stabilized ✓', 'مستقر ✓') : tr(language, 'Stabilize Vestibular ✓', 'تأكيد استقرار الطاقم')}
+        </button>
       </div>
 
       {/* Interactive 3-Lane NeoWs Asteroid Evasion Radar */}
@@ -610,11 +779,35 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
           <span className="text-cyan-200">
             ☄️ {tr(language, 'NeoWs Trajectory Evasion', 'تفادي صخور المدار القمري')}
           </span>
-          <span className={dodgesCleared >= 2 ? 'text-emerald-300' : 'text-amber-300'}>
-            {dodgesCleared >= 2
-              ? tr(language, 'Corridor Clear! ✅ (2/2)', 'تم تأمين الممر! ✅ (2/2)')
-              : tr(language, `Dodge 2 Rocks: ${dodgesCleared}/2`, `تفادَ صخرتين: ${dodgesCleared}/2`)}
-          </span>
+          <div className="flex items-center gap-2">
+            {boostCharges > 0 && dodgesCleared < 2 && (
+              <button
+                type="button"
+                data-testid="neows-fuel-boost-btn"
+                onClick={() => {
+                  soundManager.playFanfare();
+                  setBoostCharges((c) => Math.max(0, c - 1));
+                  setDodgesCleared((d) => Math.min(2, d + 1));
+                  setRadarToast(
+                    tr(
+                      language,
+                      '⚡ L1 Compact Ration Fuel Surge cleared the debris arc!',
+                      '⚡ وقود الطعام المضغوط فجّر مسار الحطام بنجاح!'
+                    )
+                  );
+                }}
+                className="px-2.5 py-1 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-[11px] flex items-center gap-1 cursor-pointer"
+              >
+                <Flame className="w-3 h-3" />
+                <span>{tr(language, `Use L1 Fuel Boost (${boostCharges}⚡)`, `دفع وقود م1 (${boostCharges}⚡)`)}</span>
+              </button>
+            )}
+            <span className={dodgesCleared >= 2 ? 'text-emerald-300' : 'text-amber-300'}>
+              {dodgesCleared >= 2
+                ? tr(language, 'Corridor Clear! ✅ (2/2)', 'تم تأمين الممر! ✅ (2/2)')
+                : tr(language, `Dodge 2 Rocks: ${dodgesCleared}/2`, `تفادَ صخرتين: ${dodgesCleared}/2`)}
+            </span>
+          </div>
         </div>
 
         <div className="space-y-1.5">
@@ -751,7 +944,7 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
                 'مبروووك! تم تأكيد الوصول إلى القمر! استعد لمهمات قاعدة أرتميس!'
               )
             );
-            onCompleteMiniGame('l2_systems_neows');
+            onCompleteMiniGame('l2_systems_neows', { l2MotionRested: true });
           }}
           className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 flex items-center justify-center gap-2 ${
             readyForMoon
