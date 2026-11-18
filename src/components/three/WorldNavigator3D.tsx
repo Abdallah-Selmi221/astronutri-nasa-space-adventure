@@ -4,11 +4,12 @@ import gsap from 'gsap';
 import { CAMPAIGN_LEVELS } from '../../data/campaignLevels';
 import { CampaignLevelId, CampaignProgressState, SpaceFitXState } from '../../types/game';
 import { soundManager } from '../../utils/sound';
-import { useGameState } from '../../context/GameContext';
+import { initialSpaceFitXState, useGameState } from '../../context/GameContext';
 import { LEVEL_TITLES_BILINGUAL } from '../../data/campaignBilingual';
 import { tr } from '../../utils/i18n';
 import { CheckCircle2, Lock } from 'lucide-react';
 import { createCosmicSkyBackdrop } from './archipelagoPrimitives';
+import { buildSpaceFitXCharacter } from './buildSpaceFitXCharacter';
 import {
   animateBlenderEnvironmentGlb,
   attachBlenderPlanetsFromPack,
@@ -490,10 +491,22 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     const beadDummy = new THREE.Object3D();
 
     // 3. Build 4 Distinct Space Nodes (Launchpad, ISS, Shackleton Moon Biodome, Orion Capsule)
-    const nodeGroups: { cfg: TrajectoryNodeConfig; root: THREE.Group; ring: THREE.Mesh; halo: THREE.Object3D }[] = [];
+    // Instanced orbital rings (1 draw call for all 4 halos, keeping total scene draw calls well below 55)
+    const ringGeo = new THREE.TorusGeometry(2.65, 0.12, 10, 32);
+    const ringMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: 0x0f172a,
+      emissiveIntensity: 0.48,
+      roughness: 0.3
+    });
+    const ringInst = new THREE.InstancedMesh(ringGeo, ringMat, TRAJECTORY_NODES.length);
+    scene.add(ringInst);
+    const ringDummy = new THREE.Object3D();
+
+    const nodeGroups: { cfg: TrajectoryNodeConfig; root: THREE.Group; halo: THREE.Object3D }[] = [];
     const glbLoadedRefs: THREE.Object3D[] = [];
 
-    TRAJECTORY_NODES.forEach((cfg) => {
+    TRAJECTORY_NODES.forEach((cfg, idx) => {
       const unlocked = unlockedSet.has(cfg.levelId);
       const completed = checkLevelCompleted(campaign, cfg.levelId);
       const isActive = activeTargetLevelId === cfg.levelId;
@@ -502,19 +515,10 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       root.position.copy(cfg.center);
       scene.add(root);
 
-      // Orbital ring docking halo
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(2.65, 0.12, 10, 32),
-        new THREE.MeshStandardMaterial({
-          color: completed ? 0x34d399 : unlocked ? cfg.accentColor : 0x475569,
-          emissive: completed ? 0x10b981 : isActive ? cfg.accentColor : 0x0f172a,
-          emissiveIntensity: isActive ? 0.95 : unlocked ? 0.48 : 0.15,
-          roughness: 0.3
-        })
+      ringInst.setColorAt(
+        idx,
+        new THREE.Color(completed ? 0x34d399 : unlocked ? cfg.accentColor : 0x475569)
       );
-      ring.rotation.x = Math.PI / 2;
-      ring.position.y = -0.35;
-      root.add(ring);
 
       // Compact procedural silhouette fallback until Blender .glb arrives
       const fallbackParts: ColoredGeometryPart[] = [
@@ -561,69 +565,24 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       halo.visible = isActive;
       root.add(halo);
 
-      nodeGroups.push({ cfg, root, ring, halo });
+      nodeGroups.push({ cfg, root, halo });
     });
+    if (ringInst.instanceColor) ringInst.instanceColor.needsUpdate = true;
 
-    // 4. Player's Articulated 3D SPACE-FIT X Explorer Astronaut + Jetpack Thruster Emitter
+    // 4. Player's Full Sculpted SPACE-FIT X Astronaut (astronaut_hero.glb + articulated limbs + Robo)
     const playerCraftRoot = new THREE.Group();
     scene.add(playerCraftRoot);
-    const suitHeroMat = new THREE.MeshStandardMaterial({
-      vertexColors: true,
-      roughness: 0.34,
-      metalness: 0.22
+    const hero = buildSpaceFitXCharacter({
+      showEvaHelmet: true,
+      showCompanion: true,
+      scale: 0.72
     });
-    const torsoHeadMesh = new THREE.Mesh(
-      mergeColoredParts([
-        // Torso + chest emblem
-        { geometry: new THREE.BoxGeometry(0.46, 0.56, 0.28), color: 0xf8fafc, position: [0, 0.84, 0] },
-        { geometry: new THREE.BoxGeometry(0.24, 0.16, 0.05), color: 0x38bdf8, position: [0, 0.9, 0.15] },
-        // Jetpack + dual cyan thruster nozzles
-        { geometry: new THREE.BoxGeometry(0.36, 0.44, 0.18), color: 0x1e293b, position: [0, 0.86, -0.2] },
-        { geometry: new THREE.CylinderGeometry(0.06, 0.08, 0.16, 8), color: 0x22d3ee, position: [-0.1, 0.58, -0.22] },
-        { geometry: new THREE.CylinderGeometry(0.06, 0.08, 0.16, 8), color: 0x22d3ee, position: [0.1, 0.58, -0.22] },
-        // Helmet + amber gold visor
-        { geometry: new THREE.SphereGeometry(0.26, 12, 10), color: 0xffffff, position: [0, 1.32, 0] },
-        { geometry: new THREE.SphereGeometry(0.19, 10, 8), color: 0xf59e0b, position: [0, 1.31, 0.11] }
-      ]),
-      suitHeroMat
-    );
-    torsoHeadMesh.castShadow = true;
-
-    const leftArm = new THREE.Mesh(
-      mergeColoredParts([{ geometry: new THREE.CapsuleGeometry(0.075, 0.28, 4, 8), color: 0xe2e8f0, position: [0, -0.16, 0] }]),
-      suitHeroMat
-    );
-    leftArm.position.set(-0.31, 1.04, 0);
-    leftArm.castShadow = true;
-
-    const rightArm = new THREE.Mesh(
-      mergeColoredParts([{ geometry: new THREE.CapsuleGeometry(0.075, 0.28, 4, 8), color: 0xe2e8f0, position: [0, -0.16, 0] }]),
-      suitHeroMat
-    );
-    rightArm.position.set(0.31, 1.04, 0);
-    rightArm.castShadow = true;
-
-    const leftLeg = new THREE.Mesh(
-      mergeColoredParts([
-        { geometry: new THREE.CapsuleGeometry(0.085, 0.34, 4, 8), color: 0xcbd5e1, position: [0, -0.22, 0] },
-        { geometry: new THREE.BoxGeometry(0.14, 0.12, 0.22), color: 0x0f172a, position: [0, -0.46, 0.04] }
-      ]),
-      suitHeroMat
-    );
-    leftLeg.position.set(-0.13, 0.54, 0);
-    leftLeg.castShadow = true;
-
-    const rightLeg = new THREE.Mesh(
-      mergeColoredParts([
-        { geometry: new THREE.CapsuleGeometry(0.085, 0.34, 4, 8), color: 0xcbd5e1, position: [0, -0.22, 0] },
-        { geometry: new THREE.BoxGeometry(0.14, 0.12, 0.22), color: 0x0f172a, position: [0, -0.46, 0.04] }
-      ]),
-      suitHeroMat
-    );
-    rightLeg.position.set(0.13, 0.54, 0);
-    rightLeg.castShadow = true;
-
-    playerCraftRoot.add(torsoHeadMesh, leftArm, rightArm, leftLeg, rightLeg);
+    hero.group.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        child.castShadow = true;
+      }
+    });
+    playerCraftRoot.add(hero.group);
 
     // Lightweight InstancedMesh Jetpack Thruster Exhaust Particles (1 draw call)
     const thrusterCount = 10;
@@ -637,18 +596,6 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       vel: new THREE.Vector3(0, -1, 0),
       life: (i / thrusterCount) * 0.45
     }));
-
-    const roboMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.35 });
-    const roboDrone = new THREE.Mesh(
-      mergeColoredParts([
-        { geometry: new THREE.SphereGeometry(0.18, 10, 8), color: 0x38bdf8, position: [0, 0, 0] },
-        { geometry: new THREE.BoxGeometry(0.22, 0.09, 0.14), color: 0x0f172a, position: [0, 0.02, 0.12] },
-        { geometry: new THREE.SphereGeometry(0.05, 6, 6), color: 0xfacc15, position: [0, 0.24, 0] }
-      ]),
-      roboMat
-    );
-    roboDrone.position.set(0.62, 0.95, -0.15);
-    playerCraftRoot.add(roboDrone);
 
     // Glowing Directional 3D Floor/Space Arrow pointing toward next Mission Node
     const floorArrow = createFloorGuideArrowSystem(scene);
@@ -787,16 +734,21 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       }
       beadInst.instanceMatrix.needsUpdate = true;
 
-      // Gentle hover + beacon spin on space nodes + animated Blender GLBs
+      // Gentle hover + beacon spin on space nodes + animated Blender GLBs + instanced halo rings
       glbLoadedRefs.forEach((g, idx) => animateBlenderEnvironmentGlb(g, elapsed + idx * 0.85));
-      nodeGroups.forEach(({ root, ring, halo, cfg }, idx) => {
-        ring.rotation.z = elapsed * 0.22 * (idx % 2 === 0 ? 1 : -1);
-        root.position.y = cfg.center.y + Math.sin(elapsed * 1.15 + idx * 1.1) * 0.14;
+      nodeGroups.forEach(({ root, halo, cfg }, idx) => {
+        const nodeY = cfg.center.y + Math.sin(elapsed * 1.15 + idx * 1.1) * 0.14;
+        root.position.y = nodeY;
+        ringDummy.position.set(cfg.center.x, nodeY - 0.35, cfg.center.z);
+        ringDummy.rotation.set(Math.PI / 2, 0, elapsed * 0.22 * (idx % 2 === 0 ? 1 : -1));
+        ringDummy.updateMatrix();
+        ringInst.setMatrixAt(idx, ringDummy.matrix);
         if (halo.visible) {
           halo.rotation.y = elapsed * 2.2;
           halo.position.y = 4.85 + Math.sin(elapsed * 3.4) * 0.25;
         }
       });
+      ringInst.instanceMatrix.needsUpdate = true;
 
       // Spacecraft Motion: either Free Flight OR Smooth Orbital Spline Auto-Fly
       let inputX = joystickVecRef.current.x;
@@ -938,7 +890,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         setShowIdleHint(true);
       }
 
-      // Animate Articulated SPACE-FIT X Astronaut Limbs + Jetpack Exhaust Particles + Robo Companion
+      // Animate Full Sculpted SPACE-FIT X Astronaut (GLB + limbs + companion Robo) + Thruster Plume
       const isCelebrating = now < celebrateUntilRef.current;
       const jetActive =
         isFlightModeRef.current ||
@@ -946,7 +898,6 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         isBoostingRef.current ||
         now < ascendUntilRef.current ||
         !isGroundedRef.current;
-      const isWalkingGround = !jetActive && inLen > 0.08 && isGroundedRef.current;
       const themeHex =
         suitStateRef.current?.suitTheme === 'mars_crimson'
           ? 0xf43f5e
@@ -954,36 +905,32 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
           ? 0x10b981
           : 0x22d3ee;
 
-      suitHeroMat.emissive.setHex(jetActive ? themeHex : 0x000000);
-      suitHeroMat.emissiveIntensity = jetActive ? 0.22 : 0;
+      const activeSuit = suitStateRef.current || initialSpaceFitXState;
+      const moveSpeedNorm =
+        isFlightModeRef.current || isAutoFlyingRef.current
+          ? inLen > 0.08 || isAutoFlyingRef.current
+            ? 1.0
+            : 0.15
+          : inLen > 0.08
+          ? isBoostingRef.current
+            ? 1.0
+            : 0.65
+          : 0;
 
-      if (isCelebrating) {
-        const wave = Math.sin(elapsed * 8.5);
-        leftArm.rotation.set(-2.4 + wave * 0.35, 0, -0.35);
-        rightArm.rotation.set(-2.4 - wave * 0.35, 0, 0.35);
-        leftLeg.rotation.set(0, 0, 0);
-        rightLeg.rotation.set(0, 0, 0);
-        torsoHeadMesh.position.y = Math.abs(wave) * 0.22;
-      } else if (jetActive) {
-        leftArm.rotation.set(-0.35, 0, -0.42);
-        rightArm.rotation.set(-0.35, 0, 0.42);
-        leftLeg.rotation.set(0.28 + Math.sin(elapsed * 5) * 0.1, 0, 0);
-        rightLeg.rotation.set(0.18 - Math.sin(elapsed * 5) * 0.1, 0, 0);
-        torsoHeadMesh.position.y = Math.sin(elapsed * 4) * 0.04;
-      } else if (isWalkingGround) {
-        const stride = Math.sin(elapsed * (isBoostingRef.current ? 12 : 9.2));
-        leftLeg.rotation.set(stride * 0.65, 0, 0);
-        rightLeg.rotation.set(-stride * 0.65, 0, 0);
-        leftArm.rotation.set(-stride * 0.55, 0, 0.08);
-        rightArm.rotation.set(stride * 0.55, 0, -0.08);
-        torsoHeadMesh.position.y = Math.abs(stride) * 0.045;
-      } else {
-        leftLeg.rotation.set(0, 0, 0);
-        rightLeg.rotation.set(0, 0, 0);
-        leftArm.rotation.set(Math.sin(elapsed * 1.6) * 0.05, 0, 0.08);
-        rightArm.rotation.set(-Math.sin(elapsed * 1.6) * 0.05, 0, -0.08);
-        torsoHeadMesh.position.y = Math.sin(elapsed * 2.1) * 0.025;
-      }
+      hero.update({
+        t: elapsed,
+        moveSpeed: moveSpeedNorm,
+        isRunning: isBoostingRef.current || isFlightModeRef.current || isAutoFlyingRef.current,
+        isJumping: !isGroundedRef.current,
+        isZeroG: jetActive,
+        suitState: {
+          ...activeSuit,
+          helmetEnabled: true,
+          backpackStyle: jetActive ? 'thruster' : activeSuit.backpackStyle || 'eclss'
+        },
+        idleSeconds: idleSec,
+        emote: isCelebrating ? 'celebrate' : 'none'
+      });
 
       // Jetpack thruster InstancedMesh update
       thrusterMat.color.setHex(isBoostingRef.current ? 0xfbbf24 : themeHex);
@@ -1019,9 +966,6 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         thrusterInst.setMatrixAt(i, thrusterDummy.matrix);
       }
       thrusterInst.instanceMatrix.needsUpdate = true;
-
-      roboDrone.position.y = 1.42 + Math.sin(elapsed * 3.4) * 0.14;
-      roboDrone.rotation.y = Math.sin(elapsed * 1.8) * 0.45;
 
       floorArrow.update(
         new THREE.Vector3(playerCraftRoot.position.x, playerCraftRoot.position.y + 0.14, playerCraftRoot.position.z),
@@ -1069,16 +1013,11 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       window.removeEventListener('resize', onResize);
       skyHandle.dispose();
       floorArrow.dispose();
-      torsoHeadMesh.geometry.dispose();
-      leftArm.geometry.dispose();
-      rightArm.geometry.dispose();
-      leftLeg.geometry.dispose();
-      rightLeg.geometry.dispose();
-      suitHeroMat.dispose();
+      hero.dispose();
+      ringGeo.dispose();
+      ringMat.dispose();
       thrusterGeo.dispose();
       thrusterMat.dispose();
-      roboDrone.geometry.dispose();
-      roboMat.dispose();
       disposableTextures.forEach((t) => t.dispose());
       renderer.dispose();
     };

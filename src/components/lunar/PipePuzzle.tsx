@@ -181,69 +181,125 @@ export const PipePuzzle: React.FC<PipePuzzleProps> = ({ isProcessorFailed, onPuz
     }
   }, [isFlowComplete, hasSolved, onPuzzleSolved]);
 
-  // Render SVG Pipe Graphics
+  // Render High-Craft Glass & Metallic Flange Pipe Graphics
   const renderPipeGraphic = (type: PipeType, isFlowing: boolean) => {
-    const strokeColor = isFlowing ? '#38bdf8' : '#64748b';
-    const flowGlow = isFlowing ? 'url(#cyanGlow)' : 'none';
-    const fluidFill = isFlowing ? '#0284c7' : '#1e293b';
+    const uid = `${type}-${isFlowing ? 'on' : 'off'}`;
+    const flowGlow = isFlowing ? `url(#cyanGlow-${uid})` : 'none';
+
+    const pipePaths: Record<PipeType, string[]> = {
+      straight: ['M50 0 L50 100'],
+      corner: ['M50 0 A50 50 0 0 1 100 50'],
+      tee: ['M0 50 L100 50', 'M50 0 L50 50'],
+      cross: ['M0 50 L100 50', 'M50 0 L50 100']
+    };
+    const flanges: Record<PipeType, Array<[number, number, number, number]>> = {
+      straight: [
+        [34, 0, 32, 7],
+        [34, 93, 32, 7]
+      ],
+      corner: [
+        [34, 0, 32, 7],
+        [93, 34, 7, 32]
+      ],
+      tee: [
+        [0, 34, 7, 32],
+        [93, 34, 7, 32],
+        [34, 0, 32, 7]
+      ],
+      cross: [
+        [0, 34, 7, 32],
+        [93, 34, 7, 32],
+        [34, 0, 32, 7],
+        [34, 93, 32, 7]
+      ]
+    };
+
+    const paths = pipePaths[type];
+    const collarRects = flanges[type];
 
     return (
-      <svg viewBox="0 0 100 100" className="w-full h-full p-1" style={{ filter: flowGlow }}>
+      <svg viewBox="0 0 100 100" className="w-full h-full p-0.5" style={{ filter: flowGlow }}>
         <defs>
-          <filter id="cyanGlow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#38bdf8" floodOpacity="0.8" />
+          <filter id={`cyanGlow-${uid}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="3.5" floodColor="#22d3ee" floodOpacity="0.85" />
           </filter>
+          <linearGradient id={`steel-${uid}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#64748b" />
+            <stop offset="50%" stopColor="#334155" />
+            <stop offset="100%" stopColor="#0f172a" />
+          </linearGradient>
+          <linearGradient id={`glassCore-${uid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={isFlowing ? '#0ea5e9' : '#1e293b'} />
+            <stop offset="50%" stopColor={isFlowing ? '#06b6d4' : '#0f172a'} />
+            <stop offset="100%" stopColor={isFlowing ? '#0284c7' : '#1e293b'} />
+          </linearGradient>
         </defs>
 
-        {/* Pipe Outer Metal Flange */}
-        <circle cx="50" cy="50" r="14" fill="#0f172a" stroke="#334155" strokeWidth="3" />
+        {/* Outer Brushed Steel Manifold Housing */}
+        {paths.map((d, i) => (
+          <path
+            key={`outer-${i}`}
+            d={d}
+            fill="none"
+            stroke={`url(#steel-${uid})`}
+            strokeWidth="26"
+            strokeLinecap="butt"
+          />
+        ))}
 
-        {/* Straight: Vertical line from top (50, 0) to bottom (50, 100) */}
-        {type === 'straight' && (
-          <g>
-            <path d="M40 0 L40 100 M60 0 L60 100" stroke="#334155" strokeWidth="4" />
-            <rect x="42" y="0" width="16" height="100" fill={fluidFill} />
-            <line x1="50" y1="0" x2="50" y2="100" stroke={strokeColor} strokeWidth="4" strokeDasharray={isFlowing ? '6 4' : 'none'} className={isFlowing ? 'animate-pulse' : ''} />
+        {/* Inner Translucent Borosilicate Glass Bore */}
+        {paths.map((d, i) => (
+          <path
+            key={`bore-${i}`}
+            d={d}
+            fill="none"
+            stroke={`url(#glassCore-${uid})`}
+            strokeWidth="15"
+            strokeLinecap="round"
+          />
+        ))}
+
+        {/* Animated Pressurized Water Flow + Bubbles */}
+        {isFlowing &&
+          paths.map((d, i) => (
+            <path
+              key={`flow-${i}`}
+              d={d}
+              fill="none"
+              stroke="#67e8f9"
+              strokeWidth="6"
+              strokeDasharray="10 10"
+              strokeLinecap="round"
+            >
+              <animate attributeName="stroke-dashoffset" from="40" to="0" dur="0.9s" repeatCount="indefinite" />
+            </path>
+          ))}
+
+        {/* Glass Tube Specular Reflection Streak */}
+        {paths.map((d, i) => (
+          <path
+            key={`glint-${i}`}
+            d={d}
+            fill="none"
+            stroke="rgba(255,255,255,0.28)"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+          />
+        ))}
+
+        {/* Machined Titanium End Flanges & Rivets */}
+        {collarRects.map(([x, y, w, h], idx) => (
+          <g key={`flange-${idx}`}>
+            <rect x={x} y={y} width={w} height={h} rx="2" fill="#94a3b8" stroke="#1e293b" strokeWidth="1.2" />
+            <circle cx={x + w * 0.22} cy={y + h * 0.5} r="1.4" fill="#0f172a" />
+            <circle cx={x + w * 0.78} cy={y + h * 0.5} r="1.4" fill="#0f172a" />
           </g>
-        )}
+        ))}
 
-        {/* Corner: Elbow from Top (50, 0) to Right (100, 50) */}
-        {type === 'corner' && (
-          <g>
-            <path d="M40 0 A60 60 0 0 1 100 60 M60 0 A40 40 0 0 1 100 40" stroke="#334155" strokeWidth="4" fill="none" />
-            <path d="M42 0 A58 58 0 0 1 100 58 L100 42 A42 42 0 0 0 58 0 Z" fill={fluidFill} />
-            <path d="M50 0 A50 50 0 0 1 100 50" stroke={strokeColor} strokeWidth="4" fill="none" strokeDasharray={isFlowing ? '6 4' : 'none'} className={isFlowing ? 'animate-pulse' : ''} />
-          </g>
-        )}
-
-        {/* Tee: Junction Connecting Top (50, 0), Right (100, 50), and Left (0, 50) */}
-        {type === 'tee' && (
-          <g>
-            {/* Left-Right horizontal arm */}
-            <rect x="0" y="42" width="100" height="16" fill={fluidFill} />
-            <line x1="0" y1="40" x2="100" y2="40" stroke="#334155" strokeWidth="3" />
-            <line x1="0" y1="60" x2="100" y2="60" stroke="#334155" strokeWidth="3" />
-            {/* Top vertical branch */}
-            <rect x="42" y="0" width="16" height="50" fill={fluidFill} />
-            <line x1="40" y1="0" x2="40" y2="42" stroke="#334155" strokeWidth="3" />
-            <line x1="60" y1="0" x2="60" y2="42" stroke="#334155" strokeWidth="3" />
-            {/* Center Flow lines */}
-            <path d="M0 50 L100 50 M50 0 L50 50" stroke={strokeColor} strokeWidth="4" strokeDasharray={isFlowing ? '6 4' : 'none'} className={isFlowing ? 'animate-pulse' : ''} fill="none" />
-          </g>
-        )}
-
-        {/* Cross: All 4 directions */}
-        {type === 'cross' && (
-          <g>
-            <rect x="0" y="42" width="100" height="16" fill={fluidFill} />
-            <rect x="42" y="0" width="16" height="100" fill={fluidFill} />
-            <path d="M0 50 L100 50 M50 0 L50 100" stroke={strokeColor} strokeWidth="4" strokeDasharray={isFlowing ? '6 4' : 'none'} className={isFlowing ? 'animate-pulse' : ''} />
-          </g>
-        )}
-
-        {/* Center Valve Node indicator */}
-        <circle cx="50" cy="50" r="7" fill={isFlowing ? '#38bdf8' : '#475569'} />
-        {isFlowing && <circle cx="50" cy="50" r="3" fill="#ffffff" />}
+        {/* Center Coupling Hub & Pressure Gauge Jewel */}
+        <circle cx="50" cy="50" r="14" fill="#0f172a" stroke="#64748b" strokeWidth="2.5" />
+        <circle cx="50" cy="50" r="8" fill={isFlowing ? '#22d3ee' : '#334155'} />
+        {isFlowing && <circle cx="48" cy="48" r="2.8" fill="#ffffff" />}
       </svg>
     );
   };

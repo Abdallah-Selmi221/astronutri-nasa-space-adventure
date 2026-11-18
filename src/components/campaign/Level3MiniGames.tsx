@@ -184,44 +184,94 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
     return () => window.clearInterval(timer);
   }, [miniGameId, stormDefenseActive, stormStep, blastDoorSealed, powerSplit, onCompleteMiniGame, language]);
 
-  // 0.16G Lunar Crater Dust Physics Canvas for 3.5
+  // 0.16G Lunar Crater Dust + Spectral LIDAR Scanner Canvas for 3.5
   useEffect(() => {
     const canvas = craterCanvasRef.current;
     if (!canvas || miniGameId !== 'l3_lunar_samples') return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     let rafId = 0;
-    const motes = Array.from({ length: 24 }, (_, i) => ({
-      x: 35 + ((i * 29) % (canvas.width - 70)),
+    const startMs = performance.now();
+    const motes = Array.from({ length: 28 }, (_, i) => ({
+      x: 30 + ((i * 29) % (canvas.width - 60)),
       y: canvas.height - 14 - (i % 5) * 6,
       vx: ((i % 2 === 0 ? 1 : -1) * (0.4 + (i % 3) * 0.25)),
-      vy: dustBurstTick > 0 ? -(1.4 + (i % 4) * 0.45) : -0.25
+      vy: dustBurstTick > 0 ? -(1.5 + (i % 4) * 0.45) : -0.25
     }));
     const draw = () => {
       rafId = window.requestAnimationFrame(draw);
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      // Crater rim curve
+      const t = (performance.now() - startMs) / 1000;
+      const w = canvas.width;
+      const h = canvas.height;
+      const bg = ctx.createLinearGradient(0, 0, 0, h);
+      bg.addColorStop(0, '#020617');
+      bg.addColorStop(1, '#1e293b');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+
+      // Far sunlit Shackleton rim ridge
       ctx.fillStyle = '#334155';
       ctx.beginPath();
-      ctx.moveTo(0, canvas.height - 10);
-      ctx.quadraticCurveTo(canvas.width * 0.5, canvas.height - 26, canvas.width, canvas.height - 10);
-      ctx.lineTo(canvas.width, canvas.height);
-      ctx.lineTo(0, canvas.height);
+      ctx.moveTo(0, h - 18);
+      ctx.quadraticCurveTo(w * 0.28, h - 34, w * 0.56, h - 22);
+      ctx.quadraticCurveTo(w * 0.82, h - 36, w, h - 18);
+      ctx.lineTo(w, h);
+      ctx.lineTo(0, h);
+      ctx.closePath();
       ctx.fill();
+
+      // Sweeping Cyan Spectral LIDAR Fan Beam
+      const scanX = w * 0.5 + Math.sin(t * 2.1) * (w * 0.34);
+      const beam = ctx.createLinearGradient(w * 0.5, 4, scanX, h - 8);
+      beam.addColorStop(0, 'rgba(34, 211, 238, 0.48)');
+      beam.addColorStop(1, 'rgba(34, 211, 238, 0.04)');
+      ctx.fillStyle = beam;
+      ctx.beginPath();
+      ctx.moveTo(w * 0.5 - 6, 4);
+      ctx.lineTo(w * 0.5 + 6, 4);
+      ctx.lineTo(scanX + 24, h - 10);
+      ctx.lineTo(scanX - 24, h - 10);
+      ctx.closePath();
+      ctx.fill();
+
+      // Foreground Regolith Crater Basin
+      ctx.fillStyle = '#475569';
+      ctx.beginPath();
+      ctx.moveTo(0, h - 12);
+      ctx.quadraticCurveTo(w * 0.5, h - 4, w, h - 12);
+      ctx.lineTo(w, h);
+      ctx.lineTo(0, h);
+      ctx.closePath();
+      ctx.fill();
+
+      // Mineral glints embedded in regolith floor
+      [
+        [w * 0.26, h - 12, '#38bdf8'],
+        [w * 0.52, h - 9, '#fde047'],
+        [w * 0.76, h - 12, '#34d399']
+      ].forEach(([gx, gy, col]) => {
+        ctx.fillStyle = col as string;
+        ctx.beginPath();
+        ctx.moveTo(gx as number, (gy as number) - 4);
+        ctx.lineTo((gx as number) + 4, gy as number);
+        ctx.lineTo(gx as number, (gy as number) + 4);
+        ctx.lineTo((gx as number) - 4, gy as number);
+        ctx.closePath();
+        ctx.fill();
+      });
 
       motes.forEach((m) => {
         m.vy += 0.018; // gentle 0.16G settle
         m.x += m.vx;
         m.y += m.vy;
-        if (m.y >= canvas.height - 14) {
-          m.y = canvas.height - 14;
+        if (m.y >= h - 14) {
+          m.y = h - 14;
           m.vy = -(0.5 + Math.random() * 1.1);
         }
-        if (m.x < 8 || m.x > canvas.width - 8) m.vx *= -1;
-        ctx.fillStyle = '#cbd5e1';
+        if (m.x < 8 || m.x > w - 8) m.vx *= -1;
+        ctx.fillStyle = 'rgba(226, 232, 240, 0.85)';
         ctx.beginPath();
-        ctx.arc(m.x, m.y, 1.8, 0, Math.PI * 2);
+        ctx.arc(m.x, m.y, 1.7, 0, Math.PI * 2);
         ctx.fill();
       });
     };
@@ -366,6 +416,46 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
           )}
           {exStage !== 'done' && (
             <div className="space-y-3 max-w-md mx-auto">
+              {/* Kinetic ARED Dual-Flywheel & Vacuum Piston Visualizer */}
+              <svg viewBox="0 0 280 58" className="w-full h-14 mx-auto overflow-visible">
+                <defs>
+                  <linearGradient id="aredBarGrad" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#38bdf8" />
+                    <stop offset="50%" stopColor={isSweetSpot ? '#34d399' : '#fbbf24'} />
+                    <stop offset="100%" stopColor="#38bdf8" />
+                  </linearGradient>
+                </defs>
+                {/* Left & Right Flywheels spinning with cursor tension */}
+                {[52, 228].map((fx, idx) => (
+                  <g key={fx} transform={`translate(${fx}, 29) rotate(${aredCursor * (idx === 0 ? 3.6 : -3.6)})`}>
+                    <circle r="19" fill="#0f172a" stroke={isSweetSpot ? '#34d399' : '#38bdf8'} strokeWidth="2.5" />
+                    {[0, 60, 120].map((deg) => (
+                      <line
+                        key={deg}
+                        x1="-15"
+                        y1="0"
+                        x2="15"
+                        y2="0"
+                        stroke="rgba(186,230,253,0.45)"
+                        strokeWidth="2"
+                        transform={`rotate(${deg})`}
+                      />
+                    ))}
+                    <circle r="5" fill={isSweetSpot ? '#34d399' : '#fbbf24'} />
+                  </g>
+                ))}
+                {/* Twin vacuum cylinder cables */}
+                <line x1="72" y1="29" x2="208" y2="29" stroke="#334155" strokeWidth="6" strokeLinecap="round" />
+                <line
+                  x1="72"
+                  y1={29 + (aredCursor - 50) * 0.28}
+                  x2="208"
+                  y2={29 + (aredCursor - 50) * 0.28}
+                  stroke="url(#aredBarGrad)"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                />
+              </svg>
               <div className="space-y-1 text-left">
                 <div className="flex justify-between text-[11px] font-hud font-bold">
                   <span className="text-cyan-200">{tr(language, 'ARED Force Rhythm Zone', 'نطاق قوة السحب المثالي')}</span>
@@ -581,39 +671,70 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
           </div>
         </div>
 
-        {/* Animated Solar Storm Particle Wave Banner */}
+        {/* Animated Solar Storm Magnetic Plasma Dome Deflector */}
         <div
           data-testid="donki-solar-wave-viz"
-          className="relative h-24 rounded-2xl bg-gradient-to-r from-amber-950 via-rose-950/85 to-slate-950 border-2 border-amber-400/60 overflow-hidden flex items-center justify-between px-4"
+          className="relative h-28 rounded-2xl bg-slate-950 border-2 border-amber-400/60 overflow-hidden flex items-center justify-between px-4"
         >
+          <svg
+            viewBox="0 0 420 100"
+            preserveAspectRatio="none"
+            className="absolute inset-0 w-full h-full pointer-events-none"
+          >
+            <defs>
+              <radialGradient id="solarFlareCore" cx="10%" cy="50%" r="48%">
+                <stop offset="0%" stopColor="#fef08a" stopOpacity="0.95" />
+                <stop offset="40%" stopColor="#f97316" stopOpacity="0.55" />
+                <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
+              </radialGradient>
+              <radialGradient id="domeShieldGlow" cx="50%" cy="95%" r="85%">
+                <stop offset="0%" stopColor={shieldStrong ? '#10b981' : '#f43f5e'} stopOpacity="0.45" />
+                <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
+              </radialGradient>
+            </defs>
+            <rect width="420" height="100" fill="url(#solarFlareCore)" />
+            {/* Geodesic Lunar Bio-Dome Silhouette on Right */}
+            <path d="M322 92 A42 42 0 0 1 406 92 Z" fill="url(#domeShieldGlow)" stroke="#38bdf8" strokeWidth="1.8" />
+            <path d="M342 92 A22 36 0 0 1 386 92 M364 50 L364 92" fill="none" stroke="rgba(186,230,253,0.45)" strokeWidth="1.2" />
+            {/* Outer Magnetic Shield Deflector Arc */}
+            <path
+              d="M300 94 A66 66 0 0 1 416 62"
+              fill="none"
+              stroke={shieldStrong ? '#34d399' : '#f43f5e'}
+              strokeWidth={shieldStrong ? 4 : 2}
+              strokeDasharray={shieldStrong ? 'none' : '8 6'}
+            />
+          </svg>
+
           <span className="text-3xl z-10 select-none">☀️</span>
 
-          {/* Animated Solar Proton Wave Particles */}
+          {/* Curved Deflected Solar Proton Particle Arcs */}
           {[0, 1, 2, 3, 4].map((waveIdx) => (
             <motion.div
               key={waveIdx}
-              initial={{ x: -20, opacity: 0.9 }}
+              initial={{ x: -20, y: 0, opacity: 0.9 }}
               animate={{
-                x: shieldStrong ? [0, 120, 145] : [0, 190, 260],
-                opacity: shieldStrong ? [0.95, 0.9, 0] : [0.95, 0.85, 0.2],
+                x: shieldStrong ? [0, 110, 155] : [0, 170, 240],
+                y: shieldStrong ? [0, -18, -32] : [0, 6, 12],
+                opacity: shieldStrong ? [0.95, 0.9, 0] : [0.95, 0.85, 0.25],
                 scale: [0.9, 1.15, 0.8]
               }}
               transition={{
-                duration: 1.6,
+                duration: 1.5,
                 repeat: Infinity,
-                delay: waveIdx * 0.3,
+                delay: waveIdx * 0.28,
                 ease: 'linear'
               }}
-              className="text-lg select-none pointer-events-none"
+              className="text-base font-black text-amber-300 select-none pointer-events-none z-10"
             >
-              {waveIdx % 2 === 0 ? '⚡' : '🔥'}
+              {waveIdx % 2 === 0 ? '⚡' : '☄️'}
             </motion.div>
           ))}
 
-          {/* Magnetic Shield Deflection Dome */}
+          {/* Magnetic Shield Deflection Status Pill */}
           <div className="flex items-center gap-2 z-10">
             <div
-              className={`px-2.5 py-1 rounded-full text-[11px] font-hud font-black border-2 transition-colors ${
+              className={`px-3 py-1 rounded-full text-[11px] font-hud font-black border-2 transition-colors ${
                 shieldStrong
                   ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200'
                   : 'bg-rose-500/30 border-rose-400 text-rose-200 animate-pulse'
@@ -623,7 +744,6 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
                 ? tr(language, '🛡️ SHIELD DEFLECTING', '🛡️ الدرع يصد الموجة')
                 : tr(language, '⚠️ LOW SHIELD', '⚠️ الدرع ضعيف')}
             </div>
-            <span className="text-2xl select-none">🏛️</span>
           </div>
         </div>
 

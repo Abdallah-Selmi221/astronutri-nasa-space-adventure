@@ -290,29 +290,72 @@ const FoodPackingScene: React.FC<{
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     let rafId = 0;
+    const startMs = performance.now();
     const sparks = Array.from({ length: 24 }, (_, idx) => ({
-      x: (idx * 17) % canvas.width,
-      y: 8 + ((idx * 13) % (canvas.height - 16)),
-      vx: 0.9 + (idx % 4) * 0.35
+      x: 34 + ((idx * 17) % (canvas.width - 52)),
+      y: 6 + ((idx * 11) % (canvas.height - 12)),
+      vx: 1.0 + (idx % 4) * 0.35
     }));
     const renderLoop = () => {
       rafId = window.requestAnimationFrame(renderLoop);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const t = (performance.now() - startMs) / 1000;
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
       const isClogged = cabinFilterPct < 90 || safetyAlert !== null;
-      ctx.fillStyle = isClogged ? 'rgba(69,10,10,0.55)' : 'rgba(6,78,59,0.35)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      // HEPA filter ribs at right edge
-      for (let ry = 4; ry < canvas.height - 4; ry += 8) {
-        ctx.fillStyle = isClogged ? '#f59e0b' : '#34d399';
-        ctx.fillRect(canvas.width - 12, ry, 8, 4);
-      }
-      sparks.forEach((p, idx) => {
-        p.x += p.vx * (isClogged ? 0.45 : 1.35);
-        if (p.x > canvas.width - 14) p.x = 4;
+
+      // Brushed aerospace duct gradient backdrop
+      const duct = ctx.createLinearGradient(0, 0, w, 0);
+      duct.addColorStop(0, '#091124');
+      duct.addColorStop(0.5, isClogged ? 'rgba(127, 29, 29, 0.5)' : 'rgba(6, 78, 59, 0.38)');
+      duct.addColorStop(1, '#091124');
+      ctx.fillStyle = duct;
+      ctx.fillRect(0, 0, w, h);
+
+      // Left intake rotating 5-blade HEPA impeller fan
+      const fanX = 18;
+      const fanY = h * 0.5;
+      ctx.save();
+      ctx.translate(fanX, fanY);
+      ctx.strokeStyle = isClogged ? '#f59e0b' : '#38bdf8';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(0, 0, 12, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.rotate(t * (isClogged ? 2.1 : 8.5));
+      for (let b = 0; b < 5; b++) {
+        ctx.rotate((Math.PI * 2) / 5);
+        ctx.fillStyle = isClogged ? '#fbbf24' : '#bae6fd';
         ctx.beginPath();
-        ctx.arc(p.x, p.y + Math.sin(p.x * 0.08 + idx) * 2.2, isClogged ? 2.5 : 1.9, 0, Math.PI * 2);
-        ctx.fillStyle = isClogged ? '#fbbf24' : '#38bdf8';
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(6, -3.5, 10, 0);
+        ctx.quadraticCurveTo(5, 3, 0, 0);
         ctx.fill();
+      }
+      ctx.restore();
+
+      // V-pleated HEPA accordion filter curtain at right edge
+      ctx.strokeStyle = isClogged ? '#f59e0b' : '#34d399';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      for (let ry = 4; ry <= h - 4; ry += 6) {
+        const rx = w - 18 + (((ry - 4) / 6) % 2 === 0 ? 0 : 9);
+        if (ry === 4) ctx.moveTo(rx, ry);
+        else ctx.lineTo(rx, ry);
+      }
+      ctx.stroke();
+
+      // Laminar aerodynamic flow streaks + crumb sparks
+      sparks.forEach((p, idx) => {
+        p.x += p.vx * (isClogged ? 0.45 : 1.5);
+        if (p.x > w - 22) p.x = 32;
+        const py = p.y + Math.sin(p.x * 0.08 + idx + t * 2) * 2.2;
+        ctx.strokeStyle = isClogged ? 'rgba(251, 191, 36, 0.8)' : 'rgba(56, 189, 248, 0.78)';
+        ctx.lineWidth = isClogged ? 2.2 : 1.6;
+        ctx.beginPath();
+        ctx.moveTo(p.x - 8, py);
+        ctx.lineTo(p.x, py);
+        ctx.stroke();
       });
     };
     renderLoop();
@@ -854,12 +897,30 @@ const EquipmentInspectionScene: React.FC<{
                 : tr(language, 'Within Limit', 'ضمن الحد المسموح')}
             </span>
           </div>
-          <svg viewBox="0 0 260 44" className="w-full h-11 overflow-visible">
-            <polygon points="130,24 120,40 140,40" fill="#64748b" />
-            <g transform={`rotate(${beamTiltDeg}, 130, 22)`}>
-              <rect x="26" y="19" width="208" height="6" rx="3" fill={packedKg > maxEquipKg ? '#f43f5e' : '#34d399'} />
-              <rect x="36" y="6" width="38" height="12" rx="3" fill="#38bdf8" />
-              <rect x="186" y="6" width="38" height="12" rx="3" fill="#fbbf24" />
+          <svg viewBox="0 0 260 54" className="w-full h-14 overflow-visible">
+            <defs>
+              <linearGradient id="equipBeamGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#38bdf8" />
+                <stop offset="50%" stopColor={packedKg > maxEquipKg ? '#f43f5e' : '#34d399'} />
+                <stop offset="100%" stopColor="#fbbf24" />
+              </linearGradient>
+              <linearGradient id="equipFulcrum" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#94a3b8" />
+                <stop offset="100%" stopColor="#1e293b" />
+              </linearGradient>
+            </defs>
+            {/* Base plate & twin hydraulic dampener cylinders */}
+            <rect x="34" y="47" width="192" height="4" rx="2" fill="#334155" />
+            <line x1="60" y1="30" x2="60" y2="48" stroke="rgba(56,189,248,0.45)" strokeWidth="3" strokeDasharray="3 2" />
+            <line x1="200" y1="30" x2="200" y2="48" stroke="rgba(251,191,36,0.45)" strokeWidth="3" strokeDasharray="3 2" />
+            <polygon points="130,27 118,48 142,48" fill="url(#equipFulcrum)" stroke="#64748b" strokeWidth="1" />
+            <circle cx="130" cy="27" r="4" fill="#e2e8f0" />
+            <g transform={`rotate(${beamTiltDeg}, 130, 27)`}>
+              <rect x="26" y="23" width="208" height="7" rx="3.5" fill="url(#equipBeamGrad)" />
+              <rect x="34" y="6" width="46" height="16" rx="4" fill="#0284c7" stroke="#7dd3fc" strokeWidth="1.2" />
+              <path d="M47 6 L47 2 L67 2 L67 6" fill="none" stroke="#bae6fd" strokeWidth="1.8" />
+              <rect x="180" y="6" width="46" height="16" rx="4" fill="#d97706" stroke="#fde047" strokeWidth="1.2" />
+              <path d="M193 6 L193 2 L213 2 L213 6" fill="none" stroke="#fef08a" strokeWidth="1.8" />
             </g>
           </svg>
         </div>
@@ -1018,73 +1079,132 @@ const MissionControlLaunchScene: React.FC<{
       const t = (performance.now() - startMs) / 1000;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Night sky gradient
+      // Night-to-twilight launchpad sky gradient & stars
       const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
       bg.addColorStop(0, '#020617');
-      bg.addColorStop(1, '#1e1b4b');
+      bg.addColorStop(0.65, '#1e1b4b');
+      bg.addColorStop(1, '#312e81');
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Launch tower gantry on left
-      ctx.fillStyle = '#475569';
-      ctx.fillRect(36, 22, 16, 128);
-      // Retractable umbilical arm
+      for (let st = 0; st < 18; st++) {
+        ctx.fillStyle = `rgba(226, 232, 240, ${0.28 + Math.sin(t * 2 + st) * 0.25})`;
+        ctx.fillRect((st * 37) % canvas.width, 6 + ((st * 19) % 68), 1.8, 1.8);
+      }
+
+      // Open-Lattice Red Steel Umbilical Gantry Tower + Diagonal Cross-Bracing
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = 2.4;
+      ctx.strokeRect(32, 18, 22, 128);
+      for (let ty = 22; ty < 138; ty += 14) {
+        ctx.beginPath();
+        ctx.moveTo(32, ty);
+        ctx.lineTo(54, ty + 14);
+        ctx.moveTo(54, ty);
+        ctx.lineTo(32, ty + 14);
+        ctx.stroke();
+      }
+      // Retractable Crew Access + Umbilical Swing Arms
       const armRetract = launchSuccess || (countdown !== null && countdown <= 1) ? -22 : 0;
-      ctx.strokeStyle = '#94a3b8';
-      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 3.5;
       ctx.beginPath();
-      ctx.moveTo(52, 54);
-      ctx.lineTo(94 + armRetract, 54);
+      ctx.moveTo(54, 48);
+      ctx.lineTo(96 + armRetract, 48);
+      ctx.moveTo(54, 82);
+      ctx.lineTo(96 + armRetract * 0.85, 82);
       ctx.stroke();
 
       const liftY = launchSuccess ? -52 : countdown !== null ? Math.sin(t * 28) * 1.5 : 0;
       const rx = 104;
       const ry = 36 + liftY;
 
-      // Cryogenic vapor wisps when fueled
-      for (let i = 0; i < 6; i++) {
-        const wispX = rx + 10 + Math.sin(t * 2 + i) * 14;
-        const wispY = ry + 32 + ((t * 16 + i * 11) % 34);
-        ctx.fillStyle = 'rgba(186,230,253,0.28)';
+      // Cryogenic LOX vent steam wisps
+      for (let i = 0; i < 8; i++) {
+        const wispX = rx + 8 + Math.sin(t * 2.4 + i) * 18;
+        const wispY = ry + 28 + ((t * 18 + i * 9) % 44);
+        ctx.fillStyle = `rgba(186, 230, 253, ${0.18 + (i % 3) * 0.06})`;
         ctx.beginPath();
-        ctx.arc(wispX, wispY, 5, 0, Math.PI * 2);
+        ctx.arc(wispX, wispY, 4 + (i % 3) * 1.5, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      // Fiery SLS exhaust plume on ignition / launch
+      // Multi-layered Incandescent Mach-Diamond Rocket Exhaust Plume
       if (launchSuccess || countdown !== null) {
-        const flameH = launchSuccess ? 58 + Math.sin(t * 32) * 8 : 26 + Math.sin(t * 25) * 6;
-        ctx.fillStyle = '#f97316';
+        const flameH = launchSuccess ? 62 + Math.sin(t * 32) * 8 : 30 + Math.sin(t * 25) * 6;
+        const outerFlame = ctx.createRadialGradient(rx + 8, ry + 90, 4, rx + 8, ry + 98, flameH);
+        outerFlame.addColorStop(0, '#fef08a');
+        outerFlame.addColorStop(0.45, '#f97316');
+        outerFlame.addColorStop(1, 'rgba(239, 68, 68, 0)');
+        ctx.fillStyle = outerFlame;
         ctx.beginPath();
-        ctx.moveTo(rx - 10, ry + 86);
-        ctx.lineTo(rx + 26, ry + 86);
+        ctx.moveTo(rx - 14, ry + 84);
+        ctx.lineTo(rx + 30, ry + 84);
         ctx.lineTo(rx + 8, ry + 86 + flameH);
         ctx.closePath();
         ctx.fill();
-        ctx.fillStyle = '#fde047';
-        ctx.beginPath();
-        ctx.arc(rx + 8, ry + 90, 9, 0, Math.PI * 2);
-        ctx.fill();
+
+        // Twin Shockwave Mach Diamonds
+        [0, 1].forEach((dIdx) => {
+          const dy = ry + 92 + dIdx * 14 + Math.sin(t * 38 + dIdx) * 1.5;
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.moveTo(rx + 8, dy - 4);
+          ctx.lineTo(rx + 12, dy);
+          ctx.lineTo(rx + 8, dy + 4);
+          ctx.lineTo(rx + 4, dy);
+          ctx.closePath();
+          ctx.fill();
+        });
       }
 
-      // Twin White SRBs + Orange Artemis Core
-      ctx.fillStyle = '#e2e8f0';
-      ctx.fillRect(rx - 8, ry + 20, 8, 66);
-      ctx.fillRect(rx + 16, ry + 20, 8, 66);
-      ctx.fillStyle = '#ea580c';
+      // Twin Sculpted Solid Rocket Boosters + Metallic Cones + Segmented Bands
+      [-8, 16].forEach((bx) => {
+        ctx.fillStyle = '#e2e8f0';
+        ctx.beginPath();
+        ctx.roundRect(rx + bx, ry + 20, 8, 66, 2);
+        ctx.fill();
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(rx + bx, ry + 32, 8, 4);
+        ctx.fillRect(rx + bx, ry + 64, 8, 4);
+        ctx.fillStyle = '#f8fafc';
+        ctx.beginPath();
+        ctx.moveTo(rx + bx + 4, ry + 11);
+        ctx.lineTo(rx + bx, ry + 20);
+        ctx.lineTo(rx + bx + 8, ry + 20);
+        ctx.closePath();
+        ctx.fill();
+      });
+
+      // Shaded Orange Artemis Core Tank & Interstage
+      const coreGrad = ctx.createLinearGradient(rx, 0, rx + 16, 0);
+      coreGrad.addColorStop(0, '#c2410c');
+      coreGrad.addColorStop(0.45, '#fb923c');
+      coreGrad.addColorStop(1, '#9a3412');
+      ctx.fillStyle = coreGrad;
       ctx.fillRect(rx, ry + 12, 16, 74);
-      // White upper stage & Orion cone
+
+      // White Upper Stage & Orion Launch Abort Tower
       ctx.fillStyle = '#f8fafc';
       ctx.beginPath();
-      ctx.moveTo(rx + 8, ry - 8);
+      ctx.moveTo(rx + 8, ry - 9);
       ctx.lineTo(rx, ry + 12);
       ctx.lineTo(rx + 16, ry + 12);
       ctx.closePath();
       ctx.fill();
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(rx + 8, ry - 9);
+      ctx.lineTo(rx + 8, ry - 18);
+      ctx.stroke();
 
-      // Pad base
-      ctx.fillStyle = '#334155';
-      ctx.fillRect(18, 146, canvas.width - 36, 12);
+      // Reinforced Flame Trench Deck & Floodlights
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(14, 144, canvas.width - 28, 14);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(22, 144, 10, 3);
+      ctx.fillRect(canvas.width - 34, 144, 10, 3);
     };
     render();
     return () => window.cancelAnimationFrame(rafId);

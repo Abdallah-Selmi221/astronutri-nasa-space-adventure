@@ -132,27 +132,80 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     let rafId = 0;
-    const stars = Array.from({ length: 26 }, (_, i) => ({
+    const startMs = performance.now();
+    const stars = Array.from({ length: 24 }, (_, i) => ({
       x: (i * 23) % canvas.width,
       y: 6 + ((i * 17) % (canvas.height - 12)),
       speed: 1.4 + (asteroid2010PK.relativeVelocityKmS || 10) * 0.14
     }));
     const draw = () => {
       rafId = window.requestAnimationFrame(draw);
-      ctx.fillStyle = '#020617';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const t = (performance.now() - startMs) / 1000;
+      const w = canvas.width;
+      const h = canvas.height;
+      const bg = ctx.createLinearGradient(0, 0, w, h);
+      bg.addColorStop(0, '#020617');
+      bg.addColorStop(1, '#091532');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+
       stars.forEach((s) => {
         s.x -= s.speed;
-        if (s.x < 0) s.x = canvas.width;
+        if (s.x < 0) s.x = w;
         ctx.fillStyle = 'rgba(186,230,253,0.72)';
-        ctx.fillRect(s.x, s.y, 4, 1.5);
+        ctx.fillRect(s.x, s.y, 4.5, 1.4);
       });
-      // Trajectory target scan line
-      ctx.strokeStyle = 'rgba(56,189,248,0.28)';
+
+      // Phased-Array Conic Radar Sweep on Left
+      const rCx = 24;
+      const rCy = h * 0.5;
+      for (const rad of [8, 15, 22]) {
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.25)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(rCx, rCy, rad, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.save();
+      ctx.translate(rCx, rCy);
+      ctx.rotate(t * 3.1);
+      const sweepGrad = ctx.createRadialGradient(0, 0, 1, 0, 0, 22);
+      sweepGrad.addColorStop(0, 'rgba(52, 211, 153, 0.7)');
+      sweepGrad.addColorStop(1, 'rgba(52, 211, 153, 0.02)');
+      ctx.fillStyle = sweepGrad;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, 22, -0.5, 0.2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      // Rotating Multi-Vertex Faceted Asteroid Polygon sweeping along track
+      const ax = w - 26 - ((t * 42) % (w - 68));
+      const ay = (shuttleLane + 0.5) * (h / 3);
+      ctx.save();
+      ctx.translate(ax, ay);
+      ctx.rotate(t * 2.4);
+      ctx.fillStyle = '#94a3b8';
+      ctx.strokeStyle = '#f87171';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      [9, 6, 10, 7, 9, 6].forEach((r, i) => {
+        const a = (i / 6) * Math.PI * 2;
+        if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      });
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+      // Trajectory target scan corridor
+      ctx.strokeStyle = 'rgba(56,189,248,0.4)';
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
-      ctx.moveTo(0, (shuttleLane + 0.5) * (canvas.height / 3));
-      ctx.lineTo(canvas.width, (shuttleLane + 0.5) * (canvas.height / 3));
+      ctx.moveTo(48, ay);
+      ctx.lineTo(w, ay);
       ctx.stroke();
       ctx.setLineDash([]);
     };
@@ -263,6 +316,33 @@ export const Level2MiniGames: React.FC<Level2Props> = ({
         </p>
 
         <div className="relative h-40 rounded-2xl bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 border-2 border-indigo-400/70 overflow-hidden px-4 flex items-center">
+          {/* Sculpted Perspective ISS Circular Hull Ribs & Docking Airlock Hatch */}
+          <svg
+            viewBox="0 0 400 120"
+            preserveAspectRatio="none"
+            className="absolute inset-0 w-full h-full pointer-events-none opacity-65"
+          >
+            <defs>
+              <linearGradient id="issHullRib" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.45" />
+                <stop offset="50%" stopColor="#818cf8" stopOpacity="0.15" />
+                <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.45" />
+              </linearGradient>
+            </defs>
+            {[55, 115, 175, 235, 295, 355].map((rx) => (
+              <ellipse
+                key={rx}
+                cx={rx}
+                cy="60"
+                rx="18"
+                ry="54"
+                fill="none"
+                stroke="url(#issHullRib)"
+                strokeWidth="2.5"
+              />
+            ))}
+            <line x1="0" y1="60" x2="400" y2="60" stroke="rgba(56,189,248,0.18)" strokeDasharray="8 6" strokeWidth="1.5" />
+          </svg>
           <div className="absolute top-3 inset-x-4 h-2.5 rounded-full bg-amber-400/80 border border-white/50" />
           <div className="absolute bottom-3 inset-x-4 h-2.5 rounded-full bg-amber-400/80 border border-white/50" />
           <div className="absolute left-3 top-6 bottom-6 w-12 rounded-xl bg-emerald-500/25 border-2 border-emerald-400 flex flex-col items-center justify-center text-xs font-hud font-black text-emerald-300">

@@ -182,10 +182,10 @@ def generate_massive_terra_island_mesh(mat_terrain, mat_glow):
     bm = bmesh.new()
     col_layer = bm.loops.layers.color.new("Col")
 
-    nx = 46
-    ny = 18
-    x_min, x_max = -15.4, 15.4
-    y_min, y_max = -6.6, 6.6
+    nx = 58
+    ny = 24
+    x_min, x_max = -15.6, 15.6
+    y_min, y_max = -6.8, 6.8
 
     # 1. Build continuous sculpted perimeter island mask
     grid_verts = [[None for _ in range(ny)] for _ in range(nx)]
@@ -314,55 +314,103 @@ def generate_massive_terra_island_mesh(mat_terrain, mat_glow):
             except ValueError:
                 pass
 
-    # 3. Add stylized scattered trees, rocky boulders & energy bridge pylons on top of the terrain
+    # 3. Add stylized multi-tier trees, crater boulders, launch trusses, solar arrays & arched truss bridges
     props_added = []
-    # Stylized emerald trees on Sector 1 hills
+    # Layered emerald conifer clusters on Sector 1 hills
     tree_spots = [
-        (-13.8, 2.6, 1.15), (-12.5, 3.8, 0.95), (-9.8, 3.3, 1.05),
-        (-13.4, -3.9, 0.90), (-8.6, -4.1, 0.85),
+        (-13.8, 2.7, 1.15), (-12.5, 3.8, 0.95), (-9.8, 3.4, 1.05),
+        (-13.4, -3.9, 0.92), (-8.6, -4.1, 0.88), (-14.1, 0.6, 1.0),
     ]
     for tx, ty, sc in tree_spots:
         tz, _ = eval_terrain_height_and_color(tx, ty)
-        props_added.append({"type": "cylinder", "mat_idx": 0, "vcolor": (0.45, 0.27, 0.14), "loc": (tx, ty, tz + 0.32 * sc), "radius": 0.14 * sc, "depth": 0.65 * sc, "segments": 6})
-        props_added.append({"type": "cone", "mat_idx": 0, "vcolor": (0.14, 0.76, 0.36), "loc": (tx, ty, tz + 0.95 * sc), "r1": 0.58 * sc, "r2": 0.04, "depth": 0.95 * sc, "segments": 7})
+        props_added.append({"type": "cylinder", "mat_idx": 0, "vcolor": (0.45, 0.27, 0.14), "loc": (tx, ty, tz + 0.30 * sc), "radius": 0.13 * sc, "depth": 0.60 * sc, "segments": 6})
+        props_added.append({"type": "cone", "mat_idx": 0, "vcolor": (0.12, 0.72, 0.34), "loc": (tx, ty, tz + 0.78 * sc), "r1": 0.56 * sc, "r2": 0.08 * sc, "depth": 0.72 * sc, "segments": 8})
+        props_added.append({"type": "cone", "mat_idx": 0, "vcolor": (0.18, 0.84, 0.42), "loc": (tx, ty, tz + 1.18 * sc), "r1": 0.40 * sc, "r2": 0.03, "depth": 0.66 * sc, "segments": 8})
 
-    # Crystal clusters in Orbital Canyon & Moon Ridges
-    crystal_spots = [
+    # Sector 1 Peripheral Beveled Launch Floodlight Pylons & Warning Pad Segments
+    for fx, fy in [(-12.6, -0.4), (-9.4, -3.5)]:
+        fz, _ = eval_terrain_height_and_color(fx, fy)
+        props_added.append({"type": "cube", "mat_idx": 0, "vcolor": (0.76, 0.82, 0.88), "loc": (fx, fy, fz + 0.55), "scale": (0.12, 0.12, 1.10)})
+        props_added.append({"type": "cube", "mat_idx": 1, "loc": (fx, fy, fz + 1.12), "scale": (0.28, 0.14, 0.12), "rot": (0.25, 0, -0.3)})
+
+    # Sector 2 Orbital Truss Spine & Solar Array Booms along North Ridge
+    for sx, sy in [(-5.4, 3.6), (-2.2, 3.8)]:
+        sz, _ = eval_terrain_height_and_color(sx, sy)
+        props_added.append({"type": "cylinder", "mat_idx": 0, "vcolor": (0.64, 0.72, 0.82), "loc": (sx, sy, sz + 0.48), "radius": 0.08, "depth": 0.96, "segments": 8})
+        props_added.append({"type": "cube", "mat_idx": 0, "vcolor": (0.12, 0.38, 0.84), "loc": (sx, sy + 0.15, sz + 0.96), "scale": (0.95, 0.42, 0.04), "rot": (0.35, 0, 0)})
+        props_added.append({"type": "cube", "mat_idx": 0, "vcolor": (0.95, 0.74, 0.22), "loc": (sx, sy + 0.15, sz + 0.96), "scale": (0.06, 0.44, 0.05), "rot": (0.35, 0, 0)})
+
+    # Multi-faceted Lunar Crater Boulders & Glowing Mineral Clusters on Ridge/Canyons
+    boulder_spots = [
         (-7.2, 2.2, 0.9), (-6.8, -2.5, 0.8), (0.2, 2.9, 1.0),
-        (2.4, 3.1, 0.85), (6.8, -2.8, 0.95), (9.8, -2.9, 0.85),
+        (2.4, 3.1, 0.9), (5.8, -3.2, 1.0), (1.9, -3.5, 0.85), (6.8, -2.8, 0.95),
     ]
-    for cx, cy, sc in crystal_spots:
+    for cx, cy, sc in boulder_spots:
         cz, _ = eval_terrain_height_and_color(cx, cy)
         props_added.append({"type": "cone", "mat_idx": 1, "loc": (cx, cy, cz + 0.45 * sc), "r1": 0.22 * sc, "r2": 0.02, "depth": 0.95 * sc, "rot": (0.18, -0.22, 0.4), "segments": 5})
+        props_added.append({"type": "cone", "mat_idx": 0, "vcolor": (0.42, 0.46, 0.56), "loc": (cx + 0.45, cy - 0.35, cz + 0.22 * sc), "r1": 0.34 * sc, "r2": 0.14 * sc, "depth": 0.48 * sc, "rot": (0.1, 0.25, 0.6), "segments": 6})
 
-    # Glowing Pylon Bridge Arches spanning Canyons 1->2, 2->3, 3->4 (material 1 glow deck rails!)
+    # Sector 4 Coastal Landing Apron Chevrons & Radar Mast
+    s4z, _ = eval_terrain_height_and_color(12.8, 3.2)
+    props_added.append({"type": "cylinder", "mat_idx": 0, "vcolor": (0.78, 0.84, 0.90), "loc": (12.8, 3.2, s4z + 0.55), "radius": 0.07, "depth": 1.1, "segments": 8})
+    props_added.append({"type": "cone", "mat_idx": 1, "loc": (12.8, 3.2, s4z + 1.15), "r1": 0.30, "r2": 0.03, "depth": 0.18, "rot": (0.4, 0, -0.6), "segments": 10})
+
+    # Arched Steel & Plasma Truss Bridges spanning Canyons 1->2, 2->3, 3->4 (merged into terrain BMesh!)
     for i in range(len(SECTORS) - 1):
         ax, ay, az = SECTORS[i]["x"], SECTORS[i]["y"], SECTORS[i]["z"]
         bx, by, bz = SECTORS[i + 1]["x"], SECTORS[i + 1]["y"], SECTORS[i + 1]["z"]
         mx, my, mz = (ax + bx) * 0.5, (ay + by) * 0.5, (az + bz) * 0.5
         ang = math.atan2(by - ay, bx - ax)
-        span_len = math.hypot(bx - ax, by - ay) * 0.44
-        # Bridge deck slab
+        pitch = -(bz - az) / max(1.0, math.hypot(bx - ax, by - ay))
+        span_len = math.hypot(bx - ax, by - ay) * 0.48
+        # Heavy steel deck slab + segmented amber/slate traction pads
         props_added.append({
             "type": "bevel_cube",
             "mat_idx": 0,
-            "vcolor": (0.16, 0.24, 0.38),
+            "vcolor": (0.15, 0.22, 0.35),
             "loc": (mx, my, mz - 0.16),
-            "scale": (span_len, 0.88, 0.16),
-            "rot": (0.0, -(bz - az) / max(1.0, span_len * 2.1), ang),
-            "bevel": 0.03,
+            "scale": (span_len, 1.02, 0.18),
+            "rot": (0.0, pitch, ang),
         })
-        # Left & Right Neon Rail Strips + Center Pylon Ring
-        for side in (-0.42, 0.42):
+        for frac in (-0.30, 0.0, 0.30):
+            px_b = mx + math.cos(ang) * (span_len * frac)
+            py_b = my + math.sin(ang) * (span_len * frac)
+            pz_b = mz - 0.05 + (bz - az) * (frac * 0.48)
+            props_added.append({
+                "type": "cube",
+                "mat_idx": 0,
+                "vcolor": (0.94, 0.72, 0.16),
+                "loc": (px_b, py_b, pz_b),
+                "scale": (0.28, 0.78, 0.04),
+                "rot": (0.0, pitch, ang),
+            })
+        # Left & Right Neon Rail Strips + Overhanging Truss Gate Arches
+        for side in (-0.48, 0.48):
             nx_off = -math.sin(ang) * side
             ny_off = math.cos(ang) * side
             props_added.append({
                 "type": "cube",
                 "mat_idx": 1,
-                "loc": (mx + nx_off, my + ny_off, mz - 0.03),
-                "scale": (span_len * 0.96, 0.07, 0.08),
-                "rot": (0.0, -(bz - az) / max(1.0, span_len * 2.1), ang),
+                "loc": (mx + nx_off, my + ny_off, mz - 0.01),
+                "scale": (span_len * 0.98, 0.07, 0.08),
+                "rot": (0.0, pitch, ang),
             })
+            props_added.append({
+                "type": "cube",
+                "mat_idx": 0,
+                "vcolor": (0.72, 0.78, 0.86),
+                "loc": (mx + nx_off, my + ny_off, mz + 0.42),
+                "scale": (0.09, 0.09, 0.84),
+                "rot": (0.0, pitch, ang),
+            })
+        # Crossbeam overhead bridge gantry arch
+        props_added.append({
+            "type": "cube",
+            "mat_idx": 1,
+            "loc": (mx, my, mz + 0.84),
+            "scale": (0.14, 1.06, 0.09),
+            "rot": (0.0, pitch, ang),
+        })
 
     # Merge auxiliary hillside props/bridges directly into same BMesh (keeps 2 draw calls!)
     for p in props_added:

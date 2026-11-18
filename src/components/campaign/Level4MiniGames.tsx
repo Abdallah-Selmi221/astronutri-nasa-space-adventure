@@ -134,6 +134,24 @@ const DeparturePrepGame: React.FC<{
           </div>
         </div>
 
+        {/* Orion Payload Center-of-Mass Pitch Trim Indicator */}
+        <svg viewBox="0 0 280 56" className="w-full h-14 overflow-visible">
+          <defs>
+            <linearGradient id="orionBayBeam" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#38bdf8" />
+              <stop offset="50%" stopColor={comBalanced ? '#34d399' : '#f59e0b'} />
+              <stop offset="100%" stopColor="#818cf8" />
+            </linearGradient>
+          </defs>
+          <polygon points="140,30 128,50 152,50" fill="#475569" stroke="#94a3b8" strokeWidth="1" />
+          <g transform={`rotate(${Math.max(-16, Math.min(16, (rightMassKg - leftMassKg) * 0.48))}, 140, 30)`}>
+            <rect x="28" y="25" width="224" height="8" rx="4" fill="url(#orionBayBeam)" />
+            <path d="M126 25 L140 7 L154 25 Z" fill="#e2e8f0" stroke="#38bdf8" strokeWidth="1.5" />
+            <rect x="38" y="10" width="44" height="14" rx="3" fill="#0284c7" stroke="#7dd3fc" strokeWidth="1" />
+            <rect x="198" y="10" width="44" height="14" rx="3" fill="#4f46e5" stroke="#a5b4fc" strokeWidth="1" />
+          </g>
+        </svg>
+
         <div className="space-y-2">
           {sampleItems.map((item) => {
             const side = bayAssignment[item.id];
@@ -504,31 +522,73 @@ const ReentryShieldGame: React.FC<{ campaign: CampaignProgressState; onComplete:
     const render = () => {
       rafId = window.requestAnimationFrame(render);
       const t = (performance.now() - startMs) / 1000;
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const w = canvas.width;
+      const h = canvas.height;
+      const atmo = ctx.createLinearGradient(0, 0, 0, h);
+      atmo.addColorStop(0, '#020617');
+      atmo.addColorStop(0.6, '#1e1b4b');
+      atmo.addColorStop(1, reentryStarted ? '#451a03' : '#0f172a');
+      ctx.fillStyle = atmo;
+      ctx.fillRect(0, 0, w, h);
 
-      const cx = canvas.width * 0.5;
-      const cy = canvas.height * 0.55;
-      // Plasma bow shock arc
-      ctx.strokeStyle = !reentryStarted ? '#38bdf8' : Math.abs(shieldAngle) <= 18 ? '#fb923c' : '#f43f5e';
-      ctx.lineWidth = reentryStarted ? 6 + Math.sin(t * 16) * 2 : 2.5;
-      ctx.beginPath();
-      ctx.arc(cx, cy + 12, 46, Math.PI * 1.12, Math.PI * 1.88);
-      ctx.stroke();
+      // Re-entry ionized plasma wind streaks & sparks
+      const cx = w * 0.5;
+      const cy = h * 0.54;
+      const hotDanger = Math.abs(shieldAngle) > 18;
+      for (let i = 0; i < 18; i++) {
+        const sx = ((i * 31 + t * (reentryStarted ? 220 : 60)) % (w + 40)) - 20;
+        const sy = 10 + ((i * 23) % (h - 20));
+        ctx.strokeStyle = !reentryStarted
+          ? 'rgba(186,230,253,0.35)'
+          : hotDanger
+          ? 'rgba(244,63,94,0.75)'
+          : 'rgba(251,146,60,0.65)';
+        ctx.lineWidth = reentryStarted ? 2 : 1.2;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx - 18, sy - 6);
+        ctx.stroke();
+      }
 
-      // Rotated Orion capsule & PICA-X shield
+      // Multi-band PICA-X Detached Bow Shockwave Arc
+      [
+        { r: 50, lw: reentryStarted ? 8 + Math.sin(t * 16) * 2 : 2, col: hotDanger ? 'rgba(244,63,94,0.38)' : 'rgba(251,146,60,0.35)' },
+        { r: 44, lw: reentryStarted ? 4 : 2, col: !reentryStarted ? '#38bdf8' : hotDanger ? '#fb7185' : '#fdba74' },
+        { r: 40, lw: 2, col: reentryStarted ? '#fef08a' : 'rgba(125,211,252,0.6)' }
+      ].forEach((band) => {
+        ctx.strokeStyle = band.col;
+        ctx.lineWidth = band.lw;
+        ctx.beginPath();
+        ctx.arc(cx, cy + 12, band.r, Math.PI * 1.12, Math.PI * 1.88);
+        ctx.stroke();
+      });
+
+      // Rotated Orion Crew Module + Segmented PICA-X Heat Shield
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate((shieldAngle * Math.PI) / 180);
-      ctx.fillStyle = '#ea580c';
-      ctx.fillRect(-30, 8, 60, 10);
-      ctx.fillStyle = '#f8fafc';
+      const shieldGrad = ctx.createLinearGradient(-32, 0, 32, 0);
+      shieldGrad.addColorStop(0, '#9a3412');
+      shieldGrad.addColorStop(0.5, '#f97316');
+      shieldGrad.addColorStop(1, '#7c2d12');
+      ctx.fillStyle = shieldGrad;
       ctx.beginPath();
-      ctx.moveTo(-26, 8);
-      ctx.lineTo(0, -24);
-      ctx.lineTo(26, 8);
+      ctx.ellipse(0, 11, 32, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      const hullGrad = ctx.createLinearGradient(-26, -24, 26, 8);
+      hullGrad.addColorStop(0, '#f8fafc');
+      hullGrad.addColorStop(1, '#94a3b8');
+      ctx.fillStyle = hullGrad;
+      ctx.beginPath();
+      ctx.moveTo(-27, 8);
+      ctx.lineTo(-9, -24);
+      ctx.lineTo(9, -24);
+      ctx.lineTo(27, 8);
       ctx.closePath();
       ctx.fill();
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(-5, -13, 10, 6);
       ctx.restore();
     };
     render();
@@ -743,42 +803,79 @@ const SafeLandingGame: React.FC<{
       const w = canvas.width;
       const h = canvas.height;
       const sky = ctx.createLinearGradient(0, 0, 0, h);
-      sky.addColorStop(0, '#0c4a6e');
-      sky.addColorStop(0.75, '#0284c7');
+      sky.addColorStop(0, '#082f49');
+      sky.addColorStop(0.55, '#0284c7');
+      sky.addColorStop(0.78, '#7dd3fc');
       sky.addColorStop(1, '#0369a1');
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, w, h);
 
-      // Ocean waves at bottom
-      const oceanY = h - 22;
-      ctx.fillStyle = '#0ea5e9';
-      ctx.fillRect(0, oceanY, w, 22);
-      ctx.strokeStyle = '#bae6fd';
+      // Soft horizon cloud bank silhouettes
+      ctx.fillStyle = 'rgba(248, 250, 252, 0.25)';
+      [0.2, 0.72].forEach((cf, idx) => {
+        const cx = ((w * cf + t * (6 + idx * 3)) % (w + 60)) - 30;
+        const cy = 24 + idx * 14;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+        ctx.arc(cx + 12, cy - 3, 14, 0, Math.PI * 2);
+        ctx.arc(cx + 24, cy, 11, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Multi-layer sinusoidal Pacific Ocean swells + whitecrest foam
+      const oceanY = h - 24;
+      const seaGrad = ctx.createLinearGradient(0, oceanY, 0, h);
+      seaGrad.addColorStop(0, '#0ea5e9');
+      seaGrad.addColorStop(1, '#0c4a6e');
+      ctx.fillStyle = seaGrad;
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      for (let x = 0; x <= w; x += 10) {
+        const wy = oceanY + Math.sin(x * 0.06 + t * 3.8) * 3;
+        ctx.lineTo(x, wy);
+      }
+      ctx.lineTo(w, h);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(224, 242, 254, 0.85)';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      for (let x = 0; x <= w; x += 12) {
-        const wy = oceanY + Math.sin(x * 0.08 + t * 4) * 2.5;
+      for (let x = 0; x <= w; x += 10) {
+        const wy = oceanY + Math.sin(x * 0.06 + t * 3.8) * 3;
         if (x === 0) ctx.moveTo(x, wy);
         else ctx.lineTo(x, wy);
       }
       ctx.stroke();
 
       const progressFrac = Math.max(0, Math.min(1, 1 - altitudeM / 9600));
-      const capY = 26 + progressFrac * (oceanY - 40);
+      const capY = 30 + progressFrac * (oceanY - 40);
       const capX = w * 0.5 + Math.sin(t * 2.4) * (mainDeployed ? 4 : 8);
 
-      // Draw Chutes
+      // Draw Segmented Orange-and-White Gore Tri-Chutes + Shroud Rigging
       if (mainDeployed) {
-        [-16, 0, 16].forEach((ox) => {
-          ctx.strokeStyle = '#e2e8f0';
-          ctx.lineWidth = 1.2;
+        [-19, 0, 19].forEach((ox, idx) => {
+          const cxCh = capX + ox;
+          const cyCh = capY - 26 - (idx === 1 ? 4 : 0);
+          ctx.strokeStyle = 'rgba(226, 232, 240, 0.78)';
+          ctx.lineWidth = 1.1;
           ctx.beginPath();
           ctx.moveTo(capX, capY - 6);
-          ctx.lineTo(capX + ox, capY - 22);
+          ctx.lineTo(cxCh - 9, cyCh);
+          ctx.moveTo(capX, capY - 6);
+          ctx.lineTo(cxCh + 9, cyCh);
           ctx.stroke();
-          ctx.fillStyle = ox === 0 ? '#ffffff' : '#f97316';
+
+          ctx.fillStyle = '#f97316';
           ctx.beginPath();
-          ctx.arc(capX + ox, capY - 22, 8, Math.PI, 0);
+          ctx.arc(cxCh, cyCh, 10, Math.PI, 0);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(cxCh, cyCh, 10, Math.PI * 1.32, Math.PI * 1.68);
+          ctx.lineTo(cxCh, cyCh);
+          ctx.closePath();
           ctx.fill();
         });
       } else if (drogueDeployed) {
@@ -786,31 +883,39 @@ const SafeLandingGame: React.FC<{
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(capX, capY - 6);
-        ctx.lineTo(capX, capY - 20);
+        ctx.lineTo(capX - 6, capY - 22);
+        ctx.moveTo(capX, capY - 6);
+        ctx.lineTo(capX + 6, capY - 22);
         ctx.stroke();
         ctx.fillStyle = '#fbbf24';
         ctx.beginPath();
-        ctx.arc(capX, capY - 20, 7, Math.PI, 0);
+        ctx.arc(capX, capY - 22, 8, Math.PI, 0);
+        ctx.closePath();
         ctx.fill();
       }
 
-      // Orion capsule
+      // Contoured Beveled Orion Capsule + PICA-X Base + Floating Airbags
       ctx.fillStyle = '#f8fafc';
       ctx.beginPath();
-      ctx.moveTo(capX, capY - 7);
-      ctx.lineTo(capX - 10, capY + 6);
-      ctx.lineTo(capX + 10, capY + 6);
+      ctx.moveTo(capX - 5, capY - 8);
+      ctx.lineTo(capX + 5, capY - 8);
+      ctx.lineTo(capX + 12, capY + 6);
+      ctx.lineTo(capX - 12, capY + 6);
       ctx.closePath();
       ctx.fill();
+      ctx.fillStyle = '#ea580c';
+      ctx.fillRect(capX - 12, capY + 5, 24, 3);
 
-      // Splashdown rings on water
+      // Splashdown shockwave & uprighting foam rings on Pacific water
       if (splashdownDone) {
-        const ringR = 14 + ((t * 28) % 28);
-        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.ellipse(capX, oceanY + 4, ringR, ringR * 0.35, 0, 0, Math.PI * 2);
-        ctx.stroke();
+        [0, 14].forEach((off) => {
+          const ringR = 12 + ((t * 28 + off) % 34);
+          ctx.strokeStyle = `rgba(255,255,255,${Math.max(0.15, 0.85 - ringR / 46)})`;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.ellipse(capX, oceanY + 4, ringR, ringR * 0.34, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        });
       }
     };
     render();

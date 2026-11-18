@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Play, SkipForward, Sparkles } from 'lucide-react';
 import { MiniGameId } from '../../types/game';
@@ -181,6 +181,613 @@ const DEMO_SPECS: Record<string, DemoSpec> = {
 
 const DEMO_DURATION_MS = 5000;
 
+type DemoKind = DemoSpec['visualKind'];
+
+function renderDemoCanvasFrame(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  t: number,
+  kind: DemoKind,
+  accentHex: string,
+  language: 'en' | 'ar'
+): void {
+  const lbl = (en: string, ar: string) => (language === 'ar' ? ar : en);
+  // Deep aerospace atmospheric gradient backdrop + blueprint grid
+  const bg = ctx.createLinearGradient(0, 0, w, h);
+  bg.addColorStop(0, '#040a1a');
+  bg.addColorStop(0.55, '#0b1736');
+  bg.addColorStop(1, '#061024');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
+  ctx.lineWidth = 1;
+  for (let gx = 0; gx <= w; gx += 28) {
+    ctx.beginPath();
+    ctx.moveTo(gx, 0);
+    ctx.lineTo(gx, h);
+    ctx.stroke();
+  }
+  for (let gy = 0; gy <= h; gy += 28) {
+    ctx.beginPath();
+    ctx.moveTo(0, gy);
+    ctx.lineTo(w, gy);
+    ctx.stroke();
+  }
+
+  // Subtle ambient radial halo matching station accent
+  const halo = ctx.createRadialGradient(w * 0.5, h * 0.48, 8, w * 0.5, h * 0.48, w * 0.48);
+  halo.addColorStop(0, `${accentHex}29`);
+  halo.addColorStop(1, 'rgba(15, 23, 42, 0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(0, 0, w, h);
+
+  if (kind === 'food' || kind === 'meal') {
+    // Rotating HEPA turbine intake + laminar particle ribbon -> sculpted vacuum food tray
+    const fanX = 56;
+    const fanY = h * 0.5;
+    ctx.save();
+    ctx.translate(fanX, fanY);
+    const fanGlow = ctx.createRadialGradient(0, 0, 4, 0, 0, 34);
+    fanGlow.addColorStop(0, 'rgba(56, 189, 248, 0.35)');
+    fanGlow.addColorStop(1, 'rgba(56, 189, 248, 0)');
+    ctx.fillStyle = fanGlow;
+    ctx.beginPath();
+    ctx.arc(0, 0, 34, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, 26, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.rotate(t * 5.2);
+    for (let b = 0; b < 5; b++) {
+      ctx.rotate((Math.PI * 2) / 5);
+      ctx.fillStyle = '#bae6fd';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(14, -7, 22, 0);
+      ctx.quadraticCurveTo(12, 6, 0, 0);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // HEPA accordion pleats (vertical chevron slats)
+    ctx.strokeStyle = '#67e8f9';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let py = 24; py <= h - 24; py += 12) {
+      const xOff = ((py - 24) / 12) % 2 === 0 ? 102 : 114;
+      if (py === 24) ctx.moveTo(xOff, py);
+      else ctx.lineTo(xOff, py);
+    }
+    ctx.stroke();
+
+    // Laminar air particle ribbons flowing past tray
+    for (let p = 0; p < 16; p++) {
+      const progress = ((t * 0.55 + p / 16) % 1 + 1) % 1;
+      const px = 92 + progress * (w - 135);
+      const py = 26 + ((p * 23) % (h - 52)) + Math.sin(t * 4 + p) * 4;
+      ctx.fillStyle = `rgba(52, 211, 153, ${0.35 + (1 - progress) * 0.65})`;
+      ctx.beginPath();
+      ctx.roundRect(px, py, 14, 2.5, 1.5);
+      ctx.fill();
+    }
+
+    // Precision Food Tray Dock
+    const tx = w - 136;
+    const ty = 28;
+    const tw = 112;
+    const th = h - 56;
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+    ctx.strokeStyle = accentHex;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(tx, ty, tw, th, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    // Sliding glowing nutrient ration packet snapping into dock
+    const fly = (Math.sin(t * 2.1) + 1) * 0.5;
+    const pktX = 140 + fly * (tx - 118);
+    const pktY = h * 0.5 - 15 - Math.sin(fly * Math.PI) * 14;
+    const pktGrad = ctx.createLinearGradient(pktX, pktY, pktX + 54, pktY + 30);
+    pktGrad.addColorStop(0, accentHex);
+    pktGrad.addColorStop(1, '#10b981');
+    ctx.fillStyle = pktGrad;
+    ctx.beginPath();
+    ctx.roundRect(pktX, pktY, 54, 30, 7);
+    ctx.fill();
+    ctx.fillStyle = '#041224';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('SPACE', pktX + 27, pktY + 13);
+    ctx.fillText('RATION', pktX + 27, pktY + 24);
+
+    ctx.fillStyle = '#34d399';
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText(lbl('HEPA LAMINAR OK', 'تطهير HEPA نشط'), tx + tw * 0.5, h - 10);
+  } else if (kind === 'balance' || kind === 'com') {
+    // Precision Titanium Fulcrum + Machined Mass Beam + Shock Pistons
+    const cx = w * 0.5;
+    const pivotY = h * 0.66;
+    const tilt = Math.sin(t * 2.0) * 0.11 * Math.cos(t * 0.7);
+
+    // Fulcrum base pedestal
+    ctx.fillStyle = '#334155';
+    ctx.beginPath();
+    ctx.moveTo(cx, pivotY);
+    ctx.lineTo(cx - 22, h - 16);
+    ctx.lineTo(cx + 22, h - 16);
+    ctx.closePath();
+    ctx.fill();
+
+    // Calibrated twin damper cylinders
+    [-82, 82].forEach((ox) => {
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(cx + ox, pivotY + 2);
+      ctx.lineTo(cx + ox, h - 14);
+      ctx.stroke();
+    });
+
+    ctx.save();
+    ctx.translate(cx, pivotY - 4);
+    ctx.rotate(tilt);
+
+    const beamGrad = ctx.createLinearGradient(-120, 0, 120, 0);
+    beamGrad.addColorStop(0, '#38bdf8');
+    beamGrad.addColorStop(0.5, accentHex);
+    beamGrad.addColorStop(1, '#34d399');
+    ctx.fillStyle = beamGrad;
+    ctx.beginPath();
+    ctx.roundRect(-124, -5, 248, 10, 5);
+    ctx.fill();
+
+    // Bay cargo crates on left & right wings
+    ctx.fillStyle = '#0ea5e9';
+    ctx.beginPath();
+    ctx.roundRect(-110, -34, 48, 28, 6);
+    ctx.fill();
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.roundRect(62, -34, 48, 28, 6);
+    ctx.fill();
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(kind === 'com' ? lbl('PORT BAY', 'يسار') : lbl('LOAD A', 'حزمة أ'), -86, -16);
+    ctx.fillText(kind === 'com' ? lbl('STBD BAY', 'يمين') : lbl('LOAD B', 'حزمة ب'), 86, -16);
+    ctx.restore();
+
+    ctx.fillStyle = '#a7f3d0';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(
+      kind === 'balance'
+        ? lbl('PAYLOAD ≤ 18 kg • CO-CENTERED', 'حمولة ≤ 18 كجم • متوازنة')
+        : lbl('ORION MASS Δ ≤ 15 kg', 'فرق كتلة أوريون ≤ 15 كجم'),
+      cx,
+      24
+    );
+  } else if (kind === 'medical' || kind === 'ared') {
+    // Biometric ECG Waveform + Meniscus / Kinetic Flywheel Canvas
+    const midY = h * 0.54;
+    if (kind === 'ared') {
+      // Twin Tungsten ARED Flywheel + Piston Oscillators
+      [-74, 74].forEach((ox, idx) => {
+        const fx = w * 0.5 + ox;
+        ctx.save();
+        ctx.translate(fx, midY);
+        ctx.strokeStyle = accentHex;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, 32, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.rotate(t * (idx === 0 ? 3.5 : -3.5));
+        for (let s = 0; s < 6; s++) {
+          ctx.rotate(Math.PI / 3);
+          ctx.strokeStyle = 'rgba(248, 250, 252, 0.45)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(28, 0);
+          ctx.stroke();
+        }
+        ctx.restore();
+      });
+      const pull = Math.sin(t * 2.8) * 18;
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(w * 0.5 - 88, midY + pull);
+      ctx.lineTo(w * 0.5 + 88, midY + pull);
+      ctx.stroke();
+      ctx.fillStyle = '#fde047';
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(lbl('0.16G ARED KINETIC FORCE BENCH', 'منصة ARED لمقاومة القمر 0.16G'), w * 0.5, 24);
+    } else {
+      // Biometric ECG Pulse Trace + Fluid Hydration Cylinder
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      for (let x = 26; x < w - 110; x += 2) {
+        const phase = ((x + t * 140) % 64) / 64;
+        const spike = phase > 0.4 && phase < 0.48 ? -26 : phase >= 0.48 && phase < 0.55 ? 18 : Math.sin(phase * Math.PI * 2) * 3;
+        if (x === 26) ctx.moveTo(x, midY + spike);
+        else ctx.lineTo(x, midY + spike);
+      }
+      ctx.stroke();
+
+      // Meniscus tube
+      const cylX = w - 82;
+      const fillPct = (Math.sin(t * 2.2) + 1) * 0.35 + 0.25;
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(cylX, 24, 42, h - 48);
+      const fillH = (h - 52) * fillPct;
+      const liq = ctx.createLinearGradient(0, h - 26 - fillH, 0, h - 26);
+      liq.addColorStop(0, '#38bdf8');
+      liq.addColorStop(1, '#0284c7');
+      ctx.fillStyle = liq;
+      ctx.fillRect(cylX + 2, h - 26 - fillH, 38, fillH);
+      ctx.fillStyle = '#bae6fd';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(lbl('1.5s HOLD', '1.5ث ضغط'), cylX + 21, 18);
+    }
+  } else if (kind === 'launch') {
+    // SLS Steel Gantry Truss + Orange Core Stage + Shimmering Mach-Diamond Plume
+    const rx = w * 0.48;
+    const lift = Math.sin(t * 2.2) > 0.3 ? (Math.sin(t * 2.2) - 0.3) * 18 : 0;
+    // Steel umbilical tower cross-braces
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(rx - 74, 24, 26, h - 42);
+    for (let ty = 32; ty < h - 22; ty += 16) {
+      ctx.beginPath();
+      ctx.moveTo(rx - 74, ty);
+      ctx.lineTo(rx - 48, ty + 14);
+      ctx.moveTo(rx - 48, ty);
+      ctx.lineTo(rx - 74, ty + 14);
+      ctx.stroke();
+    }
+
+    // SLS Core Stage + Twin SRBs + Mach Exhaust
+    const by = h - 30 - lift;
+    ctx.fillStyle = '#ea580c';
+    ctx.beginPath();
+    ctx.roundRect(rx - 12, by - 64, 24, 62, 4);
+    ctx.fill();
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(rx - 26, by - 54, 10, 50);
+    ctx.fillRect(rx + 16, by - 54, 10, 50);
+    // Nosecone
+    ctx.beginPath();
+    ctx.moveTo(rx - 12, by - 64);
+    ctx.lineTo(rx, by - 88);
+    ctx.lineTo(rx + 12, by - 64);
+    ctx.fill();
+
+    // Mach Diamonds Flame Plume
+    const flGrad = ctx.createRadialGradient(rx, by + 6, 3, rx, by + 18, 36);
+    flGrad.addColorStop(0, '#fef08a');
+    flGrad.addColorStop(0.5, '#f97316');
+    flGrad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+    ctx.fillStyle = flGrad;
+    ctx.beginPath();
+    ctx.moveTo(rx - 22, by - 2);
+    ctx.lineTo(rx, by + 32 + Math.sin(t * 24) * 6);
+    ctx.lineTo(rx + 22, by - 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // LOX/LH2 Telemetry Meter Strip
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = '#334155';
+    ctx.fillRect(w - 118, 36, 94, 54);
+    ctx.strokeRect(w - 118, 36, 94, 54);
+    ctx.fillStyle = '#34d399';
+    ctx.fillRect(w - 92, 54, 42, 10);
+    const needleX = w - 112 + ((Math.sin(t * 2.5) + 1) * 0.5) * 80;
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillRect(needleX, 49, 4, 20);
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(lbl('LOX + LH2 SYNC', 'تزامن الوقود'), w - 71, 30);
+  } else if (kind === 'zerog' || kind === 'neows') {
+    if (kind === 'neows') {
+      // Conic Phased Radar Sweep + Rotating Multi-Vertex Asteroid Polygons
+      const rx = 86;
+      const ry = h * 0.5;
+      for (const r of [18, 34, 50]) {
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.25)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(rx, ry, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.save();
+      ctx.translate(rx, ry);
+      ctx.rotate(t * 2.8);
+      const sweep = ctx.createRadialGradient(0, 0, 2, 0, 0, 50);
+      sweep.addColorStop(0, 'rgba(52, 211, 153, 0.55)');
+      sweep.addColorStop(1, 'rgba(52, 211, 153, 0.02)');
+      ctx.fillStyle = sweep;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, 50, -0.45, 0.15);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      // Rotating Faceted Asteroid Polygon traveling along threat lane
+      const ax = w - 76 - (((t * 70) % 150));
+      const ay = ry + Math.sin(t * 3.1) * 18;
+      ctx.save();
+      ctx.translate(ax, ay);
+      ctx.rotate(t * 2.1);
+      ctx.fillStyle = '#94a3b8';
+      ctx.strokeStyle = '#f87171';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const radii = [16, 12, 18, 13, 17, 11, 15];
+      radii.forEach((rad, i) => {
+        const ang = (i / radii.length) * Math.PI * 2;
+        const px = Math.cos(ang) * rad;
+        const py = Math.sin(ang) * rad;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.fillStyle = '#bae6fd';
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(lbl('NEOWS DOPPLER SWEEP ACTIVE', 'مسح رادار كويكبات NeoWs'), w * 0.65, h - 14);
+    } else {
+      // ISS Cylindrical Ribbed Bulkheads + Floating Supply Drift Trail
+      for (let i = 0; i < 6; i++) {
+        const rx = 56 + i * 52;
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(rx, h * 0.5, 16, 44, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      const ax = 68 + ((Math.sin(t * 1.9) + 1) * 0.5) * (w - 140);
+      const ay = h * 0.5 + Math.cos(t * 3.2) * 20;
+      ctx.strokeStyle = accentHex;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(40, h * 0.5);
+      ctx.lineTo(ax, ay);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = accentHex;
+      ctx.beginPath();
+      ctx.roundRect(ax - 16, ay - 12, 32, 24, 6);
+      ctx.fill();
+      ctx.fillStyle = '#041224';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('EVA', ax, ay + 3);
+    }
+  } else if (kind === 'pipes' || kind === 'storm' || kind === 'crater') {
+    if (kind === 'pipes') {
+      // Pressurized Glass Tube Manifolds + Flanged Metallic Couplers + Flowing Bubbles
+      const pts: [number, number][] = [
+        [44, h * 0.58],
+        [130, h * 0.58],
+        [130, h * 0.34],
+        [240, h * 0.34],
+        [240, h * 0.68],
+        [w - 44, h * 0.68]
+      ];
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 18;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      pts.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(34, 211, 238, 0.38)';
+      ctx.lineWidth = 11;
+      ctx.stroke();
+
+      // Metallic flange collars at joints
+      ctx.fillStyle = '#94a3b8';
+      pts.slice(1, -1).forEach(([x, y]) => {
+        ctx.fillRect(x - 10, y - 10, 20, 20);
+      });
+
+      // Flowing water bubbles along manifold
+      for (let b = 0; b < 7; b++) {
+        const prog = ((t * 0.45 + b / 7) % 1 + 1) % 1;
+        const bx = 44 + prog * (w - 88);
+        const by = prog < 0.25 ? h * 0.58 : prog < 0.62 ? h * 0.34 : h * 0.68;
+        ctx.fillStyle = '#a5f3fc';
+        ctx.beginPath();
+        ctx.arc(bx, by, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#34d399';
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(lbl('98% ECLSS PRESSURIZED LOOP', 'دورة تنقية المياه المغلقة 98%'), w * 0.5, 22);
+    } else if (kind === 'storm') {
+      // Translucent Bio-Dome under Magnetic Plasma Shield Deflecting Proton Rays
+      const cx = w * 0.5;
+      const base = h - 20;
+      const domeGrad = ctx.createRadialGradient(cx, base - 24, 6, cx, base - 24, 58);
+      domeGrad.addColorStop(0, 'rgba(16, 185, 129, 0.65)');
+      domeGrad.addColorStop(1, 'rgba(6, 182, 212, 0.25)');
+      ctx.fillStyle = domeGrad;
+      ctx.beginPath();
+      ctx.arc(cx, base, 52, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+
+      // Pulsing magnetic deflector arc
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(cx, base, 70 + Math.sin(t * 6) * 2.5, Math.PI * 1.08, -Math.PI * 0.08);
+      ctx.stroke();
+
+      // Deflecting solar proton streaks
+      for (let s = 0; s < 6; s++) {
+        const sx = 34 + ((t * 160 + s * 58) % (w - 68));
+        const sy = 20 + ((s * 17) % 36);
+        ctx.strokeStyle = s % 2 === 0 ? '#facc15' : '#f87171';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + 18, sy + 12);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#bae6fd';
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(lbl('DONKI MAGNETIC SHIELD ACTIVE', 'الدرع المغناطيسي DONKI نشط'), cx, 22);
+    } else {
+      // 0.16G Lunar Regolith Strata + Cyan Spectral Scanning Beam
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      ctx.lineTo(0, h * 0.56);
+      ctx.quadraticCurveTo(w * 0.5, h * 0.88, w, h * 0.56);
+      ctx.lineTo(w, h);
+      ctx.closePath();
+      ctx.fill();
+
+      const scanX = w * 0.5 + Math.sin(t * 2.2) * 84;
+      const beam = ctx.createLinearGradient(w * 0.5, 18, scanX, h * 0.72);
+      beam.addColorStop(0, 'rgba(34, 211, 238, 0.55)');
+      beam.addColorStop(1, 'rgba(34, 211, 238, 0.05)');
+      ctx.fillStyle = beam;
+      ctx.beginPath();
+      ctx.moveTo(w * 0.5 - 10, 18);
+      ctx.lineTo(w * 0.5 + 10, 18);
+      ctx.lineTo(scanX + 26, h * 0.76);
+      ctx.lineTo(scanX - 26, h * 0.76);
+      ctx.closePath();
+      ctx.fill();
+
+      // Shimmering Ice/Titanium Core Gems inside crater floor
+      [
+        [w * 0.34, h * 0.74, '#38bdf8'],
+        [w * 0.52, h * 0.79, '#fde047'],
+        [w * 0.68, h * 0.72, '#34d399']
+      ].forEach(([gx, gy, col]) => {
+        ctx.fillStyle = col as string;
+        ctx.beginPath();
+        ctx.moveTo(gx as number, (gy as number) - 8);
+        ctx.lineTo((gx as number) + 7, gy as number);
+        ctx.lineTo(gx as number, (gy as number) + 8);
+        ctx.lineTo((gx as number) - 7, gy as number);
+        ctx.closePath();
+        ctx.fill();
+      });
+    }
+  } else {
+    // Re-Entry PICA-X Bow Shock OR Orion Tri-Gore Parachutes + Pacific Ocean Foam
+    const cx = w * 0.5;
+    if (kind === 'reentry') {
+      // ±18° Safety Corridor Lines + DSN 1.3s Pulse Wave
+      ctx.strokeStyle = 'rgba(52, 211, 153, 0.35)';
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(30, h * 0.25);
+      ctx.lineTo(w - 30, h * 0.55);
+      ctx.moveTo(30, h * 0.55);
+      ctx.lineTo(w - 30, h * 0.85);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Orion Gumdrop + Fiery PICA-X Bow Shock Arc
+      const oy = h * 0.54 + Math.sin(t * 2.5) * 10;
+      ctx.strokeStyle = '#fb923c';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(cx + 8, oy, 32, -Math.PI * 0.42, Math.PI * 0.42);
+      ctx.stroke();
+
+      ctx.fillStyle = '#e2e8f0';
+      ctx.beginPath();
+      ctx.moveTo(cx - 18, oy);
+      ctx.lineTo(cx + 12, oy - 16);
+      ctx.lineTo(cx + 12, oy + 16);
+      ctx.closePath();
+      ctx.fill();
+
+      // 1.3s DSN Ping Concentric Arcs
+      const pingR = ((t * 48) % 64) + 12;
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.65)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(46, 36, pingR * 0.45, 0, Math.PI * 0.6);
+      ctx.stroke();
+      ctx.fillStyle = '#fed7aa';
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(lbl('1.3s DSN PING -> PICA-X ±18°', 'إشارة 1.3ث ← ممر أوريون ±18°'), cx, 22);
+    } else {
+      // Layered Pacific Ocean + Triple Orange-White Gore Chutes Descending Smoothly
+      const waterGrad = ctx.createLinearGradient(0, h - 32, 0, h);
+      waterGrad.addColorStop(0, '#0284c7');
+      waterGrad.addColorStop(1, '#082f49');
+      ctx.fillStyle = waterGrad;
+      ctx.fillRect(0, h - 32, w, 32);
+
+      const dropY = 58 + Math.sin(t * 1.8) * 14;
+      [-28, 0, 28].forEach((ox, i) => {
+        const chx = cx + ox;
+        const chy = dropY - 26 - (i === 1 ? 4 : 0);
+        ctx.strokeStyle = 'rgba(226, 232, 240, 0.7)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(chx - 14, chy + 2);
+        ctx.lineTo(cx, dropY + 18);
+        ctx.moveTo(chx + 14, chy + 2);
+        ctx.lineTo(cx, dropY + 18);
+        ctx.stroke();
+
+        ctx.fillStyle = i % 2 === 0 ? '#f97316' : '#f8fafc';
+        ctx.beginPath();
+        ctx.arc(chx, chy, 15, Math.PI, 0);
+        ctx.closePath();
+        ctx.fill();
+      });
+      // Capsule Hull
+      ctx.fillStyle = '#cbd5e1';
+      ctx.beginPath();
+      ctx.moveTo(cx - 12, dropY + 24);
+      ctx.lineTo(cx + 12, dropY + 24);
+      ctx.lineTo(cx + 7, dropY + 14);
+      ctx.lineTo(cx - 7, dropY + 14);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#a7f3d0';
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(lbl('7,800m DROGUES -> 3,600m MAIN CHUTES', '7,800م توازن ← 3,600م مظلات رئيسية'), cx, h - 10);
+    }
+  }
+}
+
 export const MiniGameDemoOverlay: React.FC<MiniGameDemoOverlayProps> = ({
   miniGameId,
   onFinish
@@ -188,6 +795,7 @@ export const MiniGameDemoOverlay: React.FC<MiniGameDemoOverlayProps> = ({
   const { language } = useGameState();
   const spec = DEMO_SPECS[miniGameId] || DEMO_SPECS.l1_food_prep;
   const [elapsedMs, setElapsedMs] = useState(0);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     const start = performance.now();
@@ -203,6 +811,35 @@ export const MiniGameDemoOverlay: React.FC<MiniGameDemoOverlayProps> = ({
     }, 60);
     return () => window.clearInterval(timer);
   }, [onFinish]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    let rafId = 0;
+    const t0 = performance.now();
+
+    const drawLoop = () => {
+      rafId = window.requestAnimationFrame(drawLoop);
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const targetW = Math.max(240, Math.round(rect.width * dpr));
+      const targetH = Math.max(120, Math.round(rect.height * dpr));
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      }
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      const t = (performance.now() - t0) / 1000;
+      renderDemoCanvasFrame(ctx, rect.width || 360, rect.height || 148, t, spec.visualKind, spec.accentHex, language);
+      ctx.restore();
+    };
+
+    drawLoop();
+    return () => window.cancelAnimationFrame(rafId);
+  }, [spec.visualKind, spec.accentHex, language]);
 
   const pct = Math.min(100, Math.round((elapsedMs / DEMO_DURATION_MS) * 100));
   const remainSec = Math.max(0.1, (DEMO_DURATION_MS - elapsedMs) / 1000).toFixed(1);
@@ -238,123 +875,13 @@ export const MiniGameDemoOverlay: React.FC<MiniGameDemoOverlayProps> = ({
         </button>
       </div>
 
-      {/* Animated SVG Simulation Canvas */}
-      <div className="relative rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950/80 to-slate-900 border border-white/15 p-3 overflow-hidden">
-        <svg viewBox="0 0 360 135" className="w-full h-32 sm:h-40 select-none">
-          <defs>
-            <linearGradient id="demoBeam" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor={spec.accentHex} stopOpacity="0.25" />
-              <stop offset="50%" stopColor={spec.accentHex} stopOpacity="0.9" />
-              <stop offset="100%" stopColor="#10b981" stopOpacity="0.35" />
-            </linearGradient>
-          </defs>
-          <rect x="6" y="6" width="348" height="123" rx="14" fill="rgba(15,23,42,0.8)" stroke="rgba(56,189,248,0.28)" />
-
-          {(spec.visualKind === 'food' || spec.visualKind === 'meal') && (
-            <g>
-              <rect x="210" y="34" width="118" height="68" rx="12" fill="#0f172a" stroke={spec.accentHex} strokeWidth="2.5" />
-              <motion.g
-                animate={{ x: [0, 152, 152, 0], y: [0, -6, 0, 0], scale: [1, 1.1, 0.96, 1] }}
-                transition={{ duration: 2.2, repeat: Infinity }}
-              >
-                <rect x="40" y="48" width="54" height="36" rx="10" fill={spec.accentHex} />
-                <text x="67" y="71" textAnchor="middle" fill="#0f172a" fontSize="16" fontWeight="bold">🍱</text>
-              </motion.g>
-              <motion.circle
-                cx="268"
-                cy="68"
-                r="14"
-                fill="none"
-                stroke="#10b981"
-                strokeWidth="3"
-                animate={{ scale: [0.8, 1.25, 0.8], opacity: [0.4, 1, 0.4] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-              />
-              <text x="268" y="114" textAnchor="middle" fill="#34d399" fontSize="11" fontWeight="bold">HEPA OK ✓</text>
-            </g>
-          )}
-
-          {(spec.visualKind === 'balance' || spec.visualKind === 'com') && (
-            <g>
-              <polygon points="180,104 166,120 194,120" fill="#64748b" />
-              <motion.g
-                style={{ originX: '180px', originY: '84px' }}
-                animate={{ rotate: [-8, 6, 0, 0] }}
-                transition={{ duration: 2.4, repeat: Infinity }}
-              >
-                <rect x="70" y="78" width="220" height="8" rx="4" fill={spec.accentHex} />
-                <rect x="82" y="50" width="44" height="26" rx="6" fill="#38bdf8" />
-                <rect x="234" y="50" width="44" height="26" rx="6" fill="#34d399" />
-              </motion.g>
-              <text x="180" y="34" textAnchor="middle" fill="#a7f3d0" fontSize="12" fontWeight="bold">
-                {spec.visualKind === 'balance' ? '≤ 18 kg BALANCED' : 'Δ MASS ≤ 15 kg'}
-              </text>
-            </g>
-          )}
-
-          {(spec.visualKind === 'medical' || spec.visualKind === 'launch' || spec.visualKind === 'storm' || spec.visualKind === 'ared') && (
-            <g>
-              <rect x="44" y="56" width="272" height="18" rx="9" fill="#1e293b" stroke="#475569" />
-              <rect x="148" y="56" width="64" height="18" rx="4" fill="rgba(16,185,129,0.45)" stroke="#34d399" strokeWidth="2" />
-              <motion.rect
-                y="49"
-                width="14"
-                height="32"
-                rx="5"
-                fill={spec.accentHex}
-                animate={{ x: [52, 290, 174, 52] }}
-                transition={{ duration: 2.4, repeat: Infinity }}
-              />
-              <text x="180" y="102" textAnchor="middle" fill="#fde047" fontSize="12" fontWeight="bold">
-                {spec.visualKind === 'launch'
-                  ? 'LOX + LH2 → GREEN ZONE'
-                  : spec.visualKind === 'ared'
-                  ? 'SWEET SPOT → PACK TOOLS'
-                  : spec.visualKind === 'storm'
-                  ? 'SHELTER SHIELD ACTIVE'
-                  : '1.5s HYDRATION HOLD'}
-              </text>
-            </g>
-          )}
-
-          {(spec.visualKind === 'zerog' || spec.visualKind === 'neows' || spec.visualKind === 'reentry' || spec.visualKind === 'splash') && (
-            <g>
-              <path d="M 35 95 Q 180 28 325 90" fill="none" stroke="url(#demoBeam)" strokeWidth="4" strokeDasharray="8 6" />
-              <motion.g
-                animate={{
-                  x: spec.visualKind === 'splash' ? [0, 0, 0] : [0, 140, 250, 0],
-                  y: spec.visualKind === 'splash' ? [0, 62, 62] : [0, -28, 6, 0]
-                }}
-                transition={{ duration: 2.5, repeat: Infinity }}
-              >
-                <circle cx={spec.visualKind === 'splash' ? 180 : 54} cy={spec.visualKind === 'splash' ? 28 : 82} r="13" fill={spec.accentHex} />
-                <text x={spec.visualKind === 'splash' ? 180 : 54} y={spec.visualKind === 'splash' ? 33 : 87} textAnchor="middle" fill="#0f172a" fontSize="13">
-                  {spec.visualKind === 'splash' ? '🪂' : '👩‍🚀'}
-                </text>
-              </motion.g>
-              <text x="180" y="116" textAnchor="middle" fill="#bae6fd" fontSize="11" fontWeight="bold">
-                {spec.visualKind === 'reentry' ? '1.3s DSN → ±18° CORRIDOR' : spec.visualKind === 'splash' ? '7,800m DROGUE → 3,600m MAIN' : 'REAL-TIME PHYSICS'}
-              </text>
-            </g>
-          )}
-
-          {(spec.visualKind === 'pipes' || spec.visualKind === 'crater') && (
-            <g>
-              <path d="M 55 68 L 145 68 L 145 44 L 225 44 L 225 84 L 305 84" fill="none" stroke="#1e293b" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" />
-              <motion.path
-                d="M 55 68 L 145 68 L 145 44 L 225 44 L 225 84 L 305 84"
-                fill="none"
-                stroke={spec.accentHex}
-                strokeWidth="6"
-                strokeDasharray="16 10"
-                animate={{ strokeDashoffset: [52, 0] }}
-                transition={{ duration: 1.4, repeat: Infinity, ease: 'linear' }}
-              />
-              <circle cx="55" cy="68" r="10" fill="#fbbf24" />
-              <circle cx="305" cy="84" r="10" fill="#34d399" />
-            </g>
-          )}
-        </svg>
+      {/* High-Craft 60fps HTML5 Physics Simulation Canvas */}
+      <div className="relative rounded-2xl bg-slate-950 border border-cyan-400/30 overflow-hidden shadow-inner">
+        <canvas
+          ref={canvasRef}
+          data-testid="demo-physics-canvas"
+          className="w-full h-36 sm:h-44 block"
+        />
       </div>
 
       {/* Clear 1-line Objective + Control Strip */}
