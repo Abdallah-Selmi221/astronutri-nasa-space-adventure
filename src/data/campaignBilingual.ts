@@ -464,8 +464,8 @@ export function getNextSequentialMissionTarget(
       activeRoom: null,
       requiresReturnAuth: false,
       isAllDone: true,
-      bannerEn: `Level ${levelId} Complete (${totalSteps}/${totalSteps})! Advance to Next Island`,
-      bannerAr: `اكتمل المستوى ${levelId} (${totalSteps}/${totalSteps})! انتقل للجزيرة التالية`
+      bannerEn: `Stage ${levelId} Complete (${totalSteps}/${totalSteps})! Laser Bridge to Next Sector Open`,
+      bannerAr: `اكتملت المرحلة ${levelId} (${totalSteps}/${totalSteps})! تم فتح جسر الليزر التالي`
     };
   }
 
@@ -496,6 +496,75 @@ export function getRoomLabel(room: SpatialRoomNode, lang: AppLanguage): { title:
     objective: tr(lang, ROOM_OBJECTIVE_EN[room.id] || room.nameEn, room.shortObjectiveAr)
   };
 }
+
+export interface StageCauseEffectStory {
+  levelId: CampaignLevelId;
+  prevIcon: string;
+  prevTitleEn: string;
+  prevTitleAr: string;
+  prevImpactEn: string;
+  prevImpactAr: string;
+  goalIcon: string;
+  goalTitleEn: string;
+  goalTitleAr: string;
+  goalWhyEn: string;
+  goalWhyAr: string;
+}
+
+export const STAGE_CAUSE_EFFECT: Record<CampaignLevelId, StageCauseEffectStory> = {
+  1: {
+    levelId: 1,
+    prevIcon: '🌍',
+    prevTitleEn: 'Mission Kickoff on Earth',
+    prevTitleAr: 'انطلاق المهمة من الأرض',
+    prevImpactEn: 'Your Artemis rocket waits at Sector 1, but zero-G crumbs & unsealed gear will fail in orbit.',
+    prevImpactAr: 'صاروخ أرتميس ينتظرك الآن، لكن فتات الطعام أو نقص التجهيز يعطلان الرحلة في الفضاء.',
+    goalIcon: '🚀',
+    goalTitleEn: 'Stage 1 Goal: Fuel, Suit Up & Blast Off',
+    goalTitleAr: 'هدف المرحلة 1: تجهيز الغذاء والبدلة والإقلاع',
+    goalWhyEn: 'Pack 4 crumb-free foods & calibrate SPACE-FIT X to open the Sector 2 Laser Bridge!',
+    goalWhyAr: 'احزم 4 وجبات آمنة ومعايرة البدلة لفتح جسر الليزر والوصول لمحطة الفضاء الدولية!'
+  },
+  2: {
+    levelId: 2,
+    prevIcon: '🍲',
+    prevTitleEn: 'Stage 1 Powered Launch',
+    prevTitleAr: 'نجاح الإطلاق من المرحلة 1',
+    prevImpactEn: 'Your packed Sinai rations & suit telemetry safely carried the crew into zero-G orbit.',
+    prevImpactAr: 'الوجبات المحزومة ومعايرة البدلة أوصلا الطاقم بنجاح إلى المدار الأرضي دون جاذبية.',
+    goalIcon: '🛰️',
+    goalTitleEn: 'Stage 2 Goal: Balance Orbit Nutrition & Dodging',
+    goalTitleAr: 'هدف المرحلة 2: توازن الغذاء وتفادي الكويكبات',
+    goalWhyEn: 'Prevent zero-G dehydration & dodge NASA NeoWs asteroids to unlock Moon Shackleton Base!',
+    goalWhyAr: 'حافظ على ترطيب الجسم في 0G وتفادَ الكويكبات ببيانات ناسا لفتح قاعدة القمر!'
+  },
+  3: {
+    levelId: 3,
+    prevIcon: '🛰️',
+    prevTitleEn: 'Stage 2 Orbit Navigation',
+    prevTitleAr: 'اجتياز مدار الأرض بسلام',
+    prevImpactEn: 'Dodging asteroids & maintaining ISS hydration delivered the crew to the lunar South Pole.',
+    prevImpactAr: 'تفادي الكويكبات والحفاظ على ترطيب الجسم مكّن الطاقم من الهبوط بالقطب الجنوبي للقمر.',
+    goalIcon: '🌕',
+    goalTitleEn: 'Stage 3 Goal: Sustain Life Inside Moon Dome',
+    goalTitleAr: 'هدف المرحلة 3: استدامة قاعدة القمر شاكلتون',
+    goalWhyEn: 'Recycle 98% water, train bones with ARED & shield solar storms so Orion can return home!',
+    goalWhyAr: 'دوّر 98% من المياه واحمِ العظام ودرع العواصف الشمسية لاعتماد العودة للأرض!'
+  },
+  4: {
+    levelId: 4,
+    prevIcon: '🌕',
+    prevTitleEn: 'Stage 3 Moon Base Certified',
+    prevTitleAr: 'اعتماد عينات وإنجاز القمر',
+    prevImpactEn: 'Recycled ECLSS water, bone fitness & lunar samples unlocked your Artemis return clearance.',
+    prevImpactAr: 'تدوير المياه وتقوية العظام وتأمين عينات القمر فتحوا مسار العودة عبر الغلاف الجوي.',
+    goalIcon: '🪂',
+    goalTitleEn: 'Stage 4 Goal: Safe Plasma Re-Entry & Splashdown',
+    goalTitleAr: 'هدف المرحلة 4: اختراق الغلاف الجوي والهبوط الآمن',
+    goalWhyEn: 'Balance lunar cargo weight, hold the PICA-X heat shield angle & deploy splashdown chutes!',
+    goalWhyAr: 'وازن حمولة العينات، وحافظ على زاوية الدرع الحراري، وافتح مظلات الهبوط!'
+  }
+};
 
 export function getAdaptedBriefingHint(
   miniGameId: MiniGameId,

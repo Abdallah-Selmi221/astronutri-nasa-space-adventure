@@ -3,21 +3,82 @@
 @tailwind utilities;
 
 @layer base {
-  html, body {
-    overscroll-behavior-y: none;
+  html, body, #root {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
   }
 
   body {
-    @apply bg-space-950 text-slate-100 font-cairo min-h-screen overflow-x-hidden;
+    @apply bg-space-950 text-slate-100 font-cairo;
     background-image: 
       radial-gradient(ellipse at 20% 20%, rgba(16, 185, 129, 0.08) 0%, transparent 40%),
       radial-gradient(ellipse at 80% 80%, rgba(6, 182, 212, 0.08) 0%, transparent 40%),
       radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.05) 0%, transparent 60%);
   }
 
+  input, textarea, select {
+    touch-action: auto;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
   h1, h2, h3, h4, .font-hud {
     @apply font-cairo font-black tracking-normal;
+  }
+}
+
+.scrollable-panel {
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-height: 480px) and (orientation: landscape) {
+  .landscape-compact-hidden {
+    display: none !important;
+  }
+  .landscape-compact-top {
+    top: 0.35rem !important;
+  }
+  .landscape-row2-banner {
+    top: 3.1rem !important;
+  }
+  [data-testid="top-mission-banner"] {
+    font-size: 0.7rem !important;
+    padding: 0.22rem 0.7rem !important;
+  }
+  [data-testid="third-person-joystick"] {
+    width: 4.25rem !important;
+    height: 4.25rem !important;
+  }
+  [data-testid="third-person-jump-btn"] {
+    width: 3.25rem !important;
+    height: 3.25rem !important;
+  }
+  [data-testid="third-person-interact-btn"] {
+    width: 2.9rem !important;
+    height: 2.9rem !important;
+  }
+  [data-testid="idle-speech-bubble"] {
+    bottom: 0.75rem !important;
+    left: 6rem !important;
+    right: 17.5rem !important;
+  }
+  [data-testid="idle-speech-bubble"] > div {
+    font-size: 0.65rem !important;
+    padding: 0.3rem 0.65rem !important;
   }
 }
 

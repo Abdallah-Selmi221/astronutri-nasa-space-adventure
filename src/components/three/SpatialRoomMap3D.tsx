@@ -28,6 +28,7 @@ import {
   stepSmoothHorizontalVelocity
 } from './thirdPersonPhysics';
 import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
+import { getQualityRenderConfig, useDisplaySettings } from '../../utils/displaySettings';
 
 interface SpatialRoomMap3DProps {
   levelId: CampaignLevelId;
@@ -154,10 +155,40 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
   const isSprintingRef = useRef(false);
   const cameraOrbitYawRef = useRef(0);
   const cameraOrbitPitchRef = useRef(0.38);
+  const targetCameraYawRef = useRef(0);
+  const targetCameraPitchRef = useRef(0.38);
+  const activeLookRef = useRef(false);
+  const [displaySettings] = useDisplaySettings();
+  const displaySettingsRef = useRef(displaySettings);
+  displaySettingsRef.current = displaySettings;
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const dirLightRef = useRef<THREE.DirectionalLight | null>(null);
   const lastActivityMsRef = useRef(performance.now());
   const waveUntilMsRef = useRef(performance.now() + 2500);
   const celebrateUntilMsRef = useRef(0);
   const boredVoiceFiredRef = useRef(false);
+
+  useEffect(() => {
+    const r = rendererRef.current;
+    const d = dirLightRef.current;
+    if (!r) return;
+    const q = getQualityRenderConfig(displaySettings.graphicsQuality);
+    r.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.maxPixelRatio));
+    r.shadowMap.enabled = q.shadowsEnabled;
+    if (d) d.castShadow = q.shadowsEnabled;
+  }, [displaySettings.graphicsQuality]);
+
+  const applyLookDelta = (rawDx: number, rawDy: number) => {
+    lastActivityMsRef.current = performance.now();
+    const dx = Math.max(-36, Math.min(36, rawDx));
+    const dy = Math.max(-36, Math.min(36, rawDy));
+    const sens = displaySettingsRef.current.cameraSensitivity;
+    targetCameraYawRef.current -= dx * 0.0046 * sens;
+    targetCameraPitchRef.current = Math.max(
+      0.18,
+      Math.min(0.92, targetCameraPitchRef.current + dy * 0.0034 * sens)
+    );
+  };
 
   const markPlayerActive = () => {
     lastActivityMsRef.current = performance.now();
@@ -272,9 +303,13 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     });
 
     const dims = getDims();
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    const qInit = getQualityRenderConfig(displaySettingsRef.current.graphicsQuality);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, qInit.maxPixelRatio));
     renderer.setSize(dims.w, dims.h);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled = qInit.shadowsEnabled;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    rendererRef.current = renderer;
     mount.innerHTML = '';
     mount.appendChild(renderer.domElement);
 
@@ -284,12 +319,14 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     camera.position.set(-4, 13.5, 19.5);
     cameraOrbitPitchRef.current = 0.78;
     cameraOrbitYawRef.current = -0.38;
-    const deckPitchIn = gsap.to(cameraOrbitPitchRef, {
+    targetCameraPitchRef.current = 0.78;
+    targetCameraYawRef.current = -0.38;
+    const deckPitchIn = gsap.to(targetCameraPitchRef, {
       current: 0.42,
       duration: 1.35,
       ease: 'power2.out'
     });
-    const deckYawIn = gsap.to(cameraOrbitYawRef, {
+    const deckYawIn = gsap.to(targetCameraYawRef, {
       current: 0,
       duration: 1.35,
       ease: 'power2.out'
@@ -306,6 +343,9 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     scene.add(hemi);
     const dir = new THREE.DirectionalLight(0xfffbeb, 1.85);
     dir.position.set(16, 26, 18);
+    dir.castShadow = qInit.shadowsEnabled;
+    dir.shadow.mapSize.set(1024, 1024);
+    dirLightRef.current = dir;
     scene.add(dir);
     const fill = new THREE.DirectionalLight(theme.rimColor, 0.72);
     fill.position.set(-16, 8, -14);
@@ -571,7 +611,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
 
-    let dragOrbiting = false;
+    let activeLookPointerId: number | null = null;
     let pointerDownPos = { x: 0, y: 0 };
     let prevPointerPos = { x: 0, y: 0 };
     const raycaster = new THREE.Raycaster();
@@ -579,22 +619,24 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     const domEl = renderer.domElement;
 
     const onPointerDown = (e: PointerEvent) => {
+      if (activeLookPointerId !== null) return;
       markPlayerActive();
-      dragOrbiting = true;
+      activeLookPointerId = e.pointerId;
+      activeLookRef.current = true;
       pointerDownPos = { x: e.clientX, y: e.clientY };
       prevPointerPos = { x: e.clientX, y: e.clientY };
     };
     const onPointerMove = (e: PointerEvent) => {
-      if (!dragOrbiting) return;
+      if (activeLookPointerId !== e.pointerId) return;
       const dx = e.clientX - prevPointerPos.x;
       const dy = e.clientY - prevPointerPos.y;
       prevPointerPos = { x: e.clientX, y: e.clientY };
-      cameraOrbitYawRef.current -= dx * 0.0065;
-      cameraOrbitPitchRef.current = Math.max(0.18, Math.min(0.92, cameraOrbitPitchRef.current + dy * 0.004));
+      applyLookDelta(dx, dy);
     };
     const onPointerUp = (e: PointerEvent) => {
-      if (!dragOrbiting) return;
-      dragOrbiting = false;
+      if (activeLookPointerId !== e.pointerId) return;
+      activeLookPointerId = null;
+      activeLookRef.current = false;
       if (Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y) > 7) return;
 
       const rect = domEl.getBoundingClientRect();
@@ -680,9 +722,18 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
     const animate = (now: number) => {
       rafId = requestAnimationFrame(animate);
+      const qCfg = getQualityRenderConfig(displaySettingsRef.current.graphicsQuality);
+      if (qCfg.targetFpsIntervalMs > 0 && now - lastTime < qCfg.targetFpsIntervalMs) {
+        return;
+      }
       const dt = Math.min(0.05, (now - lastTime) / 1000);
       lastTime = now;
       const elapsed = (now - startTime) / 1000;
+
+      const dampRate = Math.max(2.6, (1.18 - displaySettingsRef.current.cameraSmoothness) * 14);
+      const dampAlpha = 1 - Math.exp(-dampRate * dt);
+      cameraOrbitYawRef.current = lerpAngle(cameraOrbitYawRef.current, targetCameraYawRef.current, dampAlpha);
+      cameraOrbitPitchRef.current += (targetCameraPitchRef.current - cameraOrbitPitchRef.current) * dampAlpha;
 
       skyHandle.update(elapsed);
       blenderEnvGroups.forEach((g) => animateBlenderEnvironmentGlb(g, elapsed));
@@ -892,12 +943,12 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       floorArrowSystem.update(pos, activeTargetWorldPos, 0, elapsed);
 
       // Auto-Follow Third-Person Camera behind player while walking (no two-finger camera needed on mobile!)
-      if (moveSpeed > 0.25 && !dragOrbiting) {
+      if (moveSpeed > 0.25 && !activeLookRef.current) {
         const behindPlayerYaw = hero.group.rotation.y + Math.PI;
-        cameraOrbitYawRef.current = lerpAngle(
-          cameraOrbitYawRef.current,
+        targetCameraYawRef.current = lerpAngle(
+          targetCameraYawRef.current,
           behindPlayerYaw,
-          1 - Math.exp(-3.4 * dt)
+          1 - Math.exp(-3.0 * dt)
         );
       }
 
@@ -925,10 +976,14 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
     return () => {
       isSceneDisposed = true;
+      rendererRef.current = null;
+      dirLightRef.current = null;
       deckPitchIn.kill();
       deckYawIn.kill();
       gsap.killTweensOf(cameraOrbitPitchRef);
       gsap.killTweensOf(cameraOrbitYawRef);
+      gsap.killTweensOf(targetCameraPitchRef);
+      gsap.killTweensOf(targetCameraYawRef);
       cancelAnimationFrame(rafId);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
@@ -1097,6 +1152,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           markPlayerActive();
           joystickVecRef.current = vec;
         }}
+        onLookDrag={applyLookDelta}
         onJump={triggerJump}
         onSprintChange={(s) => {
           markPlayerActive();

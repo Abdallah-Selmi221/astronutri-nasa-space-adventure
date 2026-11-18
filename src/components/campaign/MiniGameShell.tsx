@@ -17,6 +17,7 @@ import { tr, speakWebSpeechNonBlocking } from '../../utils/i18n';
 import { soundManager } from '../../utils/sound';
 import { openNasaDrawer } from '../common/NasaMissionControlDrawer';
 import { MissionInventoryBar } from './MissionInventoryBar';
+import { StageStoryBanner } from './StageStoryBanner';
 
 export interface MiniGameShellProps {
   miniGameId: MiniGameId;
@@ -58,7 +59,7 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
   return (
     <div
       dir={isAr ? 'rtl' : 'ltr'}
-      className="min-h-screen w-full pt-4 pb-10 px-3 sm:px-6 max-w-5xl mx-auto space-y-4"
+      className="h-[100dvh] w-full scrollable-panel pt-4 pb-10 px-3 sm:px-6 max-w-5xl mx-auto space-y-4"
     >
       {/* Top Action & Context Header */}
       <header className="flex flex-wrap items-center justify-between gap-2.5 bg-slate-900/95 border-2 border-cyan-400/50 rounded-3xl p-3 sm:p-4 shadow-xl backdrop-blur-md">
@@ -223,6 +224,8 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
               <span>NASA Data: {briefing.datasetTag}</span>
             </span>
           </div>
+
+          <StageStoryBanner compact levelId={spec.levelId} language={language} />
 
           {/* 3 Cartoon Visual Story Icons */}
           <div className="flex items-center justify-center gap-3 sm:gap-5 py-2">

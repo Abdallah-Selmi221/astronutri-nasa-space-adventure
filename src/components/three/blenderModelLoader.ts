@@ -332,3 +332,29 @@ export function attachStationPropGlb(opts: {
 export function getLoadedGlbUrls(): string[] {
   return Array.from(loadedUrls);
 }
+
+export function attachMassiveSpaceIsland(opts: {
+  targetParent: THREE.Object3D;
+  fallbackNodes?: THREE.Object3D[];
+  isDisposed: () => boolean;
+  onLoaded?: (islandGlb: THREE.Group) => void;
+}): void {
+  attachGlbScene({
+    url: '/models/massive_space_island_world.glb',
+    name: 'MassiveConnectedTerraIsland',
+    targetParent: opts.targetParent,
+    scale: [1, 1, 1],
+    position: [0, 0, 0],
+    fallbackNodes: opts.fallbackNodes,
+    isDisposed: opts.isDisposed,
+    onLoaded: (glb) => {
+      glb.traverse((node) => {
+        if (node instanceof THREE.Mesh) {
+          node.receiveShadow = true;
+          node.castShadow = true;
+        }
+      });
+      opts.onLoaded?.(glb);
+    }
+  });
+}

@@ -101,12 +101,12 @@ const GameRouter: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-space-950 text-white flex flex-col relative space-stars">
+    <div className="h-[100dvh] w-full overflow-hidden bg-space-950 text-white flex flex-col relative space-stars">
       {/* Top Simplified HUD (Visible during missions) */}
       <HeaderHUD />
 
       {/* Main Location Viewport with GameErrorBoundary + Framer Motion transitions */}
-      <div className="flex-1 flex flex-col">
+      <div className={state.currentLocation === 'Map' ? 'flex-1 flex overflow-hidden' : 'flex-1 flex scrollable-panel'}>
         <GameErrorBoundary resetKey={state.currentLocation} onGoHome={() => setLocation('Map')}>
           <Suspense fallback={<MissionLoadingFallback />}>
             <AnimatePresence mode="wait">

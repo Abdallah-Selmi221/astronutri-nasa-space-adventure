@@ -23,6 +23,7 @@ import {
 
 import { tr } from '../../utils/i18n';
 import type { AppLanguage, CadetAgeGroup } from '../../types/game';
+import { GraphicsQuality, useDisplaySettings } from '../../utils/displaySettings';
 
 interface SettingsMenuProps {
   isOpen: boolean;
@@ -52,6 +53,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
   const [confirmReset, setConfirmReset] = useState<boolean>(false);
   const [resetNotice, setResetNotice] = useState<boolean>(false);
   const [demoUnlockNotice, setDemoUnlockNotice] = useState<boolean>(false);
+  const [displaySettings, setDisplaySettings] = useDisplaySettings();
 
   const isAllDemoUnlocked =
     (state.campaign?.unlockedLevels.length ?? 1) >= 4 &&
@@ -165,7 +167,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
             exit={{ scale: 0.88, opacity: 0, y: 24 }}
             transition={{ type: 'spring', stiffness: 260, damping: 24 }}
             dir={language === 'ar' ? 'rtl' : 'ltr'}
-            className={`relative z-10 w-full max-w-xl bg-gradient-to-b from-sky-950 via-space-900 to-space-950 border-4 border-cyan-400 rounded-[2rem] p-5 sm:p-7 shadow-[0_20px_60px_rgba(6,182,212,0.45)] ${
+            className={`relative z-10 w-full max-w-xl max-h-[92dvh] flex flex-col bg-gradient-to-b from-sky-950 via-space-900 to-space-950 border-4 border-cyan-400 rounded-[2rem] p-3.5 sm:p-6 shadow-[0_20px_60px_rgba(6,182,212,0.45)] ${
               language === 'ar' ? 'text-right' : 'text-left'
             } overflow-hidden`}
           >
@@ -174,7 +176,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
             <div className="absolute -bottom-20 -left-20 w-56 h-56 bg-amber-400/15 rounded-full blur-3xl pointer-events-none" />
 
             {/* Header */}
-            <div className="flex items-center justify-between border-b-2 border-cyan-500/30 pb-4 mb-5">
+            <div className="shrink-0 flex items-center justify-between border-b-2 border-cyan-500/30 pb-2.5 sm:pb-4 mb-2.5 sm:mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-400 p-0.5 shadow-lg shadow-cyan-500/30">
                   <div className="w-full h-full bg-space-950 rounded-[14px] flex items-center justify-center">
@@ -211,7 +213,96 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
               </button>
             </div>
 
-            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+            <div className="flex-1 min-h-0 space-y-4 scrollable-panel pr-1">
+              {/* 0A. CAMERA LOOK SENSITIVITY, SMOOTHNESS & 3D GRAPHICS QUALITY */}
+              <div
+                data-testid="graphics-sensitivity-panel"
+                className="p-4 rounded-3xl bg-space-950/90 border-2 border-indigo-400/55 shadow-inner space-y-3"
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <h3 className="font-hud font-black text-sm sm:text-base text-white flex items-center gap-2">
+                    <span>🎮</span>
+                    <span>{tr(language, 'Camera Look & 3D Graphics Quality', 'إعدادات الكاميرا وجودة الجرافيك ثلاثي الأبعاد')}</span>
+                  </h3>
+                </div>
+
+                {/* Camera Sensitivity Slider */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs font-bold text-cyan-200">
+                    <span>{tr(language, 'Right-Thumb Camera Speed', 'حساسية دوران الكاميرا باليد اليمنى')}</span>
+                    <span className="px-2 py-0.5 rounded-lg bg-cyan-950 border border-cyan-500/40 font-hud">
+                      {displaySettings.cameraSensitivity.toFixed(2)}x
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    data-testid="camera-sensitivity-slider"
+                    min={0.2}
+                    max={2.0}
+                    step={0.05}
+                    value={displaySettings.cameraSensitivity}
+                    onChange={(e) => setDisplaySettings({ cameraSensitivity: Number(e.target.value) })}
+                    className="w-full h-2.5 bg-space-800 rounded-xl appearance-none cursor-pointer accent-cyan-400"
+                  />
+                </div>
+
+                {/* Camera Damping / Smoothness Slider */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs font-bold text-indigo-200">
+                    <span>{tr(language, 'Camera Smoothness (Anti-Jerk)', 'نعومة وحركة الكاميرا السلسة')}</span>
+                    <span className="px-2 py-0.5 rounded-lg bg-indigo-950 border border-indigo-500/40 font-hud">
+                      {Math.round(displaySettings.cameraSmoothness * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    data-testid="camera-smoothness-slider"
+                    min={0.2}
+                    max={1.0}
+                    step={0.05}
+                    value={displaySettings.cameraSmoothness}
+                    onChange={(e) => setDisplaySettings({ cameraSmoothness: Number(e.target.value) })}
+                    className="w-full h-2.5 bg-space-800 rounded-xl appearance-none cursor-pointer accent-indigo-400"
+                  />
+                </div>
+
+                {/* Graphics Quality Preset Pills */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="text-xs font-bold text-emerald-200">
+                    {tr(language, 'Graphics Quality Preset', 'جودة الرسوميات والأداء')}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(
+                      [
+                        { id: 'low', en: 'Low 30fps', ar: 'خفيف 30fps' },
+                        { id: 'medium', en: 'Medium', ar: 'متوسط 60fps' },
+                        { id: 'ultra', en: 'Ultra 60fps', ar: 'ألترا + ظلال' }
+                      ] as { id: GraphicsQuality; en: string; ar: string }[]
+                    ).map((preset) => {
+                      const active = displaySettings.graphicsQuality === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          data-testid={`gfx-preset-${preset.id}`}
+                          onClick={() => {
+                            soundManager.playClick();
+                            setDisplaySettings({ graphicsQuality: preset.id });
+                          }}
+                          className={`py-2 px-2 rounded-2xl text-[11px] sm:text-xs font-hud font-black border-2 transition-all cursor-pointer ${
+                            active
+                              ? 'bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950 border-white shadow-lg'
+                              : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-cyan-400/60'
+                          }`}
+                        >
+                          {tr(language, preset.en, preset.ar)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
               {/* 0. JURY DEMO MODE: UNLOCK ALL 4 NODES / 14 STATIONS */}
               <div className="p-4 rounded-3xl bg-gradient-to-br from-emerald-950/90 via-cyan-950/85 to-slate-950 border-2 border-amber-400/80 shadow-[0_0_24px_rgba(251,191,36,0.22)] space-y-3">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -668,14 +759,15 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
             </div>
 
             {/* Bottom Close Action */}
-            <div className="mt-5 pt-3 border-t border-cyan-500/30 flex justify-end">
+            <div className="shrink-0 mt-2.5 sm:mt-4 pt-2 sm:pt-3 border-t border-cyan-500/30 flex justify-end">
               <button
                 type="button"
+                data-testid="settings-save-close-btn"
                 onClick={() => {
                   soundManager.playClick();
                   onClose();
                 }}
-                className="w-full sm:w-auto px-8 py-3 rounded-2xl bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-500 text-space-950 font-hud font-black text-sm shadow-xl shadow-cyan-500/30 border-2 border-cyan-100 active:scale-95 transition-all cursor-pointer"
+                className="w-full sm:w-auto px-8 py-2.5 sm:py-3 rounded-2xl bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-500 text-space-950 font-hud font-black text-sm shadow-xl shadow-cyan-500/30 border-2 border-cyan-100 active:scale-95 transition-all cursor-pointer"
               >
                 {tr(language, 'Save & Return to Mission 🚀', 'حفظ والعودة للمهمة 🚀')}
               </button>

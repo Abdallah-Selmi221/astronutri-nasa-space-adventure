@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Compass, DoorOpen, Sparkles, Zap } from 'lucide-react';
+import { Compass, DoorOpen, Eye, Sparkles, Zap } from 'lucide-react';
 import { soundManager } from '../../utils/sound';
 import { useGameState } from '../../context/GameContext';
 import { tr } from '../../utils/i18n';
@@ -9,6 +9,7 @@ interface ThirdPersonControlsOverlayProps {
   promptSubAr?: string;
   onInteract: () => void;
   onJoystickMove: (vec: { x: number; z: number }) => void;
+  onLookDrag?: (dx: number, dy: number) => void;
   onJump: () => void;
   onSprintChange?: (sprinting: boolean) => void;
   onAutoWalkNext?: () => void;
@@ -23,6 +24,7 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
   promptSubAr,
   onInteract,
   onJoystickMove,
+  onLookDrag,
   onJump,
   onSprintChange,
   onAutoWalkNext,
@@ -33,8 +35,11 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
 }) => {
   const { language } = useGameState();
   const padRef = useRef<HTMLDivElement | null>(null);
+  const lookPointerIdRef = useRef<number | null>(null);
+  const lookLastPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [knobOffset, setKnobOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
+  const [isLooking, setIsLooking] = useState(false);
   const [sprinting, setSprinting] = useState(false);
 
   const updateJoystickFromPointer = (clientX: number, clientY: number) => {
@@ -105,8 +110,47 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
         </span>
       </div>
 
-      {/* Bottom-Right: Tap-to-Walk Next Mission + Target Interact + Action Buttons */}
+      {/* Bottom-Right: Right-Thumb Camera Look Pad + Auto-Walk + Target Interact + Action Buttons */}
       <div className="pointer-events-auto flex flex-col items-end gap-1.5 sm:gap-2 max-w-[66vw] sm:max-w-none shrink-0">
+        {onLookDrag && (
+          <div
+            data-testid="right-camera-look-zone"
+            dir={textDir}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              e.currentTarget.setPointerCapture(e.pointerId);
+              lookPointerIdRef.current = e.pointerId;
+              lookLastPosRef.current = { x: e.clientX, y: e.clientY };
+              setIsLooking(true);
+            }}
+            onPointerMove={(e) => {
+              if (lookPointerIdRef.current !== e.pointerId) return;
+              const dx = e.clientX - lookLastPosRef.current.x;
+              const dy = e.clientY - lookLastPosRef.current.y;
+              lookLastPosRef.current = { x: e.clientX, y: e.clientY };
+              onLookDrag(dx, dy);
+            }}
+            onPointerUp={(e) => {
+              if (lookPointerIdRef.current === e.pointerId) {
+                lookPointerIdRef.current = null;
+                setIsLooking(false);
+              }
+            }}
+            onPointerCancel={() => {
+              lookPointerIdRef.current = null;
+              setIsLooking(false);
+            }}
+            className={`px-3 py-1.5 rounded-full border backdrop-blur-md touch-none cursor-grab active:cursor-grabbing flex items-center gap-1.5 text-[10px] sm:text-[11px] font-hud font-black transition-all select-none ${
+              isLooking
+                ? 'bg-cyan-400/90 text-slate-950 border-white shadow-[0_0_16px_rgba(34,211,238,0.65)]'
+                : 'bg-slate-900/65 text-cyan-200 border-cyan-400/50 hover:border-cyan-300'
+            }`}
+          >
+            <Eye className="w-3.5 h-3.5 shrink-0" />
+            <span>{tr(language, 'Look Camera ⇄', 'تدوير الكاميرا ⇄')}</span>
+          </div>
+        )}
+
         {onAutoWalkNext && autoWalkLabel && (
           <button
             type="button"

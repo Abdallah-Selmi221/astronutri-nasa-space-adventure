@@ -12,11 +12,13 @@ import { Level2MiniGames } from './Level2MiniGames';
 import { Level3MiniGames } from './Level3MiniGames';
 import { Level4MiniGames } from './Level4MiniGames';
 import { MissionInventoryBar } from './MissionInventoryBar';
+import { StageStoryBanner } from './StageStoryBanner';
 import { EcoBioCabin } from './EcoBioCabin';
 import { ScientificSourcesModal } from './ScientificSourcesModal';
 import { SettingsMenu } from '../common/SettingsMenu';
 import { openNasaDrawer } from '../common/NasaMissionControlDrawer';
 import { soundManager } from '../../utils/sound';
+import { toggleFullscreenLandscape } from '../../utils/displaySettings';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { nasaCache } from '../../services/nasa/nasaCache';
 import { getNextSequentialMissionTarget, LEVEL_TITLES_BILINGUAL } from '../../data/campaignBilingual';
@@ -30,6 +32,7 @@ import {
   HelpCircle,
   Layers,
   Lock,
+  Maximize2,
   Menu,
   Play,
   Rocket,
@@ -72,6 +75,15 @@ export const CampaignHubView: React.FC = () => {
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
   const [isSuitShowcaseOpen, setIsSuitShowcaseOpen] = useState(false);
   const [isLevelsDrawerOpen, setIsLevelsDrawerOpen] = useState(false);
+  const [showLevelStory, setShowLevelStory] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerHeight >= 520 : true
+  );
+
+  useEffect(() => {
+    if (campaign.viewMode === 'level_hub') {
+      setShowLevelStory(typeof window !== 'undefined' ? window.innerHeight >= 520 : true);
+    }
+  }, [campaign.viewMode, activeLevelId]);
   const [isRoomsDrawerOpen, setIsRoomsDrawerOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
@@ -472,6 +484,32 @@ export const CampaignHubView: React.FC = () => {
 
             <button
               type="button"
+              data-testid="hud-fullscreen-btn"
+              onClick={() => void toggleFullscreenLandscape()}
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-200 font-hud font-black text-xs border-2 border-cyan-300/75 backdrop-blur-md shadow-lg flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              aria-label={tr(language, 'Fullscreen Landscape', 'ملء الشاشة بالعرض')}
+              title={tr(language, 'Fullscreen Landscape', 'ملء الشاشة بالعرض')}
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              data-testid="hud-settings-btn"
+              onClick={() => {
+                soundManager.playClick();
+                setIsMobileMenuOpen(false);
+                setIsSettingsOpen(true);
+              }}
+              className="p-1.5 rounded-full bg-slate-950/75 hover:bg-slate-900 text-slate-200 border-2 border-slate-400/75 backdrop-blur-md shadow-lg cursor-pointer"
+              aria-label={tr(language, 'Settings', 'الإعدادات')}
+              title={tr(language, 'Settings', 'الإعدادات')}
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
               data-testid="mobile-menu-toggle"
               onClick={() => {
                 soundManager.playClick();
@@ -490,7 +528,7 @@ export const CampaignHubView: React.FC = () => {
         {/* Kid-Friendly Top-Center Guided Mission Banner + Persistent Inventory Bar */}
         <div
           dir={langDir}
-          className="pointer-events-none fixed top-14 sm:top-3.5 inset-x-0 z-20 flex flex-col items-center gap-1.5 px-3"
+          className="pointer-events-none fixed top-14 sm:top-3.5 landscape-row2-banner inset-x-0 z-20 flex flex-col items-center gap-1 px-3"
         >
           <button
             type="button"
@@ -510,6 +548,36 @@ export const CampaignHubView: React.FC = () => {
             )}
           </button>
           <MissionInventoryBar campaign={campaign} activeLevelId={activeLevelId} language={language} />
+
+          {/* Cause-and-Effect Story Toggle / Arrival Card */}
+          <div className="pointer-events-auto flex items-center gap-1.5">
+            <button
+              type="button"
+              data-testid="hud-story-toggle"
+              onClick={() => {
+                soundManager.playClick();
+                setShowLevelStory((v) => !v);
+              }}
+              className="px-2.5 py-0.5 rounded-full bg-indigo-950/85 hover:bg-indigo-900 border border-cyan-400/60 text-cyan-200 font-hud font-black text-[10px] shadow cursor-pointer flex items-center gap-1"
+            >
+              <span>🔗</span>
+              <span>{tr(language, showLevelStory ? 'Hide Story' : 'Why This Stage?', showLevelStory ? 'إخفاء القصة' : 'قصة المهمة')}</span>
+            </button>
+          </div>
+
+          {showLevelStory && (
+            <div
+              data-testid="level-cause-effect-card"
+              className="pointer-events-auto w-full max-w-2xl px-1"
+            >
+              <StageStoryBanner
+                compact
+                levelId={activeLevelId}
+                language={language}
+                onDismiss={() => setShowLevelStory(false)}
+              />
+            </div>
+          )}
         </div>
 
         {/* Clean Unified Pause & Navigation Drawer (Level Hub) */}
@@ -897,6 +965,32 @@ export const CampaignHubView: React.FC = () => {
             aria-label={tr(language, 'Robo Voice', 'صوت روبو')}
           >
             <Volume2 className={`w-4 h-4 ${isAudioPlaying ? 'animate-pulse text-amber-300' : ''}`} />
+          </button>
+
+          <button
+            type="button"
+            data-testid="hud-fullscreen-btn"
+            onClick={() => void toggleFullscreenLandscape()}
+            className="p-2 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-200 border-2 border-cyan-300/60 backdrop-blur-md shadow-lg cursor-pointer"
+            aria-label={tr(language, 'Fullscreen Landscape', 'ملء الشاشة بالعرض')}
+            title={tr(language, 'Fullscreen Landscape', 'ملء الشاشة بالعرض')}
+          >
+            <Maximize2 className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            data-testid="hud-settings-btn"
+            onClick={() => {
+              soundManager.playClick();
+              setIsMobileMenuOpen(false);
+              setIsSettingsOpen(true);
+            }}
+            className="p-2 rounded-full bg-slate-950/75 hover:bg-slate-900 text-slate-200 border-2 border-slate-400/75 backdrop-blur-md shadow-lg cursor-pointer"
+            aria-label={tr(language, 'Settings', 'الإعدادات')}
+            title={tr(language, 'Settings', 'الإعدادات')}
+          >
+            <Settings className="w-4 h-4" />
           </button>
 
           <button

@@ -13,11 +13,13 @@ import {
   animateBlenderEnvironmentGlb,
   attachBlenderPlanetsFromPack,
   attachBlenderSpaceship,
+  attachMassiveSpaceIsland,
   attachSpaceNodeGlb,
   disposeObject3D,
   getLoadedGlbUrls,
   SpaceNodeModelKey
 } from './blenderModelLoader';
+import { getQualityRenderConfig, useDisplaySettings } from '../../utils/displaySettings';
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
 import { createFloorGuideArrowSystem, lerpAngle } from './thirdPersonPhysics';
 import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
@@ -174,9 +176,38 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   const ascendUntilRef = useRef<number>(0);
   const orbitYawRef = useRef<number>(0);
   const orbitPitchRef = useRef<number>(0.42);
+  const targetOrbitYawRef = useRef<number>(0);
+  const targetOrbitPitchRef = useRef<number>(0.42);
+  const [displaySettings] = useDisplaySettings();
+  const displaySettingsRef = useRef(displaySettings);
+  displaySettingsRef.current = displaySettings;
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const sunLightRef = useRef<THREE.DirectionalLight | null>(null);
   const celebrateUntilRef = useRef<number>(0);
   const lastActivityRef = useRef<number>(performance.now());
   const toastTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const r = rendererRef.current;
+    const s = sunLightRef.current;
+    if (!r) return;
+    const q = getQualityRenderConfig(displaySettings.graphicsQuality);
+    r.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.maxPixelRatio));
+    r.shadowMap.enabled = q.shadowsEnabled;
+    if (s) s.castShadow = q.shadowsEnabled;
+  }, [displaySettings.graphicsQuality]);
+
+  const applyLookDelta = (rawDx: number, rawDy: number) => {
+    lastActivityRef.current = performance.now();
+    const dx = Math.max(-36, Math.min(36, rawDx));
+    const dy = Math.max(-36, Math.min(36, rawDy));
+    const sens = displaySettingsRef.current.cameraSensitivity;
+    targetOrbitYawRef.current -= dx * 0.0042 * sens;
+    targetOrbitPitchRef.current = Math.max(
+      0.12,
+      Math.min(0.95, targetOrbitPitchRef.current + dy * 0.0032 * sens)
+    );
+  };
 
   useEffect(() => {
     return () => {
@@ -211,7 +242,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     setIsFlightMode(false);
     targetSplineTRef.current = idx / 3;
     pendingEnterLevelRef.current = enterWhenDocked ? lid : null;
-    gsap.to(orbitYawRef, {
+    gsap.to(targetOrbitYawRef, {
       current: Math.max(-0.34, Math.min(0.34, -TRAJECTORY_NODES[idx].center.x * 0.018)),
       duration: 0.85,
       ease: 'power2.out'
@@ -256,9 +287,13 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     });
 
     const dims = getDims();
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    const initialQuality = getQualityRenderConfig(displaySettingsRef.current.graphicsQuality);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, initialQuality.maxPixelRatio));
     renderer.setSize(dims.w, dims.h);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled = initialQuality.shadowsEnabled;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    rendererRef.current = renderer;
     mount.innerHTML = '';
     mount.appendChild(renderer.domElement);
 
@@ -268,12 +303,14 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     camera.position.set(-6, 17, 31);
     orbitPitchRef.current = 0.78;
     orbitYawRef.current = -0.35;
-    const worldFlyInTween = gsap.to(orbitPitchRef, {
+    targetOrbitPitchRef.current = 0.78;
+    targetOrbitYawRef.current = -0.35;
+    const worldFlyInTween = gsap.to(targetOrbitPitchRef, {
       current: 0.42,
       duration: 1.45,
       ease: 'power2.out'
     });
-    const worldYawInTween = gsap.to(orbitYawRef, {
+    const worldYawInTween = gsap.to(targetOrbitYawRef, {
       current: 0,
       duration: 1.45,
       ease: 'power2.out'
@@ -283,6 +320,15 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     const hemi = new THREE.HemisphereLight(0xe0f2fe, 0x0f172a, 1.28);
     const sun = new THREE.DirectionalLight(0xfffbeb, 1.75);
     sun.position.set(16, 22, 18);
+    sun.castShadow = initialQuality.shadowsEnabled;
+    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.camera.near = 2;
+    sun.shadow.camera.far = 70;
+    sun.shadow.camera.left = -18;
+    sun.shadow.camera.right = 18;
+    sun.shadow.camera.top = 12;
+    sun.shadow.camera.bottom = -12;
+    sunLightRef.current = sun;
     const rim = new THREE.DirectionalLight(0x38bdf8, 0.85);
     rim.position.set(-18, -6, -12);
     scene.add(hemi, sun, rim);
@@ -320,7 +366,14 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       }
     });
 
-    // 2. Curved 3D Earth-to-Moon Orbital Trajectory Spline (Nodes 1 -> 2 -> 3 -> 4)
+    // 2. Massive Sculpted Connected 3D Space Terra-Island + Plasma Laser Energy Bridges (Sectors 1 -> 2 -> 3 -> 4)
+    const connectedIslandRoot = new THREE.Group();
+    scene.add(connectedIslandRoot);
+    attachMassiveSpaceIsland({
+      targetParent: connectedIslandRoot,
+      isDisposed: () => isDisposed
+    });
+
     const trajectoryCurve = new THREE.CatmullRomCurve3(
       TRAJECTORY_NODES.map((n) => n.center.clone()),
       false,
@@ -329,26 +382,70 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     );
 
     const unlockedSet = new Set<CampaignLevelId>(campaign.unlockedLevels);
+    let seenBridges = new Set<number>([1]);
+    try {
+      const savedSeen = window.localStorage.getItem('astronutri_seen_bridges_v1');
+      if (savedSeen) {
+        seenBridges = new Set(JSON.parse(savedSeen) as number[]);
+      }
+    } catch {
+      // ignore storage errors
+    }
+
+    const laserBridgeBeams: THREE.Mesh[] = [];
+    let newlyIgnitedMidX: number | null = null;
     for (let legIdx = 0; legIdx < TRAJECTORY_NODES.length - 1; legIdx++) {
+      const a = TRAJECTORY_NODES[legIdx];
       const b = TRAJECTORY_NODES[legIdx + 1];
       const legUnlocked = unlockedSet.has(b.levelId);
-      const pts: THREE.Vector3[] = [];
-      for (let s = 0; s <= 16; s++) {
-        const t = (legIdx + s / 16) / 3;
-        pts.push(trajectoryCurve.getPointAt(Math.min(1, t)));
+      const isFreshUnlock = legUnlocked && !seenBridges.has(b.levelId);
+      if (legUnlocked) seenBridges.add(b.levelId);
+
+      const startPt = a.center.clone().add(new THREE.Vector3(0, 0.65, 0));
+      const endPt = b.center.clone().add(new THREE.Vector3(0, 0.65, 0));
+      const spanVec = endPt.clone().sub(startPt);
+      const spanLen = spanVec.length();
+      const midPt = startPt.clone().lerp(endPt, 0.5);
+
+      const beamGeo = new THREE.CylinderGeometry(legUnlocked ? 0.14 : 0.06, legUnlocked ? 0.14 : 0.06, spanLen, 8);
+      const beamMat = new THREE.MeshStandardMaterial({
+        color: legUnlocked ? b.accentColor : 0x475569,
+        emissive: legUnlocked ? b.accentColor : 0x1e293b,
+        emissiveIntensity: legUnlocked ? 1.15 : 0.25,
+        transparent: true,
+        opacity: legUnlocked ? 0.92 : 0.32
+      });
+      const beam = new THREE.Mesh(beamGeo, beamMat);
+      beam.position.copy(midPt);
+      beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), spanVec.clone().normalize());
+      if (isFreshUnlock) {
+        beam.scale.set(1.6, 0.02, 1.6);
+        gsap.to(beam.scale, {
+          x: 1,
+          y: 1,
+          z: 1,
+          duration: 1.45,
+          delay: 0.35,
+          ease: 'power3.out'
+        });
+        newlyIgnitedMidX = midPt.x;
       }
-      const legCurve = new THREE.CatmullRomCurve3(pts);
-      const legMesh = new THREE.Mesh(
-        new THREE.TubeGeometry(legCurve, 20, legUnlocked ? 0.14 : 0.08, 8, false),
-        new THREE.MeshStandardMaterial({
-          color: legUnlocked ? b.accentColor : 0x475569,
-          emissive: legUnlocked ? b.accentColor : 0x1e293b,
-          emissiveIntensity: legUnlocked ? 0.85 : 0.25,
-          transparent: true,
-          opacity: legUnlocked ? 0.92 : 0.38
-        })
-      );
-      scene.add(legMesh);
+      scene.add(beam);
+      laserBridgeBeams.push(beam);
+    }
+
+    if (newlyIgnitedMidX !== null) {
+      try {
+        window.localStorage.setItem('astronutri_seen_bridges_v1', JSON.stringify(Array.from(seenBridges)));
+      } catch {
+        // ignore storage errors
+      }
+      gsap.to(targetOrbitYawRef, {
+        current: Math.max(-0.32, Math.min(0.32, -newlyIgnitedMidX * 0.02)),
+        duration: 1.2,
+        ease: 'power2.out'
+      });
+      soundManager.playFanfare();
     }
 
     // Animated Trajectory Pulse Beads traveling from Earth -> Moon
@@ -516,7 +613,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
 
-    let dragOrbiting = false;
+    let activeLookPointerId: number | null = null;
     let downPos = { x: 0, y: 0 };
     let prevPos = { x: 0, y: 0 };
     const raycaster = new THREE.Raycaster();
@@ -524,22 +621,22 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     const domEl = renderer.domElement;
 
     const onPointerDown = (e: PointerEvent) => {
+      if (activeLookPointerId !== null) return;
       lastActivityRef.current = performance.now();
-      dragOrbiting = true;
+      activeLookPointerId = e.pointerId;
       downPos = { x: e.clientX, y: e.clientY };
       prevPos = { x: e.clientX, y: e.clientY };
     };
     const onPointerMove = (e: PointerEvent) => {
-      if (!dragOrbiting) return;
+      if (activeLookPointerId !== e.pointerId) return;
       const dx = e.clientX - prevPos.x;
       const dy = e.clientY - prevPos.y;
       prevPos = { x: e.clientX, y: e.clientY };
-      orbitYawRef.current -= dx * 0.0055;
-      orbitPitchRef.current = Math.max(0.12, Math.min(0.95, orbitPitchRef.current + dy * 0.004));
+      applyLookDelta(dx, dy);
     };
     const onPointerUp = (e: PointerEvent) => {
-      if (!dragOrbiting) return;
-      dragOrbiting = false;
+      if (activeLookPointerId !== e.pointerId) return;
+      activeLookPointerId = null;
       if (Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) > 7) return;
       const rect = domEl.getBoundingClientRect();
       pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -587,9 +684,26 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     const animate = () => {
       rafId = window.requestAnimationFrame(animate);
       const now = performance.now();
+      const qCfg = getQualityRenderConfig(displaySettingsRef.current.graphicsQuality);
+      if (qCfg.targetFpsIntervalMs > 0 && now - prevMs < qCfg.targetFpsIntervalMs) {
+        return;
+      }
       const dt = Math.min((now - prevMs) / 1000, 0.05);
       const elapsed = (now - startMs) / 1000;
       prevMs = now;
+
+      // Damped smooth right-hand camera interpolation
+      const dampRate = Math.max(2.6, (1.18 - displaySettingsRef.current.cameraSmoothness) * 14);
+      const dampAlpha = 1 - Math.exp(-dampRate * dt);
+      orbitYawRef.current = lerpAngle(orbitYawRef.current, targetOrbitYawRef.current, dampAlpha);
+      orbitPitchRef.current += (targetOrbitPitchRef.current - orbitPitchRef.current) * dampAlpha;
+
+      laserBridgeBeams.forEach((beam, idx) => {
+        const mat = beam.material;
+        if (mat instanceof THREE.MeshStandardMaterial && mat.opacity > 0.5) {
+          mat.emissiveIntensity = 0.9 + Math.sin(elapsed * 3.4 + idx) * 0.35;
+        }
+      });
 
       skyHandle.update(elapsed);
 
@@ -745,10 +859,14 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
     return () => {
       isDisposed = true;
+      rendererRef.current = null;
+      sunLightRef.current = null;
       worldFlyInTween.kill();
       worldYawInTween.kill();
       gsap.killTweensOf(orbitYawRef);
       gsap.killTweensOf(orbitPitchRef);
+      gsap.killTweensOf(targetOrbitYawRef);
+      gsap.killTweensOf(targetOrbitPitchRef);
       window.cancelAnimationFrame(rafId);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
@@ -949,6 +1067,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
           lastActivityRef.current = performance.now();
           joystickVecRef.current = { x: vec.x, y: vec.z };
         }}
+        onLookDrag={applyLookDelta}
         onJump={() => {
           lastActivityRef.current = performance.now();
           ascendUntilRef.current = performance.now() + 260;
