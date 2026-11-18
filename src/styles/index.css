@@ -3,6 +3,13 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --sat: env(safe-area-inset-top, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+  }
+
   html, body, #root {
     position: fixed;
     inset: 0;
@@ -45,6 +52,29 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.safe-area-hud {
+  padding-top: var(--sat, 0px);
+  padding-left: max(0.625rem, var(--sal, 0px));
+  padding-right: max(0.625rem, var(--sar, 0px));
+}
+
+@keyframes rotatePhoneHint {
+  0%, 15% {
+    transform: rotate(0deg);
+  }
+  55%, 85% {
+    transform: rotate(-90deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.animate-rotate-phone {
+  animation: rotatePhoneHint 2.6s ease-in-out infinite;
+  transform-origin: center;
+}
+
 @media (max-height: 480px) and (orientation: landscape) {
   .landscape-compact-hidden {
     display: none !important;
@@ -53,11 +83,16 @@
     top: 0.35rem !important;
   }
   .landscape-row2-banner {
-    top: 3.1rem !important;
+    top: 2.85rem !important;
   }
   [data-testid="top-mission-banner"] {
     font-size: 0.7rem !important;
-    padding: 0.22rem 0.7rem !important;
+    padding: 0.2rem 0.65rem !important;
+  }
+  [data-testid="mission-inventory-bar"] {
+    padding: 0.2rem 0.5rem !important;
+    gap: 0.35rem !important;
+    font-size: 0.625rem !important;
   }
   [data-testid="third-person-joystick"] {
     width: 4.25rem !important;
@@ -356,3 +391,18 @@
 .pulsing-glow-red {
   animation: pulsingGlowRed 1.2s ease-in-out infinite;
 }
+
+@media (max-height: 480px) and (orientation: landscape) {
+  .robo-guide-wrapper:not(.robo-guide-left) {
+    bottom: 0.45rem !important;
+    justify-content: flex-start !important;
+    padding-left: max(108px, calc(96px + var(--sal, 0px))) !important;
+    padding-right: 0.5rem !important;
+  }
+
+  .robo-guide-wrapper [data-testid="robo-guide-overlay"] {
+    max-width: min(320px, calc(100vw - 395px)) !important;
+    padding: 0.4rem 0.55rem !important;
+  }
+}
+

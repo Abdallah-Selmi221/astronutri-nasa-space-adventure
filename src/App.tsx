@@ -4,6 +4,7 @@ import { GameProvider, useGameState } from './context/GameContext';
 import { HeaderHUD } from './components/common/HeaderHUD';
 import { HomeWorldScreen } from './components/home/HomeWorldScreen';
 import { IntroVideoPlayer } from './components/common/IntroVideoPlayer';
+import { LandscapeOrientationGuard } from './components/common/LandscapeOrientationGuard';
 import { GameErrorBoundary } from './components/common/GameErrorBoundary';
 import {
   NasaMissionControlDrawer,
@@ -238,8 +239,29 @@ const GameRouter: React.FC = () => {
 };
 
 export const App: React.FC = () => {
+  useEffect(() => {
+    const tryStandaloneLandscapeLock = () => {
+      try {
+        const isStandalone =
+          window.matchMedia?.('(display-mode: standalone)')?.matches ||
+          (window.navigator as { standalone?: boolean }).standalone === true;
+        if (!isStandalone) return;
+        const scr = window.screen as unknown as {
+          orientation?: { lock?: (mode: string) => Promise<void> };
+        };
+        void scr?.orientation?.lock?.('landscape')?.catch?.(() => {});
+      } catch {
+        // Ignore browsers blocking orientation lock outside fullscreen
+      }
+    };
+
+    window.addEventListener('pointerdown', tryStandaloneLandscapeLock, { once: true, passive: true });
+    return () => window.removeEventListener('pointerdown', tryStandaloneLandscapeLock);
+  }, []);
+
   return (
     <GameProvider>
+      <LandscapeOrientationGuard />
       <GameRouter />
     </GameProvider>
   );

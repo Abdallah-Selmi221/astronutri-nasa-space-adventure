@@ -13,7 +13,6 @@ import { nasaCache } from '../../services/nasa/nasaCache';
 import { NASA_ENGINEERING_TRADEOFFS, NASA_OSDR_METRICS } from '../../services/nasa/nasaOSDR';
 import { ISS_WATER_MILESTONE, SCIENCE_BADGES } from '../../data/science';
 import { computeCrossStageEffects } from '../../utils/consequences';
-import { SpaceFitXControlsHUD } from '../suit/SpaceFitXControlsHUD';
 import { PipePuzzle } from '../lunar/PipePuzzle';
 import { BodyTelemetryMeters } from './BodyTelemetryMeters';
 import { soundManager } from '../../utils/sound';
@@ -541,11 +540,75 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
           </div>
         </div>
 
-        <SpaceFitXControlsHUD
-          compact
-          suitState={suit}
-          onChange={(next) => onUpdateCampaign({ spaceFitX: next })}
-        />
+        {/* Fun 3-Button Moon Suit Strength Mode (zero clinical sliders) */}
+        <div
+          data-testid="moon-suit-strength-card"
+          className="p-3.5 rounded-2xl bg-slate-950/85 border-2 border-cyan-400/45 space-y-2.5"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-hud font-black text-xs sm:text-sm text-cyan-200">
+              🌙 {tr(language, 'Moon Suit Strength Mode:', 'قوة بدلة القمر الرياضية:')}
+            </span>
+            {suit.emergencyReleased && (
+              <button
+                type="button"
+                onClick={() => {
+                  soundManager.playClick();
+                  onUpdateCampaign({
+                    spaceFitX: {
+                      ...suit,
+                      emergencyReleased: false,
+                      resistanceMode: 'level2',
+                      muscleLoadPct: 65
+                    }
+                  });
+                }}
+                className="px-3 py-1 rounded-full bg-emerald-400 text-slate-950 font-hud font-black text-xs border border-white cursor-pointer"
+              >
+                {tr(language, 'Re-Lock Suit ✓', 'إعادة قفل البدلة ✓')}
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {(
+              [
+                { mode: 'level1' as const, load: 35, en: '⭐ Easy', ar: '⭐ سهل' },
+                { mode: 'level2' as const, load: 65, en: '⭐⭐ Strong', ar: '⭐⭐ قوي' },
+                { mode: 'level3' as const, load: 90, en: '⭐⭐⭐ Super Moon', ar: '⭐⭐⭐ قمر خارق' }
+              ]
+            ).map((opt) => (
+              <button
+                key={opt.mode}
+                type="button"
+                onClick={() => {
+                  soundManager.playClick();
+                  onUpdateCampaign({
+                    spaceFitX: {
+                      ...suit,
+                      emergencyReleased: false,
+                      resistanceMode: opt.mode,
+                      muscleLoadPct: opt.load,
+                      jointLoads: {
+                        shoulders: opt.load,
+                        elbows: opt.load,
+                        hips: opt.load,
+                        knees: opt.load,
+                        ankles: opt.load
+                      }
+                    }
+                  });
+                }}
+                className={`py-2.5 px-2 rounded-2xl font-hud font-black text-xs sm:text-sm border-2 cursor-pointer transition-all ${
+                  suit.resistanceMode === opt.mode && !suit.emergencyReleased
+                    ? 'bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950 border-white shadow'
+                    : 'bg-slate-900 text-slate-200 border-slate-700 hover:border-cyan-400'
+                }`}
+              >
+                {tr(language, opt.en, opt.ar)}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

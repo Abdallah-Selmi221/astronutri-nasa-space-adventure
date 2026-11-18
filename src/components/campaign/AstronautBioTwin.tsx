@@ -305,23 +305,31 @@ export const AstronautBioTwin: React.FC<AstronautBioTwinProps> = ({
   const statusText = useMemo(() => {
     if (focusZone === 'core') {
       return rationsCount > 0
-        ? tr(language, `Energy Core: ${rationsCount} rations fueled`, `طاقة الغذاء: ${rationsCount} وجبات مشحونة`)
-        : tr(language, 'Energy Core: Needs zero-crumb rations', 'طاقة الغذاء: بحاجة لوجبات فضاء آمنة');
+        ? tr(language, `Space Snacks: ${rationsCount} packed! 🍎`, `وجبات الفضاء: ${rationsCount} جاهزة! 🍎`)
+        : tr(language, 'Space Tummy: Needs yummy space snacks!', 'طاقة البطل: يحتاج وجبات فضاء لذيذة!');
     }
     if (focusZone === 'bone') {
-      return tr(language, `Bone & Muscle Strength: ${boneMusclePct}%`, `قوة العظام والعضلات: ${boneMusclePct}%`);
+      return tr(
+        language,
+        boneMusclePct >= 75 ? 'Super Strength: MAX POWER! 💪' : 'Super Strength: Ready to exercise! 💪',
+        boneMusclePct >= 75 ? 'قوة خارقة: طاقة قصوى! 💪' : 'قوة خارقة: جاهز للتمرين! 💪'
+      );
     }
     if (focusZone === 'hydration') {
-      return tr(language, `Hydration Halo: ${hydrationPct}%`, `مؤشر ترطيب الجسم: ${hydrationPct}%`);
+      return tr(
+        language,
+        hydrationPct >= 75 ? 'Water Shield: FULL & FRESH! 💧' : 'Water Shield: Time for a sip! 💧',
+        hydrationPct >= 75 ? 'درع الماء: ممتلئ ومنتعش! 💧' : 'درع الماء: حان وقت رشفة ماء! 💧'
+      );
     }
     if (focusZone === 'shield') {
       return radiationShielded
-        ? tr(language, 'Solar Shield: ACTIVE ✅', 'درع الإشعاع: مُفعّل ✅')
-        : tr(language, 'Solar Shield: Ready on Lunar Desk', 'درع الإشعاع: جاهز للتفعيل');
+        ? tr(language, 'Sun Shield: PROTECTING! 🛡️', 'درع الشمس: يحميك الآن! 🛡️')
+        : tr(language, 'Sun Shield: Tap Moon Lab to build! 🛡️', 'درع الشمس: جهّزه في معمل القمر! 🛡️');
     }
     return suitCalibrated
-      ? tr(language, 'SPACE-FIT X Suit: ONLINE ✅', 'بدلة SPACE-FIT X: نشطة ✅')
-      : tr(language, 'Bio-Twin Live Telemetry', 'توأم الرائد الحيوي المباشر');
+      ? tr(language, 'Space Suit Ready! ✨', 'بدلة الفضاء جاهزة! ✨')
+      : tr(language, 'Space Buddy Status', 'حالة صديق الفضاء');
   }, [boneMusclePct, focusZone, hydrationPct, language, radiationShielded, rationsCount, suitCalibrated]);
 
   return (
@@ -365,7 +373,7 @@ export const AstronautBioTwin: React.FC<AstronautBioTwinProps> = ({
           className="block"
         />
         <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-300/50 text-[9px] font-hud font-black text-cyan-100">
-          {tr(language, 'BIO-TWIN 3D', 'التوأم الحيوي')}
+          {tr(language, 'SPACE BUDDY', 'بطل الفضاء')}
         </span>
       </button>
 
@@ -387,7 +395,7 @@ export const AstronautBioTwin: React.FC<AstronautBioTwinProps> = ({
                 : 'bg-slate-900/80 border-slate-700 text-slate-200'
             }`}
           >
-            🍽️ {tr(language, `Fuel: ${rationsCount}`, `الغذاء: ${rationsCount}`)}
+            🍎 {tr(language, `Snacks: ${rationsCount}`, `الوجبات: ${rationsCount}`)}
           </button>
 
           <button
@@ -402,7 +410,7 @@ export const AstronautBioTwin: React.FC<AstronautBioTwinProps> = ({
                 : 'bg-slate-900/80 border-slate-700 text-slate-200'
             }`}
           >
-            🦴 {tr(language, `Bones: ${boneMusclePct}%`, `العظام: ${boneMusclePct}%`)}
+            💪 {tr(language, `Strong: ${boneMusclePct}%`, `القوة: ${boneMusclePct}%`)}
           </button>
 
           <button
@@ -417,7 +425,7 @@ export const AstronautBioTwin: React.FC<AstronautBioTwinProps> = ({
                 : 'bg-slate-900/80 border-slate-700 text-slate-200'
             }`}
           >
-            💧 {tr(language, `H2O: ${hydrationPct}%`, `الماء: ${hydrationPct}%`)}
+            💧 {tr(language, `Water: ${hydrationPct}%`, `الماء: ${hydrationPct}%`)}
           </button>
 
           <button
@@ -432,7 +440,7 @@ export const AstronautBioTwin: React.FC<AstronautBioTwinProps> = ({
                 : 'bg-slate-900/80 border-slate-700 text-slate-200'
             }`}
           >
-            🛡️ {radiationShielded ? tr(language, 'Shield ON', 'الدرع مفعل') : suitCalibrated ? tr(language, 'Suit OK', 'البدلة جاهزة') : tr(language, 'Standby', 'استعداد')}
+            🛡️ {radiationShielded ? tr(language, 'Shield ON', 'الدرع مفعل') : suitCalibrated ? tr(language, 'Suit OK', 'البدلة جاهزة') : tr(language, 'Ready', 'جاهز')}
           </button>
         </div>
       </div>

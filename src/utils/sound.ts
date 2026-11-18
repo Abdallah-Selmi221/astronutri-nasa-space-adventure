@@ -631,6 +631,88 @@ class SpaceSoundManager {
     this.playDropSuccess();
   }
 
+  // Soft cartoon UI blip synced cleanly to Robo typewriter animation (silent if audio ctx not yet unlocked)
+  public playRoboBlip(step = 0) {
+    if (!this.isEnabled() || !this.ctx || this.ctx.state !== 'running') return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const notes = [620, 740, 820, 680, 880, 760];
+    const freq = notes[Math.abs(step) % notes.length];
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.exponentialRampToValueAtTime(freq * 1.16, now + 0.036);
+
+    gain.gain.setValueAtTime(this.scaleGain(0.032), now);
+    gain.gain.exponentialRampToValueAtTime(0.0005, now + 0.042);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.045);
+  }
+
+  // Layered rocket ignition & orbital ascent roar (~4.6s)
+  public playRocketLaunchRoar() {
+    if (!this.isEnabled()) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const duration = 4.6;
+
+    const subOsc = ctx.createOscillator();
+    const subGain = ctx.createGain();
+    subOsc.type = 'sawtooth';
+    subOsc.frequency.setValueAtTime(55, now);
+    subOsc.frequency.exponentialRampToValueAtTime(130, now + duration * 0.72);
+    subOsc.frequency.exponentialRampToValueAtTime(84, now + duration);
+
+    const subFilter = ctx.createBiquadFilter();
+    subFilter.type = 'lowpass';
+    subFilter.frequency.setValueAtTime(220, now);
+    subFilter.frequency.exponentialRampToValueAtTime(520, now + 1.8);
+
+    subGain.gain.setValueAtTime(0.001, now);
+    subGain.gain.linearRampToValueAtTime(this.scaleGain(0.16), now + 0.55);
+    subGain.gain.exponentialRampToValueAtTime(this.scaleGain(0.08), now + 2.8);
+    subGain.gain.exponentialRampToValueAtTime(0.0008, now + duration);
+
+    subOsc.connect(subFilter);
+    subFilter.connect(subGain);
+    subGain.connect(ctx.destination);
+    subOsc.start(now);
+    subOsc.stop(now + duration + 0.05);
+
+    const bufLen = Math.floor(ctx.sampleRate * duration);
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) {
+      ch[i] = Math.random() * 2 - 1;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(280, now);
+    bp.frequency.exponentialRampToValueAtTime(920, now + 2.0);
+    bp.Q.value = 0.85;
+
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.001, now);
+    noiseGain.gain.linearRampToValueAtTime(this.scaleGain(0.18), now + 0.45);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    noise.connect(bp);
+    bp.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+    noise.start(now);
+    noise.stop(now + duration + 0.05);
+  }
+
   public playFanfare() {
     if (!this.isEnabled()) return;
     const ctx = this.getContext();

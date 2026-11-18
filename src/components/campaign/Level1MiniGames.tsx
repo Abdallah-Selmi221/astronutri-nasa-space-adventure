@@ -2,14 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CampaignProgressState, MiniGameId } from '../../types/game';
-import { useGameState } from '../../context/GameContext';
+import { useGameState, initialSpaceFitXState } from '../../context/GameContext';
 import { tr } from '../../utils/i18n';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { NASA_ENGINEERING_TRADEOFFS } from '../../services/nasa/nasaOSDR';
 import { EGYPTIAN_SINAI_SPACE_FOODS, FOOD_DATABASE } from '../../data/foodItems';
-import { DAILY_REFERENCE_ASSUMPTIONS, SCIENCE_BADGES } from '../../data/science';
-import { SpaceFitXControlsHUD } from '../suit/SpaceFitXControlsHUD';
+import { SCIENCE_BADGES } from '../../data/science';
 import { BodyTelemetryMeters } from './BodyTelemetryMeters';
 import { AstronautBioTwin } from './AstronautBioTwin';
 import {
@@ -548,8 +547,23 @@ const FoodPackingScene: React.FC<{
                     )}
                     <div className="min-w-0">
                       <div className="font-hud font-black text-xs text-white truncate">{displayName}</div>
-                      <div className="text-[10px] text-slate-300 truncate">
-                        {entry.kcal} kcal • P:{entry.protein}g • C:{entry.carbs}g • F:{entry.fats}g
+                      <div className="flex flex-wrap items-center gap-1 text-[10px] font-bold text-slate-200 mt-0.5">
+                        {entry.isBanned ? (
+                          <span className="text-rose-300">
+                            {tr(language, '⚠️ Crumb Hazard!', '⚠️ يسبب فتاتاً خطراً!')}
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-amber-300">
+                              ⚡ {entry.kcal >= 220 ? tr(language, 'High Energy', 'طاقة عالية') : tr(language, 'Light Snack', 'طاقة خفيفة')}
+                            </span>
+                            {entry.protein >= 10 && (
+                              <span className="text-sky-300">
+                                • 💪 {tr(language, 'Body Builder', 'مقوّي')}
+                              </span>
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -690,26 +704,26 @@ const FoodPackingScene: React.FC<{
           </div>
         </div>
 
-        {/* RIGHT: Glossy Telemetry Meters */}
+        {/* RIGHT: Fun Space Lunchbox Meter */}
         <div className="lg:col-span-3 rounded-2xl bg-slate-950/90 border border-cyan-400/40 p-3.5 space-y-3">
           <div className="flex items-center justify-between">
             <span className="font-hud font-black text-xs text-white">
-              {tr(language, '📊 Mission Telemetry', '📊 عدادات المهمة')}
+              {tr(language, '🎒 Space Lunchbox', '🎒 صندوق غداء الفضاء')}
             </span>
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
               safetyAlert ? 'bg-rose-600 text-white' : 'bg-emerald-500 text-slate-950'
             }`}>
-              {safetyAlert ? tr(language, 'WARNING ⚠️', 'تحذير ⚠️') : tr(language, 'Safety: SAFE ✅', 'آمن ✅')}
+              {safetyAlert ? tr(language, 'WARNING ⚠️', 'تحذير ⚠️') : tr(language, 'Safe ✅', 'آمن ✅')}
             </span>
           </div>
 
-          {/* Cargo Capacity Meter */}
+          {/* Bag Space Meter */}
           <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
             <div className="flex justify-between text-[11px] font-black">
-              <span className="text-amber-300">{tr(language, 'Cargo Capacity', 'سعة الشحن')}</span>
+              <span className="text-amber-300">{tr(language, 'Bag Space', 'سعة الحقيبة')}</span>
               <span className="text-white">{totalKg} / {maxKg} {tr(language, 'kg', 'كجم')}</span>
             </div>
-            <div className="h-2 rounded-full bg-slate-950 overflow-hidden">
+            <div className="h-2.5 rounded-full bg-slate-950 overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all"
                 style={{ width: `${Math.min(100, (totalKg / maxKg) * 100)}%` }}
@@ -717,41 +731,41 @@ const FoodPackingScene: React.FC<{
             </div>
           </div>
 
-          {/* 5 Macro/Micro Bars */}
+          {/* Kid-Friendly Rainbow Power Bars */}
           <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-black text-cyan-200">
-                {tr(language, 'Nutrition Balance', 'توازن التغذية')}
+                {tr(language, 'Hero Powers', 'قوى البطل الغذائية')}
               </span>
-              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-amber-950 border border-amber-400 text-amber-200">
-                {tr(language, 'Game Model', 'تبسيط')}
+              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-950 border border-emerald-400 text-emerald-200">
+                {tr(language, 'Goal: 100%', 'الهدف: 100%')}
               </span>
             </div>
             {[
-              { label: tr(language, 'Protein', 'بروتين'), pctVal: proteinPct, color: 'bg-sky-400', raw: `${totalProtein}g` },
-              { label: tr(language, 'Carbs', 'كربوهيدرات'), pctVal: carbsPct, color: 'bg-amber-400', raw: `${totalCarbs}g` },
-              { label: tr(language, 'Healthy Fats', 'دهون صحية'), pctVal: fatsPct, color: 'bg-yellow-300', raw: `${totalFats.toFixed(0)}g` },
-              { label: tr(language, 'Vitamins', 'فيتامينات'), pctVal: vitPct, color: 'bg-emerald-400', raw: `${totalVitamins}%` },
-              { label: tr(language, 'Fiber', 'ألياف'), pctVal: fiberPct, color: 'bg-pink-400', raw: `${totalFiber.toFixed(0)}g` }
+              { label: tr(language, '💪 Muscle Fuel', '💪 بناء العضلات'), pctVal: proteinPct, color: 'bg-sky-400' },
+              { label: tr(language, '🚀 Rocket Energy', '🚀 طاقة الحركة'), pctVal: carbsPct, color: 'bg-amber-400' },
+              { label: tr(language, '🧠 Brain Sparks', '🧠 طاقة العقل'), pctVal: fatsPct, color: 'bg-yellow-300' },
+              { label: tr(language, '🛡️ Cosmic Shield', '🛡️ درع الفيتامينات'), pctVal: vitPct, color: 'bg-emerald-400' },
+              { label: tr(language, '🌿 Fresh Greens', '🌿 ألياف طبيعية'), pctVal: fiberPct, color: 'bg-pink-400' }
             ].map((bar) => (
               <div key={bar.label} className="space-y-0.5">
-                <div className="flex justify-between text-[10px] font-bold text-slate-300">
+                <div className="flex justify-between text-[10px] font-bold text-slate-200">
                   <span>{bar.label}</span>
-                  <span>{bar.raw} ({bar.pctVal}%)</span>
+                  <span>{bar.pctVal}%</span>
                 </div>
-                <div className="h-1.5 rounded-full bg-slate-950 overflow-hidden">
-                  <div className={`h-full ${bar.color} transition-all`} style={{ width: `${bar.pctVal}%` }} />
+                <div className="h-2 rounded-full bg-slate-950 overflow-hidden">
+                  <div className={`h-full ${bar.color} transition-all rounded-full`} style={{ width: `${bar.pctVal}%` }} />
                 </div>
               </div>
             ))}
           </div>
 
           <div className="p-2 rounded-xl bg-sky-950/60 border border-sky-400/35 text-[10px] text-sky-100 leading-relaxed">
-            📐 <strong>{tr(language, 'NASA Reference:', `${SCIENCE_BADGES.PLANNING_ASSUMPTION.labelAr}:`)}</strong>{' '}
+            🌟 <strong>{tr(language, 'Astronaut Tip:', 'نصيحة الرائد:')}</strong>{' '}
             {tr(
               language,
-              `70 kg crew/day = ${DAILY_REFERENCE_ASSUMPTIONS.energyKcal} kcal • ${DAILY_REFERENCE_ASSUMPTIONS.proteinGrams}g protein.`,
-              `لرائد 70 كجم/يوم = ${DAILY_REFERENCE_ASSUMPTIONS.energyKcal} kcal و${DAILY_REFERENCE_ASSUMPTIONS.proteinGrams}g بروتين.`
+              'Pick 4+ yummy zero-crumb snacks so our space cabin air stays sparkling clean!',
+              'اختر 4 وجبات فضائية لذيذة بدون فتات لتحافظ على هواء المركبة نظيفاً!'
             )}
           </div>
         </div>
@@ -989,21 +1003,83 @@ const EquipmentInspectionScene: React.FC<{
         })}
       </div>
 
-      {/* Interactive SPACE-FIT X Suit Pre-Flight Calibration */}
+      {/* Kid-Friendly Space Suit Power Selector (replaces complex joint sliders) */}
       {onUpdateCampaign && (
-        <div className="pt-2 border-t border-slate-800 space-y-2">
+        <div
+          data-testid="kid-suit-power-card"
+          className="pt-2 border-t border-slate-800 space-y-2.5"
+        >
           <p className="font-hud font-black text-xs sm:text-sm text-cyan-200">
             {tr(
               language,
-              '🦺 Calibrate SPACE-FIT X Suit (Prototype 1.0 — AstroNutri):',
-              '🦺 معايرة بدلة SPACE-FIT X الداخلية (Prototype 1.0 — AstroNutri):'
+              '🦺 Choose Your Space Suit Power Mode:',
+              '🦺 اختر وضع قوة بدلتك الفضائية:'
             )}
           </p>
-          <SpaceFitXControlsHUD
-            compact
-            suitState={campaign.spaceFitX}
-            onChange={(next) => onUpdateCampaign({ spaceFitX: next })}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            {(
+              [
+                { mode: 'level1' as const, comp: 'low' as const, load: 35, en: '🌱 Light', ar: '🌱 خفيف' },
+                { mode: 'level2' as const, comp: 'medium' as const, load: 65, en: '🚀 Hero', ar: '🚀 بطل' },
+                { mode: 'level3' as const, comp: 'high' as const, load: 90, en: '⚡ Super', ar: '⚡ خارق' }
+              ]
+            ).map((opt) => {
+              const cur = campaign.spaceFitX || initialSpaceFitXState;
+              const selected = cur.resistanceMode === opt.mode;
+              return (
+                <button
+                  key={opt.mode}
+                  type="button"
+                  onClick={() => {
+                    soundManager.playClick();
+                    onUpdateCampaign({
+                      spaceFitX: {
+                        ...cur,
+                        resistanceMode: opt.mode,
+                        compressionLevel: opt.comp,
+                        emergencyReleased: false,
+                        muscleLoadPct: opt.load,
+                        jointLoads: {
+                          shoulders: opt.load,
+                          elbows: opt.load,
+                          hips: opt.load,
+                          knees: opt.load,
+                          ankles: opt.load
+                        }
+                      }
+                    });
+                  }}
+                  className={`flex-1 min-w-[90px] py-2.5 px-3 rounded-2xl font-hud font-black text-xs sm:text-sm border-2 transition-all cursor-pointer ${
+                    selected
+                      ? 'bg-gradient-to-r from-cyan-400 to-sky-300 text-slate-950 border-white shadow-[0_0_14px_rgba(34,211,238,0.5)]'
+                      : 'bg-slate-900 text-slate-200 border-slate-700 hover:border-cyan-400'
+                  }`}
+                >
+                  {tr(language, opt.en, opt.ar)}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => {
+                soundManager.playClick();
+                const cur = campaign.spaceFitX || initialSpaceFitXState;
+                onUpdateCampaign({
+                  spaceFitX: {
+                    ...cur,
+                    impactProtectionActive: !cur.impactProtectionActive
+                  }
+                });
+              }}
+              className={`py-2.5 px-3.5 rounded-2xl font-hud font-black text-xs sm:text-sm border-2 cursor-pointer transition-all ${
+                (campaign.spaceFitX || initialSpaceFitXState).impactProtectionActive
+                  ? 'bg-emerald-500/25 border-emerald-400 text-emerald-100'
+                  : 'bg-slate-900 border-slate-700 text-slate-400'
+              }`}
+            >
+              🛡️ {tr(language, 'Cushion Pads', 'وسائد الحماية')} {(campaign.spaceFitX || initialSpaceFitXState).impactProtectionActive ? '✓' : ''}
+            </button>
+          </div>
         </div>
       )}
 
@@ -1594,14 +1670,6 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
             {tr(language, SCIENCE_BADGES.ISS_PROVEN.labelEn, SCIENCE_BADGES.ISS_PROVEN.labelAr)}
           </span>
         </div>
-
-        {onUpdateCampaign && (
-          <SpaceFitXControlsHUD
-            compact
-            suitState={campaign.spaceFitX}
-            onChange={(next) => onUpdateCampaign({ spaceFitX: next })}
-          />
-        )}
 
         <button
           type="button"

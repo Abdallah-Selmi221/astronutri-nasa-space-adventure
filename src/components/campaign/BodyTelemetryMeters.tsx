@@ -25,26 +25,26 @@ const METRIC_META: Record<
 > = {
   bone: {
     icon: '🦴',
-    labelEn: 'Bone Density',
-    labelAr: 'كثافة العظام',
+    labelEn: 'Bone Power',
+    labelAr: 'قوة العظام',
     defaultGradient: 'from-amber-400 to-emerald-400'
   },
   muscle: {
     icon: '💪',
-    labelEn: 'Muscle Mass',
-    labelAr: 'الكتلة العضلية',
-    defaultGradient: 'from-cyan-400 to-emerald-400'
+    labelEn: 'Hero Energy',
+    labelAr: 'طاقة البطل',
+    defaultGradient: 'from-rose-400 via-pink-400 to-amber-300'
   },
   hydration: {
-    icon: '💧',
-    labelEn: 'Hydration',
-    labelAr: 'ترطيب الجسم',
-    defaultGradient: 'from-sky-400 to-blue-500'
+    icon: '🫧',
+    labelEn: 'O2 & Water',
+    labelAr: 'الأكسجين والماء',
+    defaultGradient: 'from-cyan-400 to-blue-500'
   },
   filter: {
-    icon: '🫧',
-    labelEn: 'Filter Cleanliness',
-    labelAr: 'نظافة الفلتر',
+    icon: '✨',
+    labelEn: 'Clean Air',
+    labelAr: 'هواء نقي',
     defaultGradient: 'from-teal-400 to-emerald-400'
   }
 };
@@ -52,8 +52,8 @@ const METRIC_META: Record<
 export const BodyTelemetryMeters: React.FC<BodyTelemetryMetersProps> = ({
   metrics,
   language,
-  titleEn = 'Astronaut Biometric Telemetry',
-  titleAr = 'مؤشرات جسم الرائد والأنظمة',
+  titleEn = 'Space Hero Health',
+  titleAr = 'صحة بطل الفضاء',
   compact = false
 }) => {
   const byKey = (k: TelemetryMetricKey, fallback: number) =>
@@ -65,13 +65,15 @@ export const BodyTelemetryMeters: React.FC<BodyTelemetryMetersProps> = ({
   return (
     <div
       data-testid="body-telemetry-meters"
-      className={`rounded-2xl bg-slate-950/85 border border-cyan-400/40 ${
+      className={`rounded-3xl bg-slate-950/88 border-2 border-cyan-400/50 ${
         compact ? 'p-2.5 space-y-2' : 'p-3.5 space-y-2.5'
       }`}
     >
-      <div className="flex items-center justify-between text-[11px] font-hud font-black text-cyan-200">
-        <span>🩺 {tr(language, titleEn, titleAr)}</span>
-        <span className="text-emerald-300">{tr(language, 'LIVE BIO', 'مباشر')}</span>
+      <div className="flex items-center justify-between text-xs font-hud font-black text-cyan-200">
+        <span>❤️ {tr(language, titleEn, titleAr)}</span>
+        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[10px]">
+          {tr(language, 'READY ✨', 'جاهز ✨')}
+        </span>
       </div>
 
       <AstronautBioTwin
@@ -109,18 +111,18 @@ export const BodyTelemetryMeters: React.FC<BodyTelemetryMetersProps> = ({
             <div
               key={m.key}
               data-testid={`telemetry-metric-${m.key}`}
-              className={`rounded-xl bg-slate-900/90 border p-2 transition-colors ${
-                computedStatus === 'critical' ? 'border-rose-400/70' : 'border-slate-700/80'
+              className={`rounded-2xl bg-slate-900/90 border-2 p-2.5 transition-colors ${
+                computedStatus === 'critical' ? 'border-rose-400/70' : 'border-cyan-500/30'
               }`}
             >
-              <div className="flex items-center justify-between text-xs font-bold mb-1">
-                <span className="text-slate-100 flex items-center gap-1">
+              <div className="flex items-center justify-between text-xs font-black mb-1.5">
+                <span className="text-slate-100 flex items-center gap-1.5">
                   <span>{meta.icon}</span>
                   <span>{tr(language, meta.labelEn, meta.labelAr)}</span>
                 </span>
                 <span className={`font-hud font-black ${textColor}`}>{clamped}%</span>
               </div>
-              <div className="h-2.5 rounded-full bg-slate-950 overflow-hidden border border-slate-800">
+              <div className="h-3.5 rounded-full bg-slate-950 overflow-hidden border border-slate-700/80 p-0.5">
                 <div
                   className={`h-full rounded-full bg-gradient-to-r ${barGradient} transition-all duration-500`}
                   style={{ width: `${clamped}%` }}

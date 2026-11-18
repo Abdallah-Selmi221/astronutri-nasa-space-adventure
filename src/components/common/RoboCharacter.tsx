@@ -105,7 +105,7 @@ export const RoboCharacter: React.FC<RoboCharacterProps> = ({
             animate={
               animated
                 ? {
-                    rx: [42, 36, 42],
+                    scaleX: [1, 0.86, 1],
                     opacity: [0.45, 0.25, 0.45]
                   }
                 : {}
@@ -115,6 +115,7 @@ export const RoboCharacter: React.FC<RoboCharacterProps> = ({
               repeat: Infinity,
               ease: 'easeInOut'
             }}
+            style={{ originX: '80px', originY: '190px' }}
           />
         )}
 
@@ -454,8 +455,9 @@ export const RoboCharacter: React.FC<RoboCharacterProps> = ({
                   rx="6"
                   ry="4"
                   fill="#8DE8F4"
-                  animate={{ ry: [2, 5, 2] }}
+                  animate={animated ? { scaleY: [0.5, 1.25, 0.5] } : undefined}
                   transition={{ duration: 0.25, repeat: Infinity }}
+                  style={{ originX: '80px', originY: '71px' }}
                 />
               </g>
             ) : isThinking ? (

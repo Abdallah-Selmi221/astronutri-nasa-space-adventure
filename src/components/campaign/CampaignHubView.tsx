@@ -12,7 +12,7 @@ import { Level2MiniGames } from './Level2MiniGames';
 import { Level3MiniGames } from './Level3MiniGames';
 import { Level4MiniGames } from './Level4MiniGames';
 import { MissionInventoryBar } from './MissionInventoryBar';
-import { StageStoryBanner } from './StageStoryBanner';
+import { RoboGuideOverlay } from '../common/RoboGuideOverlay';
 import { EcoBioCabin } from './EcoBioCabin';
 import { ScientificSourcesModal } from './ScientificSourcesModal';
 import { SettingsMenu } from '../common/SettingsMenu';
@@ -75,13 +75,17 @@ export const CampaignHubView: React.FC = () => {
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
   const [isSuitShowcaseOpen, setIsSuitShowcaseOpen] = useState(false);
   const [isLevelsDrawerOpen, setIsLevelsDrawerOpen] = useState(false);
-  const [showLevelStory, setShowLevelStory] = useState<boolean>(() =>
-    typeof window !== 'undefined' ? window.innerHeight >= 520 : true
-  );
+  const [showLevelStory, setShowLevelStory] = useState<boolean>(true);
+  const [showWorldRoboGuide, setShowWorldRoboGuide] = useState<boolean>(true);
+  const highestUnlockedNodeId = (campaign.unlockedLevels.length
+    ? Math.max(...campaign.unlockedLevels)
+    : 1) as CampaignLevelId;
 
   useEffect(() => {
     if (campaign.viewMode === 'level_hub') {
-      setShowLevelStory(typeof window !== 'undefined' ? window.innerHeight >= 520 : true);
+      setShowLevelStory(true);
+    } else if (campaign.viewMode === 'world_map') {
+      setShowWorldRoboGuide(true);
     }
   }, [campaign.viewMode, activeLevelId]);
   const [isRoomsDrawerOpen, setIsRoomsDrawerOpen] = useState(false);
@@ -404,7 +408,7 @@ export const CampaignHubView: React.FC = () => {
         {/* Minimalist Corner Kids HUD */}
         <header
           dir="ltr"
-          className="pointer-events-none fixed top-2.5 inset-x-2 sm:inset-x-4 z-30 flex items-start justify-between gap-1 sm:gap-2"
+          className="safe-area-hud pointer-events-none fixed top-2.5 inset-x-2 sm:inset-x-4 z-30 flex items-start justify-between gap-1 sm:gap-2"
         >
           {/* Physical Top-Left: Back to Space Map + Gold Star & Mission Progress */}
           <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 shrink-0">
@@ -549,7 +553,7 @@ export const CampaignHubView: React.FC = () => {
           </button>
           <MissionInventoryBar campaign={campaign} activeLevelId={activeLevelId} language={language} />
 
-          {/* Cause-and-Effect Story Toggle / Arrival Card */}
+          {/* Robo Guide Toggle Pill */}
           <div className="pointer-events-auto flex items-center gap-1.5">
             <button
               type="button"
@@ -560,25 +564,40 @@ export const CampaignHubView: React.FC = () => {
               }}
               className="px-2.5 py-0.5 rounded-full bg-indigo-950/85 hover:bg-indigo-900 border border-cyan-400/60 text-cyan-200 font-hud font-black text-[10px] shadow cursor-pointer flex items-center gap-1"
             >
-              <span>🔗</span>
-              <span>{tr(language, showLevelStory ? 'Hide Story' : 'Why This Stage?', showLevelStory ? 'إخفاء القصة' : 'قصة المهمة')}</span>
+              <span>🤖</span>
+              <span>{tr(language, showLevelStory ? 'Hide Robo' : 'Ask Robo', showLevelStory ? 'إخفاء روبو' : 'اسأل روبو')}</span>
             </button>
           </div>
-
-          {showLevelStory && (
-            <div
-              data-testid="level-cause-effect-card"
-              className="pointer-events-auto w-full max-w-2xl px-1"
-            >
-              <StageStoryBanner
-                compact
-                levelId={activeLevelId}
-                language={language}
-                onDismiss={() => setShowLevelStory(false)}
-              />
-            </div>
-          )}
         </div>
+
+        {/* Animated Robo Guide Speech Card (Bottom-Center, Clear of Mobile Controls) */}
+        <RoboGuideOverlay
+          visible={
+            showLevelStory &&
+            !isMobileMenuOpen &&
+            !isRoomsDrawerOpen &&
+            !isEcoCabinOpen &&
+            !isSuitShowcaseOpen &&
+            !isSettingsOpen &&
+            !isSourcesOpen &&
+            !isHowToPlayOpen
+          }
+          language={language}
+          pose={seqTarget.isAllDone ? 'CELEBRATING' : 'TALKING'}
+          speakerNameEn="Robo Guide"
+          speakerNameAr="روبو المرشد"
+          messageEn={seqTarget.bannerEn}
+          messageAr={seqTarget.bannerAr}
+          actionLabelEn={seqTarget.activeRoom ? 'Go There!' : undefined}
+          actionLabelAr={seqTarget.activeRoom ? 'انطلق إليها!' : undefined}
+          onAction={
+            seqTarget.activeRoom
+              ? () => window.dispatchEvent(new CustomEvent('astronutri:auto-walk-next'))
+              : undefined
+          }
+          onDismiss={() => setShowLevelStory(false)}
+          testId="robo-guide-overlay"
+        />
 
         {/* Clean Unified Pause & Navigation Drawer (Level Hub) */}
         {isMobileMenuOpen && (
@@ -878,7 +897,7 @@ export const CampaignHubView: React.FC = () => {
       {/* Minimalist Corner Kids HUD (Space Command: Gold Stars Left, EN/AR + NASA + Menu Right) */}
       <header
         dir="ltr"
-        className="pointer-events-none fixed top-2.5 inset-x-2 sm:inset-x-4 z-30 flex items-start justify-between gap-1 sm:gap-2"
+        className="safe-area-hud pointer-events-none fixed top-2.5 inset-x-2 sm:inset-x-4 z-30 flex items-start justify-between gap-1 sm:gap-2"
       >
         {/* Physical Top-Left: Gold Star Counter + Space Mission Command Pill + Play Button */}
         <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 shrink-0">
@@ -1017,6 +1036,31 @@ export const CampaignHubView: React.FC = () => {
       >
         <MissionInventoryBar campaign={campaign} activeLevelId={activeLevelId} language={language} />
       </div>
+
+      {/* Animated Robo Guide Welcome Card (Earth-to-Moon World Map) */}
+      <RoboGuideOverlay
+        visible={
+          showWorldRoboGuide &&
+          !isMobileMenuOpen &&
+          !isLevelsDrawerOpen &&
+          !isEcoCabinOpen &&
+          !isSuitShowcaseOpen &&
+          !isSettingsOpen &&
+          !isSourcesOpen &&
+          !isHowToPlayOpen
+        }
+        language={language}
+        pose="WAVE"
+        speakerNameEn="Robo Guide"
+        speakerNameAr="روبو المرشد"
+        messageEn={`Welcome Space Hero! Sector ${highestUnlockedNodeId} is unlocked — explore the 3D trail or jump right in!`}
+        messageAr={`أهلاً يا بطل الفضاء! المرحلة ${highestUnlockedNodeId} مفتوحة — استكشف المسار أو ابدأ اللعب الآن!`}
+        actionLabelEn={`Play Node ${highestUnlockedNodeId}`}
+        actionLabelAr={`ابدأ المرحلة ${highestUnlockedNodeId}`}
+        onAction={() => handleSelectLevel(highestUnlockedNodeId)}
+        onDismiss={() => setShowWorldRoboGuide(false)}
+        testId="robo-guide-overlay"
+      />
 
       {/* Unified Pause & Arcade Menu Drawer (World Map) */}
       {isMobileMenuOpen && (

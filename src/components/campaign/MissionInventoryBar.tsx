@@ -102,12 +102,8 @@ export const MissionInventoryBar: React.FC<MissionInventoryBarProps> = ({
     };
   }, [isBioOpen]);
 
-  const statusTone = (val: number) =>
-    val >= 90
-      ? 'border-emerald-400/70 text-emerald-200 bg-emerald-950/65'
-      : val >= 75
-      ? 'border-amber-300/75 text-amber-200 bg-amber-950/65'
-      : 'border-rose-400/80 text-rose-200 bg-rose-950/75';
+  const healthBarWidth = Math.max(25, Math.min(100, s.boneMusclePct));
+  const oxygenBarWidth = Math.max(25, Math.min(100, s.hydrationPct));
 
   const suitCalibrated =
     campaign.l3EvaSuitAssembled ||
@@ -119,50 +115,66 @@ export const MissionInventoryBar: React.FC<MissionInventoryBarProps> = ({
     <div className="pointer-events-auto relative flex flex-col items-center gap-1.5" dir={isAr ? 'rtl' : 'ltr'}>
       <div
         data-testid="mission-inventory-bar"
-        className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 px-2 py-1 rounded-2xl bg-slate-950/78 border border-cyan-400/45 backdrop-blur-md shadow-xl text-[10px] sm:text-[11px] font-hud font-black"
+        className="flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 px-2.5 sm:px-3.5 py-1.5 rounded-full bg-slate-950/85 border-2 border-cyan-400/55 backdrop-blur-md shadow-xl text-[10px] sm:text-xs font-hud font-black"
       >
-        {/* Rations & Thruster Boost Carry-Over */}
+        {/* Heart / Energy Bar */}
+        <div
+          data-testid="hud-energy-bar"
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-950/60 border border-rose-400/60"
+        >
+          <span className="text-xs sm:text-sm leading-none">❤️</span>
+          <span className="text-rose-100 whitespace-nowrap">
+            {tr(language, 'Energy', 'الطاقة')}
+          </span>
+          <div className="w-16 sm:w-24 h-3 rounded-full bg-slate-900 border border-rose-300/40 overflow-hidden p-0.5">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-rose-500 via-pink-400 to-amber-300 transition-all duration-500"
+              style={{ width: `${healthBarWidth}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Oxygen & Water Bubble Meter */}
+        <div
+          data-testid="hud-oxygen-bar"
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-sky-950/65 border border-cyan-400/65"
+        >
+          <span className="text-xs sm:text-sm leading-none">🫧</span>
+          <span className="text-cyan-100 whitespace-nowrap">
+            {tr(language, 'O2 & Water', 'الأكسجين')}
+          </span>
+          <div className="relative w-16 sm:w-24 h-3 rounded-full bg-slate-900 border border-cyan-300/45 overflow-hidden p-0.5">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-sky-300 to-emerald-300 transition-all duration-500 relative overflow-hidden"
+              style={{ width: `${oxygenBarWidth}%` }}
+            >
+              <span className="absolute top-0.5 left-1.5 w-1 h-1 rounded-full bg-white/80 animate-pulse" />
+              <span className="absolute top-1 left-5 w-1.5 h-1.5 rounded-full bg-white/70 animate-bounce" />
+              <span className="absolute top-0.5 left-10 w-1 h-1 rounded-full bg-white/75 animate-pulse" />
+            </div>
+          </div>
+        </div>
+
+        {/* Friendly Space Snacks Counter */}
         <span
-          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${
+          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border ${
             s.rationsRemaining > 0
-              ? 'border-amber-300/70 bg-amber-950/65 text-amber-100'
+              ? 'border-amber-300/80 bg-amber-950/65 text-amber-100'
               : 'border-slate-600 bg-slate-900/80 text-slate-300'
           }`}
         >
-          <span>🥘</span>
+          <span>🍎</span>
           <span>
             {tr(language, 'Rations', 'الوجبات')}: {s.rationsRemaining}
           </span>
           {effects.thrusterFuelBonus > 0 && (
-            <span className="text-[9px] text-emerald-300">
+            <span className="text-[10px] text-emerald-300">
               +{effects.thrusterFuelBonus}⚡
             </span>
           )}
         </span>
 
-        {/* Suit Modules */}
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-cyan-400/65 bg-cyan-950/65 text-cyan-100">
-          <span>🦺</span>
-          <span>{tr(language, s.suitStatusEn, s.suitStatusAr)}</span>
-        </span>
-
-        {/* Hydration % */}
-        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${statusTone(s.hydrationPct)}`}>
-          <span>💧</span>
-          <span>
-            {tr(language, 'Hydration', 'الترطيب')} {s.hydrationPct}%
-          </span>
-        </span>
-
-        {/* Bone & Muscle % */}
-        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${statusTone(s.boneMusclePct)}`}>
-          <span>🦴</span>
-          <span>
-            {tr(language, 'Bone/Muscle', 'العظام/العضلات')} {s.boneMusclePct}%
-          </span>
-        </span>
-
-        {/* Interactive Bio-Twin Hologram Pill */}
+        {/* Interactive Buddy Hologram Pill */}
         <button
           type="button"
           data-testid="hud-biotwin-toggle"
@@ -170,14 +182,14 @@ export const MissionInventoryBar: React.FC<MissionInventoryBarProps> = ({
             soundManager.playClick();
             setIsBioOpen((prev) => !prev);
           }}
-          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border cursor-pointer transition-all ${
+          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border-2 cursor-pointer transition-all ${
             isBioOpen
               ? 'bg-cyan-400 text-slate-950 border-white shadow-[0_0_12px_rgba(34,211,238,0.6)]'
-              : 'bg-sky-500/20 hover:bg-sky-500/35 text-cyan-100 border-cyan-300/75'
+              : 'bg-sky-500/25 hover:bg-sky-500/40 text-cyan-100 border-cyan-300/80'
           }`}
         >
-          <span>🧬</span>
-          <span>{tr(language, 'Bio-Twin', 'التوأم الحيوي')}</span>
+          <span>🧑‍🚀</span>
+          <span>{tr(language, 'Buddy', 'البطل')}</span>
         </button>
       </div>
 

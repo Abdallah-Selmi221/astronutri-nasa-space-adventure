@@ -18,6 +18,7 @@ import { soundManager } from '../../utils/sound';
 import { openNasaDrawer } from '../common/NasaMissionControlDrawer';
 import { MissionInventoryBar } from './MissionInventoryBar';
 import { StageStoryBanner } from './StageStoryBanner';
+import { RoboCharacter } from '../common/RoboCharacter';
 import { MiniGameDemoOverlay } from './MiniGameDemoOverlay';
 
 export interface MiniGameShellProps {
@@ -242,6 +243,23 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
               <Satellite className="w-3.5 h-3.5 text-amber-300" />
               <span>NASA Data: {briefing.datasetTag}</span>
             </span>
+          </div>
+
+          <div className="flex items-center gap-3 sm:gap-4 rounded-2xl bg-slate-950/65 border border-cyan-400/40 p-3 sm:p-4">
+            <div
+              data-testid="briefing-robo-character"
+              className="shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/30 border border-cyan-300/50 flex items-center justify-center overflow-hidden"
+            >
+              <RoboCharacter pose="TALKING" size={84} animated interactive={false} showShadow={false} />
+            </div>
+            <div className="flex-1 min-w-0 space-y-1.5">
+              <p className="text-xs font-hud font-black text-cyan-300 uppercase tracking-wide">
+                {tr(language, 'Robo says:', 'روبو يقول لك:')}
+              </p>
+              <p className="text-sm sm:text-base font-bold text-white leading-snug">
+                {ageHint || briefingSentences[0]}
+              </p>
+            </div>
           </div>
 
           <StageStoryBanner compact levelId={spec.levelId} language={language} />
