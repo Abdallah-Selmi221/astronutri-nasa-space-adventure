@@ -323,6 +323,8 @@ export const DAILY_REFERENCE_ASSUMPTIONS = {
 export const ISS_WATER_MILESTONE = {
   recoveryPercent: 98,
   dateLabel: 'June 2023 / يونيو 2023',
+  dateLabelEn: 'June 2023',
+  dateLabelAr: 'يونيو 2023',
   systemName: 'Brine Processor Assembly + Water Recovery System',
   caveatAr:
     '⚠️ تنبيه علمي: نسبة الاسترجاع 98% تحققت على محطة الفضاء الدولية (ISS) وليست مضمونة تلقائياً لكل مركبة مستقبلية، لذا يظل مخزون الطوارئ ضرورياً.',

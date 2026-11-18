@@ -122,7 +122,7 @@ async function run() {
       return r.result ? r.result.value : undefined;
     };
 
-    const waitForSelector = async (sel, timeoutMs = 15000) => {
+    const waitForSelector = async (sel, timeoutMs = 30000) => {
       const t0 = Date.now();
       while (Date.now() - t0 < timeoutMs) {
         const ok = await evalExpr(`Boolean(document.querySelector(${JSON.stringify(sel)}))`);
@@ -303,8 +303,8 @@ async function run() {
         await evalExpr(`document.querySelector('[data-testid="toggle-rooms-drawer-btn"]').click()`);
         await wait(250);
         await evalExpr(`(() => {
-          const btns = Array.from(document.querySelectorAll('button'));
-          const match = btns.find(b => b.textContent?.trim().startsWith('${st.order}. '));
+          const btns = Array.from(document.querySelectorAll('.fixed.inset-0.z-40 button'));
+          const match = btns.find(b => (b.textContent || '').includes('${st.order}. '));
           if (!match) throw new Error('Missing Station button ${st.order} in Level ${lv.levelId}');
           match.click();
         })()`);

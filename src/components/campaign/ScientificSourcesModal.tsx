@@ -189,8 +189,8 @@ export const ScientificSourcesModal: React.FC<ScientificSourcesModalProps> = ({
                     <span className="font-hud font-black text-sm text-emerald-200">
                       {tr(
                         language,
-                        `💧 ISS ${ISS_WATER_MILESTONE.recoveryPercent}% Water Recovery (${ISS_WATER_MILESTONE.dateLabel})`,
-                        `💧 استرجاع المياه ${ISS_WATER_MILESTONE.recoveryPercent}% على المحطة الدولية (${ISS_WATER_MILESTONE.dateLabel})`
+                        `💧 ISS ${ISS_WATER_MILESTONE.recoveryPercent}% Water Recovery (${ISS_WATER_MILESTONE.dateLabelEn})`,
+                        `💧 استرجاع المياه ${ISS_WATER_MILESTONE.recoveryPercent}% على المحطة الدولية (${ISS_WATER_MILESTONE.dateLabelAr})`
                       )}
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-900 border border-emerald-400 text-emerald-200">

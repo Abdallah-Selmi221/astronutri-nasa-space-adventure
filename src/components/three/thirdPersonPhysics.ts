@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeColoredParts } from './threeMergeUtils';
 
 /**
  * Shortest-arc yaw interpolation in radians to avoid 360-degree snaps.
@@ -179,26 +180,27 @@ export function createFloorGuideArrowSystem(scene: THREE.Scene): FloorGuideArrow
   const group = new THREE.Group();
 
   const arrowMat = new THREE.MeshStandardMaterial({
-    color: 0xfacc15,
+    vertexColors: true,
     emissive: 0x0ea5e9,
     emissiveIntensity: 0.9,
     roughness: 0.28,
     metalness: 0.35
   });
 
-  // Pointer head facing +Z
+  // Pointer head + tail stem merged into a single draw call across all 3D hubs
   const headGeo = new THREE.ConeGeometry(0.36, 0.72, 4);
   headGeo.rotateX(Math.PI / 2);
   headGeo.rotateZ(Math.PI / 4);
-  const headMesh = new THREE.Mesh(headGeo, arrowMat);
-  headMesh.position.set(0, 0, 0.56);
-
-  // Tail stem
   const stemGeo = new THREE.BoxGeometry(0.2, 0.1, 0.62);
-  const stemMesh = new THREE.Mesh(stemGeo, arrowMat);
-  stemMesh.position.set(0, 0, 0);
+  const arrowGeo = mergeColoredParts([
+    { geometry: headGeo, color: 0xfacc15, position: [0, 0, 0.56] },
+    { geometry: stemGeo, color: 0xfde047, position: [0, 0, 0] }
+  ]);
+  headGeo.dispose();
+  stemGeo.dispose();
+  const arrowMesh = new THREE.Mesh(arrowGeo, arrowMat);
 
-  group.add(headMesh, stemMesh);
+  group.add(arrowMesh);
   group.visible = false;
   scene.add(group);
 
@@ -234,8 +236,7 @@ export function createFloorGuideArrowSystem(scene: THREE.Scene): FloorGuideArrow
 
   const dispose = () => {
     if (group.parent) group.parent.remove(group);
-    headGeo.dispose();
-    stemGeo.dispose();
+    arrowGeo.dispose();
     arrowMat.dispose();
   };
 

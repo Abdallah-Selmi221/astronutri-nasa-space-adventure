@@ -202,8 +202,8 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     if (!r) return;
     const q = getQualityRenderConfig(displaySettings.graphicsQuality);
     r.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.maxPixelRatio));
-    r.shadowMap.enabled = q.shadowsEnabled;
-    if (s) s.castShadow = q.shadowsEnabled;
+    r.shadowMap.enabled = false;
+    if (s) s.castShadow = false;
   }, [displaySettings.graphicsQuality]);
 
   const applyLookDelta = (rawDx: number, rawDy: number) => {
@@ -323,7 +323,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, initialQuality.maxPixelRatio));
     renderer.setSize(dims.w, dims.h);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.shadowMap.enabled = initialQuality.shadowsEnabled;
+    renderer.shadowMap.enabled = false;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     rendererRef.current = renderer;
     mount.innerHTML = '';
@@ -348,11 +348,11 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       ease: 'power2.out'
     });
 
-    const skyHandle = createCosmicSkyBackdrop(scene, 'nebula');
+    const skyHandle = createCosmicSkyBackdrop(scene, 'nebula', { skipSatellite: true });
     const hemi = new THREE.HemisphereLight(0xe0f2fe, 0x0f172a, 1.28);
     const sun = new THREE.DirectionalLight(0xfffbeb, 1.75);
     sun.position.set(16, 22, 18);
-    sun.castShadow = initialQuality.shadowsEnabled;
+    sun.castShadow = false;
     sun.shadow.mapSize.set(1024, 1024);
     sun.shadow.camera.near = 2;
     sun.shadow.camera.far = 70;
@@ -387,8 +387,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       targetParent: planetGroup,
       placements: [
         { nodeName: 'PlanetEarth', id: 'BgEarth', position: [-16.5, -2.5, -6.5], scale: 3.9 },
-        { nodeName: 'PlanetMoon', id: 'BgMoon', position: [5.5, 4.4, -7.8], scale: 2.5 },
-        { nodeName: 'PlanetSaturn', id: 'BgSaturn', position: [18, 7.2, -16], scale: 2.1 }
+        { nodeName: 'PlanetMoon', id: 'BgMoon', position: [5.5, 4.4, -7.8], scale: 2.5 }
       ],
       isDisposed: () => isDisposed,
       onLoaded: (loaded) => {
@@ -424,9 +423,22 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       // ignore storage errors
     }
 
-    const laserBridgeBeams: THREE.Mesh[] = [];
+    // Instanced Laser Energy Bridges (1 draw call for all 3 sector spans)
+    const bridgeCount = TRAJECTORY_NODES.length - 1;
+    const bridgeGeo = new THREE.CylinderGeometry(0.12, 0.12, 1, 8);
+    const bridgeMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: 0x38bdf8,
+      emissiveIntensity: 0.85,
+      transparent: true,
+      opacity: 0.88
+    });
+    const bridgeInst = new THREE.InstancedMesh(bridgeGeo, bridgeMat, bridgeCount);
+    scene.add(bridgeInst);
+    const bridgeDummy = new THREE.Object3D();
+    const beamUpAxis = new THREE.Vector3(0, 1, 0);
     let newlyIgnitedMidX: number | null = null;
-    for (let legIdx = 0; legIdx < TRAJECTORY_NODES.length - 1; legIdx++) {
+    for (let legIdx = 0; legIdx < bridgeCount; legIdx++) {
       const a = TRAJECTORY_NODES[legIdx];
       const b = TRAJECTORY_NODES[legIdx + 1];
       const legUnlocked = unlockedSet.has(b.levelId);
@@ -439,32 +451,19 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       const spanLen = spanVec.length();
       const midPt = startPt.clone().lerp(endPt, 0.5);
 
-      const beamGeo = new THREE.CylinderGeometry(legUnlocked ? 0.14 : 0.06, legUnlocked ? 0.14 : 0.06, spanLen, 8);
-      const beamMat = new THREE.MeshStandardMaterial({
-        color: legUnlocked ? b.accentColor : 0x475569,
-        emissive: legUnlocked ? b.accentColor : 0x1e293b,
-        emissiveIntensity: legUnlocked ? 1.15 : 0.25,
-        transparent: true,
-        opacity: legUnlocked ? 0.92 : 0.32
-      });
-      const beam = new THREE.Mesh(beamGeo, beamMat);
-      beam.position.copy(midPt);
-      beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), spanVec.clone().normalize());
+      bridgeDummy.position.copy(midPt);
+      bridgeDummy.quaternion.setFromUnitVectors(beamUpAxis, spanVec.clone().normalize());
+      bridgeDummy.scale.set(legUnlocked ? 1.15 : 0.48, spanLen, legUnlocked ? 1.15 : 0.48);
+      bridgeDummy.updateMatrix();
+      bridgeInst.setMatrixAt(legIdx, bridgeDummy.matrix);
+      bridgeInst.setColorAt(legIdx, new THREE.Color(legUnlocked ? b.accentColor : 0x334155));
+
       if (isFreshUnlock) {
-        beam.scale.set(1.6, 0.02, 1.6);
-        gsap.to(beam.scale, {
-          x: 1,
-          y: 1,
-          z: 1,
-          duration: 1.45,
-          delay: 0.35,
-          ease: 'power3.out'
-        });
         newlyIgnitedMidX = midPt.x;
       }
-      scene.add(beam);
-      laserBridgeBeams.push(beam);
     }
+    bridgeInst.instanceMatrix.needsUpdate = true;
+    if (bridgeInst.instanceColor) bridgeInst.instanceColor.needsUpdate = true;
 
     if (newlyIgnitedMidX !== null) {
       try {
@@ -576,11 +575,6 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       showEvaHelmet: true,
       showCompanion: true,
       scale: 0.72
-    });
-    hero.group.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        child.castShadow = true;
-      }
     });
     playerCraftRoot.add(hero.group);
 
@@ -708,19 +702,13 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       orbitYawRef.current = lerpAngle(orbitYawRef.current, targetOrbitYawRef.current, dampAlpha);
       orbitPitchRef.current += (targetOrbitPitchRef.current - orbitPitchRef.current) * dampAlpha;
 
-      laserBridgeBeams.forEach((beam, idx) => {
-        const mat = beam.material;
-        if (mat instanceof THREE.MeshStandardMaterial && mat.opacity > 0.5) {
-          mat.emissiveIntensity = 0.9 + Math.sin(elapsed * 3.4 + idx) * 0.35;
-        }
-      });
+      bridgeMat.emissiveIntensity = 0.75 + Math.sin(elapsed * 3.4) * 0.25;
 
       skyHandle.update(elapsed);
 
       // Slowly spin background Earth & Moon
       if (blenderPlanets.BgEarth) blenderPlanets.BgEarth.rotation.y = elapsed * 0.08;
       if (blenderPlanets.BgMoon) blenderPlanets.BgMoon.rotation.y = -elapsed * 0.06;
-      if (blenderPlanets.BgSaturn) blenderPlanets.BgSaturn.rotation.y = elapsed * 0.05;
       glbLoadedRefs.forEach((g) => animateBlenderEnvironmentGlb(g, elapsed));
 
       // Animate orbital pulse beads from Node 1 -> 4
@@ -933,13 +921,14 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       });
 
       // Jetpack thruster InstancedMesh update
+      thrusterInst.visible = jetActive;
       thrusterMat.color.setHex(isBoostingRef.current ? 0xfbbf24 : themeHex);
       const backSin = Math.sin(freeCraftYawRef.current);
       const backCos = Math.cos(freeCraftYawRef.current);
-      for (let i = 0; i < thrusterCount; i++) {
-        const p = thrusterParticles[i];
-        p.life += dt;
-        if (jetActive) {
+      if (jetActive) {
+        for (let i = 0; i < thrusterCount; i++) {
+          const p = thrusterParticles[i];
+          p.life += dt;
           if (p.life > 0.42) {
             p.life = 0;
             const side = i % 2 === 0 ? -0.1 : 0.1;
@@ -958,14 +947,11 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
           thrusterDummy.position.copy(p.pos);
           const sc = Math.max(0.01, (1 - p.life / 0.42) * (isBoostingRef.current ? 1.3 : 0.9));
           thrusterDummy.scale.setScalar(sc);
-        } else {
-          thrusterDummy.position.copy(playerCraftRoot.position);
-          thrusterDummy.scale.setScalar(0.0001);
+          thrusterDummy.updateMatrix();
+          thrusterInst.setMatrixAt(i, thrusterDummy.matrix);
         }
-        thrusterDummy.updateMatrix();
-        thrusterInst.setMatrixAt(i, thrusterDummy.matrix);
+        thrusterInst.instanceMatrix.needsUpdate = true;
       }
-      thrusterInst.instanceMatrix.needsUpdate = true;
 
       floorArrow.update(
         new THREE.Vector3(playerCraftRoot.position.x, playerCraftRoot.position.y + 0.14, playerCraftRoot.position.z),
@@ -1014,6 +1000,8 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       skyHandle.dispose();
       floorArrow.dispose();
       hero.dispose();
+      bridgeGeo.dispose();
+      bridgeMat.dispose();
       ringGeo.dispose();
       ringMat.dispose();
       thrusterGeo.dispose();

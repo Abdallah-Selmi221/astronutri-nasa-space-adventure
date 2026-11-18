@@ -189,7 +189,11 @@ const SKY_THEME_PALETTE: Record<SkyMode, { bg: number; fog: number; density: num
   mars: { bg: 0x45160c, fog: 0x6b2210, density: 0.0042 }
 };
 
-export function createCosmicSkyBackdrop(scene: THREE.Scene, skyMode: SkyMode = 'nebula'): CosmicSkyHandle {
+export function createCosmicSkyBackdrop(
+  scene: THREE.Scene,
+  skyMode: SkyMode = 'nebula',
+  options?: { skipSatellite?: boolean }
+): CosmicSkyHandle {
   const isDaylight = skyMode === 'sunny' || skyMode === 'tropical';
   const initTheme = SKY_THEME_PALETTE[skyMode] ?? SKY_THEME_PALETTE.nebula;
   const bgColor = new THREE.Color(initTheme.bg);
@@ -227,39 +231,14 @@ export function createCosmicSkyBackdrop(scene: THREE.Scene, skyMode: SkyMode = '
   starGeo.setAttribute('color', new THREE.BufferAttribute(starCols, 3));
   const starPoints = new THREE.Points(
     starGeo,
-    new THREE.PointsMaterial({ size: isDaylight ? 0.3 : 0.34, vertexColors: true, transparent: true, opacity: 0.88 })
+    new THREE.PointsMaterial({ size: isDaylight ? 0.32 : 0.38, vertexColors: true, transparent: true, opacity: 0.9 })
   );
   scene.add(starPoints);
   disposableObjects.push(starPoints);
 
-  // Secondary shimmering star & cosmic dust cluster
-  const twinkleCount = 160;
-  const twinkleGeo = new THREE.BufferGeometry();
-  const twinklePos = new Float32Array(twinkleCount * 3);
-  const twinkleCols = new Float32Array(twinkleCount * 3);
-  const nebPalette = [new THREE.Color(0x38bdf8), new THREE.Color(0xe879f9), new THREE.Color(0xfde047)];
-  for (let i = 0; i < twinkleCount; i++) {
-    const r = 38 + Math.random() * 48;
-    const theta = (i / twinkleCount) * Math.PI * 2 + (i % 5) * 0.13;
-    twinklePos[i * 3] = Math.cos(theta) * r;
-    twinklePos[i * 3 + 1] = 8 + ((i * 19) % 30);
-    twinklePos[i * 3 + 2] = Math.sin(theta) * r;
-    const c = nebPalette[i % nebPalette.length];
-    twinkleCols[i * 3] = c.r;
-    twinkleCols[i * 3 + 1] = c.g;
-    twinkleCols[i * 3 + 2] = c.b;
-  }
-  twinkleGeo.setAttribute('position', new THREE.BufferAttribute(twinklePos, 3));
-  twinkleGeo.setAttribute('color', new THREE.BufferAttribute(twinkleCols, 3));
-  const twinkleMat = new THREE.PointsMaterial({ size: 0.56, vertexColors: true, transparent: true, opacity: 0.72 });
-  const twinklePoints = new THREE.Points(twinkleGeo, twinkleMat);
-  scene.add(twinklePoints);
-  disposableObjects.push(twinklePoints);
-
-  // 2. Sculpted Low-Poly Clouds OR Luminous Nebula Billboards (1-2 draw calls)
+  // 2. Sculpted Low-Poly Clouds OR Luminous Nebula Billboard (1 draw call)
   let cloudMesh: THREE.Mesh | null = null;
   let neb1: THREE.Sprite | null = null;
-  let neb2: THREE.Sprite | null = null;
 
   if (isDaylight) {
     const cloudParts: ColoredGeometryPart[] = [];
@@ -284,24 +263,19 @@ export function createCosmicSkyBackdrop(scene: THREE.Scene, skyMode: SkyMode = '
     scene.add(cloudMesh);
     disposableObjects.push(cloudMesh);
   } else {
-    const nebTex1 = createRadialNebulaTexture('rgba(56, 189, 248, 0.48)', 'rgba(99, 102, 241, 0.16)');
-    const nebTex2 = createRadialNebulaTexture(
-      skyMode === 'lunar' ? 'rgba(59, 130, 246, 0.55)' : 'rgba(168, 85, 247, 0.45)',
-      'rgba(236, 72, 153, 0.14)'
+    const nebTex1 = createRadialNebulaTexture(
+      skyMode === 'lunar' ? 'rgba(59, 130, 246, 0.55)' : 'rgba(56, 189, 248, 0.52)',
+      'rgba(168, 85, 247, 0.18)'
     );
-    disposableTextures.push(nebTex1, nebTex2);
-    const makeNebula = (tex: THREE.CanvasTexture, x: number, y: number, z: number, scale: number) => {
-      const sp = new THREE.Sprite(
-        new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
-      );
-      sp.position.set(x, y, z);
-      sp.scale.set(scale, scale * 0.74, 1);
-      scene.add(sp);
-      disposableObjects.push(sp);
-      return sp;
-    };
-    neb1 = makeNebula(nebTex1, -26, 12, -38, 38);
-    neb2 = makeNebula(nebTex2, 28, 14, -40, 40);
+    disposableTextures.push(nebTex1);
+    const sp = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: nebTex1, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
+    );
+    sp.position.set(0, 13, -39);
+    sp.scale.set(56, 36, 1);
+    scene.add(sp);
+    disposableObjects.push(sp);
+    neb1 = sp;
   }
 
   // Lunar Horizon Crescent Earth OR Sun Glow Disc (1 draw call on lunar/sunny!)
@@ -320,31 +294,33 @@ export function createCosmicSkyBackdrop(scene: THREE.Scene, skyMode: SkyMode = '
     disposableObjects.push(celestialAccent);
   }
 
-  // Orbiting Stylized NASA Satellite (1 draw call)
-  const satGeom = mergeColoredParts([
-    { geometry: new THREE.OctahedronGeometry(0.45, 0), color: 0xf59e0b },
-    { geometry: new THREE.BoxGeometry(1.5, 0.05, 0.55), color: 0x0284c7, position: [-1.15, 0, 0] },
-    { geometry: new THREE.BoxGeometry(1.5, 0.05, 0.55), color: 0x0284c7, position: [1.15, 0, 0] },
-    { geometry: new THREE.ConeGeometry(0.32, 0.24, 14), color: 0xe2e8f0, position: [0, -0.45, 0] }
-  ]);
-  const satMesh = new THREE.Mesh(
-    satGeom,
-    new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.5, roughness: 0.3 })
-  );
-  scene.add(satMesh);
-  disposableObjects.push(satMesh);
+  // Orbiting Stylized NASA Satellite (1 draw call, skipped on Overworld which already hosts ISS GLB)
+  let satMesh: THREE.Mesh | null = null;
+  if (!options?.skipSatellite) {
+    const satGeom = mergeColoredParts([
+      { geometry: new THREE.OctahedronGeometry(0.45, 0), color: 0xf59e0b },
+      { geometry: new THREE.BoxGeometry(1.5, 0.05, 0.55), color: 0x0284c7, position: [-1.15, 0, 0] },
+      { geometry: new THREE.BoxGeometry(1.5, 0.05, 0.55), color: 0x0284c7, position: [1.15, 0, 0] },
+      { geometry: new THREE.ConeGeometry(0.32, 0.24, 14), color: 0xe2e8f0, position: [0, -0.45, 0] }
+    ]);
+    satMesh = new THREE.Mesh(
+      satGeom,
+      new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.5, roughness: 0.3 })
+    );
+    scene.add(satMesh);
+    disposableObjects.push(satMesh);
+  }
 
   const update = (t: number) => {
     starPoints.rotation.y = t * 0.006;
-    twinklePoints.rotation.y = -t * 0.009;
-    twinkleMat.opacity = 0.58 + 0.32 * Math.sin(t * 2.4);
     if (cloudMesh) {
       cloudMesh.rotation.y = t * 0.015;
     }
-    if (neb1) neb1.position.y = 12 + Math.sin(t * 0.3) * 1.1;
-    if (neb2) neb2.position.y = 14 + Math.cos(t * 0.25) * 1.3;
-    satMesh.position.set(Math.cos(t * 0.22) * 26, 12.5 + Math.sin(t * 0.5) * 1.6, Math.sin(t * 0.22) * 22);
-    satMesh.rotation.y = -t * 0.22 + Math.PI / 2;
+    if (neb1) neb1.position.y = 13 + Math.sin(t * 0.3) * 1.1;
+    if (satMesh) {
+      satMesh.position.set(Math.cos(t * 0.22) * 26, 12.5 + Math.sin(t * 0.5) * 1.6, Math.sin(t * 0.22) * 22);
+      satMesh.rotation.y = -t * 0.22 + Math.PI / 2;
+    }
   };
 
   const setAtmosphere = (mode: SkyMode, blendAlpha = 0.08) => {

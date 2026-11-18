@@ -574,8 +574,8 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
               <span className="font-hud font-black text-xs sm:text-sm text-cyan-200">
                 {tr(
                   language,
-                  `💧 ISS Milestone: ${ISS_WATER_MILESTONE.recoveryPercent}% Water Recovery (${ISS_WATER_MILESTONE.dateLabel})`,
-                  `💧 إنجاز ISS: ${ISS_WATER_MILESTONE.recoveryPercent}% استرجاع المياه (${ISS_WATER_MILESTONE.dateLabel})`
+                  `💧 ISS Milestone: ${ISS_WATER_MILESTONE.recoveryPercent}% Water Recovery (${ISS_WATER_MILESTONE.dateLabelEn})`,
+                  `💧 إنجاز ISS: ${ISS_WATER_MILESTONE.recoveryPercent}% استرجاع المياه (${ISS_WATER_MILESTONE.dateLabelAr})`
                 )}
               </span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-950 border border-emerald-400 text-emerald-200 shrink-0">
@@ -693,12 +693,12 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
               </radialGradient>
             </defs>
             <rect width="420" height="100" fill="url(#solarFlareCore)" />
-            {/* Geodesic Lunar Bio-Dome Silhouette on Right */}
-            <path d="M322 92 A42 42 0 0 1 406 92 Z" fill="url(#domeShieldGlow)" stroke="#38bdf8" strokeWidth="1.8" />
-            <path d="M342 92 A22 36 0 0 1 386 92 M364 50 L364 92" fill="none" stroke="rgba(186,230,253,0.45)" strokeWidth="1.2" />
+            {/* Geodesic Lunar Bio-Dome Silhouette on Lower-Right */}
+            <path d="M326 96 A38 36 0 0 1 402 96 Z" fill="url(#domeShieldGlow)" stroke="#38bdf8" strokeWidth="1.8" />
+            <path d="M344 96 A20 30 0 0 1 384 96 M364 60 L364 96" fill="none" stroke="rgba(186,230,253,0.45)" strokeWidth="1.2" />
             {/* Outer Magnetic Shield Deflector Arc */}
             <path
-              d="M300 94 A66 66 0 0 1 416 62"
+              d="M306 96 A58 52 0 0 1 414 58"
               fill="none"
               stroke={shieldStrong ? '#34d399' : '#f43f5e'}
               strokeWidth={shieldStrong ? 4 : 2}
@@ -731,8 +731,8 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
             </motion.div>
           ))}
 
-          {/* Magnetic Shield Deflection Status Pill */}
-          <div className="flex items-center gap-2 z-10">
+          {/* Magnetic Shield Deflection Status Pill (Cleanly above the dome arc) */}
+          <div className="flex items-center gap-2 z-10 self-start mt-2">
             <div
               className={`px-3 py-1 rounded-full text-[11px] font-hud font-black border-2 transition-colors ${
                 shieldStrong

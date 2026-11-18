@@ -379,7 +379,7 @@ export function attachMassiveSpaceIsland(opts: {
       glb.traverse((node) => {
         if (node instanceof THREE.Mesh) {
           node.receiveShadow = true;
-          node.castShadow = true;
+          node.castShadow = false;
         }
       });
       opts.onLoaded?.(glb);

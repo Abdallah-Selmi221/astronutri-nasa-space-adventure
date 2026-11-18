@@ -176,8 +176,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     if (!r) return;
     const q = getQualityRenderConfig(displaySettings.graphicsQuality);
     r.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.maxPixelRatio));
-    r.shadowMap.enabled = q.shadowsEnabled;
-    if (d) d.castShadow = q.shadowsEnabled;
+    r.shadowMap.enabled = false;
+    if (d) d.castShadow = false;
   }, [displaySettings.graphicsQuality]);
 
   const applyLookDelta = (rawDx: number, rawDy: number) => {
@@ -309,7 +309,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, qInit.maxPixelRatio));
     renderer.setSize(dims.w, dims.h);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.shadowMap.enabled = qInit.shadowsEnabled;
+    renderer.shadowMap.enabled = false;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     rendererRef.current = renderer;
     mount.innerHTML = '';
@@ -345,7 +345,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     scene.add(hemi);
     const dir = new THREE.DirectionalLight(0xfffbeb, 1.85);
     dir.position.set(16, 26, 18);
-    dir.castShadow = qInit.shadowsEnabled;
+    dir.castShadow = false;
     dir.shadow.mapSize.set(1024, 1024);
     dir.shadow.camera.near = 2;
     dir.shadow.camera.far = 75;
@@ -485,6 +485,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     activeEntryRef.current = null;
     const signboardItems: Parameters<typeof createCourtyardSignboardsMesh>[0] = [];
     const courtyardBuildingGeoms: THREE.BufferGeometry[] = [];
+    const padBatchParts: ColoredGeometryPart[] = [];
 
     positionedRooms.forEach(({ room, pos, yawToCenter }, idx) => {
       const completed = isRoomCompleted(room);
@@ -495,18 +496,13 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       stationRoot.position.copy(pos);
       scene.add(stationRoot);
 
-      // Station Illuminated Pedestal
+      // Station Illuminated Pedestal (batched into 1 single draw call across all 3-4 stations)
       const padColor = completed ? 0x065f46 : isActive ? 0x1e3a8a : locked ? 0x1e293b : 0x0f172a;
       const ringHex = completed ? '#10b981' : isActive ? '#facc15' : locked ? '#475569' : room.accentHex;
-      const padParts: ColoredGeometryPart[] = [
-        { geometry: new THREE.CylinderGeometry(2.15, 2.38, 0.22, 18), color: padColor, position: [0, 0.11, 0] },
-        { geometry: new THREE.TorusGeometry(2.18, 0.08, 8, 28), color: new THREE.Color(ringHex).getHex(), position: [0, 0.23, 0], rotation: [Math.PI / 2, 0, 0] }
-      ];
-      const padMesh = new THREE.Mesh(
-        mergeColoredParts(padParts),
-        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.38, metalness: 0.35 })
+      padBatchParts.push(
+        { geometry: new THREE.CylinderGeometry(2.15, 2.38, 0.22, 18), color: padColor, position: [pos.x, 0.11, pos.z] },
+        { geometry: new THREE.TorusGeometry(2.18, 0.08, 8, 28), color: new THREE.Color(ringHex).getHex(), position: [pos.x, 0.23, pos.z], rotation: [Math.PI / 2, 0, 0] }
       );
-      stationRoot.add(padMesh);
 
       // Compact procedural silhouette placeholder until Blender prop .glb finishes loading
       const fallbackProp = new THREE.Mesh(
@@ -531,7 +527,6 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         onLoaded: (g) => {
           g.traverse((node) => {
             if (node instanceof THREE.Mesh) {
-              node.castShadow = true;
               node.receiveShadow = true;
             }
           });
@@ -597,6 +592,15 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
     const courtyardBuildingsMesh: THREE.Mesh | null = null;
     void courtyardBuildingGeoms;
+
+    if (padBatchParts.length > 0) {
+      const padsBatchMesh = new THREE.Mesh(
+        mergeColoredParts(padBatchParts),
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.38, metalness: 0.35 })
+      );
+      padsBatchMesh.receiveShadow = true;
+      scene.add(padsBatchMesh);
+    }
 
     if (walkwayParts.length > 0) {
       const walkwaysMesh = new THREE.Mesh(
