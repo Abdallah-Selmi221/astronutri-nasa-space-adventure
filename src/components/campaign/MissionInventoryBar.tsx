@@ -10,6 +10,7 @@ export interface MissionInventoryBarProps {
   campaign: CampaignProgressState;
   activeLevelId: CampaignLevelId;
   language: AppLanguage;
+  inlineSlim?: boolean;
 }
 
 export interface ComputedMissionStatus {
@@ -82,7 +83,8 @@ export function computeMissionInventoryStatus(
 export const MissionInventoryBar: React.FC<MissionInventoryBarProps> = ({
   campaign,
   activeLevelId,
-  language
+  language,
+  inlineSlim = false
 }) => {
   const s = computeMissionInventoryStatus(campaign, activeLevelId);
   const effects = computeCrossStageEffects(campaign);
@@ -110,6 +112,95 @@ export const MissionInventoryBar: React.FC<MissionInventoryBarProps> = ({
     campaign.l1EquipmentPacked.length > 0 ||
     campaign.completedMiniGames.includes('l1_equipment_prep');
   const radiationShielded = campaign.completedMiniGames.includes('l3_solar_storm');
+
+  if (inlineSlim) {
+    return (
+      <div className="pointer-events-auto relative flex items-center" dir={isAr ? 'rtl' : 'ltr'}>
+        <div
+          data-testid="mission-inventory-bar"
+          className="h-8 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-950/75 border border-cyan-400/50 backdrop-blur-md shadow-md text-[10px] sm:text-xs font-hud font-black whitespace-nowrap"
+        >
+          {/* Compact Energy Bar */}
+          <div
+            data-testid="hud-energy-bar"
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-rose-950/60 border border-rose-400/55"
+            title={tr(language, 'Energy', 'الطاقة')}
+          >
+            <span className="text-[11px] leading-none">❤️</span>
+            <div className="w-9 sm:w-14 h-2 rounded-full bg-slate-900 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-rose-500 via-pink-400 to-amber-300 transition-all duration-500"
+                style={{ width: `${healthBarWidth}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Compact Oxygen & Water Meter */}
+          <div
+            data-testid="hud-oxygen-bar"
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-sky-950/65 border border-cyan-400/55"
+            title={tr(language, 'O2 & Water', 'الأكسجين')}
+          >
+            <span className="text-[11px] leading-none">🫧</span>
+            <div className="w-9 sm:w-14 h-2 rounded-full bg-slate-900 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-sky-300 to-emerald-300 transition-all duration-500"
+                style={{ width: `${oxygenBarWidth}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Compact Rations Count */}
+          <span
+            title={tr(language, 'Space Rations', 'وجبات الفضاء')}
+            className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-950/60 border border-amber-300/60 text-amber-100"
+          >
+            <span>🍎</span>
+            <span>{s.rationsRemaining}</span>
+          </span>
+
+          {/* Compact Buddy Toggle */}
+          <button
+            type="button"
+            data-testid="hud-biotwin-toggle"
+            onClick={() => {
+              soundManager.playClick();
+              setIsBioOpen((prev) => !prev);
+            }}
+            aria-label={tr(language, 'Buddy', 'البطل')}
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border cursor-pointer transition-all ${
+              isBioOpen
+                ? 'bg-cyan-400 text-slate-950 border-white'
+                : 'bg-sky-500/25 hover:bg-sky-500/40 text-cyan-100 border-cyan-300/70'
+            }`}
+          >
+            <span>🧑‍🚀</span>
+            <span className="hidden md:inline">{tr(language, 'Buddy', 'البطل')}</span>
+          </button>
+        </div>
+
+        {isBioOpen && (
+          <div
+            ref={panelRef}
+            data-testid="bio-twin-panel"
+            className="fixed top-12 left-3 z-40 w-[320px] max-w-[92vw] shadow-2xl rounded-2xl"
+          >
+            <div className="relative">
+              <AstronautBioTwin
+                compact
+                language={language}
+                rationsCount={Math.max(s.rationsRemaining, campaign.l1SelectedFoodIds.length)}
+                hydrationPct={s.hydrationPct}
+                boneMusclePct={s.boneMusclePct}
+                suitCalibrated={suitCalibrated}
+                radiationShielded={radiationShielded}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="pointer-events-auto relative flex flex-col items-center gap-1.5" dir={isAr ? 'rtl' : 'ltr'}>

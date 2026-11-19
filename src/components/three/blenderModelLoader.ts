@@ -1,5 +1,21 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { mergeStaticGlbSiblings } from './threeMergeUtils';
+
+const ANIMATED_GLB_NODE_NAMES = new Set([
+  'OasisWaterPond',
+  'SolarWingSpin',
+  'Asteroid2010PK',
+  'RocketFlameCone',
+  'ISSolarArray',
+  'MedHaloRing',
+  'HydroBubbles',
+  'SpinRadar',
+  'RoverWheelFL',
+  'RoverWheelFR',
+  'RoverWheelRL',
+  'RoverWheelRR'
+]);
 
 const sharedLoader = new GLTFLoader();
 const templateCache = new Map<string, Promise<THREE.Group | null>>();
@@ -77,6 +93,7 @@ function attachGlbScene(opts: {
   position?: [number, number, number];
   rotationY?: number;
   fallbackNodes?: THREE.Object3D[];
+  compactStaticMeshes?: boolean;
   isDisposed: () => boolean;
   onLoaded?: (glb: THREE.Group) => void;
 }): void {
@@ -90,6 +107,9 @@ function attachGlbScene(opts: {
     if (opts.scale) glb.scale.set(...opts.scale);
     if (opts.position) glb.position.set(...opts.position);
     if (opts.rotationY !== undefined) glb.rotation.y = opts.rotationY;
+    if (opts.compactStaticMeshes) {
+      mergeStaticGlbSiblings(glb, ANIMATED_GLB_NODE_NAMES);
+    }
     opts.fallbackNodes?.forEach((node) => disposeObject3D(node));
     opts.targetParent.add(glb);
     opts.onLoaded?.(glb);
@@ -328,6 +348,7 @@ export function attachSpaceNodeGlb(opts: {
     position: opts.position ?? [0, 0, 0],
     rotationY: opts.rotationY ?? 0,
     fallbackNodes: opts.fallbackNodes,
+    compactStaticMeshes: true,
     isDisposed: opts.isDisposed,
     onLoaded: opts.onLoaded
   });
@@ -352,6 +373,7 @@ export function attachStationPropGlb(opts: {
     position: opts.position ?? [0, 0, 0],
     rotationY: opts.rotationY ?? 0,
     fallbackNodes: opts.fallbackNodes,
+    compactStaticMeshes: true,
     isDisposed: opts.isDisposed,
     onLoaded: opts.onLoaded
   });
@@ -408,6 +430,7 @@ export function attachSectorDeckGlb(opts: {
     scale: [1, 1, 1],
     position: [0, 0, 0],
     fallbackNodes: opts.fallbackNodes,
+    compactStaticMeshes: true,
     isDisposed: opts.isDisposed,
     onLoaded: (glb) => {
       glb.traverse((node) => {

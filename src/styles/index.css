@@ -79,32 +79,24 @@
   .landscape-compact-hidden {
     display: none !important;
   }
-  .landscape-compact-top {
-    top: 0.35rem !important;
-  }
-  .landscape-row2-banner {
-    top: 2.85rem !important;
-  }
-  [data-testid="top-mission-banner"] {
-    font-size: 0.7rem !important;
-    padding: 0.2rem 0.65rem !important;
+  [data-testid="top-hud-bar"] {
+    height: 2.25rem !important;
+    max-height: 40px !important;
+    top: 0.25rem !important;
   }
   [data-testid="mission-inventory-bar"] {
-    padding: 0.2rem 0.5rem !important;
-    gap: 0.35rem !important;
+    height: 1.85rem !important;
+    padding: 0.125rem 0.45rem !important;
+    gap: 0.3rem !important;
     font-size: 0.625rem !important;
   }
-  [data-testid="third-person-joystick"] {
-    width: 4.25rem !important;
-    height: 4.25rem !important;
-  }
   [data-testid="third-person-jump-btn"] {
-    width: 3.25rem !important;
-    height: 3.25rem !important;
+    width: 3.35rem !important;
+    height: 3.35rem !important;
   }
   [data-testid="third-person-interact-btn"] {
-    width: 2.9rem !important;
-    height: 2.9rem !important;
+    width: 3.15rem !important;
+    height: 3.15rem !important;
   }
   [data-testid="idle-speech-bubble"] {
     bottom: 0.75rem !important;
@@ -395,13 +387,13 @@
 @media (max-height: 480px) and (orientation: landscape) {
   .robo-guide-wrapper:not(.robo-guide-left) {
     bottom: 0.45rem !important;
-    justify-content: flex-start !important;
-    padding-left: max(108px, calc(96px + var(--sal, 0px))) !important;
-    padding-right: 0.5rem !important;
+    justify-content: center !important;
+    padding-left: 118px !important;
+    padding-right: 195px !important;
   }
 
   .robo-guide-wrapper [data-testid="robo-guide-overlay"] {
-    max-width: min(320px, calc(100vw - 395px)) !important;
+    max-width: min(335px, calc(100vw - 320px)) !important;
     padding: 0.4rem 0.55rem !important;
   }
 }

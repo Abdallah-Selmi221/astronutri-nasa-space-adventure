@@ -161,6 +161,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
   const targetCameraYawRef = useRef(0);
   const targetCameraPitchRef = useRef(0.38);
   const activeLookRef = useRef(false);
+  const lastManualLookMsRef = useRef(0);
+  const viewportTapHandlerRef = useRef<(clientX: number, clientY: number) => void>(() => {});
   const [displaySettings] = useDisplaySettings();
   const displaySettingsRef = useRef(displaySettings);
   displaySettingsRef.current = displaySettings;
@@ -190,14 +192,16 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
   }, [displaySettings.graphicsQuality]);
 
   const applyLookDelta = (rawDx: number, rawDy: number) => {
-    lastActivityMsRef.current = performance.now();
-    const dx = Math.max(-36, Math.min(36, rawDx));
-    const dy = Math.max(-36, Math.min(36, rawDy));
+    const now = performance.now();
+    lastActivityMsRef.current = now;
+    lastManualLookMsRef.current = now;
+    const dx = Math.max(-120, Math.min(120, rawDx));
+    const dy = Math.max(-120, Math.min(120, rawDy));
     const sens = displaySettingsRef.current.cameraSensitivity;
-    targetCameraYawRef.current -= dx * 0.0046 * sens;
+    targetCameraYawRef.current -= dx * 0.0092 * sens;
     targetCameraPitchRef.current = Math.max(
-      0.08,
-      Math.min(0.92, targetCameraPitchRef.current + dy * 0.0034 * sens)
+      -0.21,
+      Math.min(0.73, targetCameraPitchRef.current + dy * 0.0062 * sens)
     );
   };
 
@@ -332,7 +336,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
     const scene = new THREE.Scene();
     let isSceneDisposed = false;
-    const camera = new THREE.PerspectiveCamera(50, dims.w / dims.h, 0.1, 360);
+    const camera = new THREE.PerspectiveCamera(58, dims.w / dims.h, 0.1, 360);
     camera.position.set(0, 2.8, 10.5);
     cameraOrbitPitchRef.current = 0.22;
     cameraOrbitYawRef.current = 0;
@@ -712,9 +716,11 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       horizVelRef.current = { x: 0, z: 0 };
       if (next) {
         roverCtrl.setHeadlights(true);
+        if (roverBeaconRing) roverBeaconRing.visible = false;
         playerPosRef.current.copy(roverPosRef.current);
       } else {
         roverCtrl.setHeadlights(false);
+        if (roverBeaconRing) roverBeaconRing.visible = true;
         const sideX = roverPosRef.current.x + Math.cos(roverYawRef.current) * 2.15;
         const sideZ = roverPosRef.current.z - Math.sin(roverYawRef.current) * 2.15;
         playerPosRef.current.set(sideX, evalSectorFloorHeight(levelId, sideX, sideZ), sideZ);
@@ -954,30 +960,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     const pointerNdc = new THREE.Vector2();
     const domEl = renderer.domElement;
 
-    const onPointerDown = (e: PointerEvent) => {
-      if (activeLookPointerId !== null) return;
-      markPlayerActive();
-      activeLookPointerId = e.pointerId;
-      activeLookRef.current = true;
-      pointerDownPos = { x: e.clientX, y: e.clientY };
-      prevPointerPos = { x: e.clientX, y: e.clientY };
-    };
-    const onPointerMove = (e: PointerEvent) => {
-      if (activeLookPointerId !== e.pointerId) return;
-      const dx = e.clientX - prevPointerPos.x;
-      const dy = e.clientY - prevPointerPos.y;
-      prevPointerPos = { x: e.clientX, y: e.clientY };
-      applyLookDelta(dx, dy);
-    };
-    const onPointerUp = (e: PointerEvent) => {
-      if (activeLookPointerId !== e.pointerId) return;
-      activeLookPointerId = null;
-      activeLookRef.current = false;
-      if (Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y) > 7) return;
-
+    const handleViewportTap = (clientX: number, clientY: number) => {
       const rect = domEl.getBoundingClientRect();
-      pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      pointerNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointerNdc, camera);
 
       const intersectables: THREE.Object3D[] = clickTargets.map((ct) => ct.group);
@@ -1020,7 +1006,6 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
             return;
           }
           soundManager.playClick();
-          // If already standing right near that room, enter directly; otherwise walk straight up to it
           const d = playerPosRef.current.distanceTo(found.pos);
           if (d < 4.5) {
             onEnterRoomRef.current(found.room);
@@ -1030,6 +1015,30 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           }
         }
       }
+    };
+    viewportTapHandlerRef.current = handleViewportTap;
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (activeLookPointerId !== null) return;
+      markPlayerActive();
+      activeLookPointerId = e.pointerId;
+      activeLookRef.current = true;
+      pointerDownPos = { x: e.clientX, y: e.clientY };
+      prevPointerPos = { x: e.clientX, y: e.clientY };
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (activeLookPointerId !== e.pointerId) return;
+      const dx = e.clientX - prevPointerPos.x;
+      const dy = e.clientY - prevPointerPos.y;
+      prevPointerPos = { x: e.clientX, y: e.clientY };
+      applyLookDelta(dx, dy);
+    };
+    const onPointerUp = (e: PointerEvent) => {
+      if (activeLookPointerId !== e.pointerId) return;
+      activeLookPointerId = null;
+      activeLookRef.current = false;
+      if (Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y) > 7) return;
+      handleViewportTap(e.clientX, e.clientY);
     };
 
     domEl.addEventListener('pointerdown', onPointerDown);
@@ -1067,7 +1076,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       lastTime = now;
       const elapsed = (now - startTime) / 1000;
 
-      const dampRate = Math.max(2.6, (1.18 - displaySettingsRef.current.cameraSmoothness) * 14);
+      const dampRate = 6.0 + (1.0 - displaySettingsRef.current.cameraSmoothness) * 18.0;
       const dampAlpha = 1 - Math.exp(-dampRate * dt);
       cameraOrbitYawRef.current = lerpAngle(cameraOrbitYawRef.current, targetCameraYawRef.current, dampAlpha);
       cameraOrbitPitchRef.current += (targetCameraPitchRef.current - cameraOrbitPitchRef.current) * dampAlpha;
@@ -1367,6 +1376,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           ? 'point'
           : 'none';
 
+      if (roverBeaconRing) {
+        roverBeaconRing.visible = !isDrivingRoverRef.current;
+      }
+
       if (isDrivingRoverRef.current && roverCtrl) {
         hero.group.position.set(roverPosRef.current.x, roverPosRef.current.y + 0.56, roverPosRef.current.z);
         hero.group.rotation.y = roverYawRef.current;
@@ -1376,6 +1389,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           isRunning: false,
           isJumping: false,
           isZeroG: false,
+          isSeated: true,
           suitState: suitStateRef.current,
           idleSeconds: 0,
           emote: 'none'
@@ -1388,6 +1402,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           isRunning: sprint && moveSpeed > 0.1,
           isJumping: !isGroundedRef.current,
           isZeroG: theme.isZeroG,
+          isSeated: false,
           suitState: suitStateRef.current,
           idleSeconds,
           emote: activeEmote
@@ -1397,8 +1412,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       // Floor directional guide arrow pointing toward current active step target
       floorArrowSystem.update(pos, activeTargetWorldPos, 0, elapsed);
 
-      // Auto-Follow Close Third-Person Camera behind player or Rover
-      if (moveSpeed > 0.25 && !activeLookRef.current) {
+      // Auto-Follow Close Third-Person Camera (pauses 2.2s after manual look drag so camera never fights right thumb)
+      if (moveSpeed > 0.25 && !activeLookRef.current && now - lastManualLookMsRef.current > 2200) {
         const refYaw = isDrivingRoverRef.current ? roverYawRef.current : hero.group.rotation.y;
         const behindPlayerYaw = refYaw + Math.PI;
         targetCameraYawRef.current = lerpAngle(
@@ -1409,20 +1424,21 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       }
 
       const followYaw = cameraOrbitYawRef.current;
-      const camDist = isDrivingRoverRef.current ? 7.4 : 6.0;
+      const camDist = isDrivingRoverRef.current ? 6.8 : 5.1;
       const horizDist = camDist * Math.cos(cameraOrbitPitchRef.current);
-      const camHeight = 1.2 + camDist * Math.sin(cameraOrbitPitchRef.current);
+      const camHeight = 1.4 + camDist * Math.sin(cameraOrbitPitchRef.current);
       const desiredCamX = pos.x + Math.sin(followYaw) * horizDist;
       const desiredCamZ = pos.z + Math.cos(followYaw) * horizDist;
-      const minGroundCamY = evalSectorFloorHeight(levelId, desiredCamX, desiredCamZ) + 0.9;
+      const minGroundCamY = evalSectorFloorHeight(levelId, desiredCamX, desiredCamZ) + 0.85;
       const desiredCamY = Math.max(pos.y + camHeight, minGroundCamY);
 
-      camera.position.x += (desiredCamX - camera.position.x) * 0.14;
-      camera.position.y += (desiredCamY - camera.position.y) * 0.14;
-      camera.position.z += (desiredCamZ - camera.position.z) * 0.14;
+      camera.position.x += (desiredCamX - camera.position.x) * 0.16;
+      camera.position.y += (desiredCamY - camera.position.y) * 0.16;
+      camera.position.z += (desiredCamZ - camera.position.z) * 0.16;
       const lookFwdX = -Math.sin(followYaw) * 3.8;
       const lookFwdZ = -Math.cos(followYaw) * 3.8;
-      camera.lookAt(pos.x + lookFwdX, pos.y + 1.85, pos.z + lookFwdZ);
+      const targetLookY = Math.max(pos.y + 1.65, minGroundCamY - 0.15);
+      camera.lookAt(pos.x + lookFwdX, targetLookY, pos.z + lookFwdZ);
 
       renderer.render(scene, camera);
       mount.dataset.drawCalls = String(renderer.info.render.calls);
@@ -1430,6 +1446,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       mount.dataset.idleSeconds = String(Math.floor(idleSeconds));
       mount.dataset.glbLoaded = getLoadedGlbUrls().join(',');
       mount.dataset.roverActive = isDrivingRoverRef.current ? 'true' : 'false';
+      mount.dataset.cameraYaw = cameraOrbitYawRef.current.toFixed(3);
+      mount.dataset.cameraPitch = cameraOrbitPitchRef.current.toFixed(3);
     };
 
     rafId = requestAnimationFrame(animate);
@@ -1546,28 +1564,6 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         className="w-full h-full cursor-grab active:cursor-grabbing"
       />
 
-      {/* Top-Left Non-Overlapping Drivable Space Rover Board / Exit Action (Moon & Mars) */}
-      {(levelId === 3 || levelId === 4) && (
-        <button
-          type="button"
-          data-testid="toggle-rover-btn"
-          dir={language === 'ar' ? 'rtl' : 'ltr'}
-          onClick={() => roverToggleHandlerRef.current()}
-          className={`pointer-events-auto fixed top-[56px] sm:top-[64px] left-3 sm:left-4 z-30 px-3 py-1.5 rounded-full border-2 font-hud font-black text-[11px] sm:text-xs shadow-xl cursor-pointer active:scale-95 transition-all flex items-center gap-1.5 ${
-            isDrivingRover
-              ? 'bg-gradient-to-r from-orange-400 to-amber-500 text-slate-950 border-white shadow-[0_0_16px_rgba(251,146,60,0.65)]'
-              : 'bg-slate-950/85 hover:bg-slate-900 text-cyan-200 border-cyan-300/80'
-          }`}
-        >
-          <span>{isDrivingRover ? '🚶' : '🚙'}</span>
-          <span>
-            {isDrivingRover
-              ? tr(language, 'Exit Rover (R)', 'نزول من المركبة (R)')
-              : tr(language, 'Drive Rover (R)', 'قيادة المركبة (R)')}
-          </span>
-        </button>
-      )}
-
       {/* Sequential Station Lock Warning Toast with 1-Tap Auto-Walk Shortcut */}
       {lockedToast && (
         <div
@@ -1635,8 +1631,32 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           markPlayerActive();
           joystickVecRef.current = vec;
         }}
+        onLookStart={() => {
+          activeLookRef.current = true;
+          lastManualLookMsRef.current = performance.now();
+        }}
+        onLookEnd={() => {
+          activeLookRef.current = false;
+          lastManualLookMsRef.current = performance.now();
+        }}
         onLookDrag={applyLookDelta}
+        onViewportTap={(x, y) => viewportTapHandlerRef.current(x, y)}
         onJump={triggerJump}
+        jumpMode={isDrivingRover ? 'boost' : 'jump'}
+        highlightInteract={Boolean(nearbyRoom && !nearbyLocked)}
+        secondaryAction={
+          levelId === 3 || levelId === 4
+            ? {
+                icon: isDrivingRover ? '🚶' : '🚙',
+                label: isDrivingRover
+                  ? tr(language, 'Exit Rover (R)', 'نزول من المركبة (R)')
+                  : tr(language, 'Drive Rover (R)', 'قيادة المركبة (R)'),
+                active: isDrivingRover,
+                testId: 'toggle-rover-btn',
+                onClick: () => roverToggleHandlerRef.current()
+              }
+            : undefined
+        }
         onSprintChange={(s) => {
           markPlayerActive();
           isSprintingRef.current = s;

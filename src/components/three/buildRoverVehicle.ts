@@ -58,6 +58,22 @@ export function createSpaceRoverVehicle(opts: {
   let wheelFR: THREE.Object3D | null = null;
   let wheelRL: THREE.Object3D | null = null;
   let wheelRR: THREE.Object3D | null = null;
+  let wheelInst: THREE.InstancedMesh | null = null;
+  const wheelTransforms: { pos: THREE.Vector3; scale: THREE.Vector3 }[] = [];
+  const wheelDummy = new THREE.Object3D();
+  wheelDummy.rotation.order = 'YXZ';
+
+  const applyWheelInstances = (spin: number, steer: number) => {
+    if (!wheelInst) return;
+    for (let i = 0; i < wheelTransforms.length; i++) {
+      wheelDummy.position.copy(wheelTransforms[i].pos);
+      wheelDummy.scale.copy(wheelTransforms[i].scale);
+      wheelDummy.rotation.set(spin, i < 2 ? steer : 0, 0);
+      wheelDummy.updateMatrix();
+      wheelInst.setMatrixAt(i, wheelDummy.matrix);
+    }
+    wheelInst.instanceMatrix.needsUpdate = true;
+  };
 
   const wheelGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.24, 14);
   wheelGeo.rotateZ(Math.PI / 2);
@@ -119,21 +135,56 @@ export function createSpaceRoverVehicle(opts: {
       const fr = glb.getObjectByName('RoverWheelFR');
       const rl = glb.getObjectByName('RoverWheelRL');
       const rr = glb.getObjectByName('RoverWheelRR');
-      if (fl) {
-        fl.rotation.order = 'YXZ';
-        wheelFL = fl;
-      }
-      if (fr) {
-        fr.rotation.order = 'YXZ';
-        wheelFR = fr;
-      }
-      if (rl) {
-        rl.rotation.order = 'YXZ';
-        wheelRL = rl;
-      }
-      if (rr) {
-        rr.rotation.order = 'YXZ';
-        wheelRR = rr;
+      if (
+        fl instanceof THREE.Mesh &&
+        fr instanceof THREE.Mesh &&
+        rl instanceof THREE.Mesh &&
+        rr instanceof THREE.Mesh
+      ) {
+        const ordered = [fl, fr, rl, rr];
+        ordered.forEach((w) => {
+          wheelTransforms.push({ pos: w.position.clone(), scale: w.scale.clone() });
+        });
+        const inst = new THREE.InstancedMesh(fl.geometry.clone(), fl.material, 4);
+        inst.castShadow = true;
+        inst.receiveShadow = true;
+        inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        inst.name = 'RoverWheelsInstanced';
+
+        ordered.forEach((w, idx) => {
+          w.parent?.remove(w);
+          w.geometry?.dispose();
+          if (idx > 0) {
+            const m = w.material;
+            if (Array.isArray(m)) m.forEach((mat) => mat?.dispose());
+            else m?.dispose();
+          }
+        });
+
+        glb.add(inst);
+        wheelInst = inst;
+        wheelFL = null;
+        wheelFR = null;
+        wheelRL = null;
+        wheelRR = null;
+        applyWheelInstances(wheelSpin, currentSteer);
+      } else {
+        if (fl) {
+          fl.rotation.order = 'YXZ';
+          wheelFL = fl;
+        }
+        if (fr) {
+          fr.rotation.order = 'YXZ';
+          wheelFR = fr;
+        }
+        if (rl) {
+          rl.rotation.order = 'YXZ';
+          wheelRL = rl;
+        }
+        if (rr) {
+          rr.rotation.order = 'YXZ';
+          wheelRR = rr;
+        }
       }
     }
   });
@@ -165,11 +216,15 @@ export function createSpaceRoverVehicle(opts: {
     wheelSpin += (speed * dt) / 0.36;
     currentSteer += (steerAngle - currentSteer) * Math.min(1, dt * 10);
 
-    [wheelFL, wheelFR, wheelRL, wheelRR].forEach((w) => {
-      if (w) w.rotation.x = wheelSpin;
-    });
-    if (wheelFL) wheelFL.rotation.y = currentSteer;
-    if (wheelFR) wheelFR.rotation.y = currentSteer;
+    if (wheelInst) {
+      applyWheelInstances(wheelSpin, currentSteer);
+    } else {
+      [wheelFL, wheelFR, wheelRL, wheelRR].forEach((w) => {
+        if (w) w.rotation.x = wheelSpin;
+      });
+      if (wheelFL) wheelFL.rotation.y = currentSteer;
+      if (wheelFR) wheelFR.rotation.y = currentSteer;
+    }
 
     // Align rover body smoothly to terrain normal inside local yaw frame
     worldNormal.set(normal.x, normal.y, normal.z).normalize();

@@ -3,16 +3,16 @@ import { useEffect, useState } from 'react';
 export type GraphicsQuality = 'low' | 'medium' | 'ultra';
 
 export interface DisplayControlSettings {
-  cameraSensitivity: number; // 0.2 .. 2.0 (default 0.65)
-  cameraSmoothness: number; // 0.2 .. 1.0 (default 0.82)
+  cameraSensitivity: number; // 0.2 .. 2.0 (default 1.15)
+  cameraSmoothness: number; // 0.2 .. 1.0 (default 0.78)
   graphicsQuality: GraphicsQuality;
 }
 
 const STORAGE_KEY = 'astronutri_display_settings_v1';
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplayControlSettings = {
-  cameraSensitivity: 0.65,
-  cameraSmoothness: 0.82,
+  cameraSensitivity: 1.15,
+  cameraSmoothness: 0.78,
   graphicsQuality: 'medium'
 };
 
@@ -25,8 +25,8 @@ function clampSettings(raw: Partial<DisplayControlSettings>): DisplayControlSett
     raw.graphicsQuality === 'low' || raw.graphicsQuality === 'ultra' ? raw.graphicsQuality : 'medium';
 
   return {
-    cameraSensitivity: Number.isFinite(sens) ? Math.max(0.2, Math.min(2.0, Number(sens.toFixed(2)))) : 0.65,
-    cameraSmoothness: Number.isFinite(smooth) ? Math.max(0.2, Math.min(1.0, Number(smooth.toFixed(2)))) : 0.82,
+    cameraSensitivity: Number.isFinite(sens) ? Math.max(0.2, Math.min(2.0, Number(sens.toFixed(2)))) : 1.15,
+    cameraSmoothness: Number.isFinite(smooth) ? Math.max(0.2, Math.min(1.0, Number(smooth.toFixed(2)))) : 0.78,
     graphicsQuality: quality
   };
 }

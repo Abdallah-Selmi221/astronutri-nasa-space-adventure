@@ -13,6 +13,7 @@ export interface SpaceFitXCharacterHandle {
     isRunning?: boolean;
     isJumping?: boolean;
     isZeroG?: boolean;
+    isSeated?: boolean;
     suitState?: SpaceFitXState;
     highlightModule?: number | null;
     idleSeconds?: number;
@@ -665,6 +666,7 @@ export function buildSpaceFitXCharacter(options?: {
     isRunning = false,
     isJumping = false,
     isZeroG = false,
+    isSeated = false,
     suitState,
     highlightModule = null,
     idleSeconds = 0,
@@ -675,6 +677,7 @@ export function buildSpaceFitXCharacter(options?: {
     isRunning?: boolean;
     isJumping?: boolean;
     isZeroG?: boolean;
+    isSeated?: boolean;
     suitState?: SpaceFitXState;
     highlightModule?: number | null;
     idleSeconds?: number;
@@ -738,6 +741,9 @@ export function buildSpaceFitXCharacter(options?: {
       const ra = glbRefs.rightArm;
       const ll = glbRefs.leftLeg;
       const rl = glbRefs.rightLeg;
+
+      if (ll) ll.visible = !isSeated;
+      if (rl) rl.visible = !isSeated;
 
       if (hd) hd.rotation.set(0, Math.sin(t * 1.1) * 0.08, 0);
 
@@ -826,6 +832,8 @@ export function buildSpaceFitXCharacter(options?: {
       );
 
       // 3. Locomotion, Emotes & 8s Idle Sit-Down Pose
+      leftLeg.hipPivot.visible = !isSeated;
+      rightLeg.hipPivot.visible = !isSeated;
       headGroup.rotation.set(0, Math.sin(t * 1.1) * 0.08, 0);
 
       if (isZeroG) {

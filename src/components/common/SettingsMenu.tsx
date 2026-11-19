@@ -18,12 +18,13 @@ import {
   AlertTriangle,
   Info,
   Rocket,
-  Lock
+  Lock,
+  Maximize2
 } from 'lucide-react';
 
 import { tr } from '../../utils/i18n';
 import type { AppLanguage, CadetAgeGroup } from '../../types/game';
-import { GraphicsQuality, useDisplaySettings } from '../../utils/displaySettings';
+import { GraphicsQuality, toggleFullscreenLandscape, useDisplaySettings } from '../../utils/displaySettings';
 
 interface SettingsMenuProps {
   isOpen: boolean;
@@ -301,6 +302,20 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onR
                     })}
                   </div>
                 </div>
+
+                {/* Fullscreen Landscape Toggle */}
+                <button
+                  type="button"
+                  data-testid="settings-fullscreen-btn"
+                  onClick={() => {
+                    soundManager.playClick();
+                    void toggleFullscreenLandscape();
+                  }}
+                  className="w-full mt-1 py-2.5 px-3 rounded-2xl bg-slate-900 hover:bg-cyan-950 text-cyan-200 font-hud font-black text-xs border-2 border-cyan-400/60 flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                >
+                  <Maximize2 className="w-4 h-4 text-cyan-300" />
+                  <span>{tr(language, 'Lock Fullscreen Landscape 📱', 'تفعيل ملء الشاشة بالعرض 📱')}</span>
+                </button>
               </div>
 
               {/* 0. JURY DEMO MODE: UNLOCK ALL 4 NODES / 14 STATIONS */}

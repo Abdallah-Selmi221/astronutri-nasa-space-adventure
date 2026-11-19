@@ -194,6 +194,8 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   const sunLightRef = useRef<THREE.DirectionalLight | null>(null);
   const celebrateUntilRef = useRef<number>(0);
   const lastActivityRef = useRef<number>(performance.now());
+  const lastManualLookMsRef = useRef<number>(0);
+  const viewportTapHandlerRef = useRef<(clientX: number, clientY: number) => void>(() => {});
   const toastTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -208,14 +210,16 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   }, [displaySettings.graphicsQuality]);
 
   const applyLookDelta = (rawDx: number, rawDy: number) => {
-    lastActivityRef.current = performance.now();
-    const dx = Math.max(-36, Math.min(36, rawDx));
-    const dy = Math.max(-36, Math.min(36, rawDy));
+    const now = performance.now();
+    lastActivityRef.current = now;
+    lastManualLookMsRef.current = now;
+    const dx = Math.max(-120, Math.min(120, rawDx));
+    const dy = Math.max(-120, Math.min(120, rawDy));
     const sens = displaySettingsRef.current.cameraSensitivity;
-    targetOrbitYawRef.current -= dx * 0.0042 * sens;
+    targetOrbitYawRef.current -= dx * 0.0092 * sens;
     targetOrbitPitchRef.current = Math.max(
-      0.12,
-      Math.min(0.95, targetOrbitPitchRef.current + dy * 0.0032 * sens)
+      -0.21,
+      Math.min(0.73, targetOrbitPitchRef.current + dy * 0.0062 * sens)
     );
   };
 
@@ -333,7 +337,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
     const scene = new THREE.Scene();
     let isDisposed = false;
-    const camera = new THREE.PerspectiveCamera(48, dims.w / dims.h, 0.1, 240);
+    const camera = new THREE.PerspectiveCamera(58, dims.w / dims.h, 0.1, 240);
     camera.position.set(-6, 17, 31);
     orbitPitchRef.current = 0.78;
     orbitYawRef.current = -0.35;
@@ -626,6 +630,29 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     const pointerNdc = new THREE.Vector2();
     const domEl = renderer.domElement;
 
+    const handleViewportTap = (clientX: number, clientY: number) => {
+      const rect = domEl.getBoundingClientRect();
+      pointerNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointerNdc, camera);
+      const hits = raycaster.intersectObjects(nodeGroups.map((n) => n.root), true);
+      if (hits.length > 0) {
+        const hitObj = hits[0].object;
+        const matched = nodeGroups.find((ng) => {
+          let cur: THREE.Object3D | null = hitObj;
+          while (cur) {
+            if (cur === ng.root) return true;
+            cur = cur.parent;
+          }
+          return false;
+        });
+        if (matched) {
+          flyCraftToNode(matched.cfg.levelId, true);
+        }
+      }
+    };
+    viewportTapHandlerRef.current = handleViewportTap;
+
     const onPointerDown = (e: PointerEvent) => {
       if (activeLookPointerId !== null) return;
       lastActivityRef.current = performance.now();
@@ -644,25 +671,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       if (activeLookPointerId !== e.pointerId) return;
       activeLookPointerId = null;
       if (Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) > 7) return;
-      const rect = domEl.getBoundingClientRect();
-      pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(pointerNdc, camera);
-      const hits = raycaster.intersectObjects(nodeGroups.map((n) => n.root), true);
-      if (hits.length > 0) {
-        const hitObj = hits[0].object;
-        const matched = nodeGroups.find((ng) => {
-          let cur: THREE.Object3D | null = hitObj;
-          while (cur) {
-            if (cur === ng.root) return true;
-            cur = cur.parent;
-          }
-          return false;
-        });
-        if (matched) {
-          flyCraftToNode(matched.cfg.levelId, true);
-        }
-      }
+      handleViewportTap(e.clientX, e.clientY);
     };
     domEl.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove);
@@ -699,7 +708,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       prevMs = now;
 
       // Damped smooth right-hand camera interpolation
-      const dampRate = Math.max(2.6, (1.18 - displaySettingsRef.current.cameraSmoothness) * 14);
+      const dampRate = 6.0 + (1.0 - displaySettingsRef.current.cameraSmoothness) * 18.0;
       const dampAlpha = 1 - Math.exp(-dampRate * dt);
       orbitYawRef.current = lerpAngle(orbitYawRef.current, targetOrbitYawRef.current, dampAlpha);
       orbitPitchRef.current += (targetOrbitPitchRef.current - orbitPitchRef.current) * dampAlpha;
@@ -978,6 +987,8 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       renderer.render(scene, camera);
       mount.dataset.drawCalls = String(renderer.info.render.calls);
       mount.dataset.glbLoaded = getLoadedGlbUrls().join(',');
+      mount.dataset.cameraYaw = orbitYawRef.current.toFixed(3);
+      mount.dataset.cameraPitch = orbitPitchRef.current.toFixed(3);
     };
 
     animate();
@@ -1078,12 +1089,12 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         className="w-full h-full cursor-grab active:cursor-grabbing"
       />
 
-      {/* Top-Center Compact Orbital Node Selector Strip */}
+      {/* Top-Center Desktop Node Selector Strip (hidden on mobile/tablet so 85%+ viewport stays open) */}
       <div
         dir={language === 'ar' ? 'rtl' : 'ltr'}
-        className="pointer-events-none fixed top-16 sm:top-3.5 inset-x-0 z-20 flex justify-center px-3"
+        className="pointer-events-none fixed top-14 inset-x-0 z-20 hidden lg:flex justify-center px-3"
       >
-        <div className="pointer-events-auto inline-flex flex-wrap items-center justify-center gap-1 px-2 py-1 rounded-full bg-slate-950/65 border border-cyan-400/40 backdrop-blur-md shadow-lg max-w-full">
+        <div className="pointer-events-auto inline-flex items-center justify-center gap-1 px-2 py-1 rounded-full bg-slate-950/65 border border-cyan-400/40 backdrop-blur-md shadow-lg max-w-full">
           {([1, 2, 3, 4] as CampaignLevelId[]).map((lid) => {
             const meta = LEVEL_TITLES_BILINGUAL[lid];
             const unlocked = campaign.unlockedLevels.includes(lid);
@@ -1104,36 +1115,16 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
                 }`}
               >
                 <span>{meta.badge}</span>
-                <span className="hidden lg:inline">
-                  {tr(language, meta.shortEn, meta.shortAr)}
-                </span>
-                <span className="lg:hidden">{lid}</span>
+                <span>{tr(language, meta.shortEn, meta.shortAr)}</span>
                 {completed && <CheckCircle2 className="w-3 h-3 text-emerald-500" />}
                 {!unlocked && <Lock className="w-2.5 h-2.5 text-slate-400" />}
               </button>
             );
           })}
 
-          <button
-            type="button"
-            data-testid="toggle-flight-btn"
-            onClick={toggleFreeFlight}
-            className={`px-2.5 py-1 rounded-full border text-[11px] font-hud font-black flex items-center gap-1 transition-all cursor-pointer ${
-              isFlightMode
-                ? 'bg-cyan-400 text-slate-950 border-white shadow-[0_0_12px_rgba(34,211,238,0.75)]'
-                : 'bg-indigo-950/75 border-cyan-300/65 text-cyan-100 hover:bg-indigo-900'
-            }`}
-          >
-            <span>
-              {isFlightMode
-                ? tr(language, '🛰️ Dock', '🛰️ التحام')
-                : tr(language, '🚀 Fly', '🚀 طيران')}
-            </span>
-          </button>
-
           <span
             data-testid="active-biome-badge"
-            className="hidden sm:inline-flex px-2 py-1 rounded-full bg-slate-900/70 border border-white/20 text-[10px] font-hud font-bold text-cyan-200 whitespace-nowrap"
+            className="px-2 py-1 rounded-full bg-slate-900/70 border border-white/20 text-[10px] font-hud font-bold text-cyan-200 whitespace-nowrap"
           >
             {tr(language, focusedNode.telemetryEn, focusedNode.telemetryAr)}
           </span>
@@ -1195,10 +1186,28 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
           lastActivityRef.current = performance.now();
           joystickVecRef.current = { x: vec.x, y: vec.z };
         }}
+        onLookStart={() => {
+          lastManualLookMsRef.current = performance.now();
+        }}
+        onLookEnd={() => {
+          lastManualLookMsRef.current = performance.now();
+        }}
         onLookDrag={applyLookDelta}
+        onViewportTap={(x, y) => viewportTapHandlerRef.current(x, y)}
         onJump={() => {
           lastActivityRef.current = performance.now();
           ascendUntilRef.current = performance.now() + 260;
+        }}
+        jumpMode={isFlightMode ? 'boost' : 'jump'}
+        highlightInteract={focusedUnlocked}
+        secondaryAction={{
+          icon: isFlightMode ? '🛰️' : '🚀',
+          label: isFlightMode
+            ? tr(language, 'Dock', 'التحام')
+            : tr(language, 'Free Fly', 'طيران حر'),
+          active: isFlightMode,
+          testId: 'toggle-flight-btn',
+          onClick: toggleFreeFlight
         }}
         onSprintChange={(s) => {
           lastActivityRef.current = performance.now();

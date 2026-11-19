@@ -44,6 +44,7 @@ import {
   Sprout,
   Star,
   Volume2,
+  VolumeX,
   X
 } from 'lucide-react';
 
@@ -92,7 +93,20 @@ export const CampaignHubView: React.FC = () => {
   const [isRoomsDrawerOpen, setIsRoomsDrawerOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [isSoundMuted, setIsSoundMuted] = useState<boolean>(() => !soundManager.isEnabled());
   const [launchCutsceneTargetLevel, setLaunchCutsceneTargetLevel] = useState<CampaignLevelId | null>(null);
+
+  const toggleSoundMute = () => {
+    const nextMuted = !isSoundMuted;
+    soundManager.setEnabled(!nextMuted);
+    soundManager.setBgmEnabled(!nextMuted);
+    setIsSoundMuted(nextMuted);
+    if (nextMuted) {
+      dialogueManager.stop();
+    } else {
+      soundManager.playClick();
+    }
+  };
 
   const triggerRocketLaunch = (targetLevel: CampaignLevelId = 2) => {
     dialogueManager.stop();
@@ -436,64 +450,71 @@ export const CampaignHubView: React.FC = () => {
           />
         </div>
 
-        {/* Direct 1-Tap Orbital Launch Action on Earth Spaceport Valley (Level 1) */}
-        {activeLevelId === 1 && (
-          <button
-            type="button"
-            data-testid="launch-to-space-btn"
-            dir={langDir}
-            onClick={() => {
-              soundManager.playClick();
-              triggerRocketLaunch(2);
-            }}
-            className="pointer-events-auto fixed top-[56px] sm:top-[64px] left-3 sm:left-4 z-20 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 hover:brightness-110 text-slate-950 font-hud font-black text-[11px] sm:text-xs border-2 border-white shadow-[0_4px_16px_rgba(251,146,60,0.55)] cursor-pointer active:scale-95 transition-transform flex items-center gap-1.5"
-          >
-            <span>🚀</span>
-            <span>{tr(language, 'Launch to Space', 'انطلق للفضاء')}</span>
-          </button>
-        )}
-
-        {/* Minimalist Corner Kids HUD */}
+        {/* Ultra-Slim Single-Row Corner HUD (Level Hub) */}
         <header
+          data-testid="top-hud-bar"
           dir="ltr"
-          className="safe-area-hud pointer-events-none fixed top-2.5 inset-x-2 sm:inset-x-4 z-30 flex items-start justify-between gap-1 sm:gap-2"
+          className="safe-area-hud pointer-events-none fixed top-1.5 inset-x-2 sm:inset-x-3 z-30 h-9 sm:h-10 max-h-[40px] sm:max-h-[44px] flex items-center justify-between gap-1.5"
         >
-          {/* Physical Top-Left: Back to Space Map + Gold Star & Mission Progress */}
-          <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 shrink-0">
+          {/* Left Group: Back Icon + Inline Energy/O2 + Compact Step Pill + Level 1 Launch */}
+          <div className="pointer-events-auto flex items-center gap-1 sm:gap-1.5 min-w-0">
             <button
               type="button"
               data-testid="hud-back-world-btn"
               onClick={handleBackToWorldMap}
-              className="casual-btn-cyan min-h-[38px] px-2.5 sm:px-3.5 py-1.5 text-[11px] sm:text-xs flex items-center gap-1 cursor-pointer shrink-0 rounded-full"
+              className="h-8 px-2 sm:px-2.5 rounded-full bg-sky-600/85 hover:bg-sky-500 text-white font-hud font-black text-[11px] border border-cyan-200/80 backdrop-blur-md shadow flex items-center gap-1 cursor-pointer shrink-0"
               aria-label={tr(language, 'Back to Space Map', 'الخريطة الرئيسية')}
               dir={langDir}
             >
               <ArrowRight className={`w-3.5 h-3.5 shrink-0 ${language === 'en' ? 'rotate-180' : ''}`} />
-              <span className="sm:hidden">{tr(language, 'Space Map', 'الخريطة الرئيسية')}</span>
-              <span className="hidden sm:inline">{tr(language, 'Back to Space Map', 'الخريطة الرئيسية')}</span>
+              <span className="hidden md:inline">{tr(language, 'Map', 'الخريطة')}</span>
             </button>
 
-            <div
+            <MissionInventoryBar inlineSlim campaign={campaign} activeLevelId={activeLevelId} language={language} />
+
+            <button
+              type="button"
+              data-testid="top-mission-banner"
               dir={langDir}
-              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-slate-950/75 border-2 border-amber-300/75 backdrop-blur-md shadow-lg"
+              onClick={() => {
+                soundManager.playClick();
+                window.dispatchEvent(new CustomEvent('astronutri:auto-walk-next'));
+              }}
+              className="h-8 px-2 sm:px-3 rounded-full bg-slate-950/75 hover:bg-slate-900 border border-amber-300/80 backdrop-blur-md shadow text-[10px] sm:text-xs font-hud font-black text-white flex items-center gap-1 min-w-0 max-w-[140px] sm:max-w-[230px] cursor-pointer active:scale-95 transition-transform"
+              title={tr(language, seqTarget.bannerEn, seqTarget.bannerAr)}
             >
-              <img
-                src="/assets/ui/star_coin.svg"
-                alt=""
-                className="w-4 h-4 sm:w-6 sm:h-6 shrink-0 drop-shadow"
-              />
-              <span className="font-hud font-black text-[11px] sm:text-sm text-amber-300 tabular-nums">
-                {totalStarsScore}
+              <span className="text-amber-300 shrink-0">🎯</span>
+              <span className="lg:hidden truncate">
+                {tr(
+                  language,
+                  `Step ${seqTarget.stepNumber}/${activeLevelSpec.miniGames.length}`,
+                  `خطوة ${seqTarget.stepNumber}/${activeLevelSpec.miniGames.length}`
+                )}
               </span>
-              <span className="text-[10px] sm:text-[11px] font-hud font-black text-white border-s border-white/20 ps-1 sm:ps-1.5 whitespace-nowrap">
-                <span className="hidden sm:inline">{activeLvMeta.badge} </span>
-                {levelDoneCount}/{activeLevelSpec.miniGames.length}
-              </span>
-            </div>
+              <span className="hidden lg:inline truncate">{tr(language, seqTarget.bannerEn, seqTarget.bannerAr)}</span>
+            </button>
+
+            {activeLevelId === 1 && (
+              <button
+                type="button"
+                data-testid="launch-to-space-btn"
+                dir={langDir}
+                onClick={() => {
+                  soundManager.playClick();
+                  triggerRocketLaunch(2);
+                }}
+                aria-label={tr(language, 'Launch to Space', 'انطلق للفضاء')}
+                title={tr(language, 'Launch to Space', 'انطلق للفضاء')}
+                className="h-8 px-2 sm:px-2.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 hover:brightness-110 text-slate-950 font-hud font-black text-[10px] sm:text-xs border border-white shadow cursor-pointer active:scale-95 transition-transform flex items-center gap-1 shrink-0"
+              >
+                <span>🚀</span>
+                <span className="hidden lg:inline">{tr(language, 'Launch', 'إقلاع')}</span>
+              </button>
+            )}
           </div>
 
-          {/* Physical Top-Right: 1-Tap EN/AR + Return Auth + NASA Live Data + Menu */}
-          <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 shrink-0">
+          {/* Right Group: Compact EN/AR Quick Toggle + Robo Guide + ONE Menu Button */}
+          <div className="pointer-events-auto flex items-center gap-1 sm:gap-1.5 shrink-0">
             <button
               type="button"
               data-testid="hud-lang-toggle"
@@ -501,17 +522,16 @@ export const CampaignHubView: React.FC = () => {
                 soundManager.playClick();
                 setLanguage(language === 'en' ? 'ar' : 'en');
               }}
-              className="px-2 sm:px-2.5 py-1.5 rounded-full bg-slate-950/80 hover:bg-slate-800 text-cyan-200 font-hud font-black text-[11px] border-2 border-cyan-400/75 backdrop-blur-md shadow-lg cursor-pointer whitespace-nowrap"
+              className="h-8 px-2 sm:px-2.5 rounded-full bg-slate-950/80 hover:bg-slate-800 text-cyan-200 font-hud font-black text-[11px] border border-cyan-400/75 backdrop-blur-md shadow cursor-pointer whitespace-nowrap"
             >
-              <span className="sm:hidden">{language === 'en' ? 'AR' : 'إنجليزي'}</span>
-              <span className="hidden sm:inline">{language === 'en' ? 'Switch: AR' : 'اللغة: عربي'}</span>
+              {language === 'en' ? 'AR' : 'EN'}
             </button>
 
             {activeLevelId === 3 && allLevelGamesDone && !campaign.l3ReturnAuthorized && (
               <button
                 type="button"
                 onClick={() => setCampaignView('minigame', 3, 'mission_control', null)}
-                className="px-2 sm:px-2.5 py-1.5 rounded-full bg-purple-600 hover:bg-purple-500 text-white font-black text-[11px] sm:text-xs border-2 border-purple-200 animate-pulse cursor-pointer whitespace-nowrap shadow-lg"
+                className="h-8 px-2 rounded-full bg-purple-600 hover:bg-purple-500 text-white font-black text-[11px] border border-purple-200 animate-pulse cursor-pointer whitespace-nowrap shadow"
                 dir={langDir}
               >
                 {tr(language, '🛸 Auth', '🛸 إذن')}
@@ -520,44 +540,23 @@ export const CampaignHubView: React.FC = () => {
 
             <button
               type="button"
-              data-testid="open-nasa-drawer-btn"
+              data-testid="hud-story-toggle"
               onClick={() => {
                 soundManager.playClick();
-                setIsMobileMenuOpen(false);
-                openNasaDrawer();
+                setShowLevelStory((v) => !v);
               }}
-              className="px-2 sm:px-3 py-1.5 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-100 font-hud font-black text-xs border-2 border-cyan-300/75 backdrop-blur-md shadow-lg flex items-center gap-1 cursor-pointer whitespace-nowrap"
-              aria-label={tr(language, 'NASA Data', 'بيانات ناسا')}
-              dir={langDir}
+              aria-label={tr(language, showLevelStory ? 'Hide Robo' : 'Ask Robo', showLevelStory ? 'إخفاء روبو' : 'اسأل روبو')}
+              title={tr(language, showLevelStory ? 'Hide Robo' : 'Ask Robo', showLevelStory ? 'إخفاء روبو' : 'اسأل روبو')}
+              className={`h-8 px-2 rounded-full border backdrop-blur-md shadow cursor-pointer flex items-center gap-1 text-[11px] font-hud font-black ${
+                showLevelStory
+                  ? 'bg-cyan-500/30 border-cyan-300 text-cyan-100'
+                  : 'bg-slate-950/75 border-cyan-400/50 text-cyan-200'
+              }`}
             >
-              <Satellite className="w-3.5 h-3.5 text-cyan-300" />
-              <span className="hidden sm:inline">{tr(language, 'NASA', 'بيانات ناسا')}</span>
-            </button>
-
-            <button
-              type="button"
-              data-testid="hud-fullscreen-btn"
-              onClick={() => void toggleFullscreenLandscape()}
-              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-200 font-hud font-black text-xs border-2 border-cyan-300/75 backdrop-blur-md shadow-lg flex items-center gap-1 cursor-pointer whitespace-nowrap"
-              aria-label={tr(language, 'Fullscreen Landscape', 'ملء الشاشة بالعرض')}
-              title={tr(language, 'Fullscreen Landscape', 'ملء الشاشة بالعرض')}
-            >
-              <Maximize2 className="w-3.5 h-3.5" />
-            </button>
-
-            <button
-              type="button"
-              data-testid="hud-settings-btn"
-              onClick={() => {
-                soundManager.playClick();
-                setIsMobileMenuOpen(false);
-                setIsSettingsOpen(true);
-              }}
-              className="p-1.5 rounded-full bg-slate-950/75 hover:bg-slate-900 text-slate-200 border-2 border-slate-400/75 backdrop-blur-md shadow-lg cursor-pointer"
-              aria-label={tr(language, 'Settings', 'الإعدادات')}
-              title={tr(language, 'Settings', 'الإعدادات')}
-            >
-              <Settings className="w-3.5 h-3.5" />
+              <span>🤖</span>
+              <span className="hidden lg:inline">
+                {tr(language, showLevelStory ? 'Hide' : 'Robo', showLevelStory ? 'إخفاء' : 'روبو')}
+              </span>
             </button>
 
             <button
@@ -567,7 +566,7 @@ export const CampaignHubView: React.FC = () => {
                 soundManager.playClick();
                 setIsMobileMenuOpen((v) => !v);
               }}
-              className="px-2 sm:px-3 py-1.5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_3px_0_#b45309] flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              className="h-8 px-2.5 sm:px-3 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_2px_0_#b45309] flex items-center gap-1 cursor-pointer whitespace-nowrap"
               aria-label={tr(language, 'Menu', 'القائمة')}
               dir={langDir}
             >
@@ -576,47 +575,6 @@ export const CampaignHubView: React.FC = () => {
             </button>
           </div>
         </header>
-
-        {/* Kid-Friendly Top-Center Guided Mission Banner + Persistent Inventory Bar */}
-        <div
-          dir={langDir}
-          className="pointer-events-none fixed top-14 sm:top-3.5 landscape-row2-banner inset-x-0 z-20 flex flex-col items-center gap-1 px-3"
-        >
-          <button
-            type="button"
-            data-testid="top-mission-banner"
-            onClick={() => {
-              soundManager.playClick();
-              window.dispatchEvent(new CustomEvent('astronutri:auto-walk-next'));
-            }}
-            className="pointer-events-auto inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-950/80 hover:bg-slate-900 border-2 border-amber-300/85 backdrop-blur-md shadow-xl text-xs sm:text-sm font-hud font-black text-white max-w-[92vw] sm:max-w-md cursor-pointer transition-transform active:scale-95"
-          >
-            <span className="text-amber-300 shrink-0">🎯</span>
-            <span className="truncate">{tr(language, seqTarget.bannerEn, seqTarget.bannerAr)}</span>
-            {seqTarget.activeRoom && (
-              <span className="px-2 py-0.5 rounded-full bg-cyan-400 text-slate-950 text-[10px] font-black shrink-0">
-                {tr(language, 'Go 🧭', 'اذهب 🧭')}
-              </span>
-            )}
-          </button>
-          <MissionInventoryBar campaign={campaign} activeLevelId={activeLevelId} language={language} />
-
-          {/* Robo Guide Toggle Pill */}
-          <div className="pointer-events-auto flex items-center gap-1.5">
-            <button
-              type="button"
-              data-testid="hud-story-toggle"
-              onClick={() => {
-                soundManager.playClick();
-                setShowLevelStory((v) => !v);
-              }}
-              className="px-2.5 py-0.5 rounded-full bg-indigo-950/85 hover:bg-indigo-900 border border-cyan-400/60 text-cyan-200 font-hud font-black text-[10px] shadow cursor-pointer flex items-center gap-1"
-            >
-              <span>🤖</span>
-              <span>{tr(language, showLevelStory ? 'Hide Robo' : 'Ask Robo', showLevelStory ? 'إخفاء روبو' : 'اسأل روبو')}</span>
-            </button>
-          </div>
-        </div>
 
         {/* Animated Robo Guide Speech Card (Bottom-Center, Clear of Mobile Controls) */}
         <RoboGuideOverlay
@@ -652,7 +610,7 @@ export const CampaignHubView: React.FC = () => {
           <div
             data-testid="mobile-menu-drawer"
             dir={langDir}
-            className="fixed top-14 sm:top-16 right-2.5 sm:right-4 z-40 w-[calc(100vw-20px)] max-w-sm rounded-3xl bg-slate-950/95 border-2 border-cyan-300/80 p-3.5 shadow-2xl space-y-2.5"
+            className="fixed top-11 sm:top-12 right-2.5 sm:right-4 z-40 w-[calc(100vw-20px)] max-w-sm max-h-[calc(100vh-56px)] overflow-y-auto rounded-3xl bg-slate-950/95 border-2 border-cyan-300/80 p-3.5 shadow-2xl space-y-2.5"
           >
             <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
               <div className="text-xs font-hud font-black text-cyan-200 truncate">
@@ -731,6 +689,47 @@ export const CampaignHubView: React.FC = () => {
               >
                 <HelpCircle className="w-4 h-4" />
                 <span>{tr(language, 'How to Play', 'كيف تلعب؟')}</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="open-nasa-drawer-btn"
+                onClick={() => {
+                  soundManager.playClick();
+                  setIsMobileMenuOpen(false);
+                  openNasaDrawer();
+                }}
+                className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-cyan-200 font-hud font-black text-xs border-2 border-cyan-400/60 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Satellite className="w-4 h-4 text-cyan-300" />
+                <span>{tr(language, 'NASA Data', 'بيانات ناسا')}</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="hud-fullscreen-btn"
+                onClick={() => {
+                  soundManager.playClick();
+                  void toggleFullscreenLandscape();
+                }}
+                className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-cyan-100 font-hud font-black text-xs border-2 border-cyan-300/50 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Maximize2 className="w-4 h-4 text-cyan-300" />
+                <span>{tr(language, 'Fullscreen', 'ملء الشاشة')}</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="hud-sound-toggle-btn"
+                onClick={toggleSoundMute}
+                className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-hud font-black text-xs border-2 border-slate-500 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {isSoundMuted ? (
+                  <VolumeX className="w-4 h-4 text-rose-400" />
+                ) : (
+                  <Volume2 className={`w-4 h-4 text-cyan-300 ${isAudioPlaying ? 'animate-pulse text-amber-300' : ''}`} />
+                )}
+                <span>{tr(language, isSoundMuted ? 'Sound: Off' : 'Sound: On', isSoundMuted ? 'الصوت: صامت' : 'الصوت: مفعل')}</span>
               </button>
 
               <button
@@ -946,29 +945,32 @@ export const CampaignHubView: React.FC = () => {
         />
       </div>
 
-      {/* Minimalist Corner Kids HUD (Space Command: Gold Stars Left, EN/AR + NASA + Menu Right) */}
+      {/* Ultra-Slim Single-Row Corner HUD (World Map) */}
       <header
+        data-testid="top-hud-bar"
         dir="ltr"
-        className="safe-area-hud pointer-events-none fixed top-2.5 inset-x-2 sm:inset-x-4 z-30 flex items-start justify-between gap-1 sm:gap-2"
+        className="safe-area-hud pointer-events-none fixed top-1.5 inset-x-2 sm:inset-x-3 z-30 h-9 sm:h-10 max-h-[40px] sm:max-h-[44px] flex items-center justify-between gap-1.5"
       >
-        {/* Physical Top-Left: Gold Star Counter + Space Mission Command Pill + Play Button */}
-        <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 shrink-0">
+        {/* Physical Top-Left: Gold Star Counter + Inline Energy/O2 + Play */}
+        <div className="pointer-events-auto flex items-center gap-1 sm:gap-1.5 min-w-0">
           <div
             dir={langDir}
-            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-full bg-slate-950/75 border-2 border-amber-300/75 backdrop-blur-md shadow-lg"
+            className="h-8 flex items-center gap-1 px-2 sm:px-2.5 rounded-full bg-slate-950/75 border border-amber-300/75 backdrop-blur-md shadow shrink-0"
           >
             <img
               src="/assets/ui/star_coin.svg"
               alt=""
-              className="w-5 h-5 sm:w-7 sm:h-7 shrink-0 drop-shadow"
+              className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 drop-shadow"
             />
-            <span className="font-hud font-black text-[11px] sm:text-sm text-amber-300 tabular-nums">
+            <span className="font-hud font-black text-[11px] sm:text-xs text-amber-300 tabular-nums">
               {totalStarsScore}
             </span>
-            <span className="hidden sm:inline text-[11px] font-bold text-slate-200 border-x border-white/20 px-1.5 whitespace-nowrap">
+            <span className="hidden md:inline text-[10px] font-bold text-slate-200 border-s border-white/20 ps-1.5 whitespace-nowrap">
               {doneStreamlinedMissions}/{totalStreamlinedMissions}
             </span>
           </div>
+
+          <MissionInventoryBar inlineSlim campaign={campaign} activeLevelId={activeLevelId} language={language} />
 
           <button
             type="button"
@@ -977,7 +979,7 @@ export const CampaignHubView: React.FC = () => {
                 [...campaign.unlockedLevels].sort((a, b) => b - a)[0] || 1;
               handleSelectLevel(highestUnlocked);
             }}
-            className="casual-btn-emerald min-h-[38px] px-2.5 sm:px-3 py-1.5 text-xs cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-full"
+            className="h-8 casual-btn-emerald px-2.5 sm:px-3 text-[11px] sm:text-xs cursor-pointer flex items-center gap-1 whitespace-nowrap rounded-full shrink-0"
             dir={langDir}
           >
             <Play className="w-3.5 h-3.5 fill-white" />
@@ -985,8 +987,8 @@ export const CampaignHubView: React.FC = () => {
           </button>
         </div>
 
-        {/* Physical Top-Right: 1-Tap EN/AR Toggle + NASA Observatory + Robo Voice + Pause/Menu */}
-        <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 shrink-0">
+        {/* Physical Top-Right: AR/EN Toggle + Robo Guide + ONE Menu Button */}
+        <div className="pointer-events-auto flex items-center gap-1 sm:gap-1.5 shrink-0">
           <button
             type="button"
             data-testid="hud-lang-toggle"
@@ -994,74 +996,27 @@ export const CampaignHubView: React.FC = () => {
               soundManager.playClick();
               setLanguage(language === 'en' ? 'ar' : 'en');
             }}
-            className="px-2 sm:px-2.5 py-1.5 rounded-full bg-slate-950/80 hover:bg-slate-800 text-cyan-200 font-hud font-black text-[11px] border-2 border-cyan-400/75 backdrop-blur-md shadow-lg cursor-pointer whitespace-nowrap"
+            className="h-8 px-2 sm:px-2.5 rounded-full bg-slate-950/80 hover:bg-slate-800 text-cyan-200 font-hud font-black text-[11px] border border-cyan-400/75 backdrop-blur-md shadow cursor-pointer whitespace-nowrap"
           >
-            <span className="sm:hidden">{language === 'en' ? 'AR' : 'إنجليزي'}</span>
-            <span className="hidden sm:inline">{language === 'en' ? 'Switch: AR' : 'اللغة: عربي'}</span>
+            {language === 'en' ? 'AR' : 'EN'}
           </button>
 
           <button
             type="button"
-            data-testid="open-nasa-drawer-btn"
+            data-testid="hud-story-toggle"
             onClick={() => {
               soundManager.playClick();
-              setIsMobileMenuOpen(false);
-              openNasaDrawer();
+              setShowWorldRoboGuide((v) => !v);
             }}
-            className="px-2 sm:px-3 py-1.5 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-100 font-hud font-black text-xs border-2 border-cyan-300/75 backdrop-blur-md shadow-lg cursor-pointer flex items-center gap-1 whitespace-nowrap"
-            aria-label={tr(language, 'NASA Data', 'بيانات ناسا')}
-            dir={langDir}
+            aria-label={tr(language, showWorldRoboGuide ? 'Hide Robo' : 'Ask Robo', showWorldRoboGuide ? 'إخفاء روبو' : 'اسأل روبو')}
+            title={tr(language, showWorldRoboGuide ? 'Hide Robo' : 'Ask Robo', showWorldRoboGuide ? 'إخفاء روبو' : 'اسأل روبو')}
+            className={`h-8 px-2 rounded-full border backdrop-blur-md shadow cursor-pointer flex items-center gap-1 text-[11px] font-hud font-black ${
+              showWorldRoboGuide
+                ? 'bg-cyan-500/30 border-cyan-300 text-cyan-100'
+                : 'bg-slate-950/75 border-cyan-400/50 text-cyan-200'
+            }`}
           >
-            <Satellite className="w-3.5 h-3.5 text-cyan-300" />
-            <span className="hidden sm:inline">{tr(language, 'NASA', 'بيانات ناسا')}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              soundManager.playClick();
-              if (isAudioPlaying) {
-                dialogueManager.stop();
-              } else {
-                dialogueManager.speak(
-                  tr(
-                    language,
-                    'Welcome Cadet! Pick an Earth-to-Moon orbital node or tap Play to launch your next NASA mission!',
-                    'أهلاً يا بطل! اختر محطة على مسار الأرض إلى القمر أو اضغط ابدأ لدخول المحطات الفضائية!'
-                  )
-                );
-              }
-            }}
-            className="p-2 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-200 border-2 border-cyan-300/60 backdrop-blur-md shadow-lg cursor-pointer"
-            aria-label={tr(language, 'Robo Voice', 'صوت روبو')}
-          >
-            <Volume2 className={`w-4 h-4 ${isAudioPlaying ? 'animate-pulse text-amber-300' : ''}`} />
-          </button>
-
-          <button
-            type="button"
-            data-testid="hud-fullscreen-btn"
-            onClick={() => void toggleFullscreenLandscape()}
-            className="p-2 rounded-full bg-slate-950/75 hover:bg-slate-900 text-cyan-200 border-2 border-cyan-300/60 backdrop-blur-md shadow-lg cursor-pointer"
-            aria-label={tr(language, 'Fullscreen Landscape', 'ملء الشاشة بالعرض')}
-            title={tr(language, 'Fullscreen Landscape', 'ملء الشاشة بالعرض')}
-          >
-            <Maximize2 className="w-4 h-4" />
-          </button>
-
-          <button
-            type="button"
-            data-testid="hud-settings-btn"
-            onClick={() => {
-              soundManager.playClick();
-              setIsMobileMenuOpen(false);
-              setIsSettingsOpen(true);
-            }}
-            className="p-2 rounded-full bg-slate-950/75 hover:bg-slate-900 text-slate-200 border-2 border-slate-400/75 backdrop-blur-md shadow-lg cursor-pointer"
-            aria-label={tr(language, 'Settings', 'الإعدادات')}
-            title={tr(language, 'Settings', 'الإعدادات')}
-          >
-            <Settings className="w-4 h-4" />
+            <span>🤖</span>
           </button>
 
           <button
@@ -1071,7 +1026,7 @@ export const CampaignHubView: React.FC = () => {
               soundManager.playClick();
               setIsMobileMenuOpen((v) => !v);
             }}
-            className="px-2.5 sm:px-3 py-1.5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_3px_0_#b45309] flex items-center gap-1 cursor-pointer whitespace-nowrap"
+            className="h-8 px-2.5 sm:px-3 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-xs border-2 border-white shadow-[0_2px_0_#b45309] flex items-center gap-1 cursor-pointer whitespace-nowrap"
             aria-label={tr(language, 'Menu', 'القائمة')}
             dir={langDir}
           >
@@ -1080,14 +1035,6 @@ export const CampaignHubView: React.FC = () => {
           </button>
         </div>
       </header>
-
-      {/* Top-Center Persistent Carry-Over Inventory Bar (World Map, below Node Selector Strip) */}
-      <div
-        dir={langDir}
-        className="pointer-events-none fixed top-[104px] sm:top-14 inset-x-0 z-20 flex justify-center px-3"
-      >
-        <MissionInventoryBar campaign={campaign} activeLevelId={activeLevelId} language={language} />
-      </div>
 
       {/* Animated Robo Guide Welcome Card (Earth-to-Moon World Map) */}
       <RoboGuideOverlay
@@ -1119,7 +1066,7 @@ export const CampaignHubView: React.FC = () => {
         <div
           data-testid="mobile-menu-drawer"
           dir={langDir}
-          className="fixed top-14 sm:top-16 right-2.5 sm:right-4 z-40 w-[calc(100vw-20px)] max-w-sm rounded-3xl bg-slate-950/95 border-2 border-cyan-300/80 p-3.5 shadow-2xl space-y-2.5"
+          className="fixed top-11 sm:top-12 right-2.5 sm:right-4 z-40 w-[calc(100vw-20px)] max-w-sm max-h-[calc(100vh-56px)] overflow-y-auto rounded-3xl bg-slate-950/95 border-2 border-cyan-300/80 p-3.5 shadow-2xl space-y-2.5"
         >
           <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
             <div className="flex items-center gap-2 min-w-0">
@@ -1216,6 +1163,69 @@ export const CampaignHubView: React.FC = () => {
             >
               <HelpCircle className="w-4 h-4" />
               <span>{tr(language, 'How to Play', 'كيف تلعب؟')}</span>
+            </button>
+
+            <button
+              type="button"
+              data-testid="open-nasa-drawer-btn"
+              onClick={() => {
+                soundManager.playClick();
+                setIsMobileMenuOpen(false);
+                openNasaDrawer();
+              }}
+              className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-cyan-200 font-hud font-black text-xs border-2 border-cyan-400/60 flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Satellite className="w-4 h-4 text-cyan-300" />
+              <span>{tr(language, 'NASA Data', 'بيانات ناسا')}</span>
+            </button>
+
+            <button
+              type="button"
+              data-testid="hud-fullscreen-btn"
+              onClick={() => {
+                soundManager.playClick();
+                void toggleFullscreenLandscape();
+              }}
+              className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-cyan-100 font-hud font-black text-xs border-2 border-cyan-300/50 flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Maximize2 className="w-4 h-4 text-cyan-300" />
+              <span>{tr(language, 'Fullscreen', 'ملء الشاشة')}</span>
+            </button>
+
+            <button
+              type="button"
+              data-testid="hud-sound-toggle-btn"
+              onClick={toggleSoundMute}
+              className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-hud font-black text-xs border-2 border-slate-500 flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              {isSoundMuted ? (
+                <VolumeX className="w-4 h-4 text-rose-400" />
+              ) : (
+                <Volume2 className={`w-4 h-4 text-cyan-300 ${isAudioPlaying ? 'animate-pulse text-amber-300' : ''}`} />
+              )}
+              <span>{tr(language, isSoundMuted ? 'Sound: Off' : 'Sound: On', isSoundMuted ? 'الصوت: صامت' : 'الصوت: مفعل')}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                soundManager.playClick();
+                if (isAudioPlaying) {
+                  dialogueManager.stop();
+                } else {
+                  dialogueManager.speak(
+                    tr(
+                      language,
+                      'Welcome Cadet! Pick an Earth-to-Moon orbital node or tap Play to launch your next NASA mission!',
+                      'أهلاً يا بطل! اختر محطة على مسار الأرض إلى القمر أو اضغط ابدأ لدخول المحطات الفضائية!'
+                    )
+                  );
+                }
+              }}
+              className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-cyan-200 font-hud font-black text-xs border-2 border-cyan-400/50 flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Volume2 className={`w-4 h-4 ${isAudioPlaying ? 'animate-pulse text-amber-300' : 'text-cyan-300'}`} />
+              <span>{tr(language, 'Robo Voice', 'صوت روبو')}</span>
             </button>
 
             <button

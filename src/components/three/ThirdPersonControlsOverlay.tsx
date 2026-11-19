@@ -1,8 +1,16 @@
 import React, { useRef, useState } from 'react';
-import { Compass, DoorOpen, Eye, Sparkles, Zap } from 'lucide-react';
+import { Compass } from 'lucide-react';
 import { soundManager } from '../../utils/sound';
 import { useGameState } from '../../context/GameContext';
 import { tr } from '../../utils/i18n';
+
+export interface SecondaryThumbAction {
+  icon: string;
+  label: string;
+  active?: boolean;
+  testId: string;
+  onClick: () => void;
+}
 
 interface ThirdPersonControlsOverlayProps {
   promptLabelAr: string | null;
@@ -10,6 +18,9 @@ interface ThirdPersonControlsOverlayProps {
   onInteract: () => void;
   onJoystickMove: (vec: { x: number; z: number }) => void;
   onLookDrag?: (dx: number, dy: number) => void;
+  onLookStart?: () => void;
+  onLookEnd?: () => void;
+  onViewportTap?: (clientX: number, clientY: number) => void;
   onJump: () => void;
   onSprintChange?: (sprinting: boolean) => void;
   onAutoWalkNext?: () => void;
@@ -17,239 +28,319 @@ interface ThirdPersonControlsOverlayProps {
   gravityLabelAr?: string;
   hintAr: string;
   embedded?: boolean;
+  jumpMode?: 'jump' | 'boost';
+  highlightInteract?: boolean;
+  secondaryAction?: SecondaryThumbAction;
 }
 
+/**
+ * PUBG / Genshin-style dual-thumb landscape touch overlay:
+ * - Left 50%: floating virtual analog joystick centered under thumb on touch + sprint outer ring
+ * - Right 50%: full-screen invisible silky-smooth camera orbit touch-drag surface + tap passthrough
+ * - Bottom-right ergonomic thumb arc: circular Action, Jump/Boost, Vehicle/Fly, and Auto-Guide buttons
+ */
 export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProps> = ({
   promptLabelAr,
-  promptSubAr,
   onInteract,
   onJoystickMove,
   onLookDrag,
+  onLookStart,
+  onLookEnd,
+  onViewportTap,
   onJump,
   onSprintChange,
   onAutoWalkNext,
   autoWalkLabel,
-  gravityLabelAr,
-  hintAr,
-  embedded = false
+  embedded = false,
+  jumpMode = 'jump',
+  highlightInteract = false,
+  secondaryAction
 }) => {
   const { language } = useGameState();
-  const padRef = useRef<HTMLDivElement | null>(null);
-  const lookPointerIdRef = useRef<number | null>(null);
-  const lookLastPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [knobOffset, setKnobOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [dragging, setDragging] = useState(false);
-  const [isLooking, setIsLooking] = useState(false);
-  const [sprinting, setSprinting] = useState(false);
 
-  const updateJoystickFromPointer = (clientX: number, clientY: number) => {
-    const el = padRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const maxR = rect.width * 0.36;
-    const dx = clientX - cx;
-    const dy = clientY - cy;
+  const leftZoneRef = useRef<HTMLDivElement | null>(null);
+  const leftPointerIdRef = useRef<number | null>(null);
+  const joyOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const leftDownAtRef = useRef<number>(0);
+  const leftMaxDistRef = useRef<number>(0);
+
+  const rightPointerIdRef = useRef<number | null>(null);
+  const rightDownPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const rightLastPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const [floatingCenter, setFloatingCenter] = useState<{ x: number; y: number } | null>(null);
+  const [knobOffset, setKnobOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [autoSprinting, setAutoSprinting] = useState(false);
+
+  const MAX_JOY_RADIUS = 46;
+  const DEADZONE = 0.08;
+  const SPRINT_THRESHOLD = 0.82;
+
+  const updateJoystick = (clientX: number, clientY: number) => {
+    const origin = joyOriginRef.current;
+    if (!origin) return;
+    const dx = clientX - origin.x;
+    const dy = clientY - origin.y;
     const dist = Math.hypot(dx, dy);
-    const clamped = Math.min(dist, maxR);
+    if (dist > leftMaxDistRef.current) {
+      leftMaxDistRef.current = dist;
+    }
+
+    const clamped = Math.min(dist, MAX_JOY_RADIUS);
     const angle = Math.atan2(dy, dx);
-    const kx = Math.cos(angle) * clamped;
-    const ky = Math.sin(angle) * clamped;
+    const kx = dist > 0.001 ? Math.cos(angle) * clamped : 0;
+    const ky = dist > 0.001 ? Math.sin(angle) * clamped : 0;
     setKnobOffset({ x: kx, y: ky });
+
+    const norm = dist / MAX_JOY_RADIUS;
+    if (norm < DEADZONE) {
+      onJoystickMove({ x: 0, z: 0 });
+      if (autoSprinting) {
+        setAutoSprinting(false);
+        onSprintChange?.(false);
+      }
+      return;
+    }
+
+    const activeStrength = Math.min(1, (norm - DEADZONE) / (1 - DEADZONE));
     onJoystickMove({
-      x: Number((kx / maxR).toFixed(2)),
-      z: Number((ky / maxR).toFixed(2))
+      x: Number((Math.cos(angle) * activeStrength).toFixed(3)),
+      z: Number((Math.sin(angle) * activeStrength).toFixed(3))
     });
+
+    const wantSprint = norm >= SPRINT_THRESHOLD;
+    if (wantSprint !== autoSprinting) {
+      setAutoSprinting(wantSprint);
+      onSprintChange?.(wantSprint);
+    }
   };
 
-  const resetJoystick = () => {
-    setDragging(false);
+  const resetJoystick = (clientX?: number, clientY?: number) => {
+    const elapsed = performance.now() - leftDownAtRef.current;
+    const quickTap = leftMaxDistRef.current < 7 && elapsed < 240;
+    leftPointerIdRef.current = null;
+    joyOriginRef.current = null;
+    leftMaxDistRef.current = 0;
+    setFloatingCenter(null);
     setKnobOffset({ x: 0, y: 0 });
     onJoystickMove({ x: 0, z: 0 });
+    if (autoSprinting) {
+      setAutoSprinting(false);
+      onSprintChange?.(false);
+    } else {
+      onSprintChange?.(false);
+    }
+    if (quickTap && clientX !== undefined && clientY !== undefined) {
+      onViewportTap?.(clientX, clientY);
+    }
   };
 
-  const textDir = language === 'ar' ? 'rtl' : 'ltr';
+  const posMode = embedded ? 'absolute' : 'fixed';
+  const interactHint = promptLabelAr || tr(language, 'Action', 'تفاعل');
 
   return (
-    <div
-      dir="ltr"
-      className={`pointer-events-none ${embedded ? 'absolute bottom-2.5 sm:bottom-3' : 'fixed bottom-4 sm:bottom-5'} inset-x-0 z-30 px-3.5 sm:px-6 flex items-end justify-between gap-2`}
-    >
-      {/* Bottom-Left: Minimalist Single-Thumb Analog Joystick */}
-      <div className="pointer-events-auto flex flex-col items-start gap-1.5 shrink-0">
-        <div
-          ref={padRef}
-          data-testid="third-person-joystick"
-          onPointerDown={(e) => {
+    <>
+      {/* 1. LEFT 50% OF VIEWPORT — Floating Dynamic Analog Virtual Joystick */}
+      <div
+        ref={leftZoneRef}
+        dir="ltr"
+        data-testid="left-joystick-zone"
+        onPointerDown={(e) => {
+          if (leftPointerIdRef.current !== null) return;
+          leftPointerIdRef.current = e.pointerId;
+          leftDownAtRef.current = performance.now();
+          leftMaxDistRef.current = 0;
+          try {
             e.currentTarget.setPointerCapture(e.pointerId);
-            setDragging(true);
-            updateJoystickFromPointer(e.clientX, e.clientY);
-          }}
-          onPointerMove={(e) => {
-            if (!dragging) return;
-            updateJoystickFromPointer(e.clientX, e.clientY);
-          }}
-          onPointerUp={resetJoystick}
-          onPointerCancel={resetJoystick}
-          className="relative w-20 h-20 sm:w-28 sm:h-28 rounded-full bg-slate-900/50 border-[3px] border-white/60 backdrop-blur-md shadow-[0_6px_18px_rgba(15,23,42,0.45)] flex items-center justify-center touch-none cursor-grab active:cursor-grabbing"
-          aria-label={tr(language, '3D Movement Joystick', 'عصا التحكم الثلاثية الأبعاد')}
+          } catch {
+            // ignore synthetic event capture errors
+          }
+          const rect = e.currentTarget.getBoundingClientRect();
+          const relX = Math.max(52, Math.min(rect.width - 52, e.clientX - rect.left));
+          const relY = Math.max(52, Math.min(rect.height - 52, e.clientY - rect.top));
+          const absX = rect.left + relX;
+          const absY = rect.top + relY;
+          joyOriginRef.current = { x: absX, y: absY };
+          setFloatingCenter({ x: relX, y: relY });
+          updateJoystick(e.clientX, e.clientY);
+        }}
+        onPointerMove={(e) => {
+          if (leftPointerIdRef.current !== e.pointerId) return;
+          updateJoystick(e.clientX, e.clientY);
+        }}
+        onPointerUp={(e) => {
+          if (leftPointerIdRef.current !== e.pointerId) return;
+          resetJoystick(e.clientX, e.clientY);
+        }}
+        onPointerCancel={(e) => {
+          if (leftPointerIdRef.current !== e.pointerId) return;
+          resetJoystick();
+        }}
+        className={`${posMode} left-0 top-12 bottom-0 w-1/2 z-10 pointer-events-auto touch-none select-none`}
+      >
+        {/* Docked or Live Floating Analog Ring */}
+        <div
+          data-testid="third-person-joystick"
+          style={
+            floatingCenter
+              ? {
+                  left: `${floatingCenter.x - 48}px`,
+                  top: `${floatingCenter.y - 48}px`
+                }
+              : undefined
+          }
+          className={`${
+            floatingCenter
+              ? 'absolute opacity-95'
+              : 'absolute left-4 bottom-4 sm:left-6 sm:bottom-6 opacity-55'
+          } w-24 h-24 rounded-full bg-slate-950/35 border-2 ${
+            autoSprinting
+              ? 'border-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.65)]'
+              : 'border-white/55'
+          } backdrop-blur-[2px] flex items-center justify-center pointer-events-none transition-opacity duration-100`}
         >
-          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border border-white/30 pointer-events-none" />
+          <div className="w-14 h-14 rounded-full border border-white/25 pointer-events-none" />
           <div
             style={{ transform: `translate(${knobOffset.x}px, ${knobOffset.y}px)` }}
-            className="absolute w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-white via-cyan-200 to-sky-400 border-2 border-white shadow-lg pointer-events-none transition-transform duration-75"
+            className={`absolute w-10 h-10 rounded-full border-2 border-white shadow-lg pointer-events-none ${
+              autoSprinting
+                ? 'bg-gradient-to-br from-cyan-200 via-cyan-400 to-sky-500'
+                : 'bg-gradient-to-br from-white via-sky-100 to-cyan-300'
+            }`}
           />
         </div>
-        <span
-          dir={textDir}
-          className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950/65 border border-white/25 text-[11px] font-hud font-bold text-white/90 backdrop-blur-md"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-          <span>{hintAr}</span>
-        </span>
       </div>
 
-      {/* Bottom-Right: Right-Thumb Camera Look Pad + Auto-Walk + Target Interact + Action Buttons */}
-      <div className="pointer-events-auto flex flex-col items-end gap-1.5 sm:gap-2 max-w-[66vw] sm:max-w-none shrink-0">
-        {onLookDrag && (
-          <div
-            data-testid="right-camera-look-zone"
-            dir={textDir}
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              e.currentTarget.setPointerCapture(e.pointerId);
-              lookPointerIdRef.current = e.pointerId;
-              lookLastPosRef.current = { x: e.clientX, y: e.clientY };
-              setIsLooking(true);
-            }}
-            onPointerMove={(e) => {
-              if (lookPointerIdRef.current !== e.pointerId) return;
-              const dx = e.clientX - lookLastPosRef.current.x;
-              const dy = e.clientY - lookLastPosRef.current.y;
-              lookLastPosRef.current = { x: e.clientX, y: e.clientY };
-              onLookDrag(dx, dy);
-            }}
-            onPointerUp={(e) => {
-              if (lookPointerIdRef.current === e.pointerId) {
-                lookPointerIdRef.current = null;
-                setIsLooking(false);
-              }
-            }}
-            onPointerCancel={() => {
-              lookPointerIdRef.current = null;
-              setIsLooking(false);
-            }}
-            className={`px-3 py-1.5 rounded-full border backdrop-blur-md touch-none cursor-grab active:cursor-grabbing flex items-center gap-1.5 text-[10px] sm:text-[11px] font-hud font-black transition-all select-none ${
-              isLooking
-                ? 'bg-cyan-400/90 text-slate-950 border-white shadow-[0_0_16px_rgba(34,211,238,0.65)]'
-                : 'bg-slate-900/65 text-cyan-200 border-cyan-400/50 hover:border-cyan-300'
-            }`}
-          >
-            <Eye className="w-3.5 h-3.5 shrink-0" />
-            <span>{tr(language, 'Look Camera ⇄', 'تدوير الكاميرا ⇄')}</span>
-          </div>
-        )}
+      {/* 2. RIGHT 50% OF VIEWPORT — Full-Screen Invisible Smooth Camera Look Zone */}
+      <div
+        dir="ltr"
+        data-testid="right-camera-look-zone"
+        onPointerDown={(e) => {
+          if (rightPointerIdRef.current !== null) return;
+          rightPointerIdRef.current = e.pointerId;
+          rightDownPosRef.current = { x: e.clientX, y: e.clientY };
+          rightLastPosRef.current = { x: e.clientX, y: e.clientY };
+          try {
+            e.currentTarget.setPointerCapture(e.pointerId);
+          } catch {
+            // ignore synthetic event capture errors
+          }
+          onLookStart?.();
+        }}
+        onPointerMove={(e) => {
+          if (rightPointerIdRef.current !== e.pointerId) return;
+          const dx = e.clientX - rightLastPosRef.current.x;
+          const dy = e.clientY - rightLastPosRef.current.y;
+          rightLastPosRef.current = { x: e.clientX, y: e.clientY };
+          onLookDrag?.(dx, dy);
+        }}
+        onPointerUp={(e) => {
+          if (rightPointerIdRef.current !== e.pointerId) return;
+          const totalDist = Math.hypot(
+            e.clientX - rightDownPosRef.current.x,
+            e.clientY - rightDownPosRef.current.y
+          );
+          rightPointerIdRef.current = null;
+          onLookEnd?.();
+          if (totalDist < 7) {
+            onViewportTap?.(e.clientX, e.clientY);
+          }
+        }}
+        onPointerCancel={(e) => {
+          if (rightPointerIdRef.current !== e.pointerId) return;
+          rightPointerIdRef.current = null;
+          onLookEnd?.();
+        }}
+        className={`${posMode} right-0 top-12 bottom-0 w-1/2 z-10 pointer-events-auto touch-none select-none`}
+      />
 
-        {onAutoWalkNext && autoWalkLabel && (
+      {/* 3. ERGONOMIC BOTTOM-RIGHT THUMB ARC (Clean Circular Buttons Only) */}
+      <div
+        dir="ltr"
+        className={`${posMode} right-3 bottom-3 sm:right-5 sm:bottom-5 z-20 pointer-events-none flex items-end gap-2.5`}
+      >
+        {/* Optional Icon-Only Auto-Guide Compass (Outer Arc Left) */}
+        {onAutoWalkNext && (
           <button
             type="button"
-            dir={textDir}
             data-testid="auto-walk-next-btn"
             onClick={() => {
               soundManager.playClick();
               onAutoWalkNext();
             }}
-            className="min-h-[38px] px-3.5 py-1.5 rounded-full bg-gradient-to-r from-cyan-400 via-sky-400 to-emerald-400 hover:brightness-110 text-slate-950 font-hud font-black text-[11px] sm:text-xs border-2 border-white shadow-[0_4px_14px_rgba(34,211,238,0.5)] flex items-center gap-1.5 max-w-[245px] sm:max-w-[340px] cursor-pointer active:scale-95 transition-transform"
+            aria-label={autoWalkLabel || tr(language, 'Auto-Guide Next Mission', 'توجيه تلقائي للمهمة')}
+            title={autoWalkLabel || tr(language, 'Auto-Guide Next Mission', 'توجيه تلقائي للمهمة')}
+            className="pointer-events-auto w-11 h-11 rounded-full bg-slate-900/75 hover:bg-cyan-500 hover:text-slate-950 text-cyan-200 border-2 border-cyan-300/80 backdrop-blur-md shadow-lg flex items-center justify-center cursor-pointer active:scale-90 transition-all mb-1"
           >
-            <Compass className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">{autoWalkLabel}</span>
+            <Compass className="w-5 h-5" />
           </button>
         )}
 
-        {/* Contextual Station / Island Enter Pill */}
-        {promptLabelAr && (
+        {/* Secondary Vehicle / Flight Toggle (Moon/Mars Rover or Overworld Fly) */}
+        {secondaryAction && (
           <button
             type="button"
-            dir={textDir}
+            data-testid={secondaryAction.testId}
             onClick={() => {
               soundManager.playClick();
-              onInteract();
+              secondaryAction.onClick();
             }}
-            className="casual-btn-primary px-3.5 py-1.5 text-xs sm:text-sm flex items-center gap-1.5 max-w-[235px] sm:max-w-[380px] cursor-pointer shadow-xl"
+            aria-label={secondaryAction.label}
+            title={secondaryAction.label}
+            className={`pointer-events-auto w-12 h-12 rounded-full border-2 backdrop-blur-md shadow-lg flex items-center justify-center text-lg cursor-pointer active:scale-90 transition-all mb-3 ${
+              secondaryAction.active
+                ? 'bg-gradient-to-br from-orange-400 to-amber-500 text-slate-950 border-white shadow-[0_0_16px_rgba(251,146,60,0.7)]'
+                : 'bg-slate-900/75 hover:bg-slate-800 text-white border-cyan-300/75'
+            }`}
           >
-            <DoorOpen className="w-4 h-4 shrink-0" />
-            <span className="truncate">{promptLabelAr}</span>
-            {promptSubAr && (
-              <span className="hidden lg:inline px-2 py-0.5 rounded-full bg-slate-950/15 text-[10px] font-bold">
-                {promptSubAr}
-              </span>
-            )}
+            <span>{secondaryAction.icon}</span>
           </button>
         )}
 
-        <div className="flex items-end gap-2 sm:gap-2.5">
-          {gravityLabelAr && (
-            <span
-              dir={textDir}
-              className="hidden sm:inline-flex px-2.5 py-1 rounded-full bg-slate-950/65 border border-white/30 text-[10px] font-hud font-bold text-cyan-100 backdrop-blur-md whitespace-nowrap mb-2"
-            >
-              {gravityLabelAr}
-            </span>
-          )}
+        {/* Primary Contextual Interact / Enter Station Button (B) */}
+        <button
+          type="button"
+          data-testid="third-person-interact-btn"
+          onClick={() => {
+            soundManager.playClick();
+            onInteract();
+          }}
+          aria-label={interactHint}
+          title={interactHint}
+          className={`pointer-events-auto w-14 h-14 sm:w-16 sm:h-16 rounded-full border-[3px] border-white flex flex-col items-center justify-center font-hud font-black cursor-pointer active:translate-y-0.5 transition-all mb-5 ${
+            highlightInteract
+              ? 'bg-gradient-to-b from-amber-300 via-amber-400 to-orange-500 text-slate-950 shadow-[0_0_20px_rgba(251,191,36,0.75)] ring-2 ring-amber-200/70'
+              : 'bg-gradient-to-b from-amber-400/90 to-orange-500/90 text-slate-950 shadow-[0_4px_0_rgba(146,64,14,0.85)]'
+          }`}
+        >
+          <span className="text-base sm:text-lg leading-none">B</span>
+          <span className="text-[8px] sm:text-[9px] leading-none mt-0.5 uppercase tracking-tight">
+            {tr(language, 'Enter', 'دخول')}
+          </span>
+        </button>
 
-          {onSprintChange && (
-            <button
-              type="button"
-              data-testid="third-person-sprint-btn"
-              onClick={() => {
-                const next = !sprinting;
-                setSprinting(next);
-                onSprintChange(next);
-              }}
-              aria-label={tr(language, 'Sprint toggle', 'جري سريع')}
-              className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full border-2 border-b-4 flex items-center justify-center cursor-pointer backdrop-blur-md transition-all active:translate-y-0.5 ${
-                sprinting
-                  ? 'bg-cyan-400 text-slate-950 border-white shadow-[0_0_16px_rgba(34,211,238,0.65)]'
-                  : 'bg-slate-900/55 text-cyan-200 border-white/60 hover:bg-slate-800/75'
-              }`}
-            >
-              <Zap className="w-5 h-5" />
-            </button>
-          )}
-
-          {/* B = Interact */}
-          <button
-            type="button"
-            data-testid="third-person-interact-btn"
-            onClick={() => {
-              soundManager.playClick();
-              onInteract();
-            }}
-            aria-label={tr(language, 'B - Interact & Enter', 'B - دخول وتفاعل')}
-            className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-b from-amber-300/95 via-amber-400/95 to-orange-500/95 border-[3px] border-white shadow-[0_5px_0_rgba(146,64,14,0.9),0_8px_20px_rgba(245,158,11,0.45)] flex flex-col items-center justify-center font-hud font-black text-slate-950 cursor-pointer active:translate-y-1 transition-all"
-          >
-            <span className="text-lg sm:text-xl leading-none">B</span>
-            <span className="text-[8px] sm:text-[9px] leading-none mt-0.5">
-              {tr(language, 'Enter', 'تفاعل')}
-            </span>
-          </button>
-
-          {/* A = Jump */}
-          <button
-            type="button"
-            data-testid="third-person-jump-btn"
-            onClick={onJump}
-            aria-label={tr(language, 'A - Jump', 'A - قفز')}
-            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-b from-emerald-300/95 via-emerald-500/95 to-teal-600/95 border-[3px] border-white shadow-[0_6px_0_rgba(6,95,70,0.9),0_8px_20px_rgba(16,185,129,0.45)] flex flex-col items-center justify-center font-hud font-black text-white cursor-pointer active:translate-y-1 transition-all"
-          >
-            <span className="text-xl sm:text-2xl leading-none drop-shadow">A</span>
-            <span className="text-[9px] sm:text-[10px] leading-none mt-0.5">
-              {tr(language, 'Jump', 'قفز')}
-            </span>
-          </button>
-        </div>
+        {/* Primary Jump / Boost Thumb Anchor (A) */}
+        <button
+          type="button"
+          data-testid="third-person-jump-btn"
+          onClick={onJump}
+          aria-label={
+            jumpMode === 'boost' ? tr(language, 'Boost', 'دفع') : tr(language, 'Jump', 'قفز')
+          }
+          className={`pointer-events-auto w-14 h-14 sm:w-16 sm:h-16 rounded-full border-[3px] border-white flex flex-col items-center justify-center font-hud font-black text-white cursor-pointer active:translate-y-0.5 transition-all ${
+            jumpMode === 'boost'
+              ? 'bg-gradient-to-b from-cyan-400 via-sky-500 to-blue-600 shadow-[0_4px_0_rgba(3,105,161,0.9)]'
+              : 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-teal-600 shadow-[0_4px_0_rgba(6,95,70,0.9)]'
+          }`}
+        >
+          <span className="text-lg sm:text-xl leading-none">
+            {jumpMode === 'boost' ? '⚡' : 'A'}
+          </span>
+          <span className="text-[8px] sm:text-[9px] leading-none mt-0.5 uppercase tracking-tight">
+            {jumpMode === 'boost' ? tr(language, 'Boost', 'دفع') : tr(language, 'Jump', 'قفز')}
+          </span>
+        </button>
       </div>
-    </div>
+    </>
   );
 };
