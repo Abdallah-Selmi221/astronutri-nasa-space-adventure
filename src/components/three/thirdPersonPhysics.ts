@@ -1,12 +1,68 @@
 import * as THREE from 'three';
 import { mergeColoredParts } from './threeMergeUtils';
 
+export const COYOTE_TIME_MS = 120;
+export const JUMP_BUFFER_MS = 120;
+export const GROUND_SLOPE_SNAP = 0.30;
+
+export interface ThirdPersonKinematicsState {
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  grounded: boolean;
+  lastGroundedMs: number;
+  jumpBufferUntilMs: number;
+  lastLandedMs: number;
+  airTimeSec: number;
+}
+
+export interface CircleObstacle {
+  x: number;
+  z: number;
+  radius: number;
+}
+
+export interface StepKinematicsOptions {
+  dt: number;
+  nowMs: number;
+  inputWorldDirX: number;
+  inputWorldDirZ: number;
+  inputMagnitude: number;
+  maxSpeed: number;
+  gravity: number;
+  jumpVel: number;
+  isZeroG?: boolean;
+  evalFloorY: (x: number, z: number) => number;
+  clampXZ?: (x: number, z: number) => { x: number; z: number };
+  obstacles?: readonly CircleObstacle[];
+  playerRadius?: number;
+}
+
+export interface StepKinematicsResult {
+  speed: number;
+  jumped: boolean;
+  landed: boolean;
+  isAirborne: boolean;
+  isLanding: boolean;
+}
+
 /**
  * Shortest-arc yaw interpolation in radians to avoid 360-degree snaps.
  */
 export function lerpAngle(current: number, target: number, alpha: number): number {
   const diff = Math.atan2(Math.sin(target - current), Math.cos(target - current));
   return current + diff * Math.min(1, Math.max(0, alpha));
+}
+
+/**
+ * Frame-rate-independent exponential scalar damping toward target.
+ */
+export function dampValue(current: number, target: number, lambda: number, dt: number): number {
+  const safeDt = Math.max(0, dt);
+  return current + (target - current) * (1 - Math.exp(-lambda * safeDt));
 }
 
 /**
@@ -30,6 +86,187 @@ export function stepSmoothHorizontalVelocity(
     vel.z = 0;
   }
   return { speed: Math.hypot(vel.x, vel.z) };
+}
+
+/**
+ * Initializes decoupled third-person locomotion & jump kinematics state.
+ */
+export function createKinematicsState(
+  x: number,
+  y: number,
+  z: number,
+  nowMs = 0
+): ThirdPersonKinematicsState {
+  return {
+    x,
+    y,
+    z,
+    vx: 0,
+    vy: 0,
+    vz: 0,
+    grounded: true,
+    lastGroundedMs: nowMs,
+    jumpBufferUntilMs: 0,
+    lastLandedMs: -9999,
+    airTimeSec: 0
+  };
+}
+
+/**
+ * Queues a buffered jump request without altering horizontal movement state.
+ */
+export function queueJumpInput(
+  state: ThirdPersonKinematicsState,
+  nowMs: number,
+  bufferMs = JUMP_BUFFER_MS
+): void {
+  state.jumpBufferUntilMs = Math.max(state.jumpBufferUntilMs, nowMs + bufferMs);
+}
+
+/**
+ * Pushes player cleanly out of circular obstacles and strips only inward velocity so
+ * movement slides smoothly around geometry rather than snagging.
+ */
+export function resolveCircleObstacles(
+  pos: { x: number; z: number },
+  vel: { x: number; z: number },
+  playerRadius: number,
+  obstacles: readonly CircleObstacle[]
+): boolean {
+  let collided = false;
+  for (let i = 0; i < obstacles.length; i++) {
+    const obs = obstacles[i];
+    const minDist = playerRadius + obs.radius;
+    const dx = pos.x - obs.x;
+    const dz = pos.z - obs.z;
+    const distSq = dx * dx + dz * dz;
+    if (distSq < minDist * minDist) {
+      collided = true;
+      const dist = Math.sqrt(distSq);
+      const nx = dist > 1e-5 ? dx / dist : 0;
+      const nz = dist > 1e-5 ? dz / dist : 1;
+      pos.x = obs.x + nx * minDist;
+      pos.z = obs.z + nz * minDist;
+      const dot = vel.x * nx + vel.z * nz;
+      if (dot < 0) {
+        vel.x -= dot * nx;
+        vel.z -= dot * nz;
+      }
+    }
+  }
+  return collided;
+}
+
+/**
+ * Steps decoupled horizontal locomotion, obstacle sliding, coyote time, jump input buffer,
+ * uphill-safe jumping, and gravity landing in a single deterministic tick.
+ */
+export function stepThirdPersonKinematics(
+  state: ThirdPersonKinematicsState,
+  opts: StepKinematicsOptions
+): StepKinematicsResult {
+  const dt = Math.max(0, Math.min(0.05, opts.dt));
+  const nowMs = opts.nowMs;
+
+  const accelRate = state.grounded ? 15.5 : 3.4;
+  const frictionRate = state.grounded ? 12.5 : 0.45;
+  const clampedMag = Math.min(1, Math.max(0, opts.inputMagnitude));
+  const dirLen = Math.hypot(opts.inputWorldDirX, opts.inputWorldDirZ);
+  const targetSpeed = opts.maxSpeed * clampedMag;
+  const targetVx = dirLen > 1e-5 && clampedMag > 0 ? (opts.inputWorldDirX / dirLen) * targetSpeed : 0;
+  const targetVz = dirLen > 1e-5 && clampedMag > 0 ? (opts.inputWorldDirZ / dirLen) * targetSpeed : 0;
+
+  const hVel = { x: state.vx, z: state.vz };
+  stepSmoothHorizontalVelocity(hVel, targetVx, targetVz, dt, accelRate, frictionRate);
+
+  const nextPos = {
+    x: state.x + hVel.x * dt,
+    z: state.z + hVel.z * dt
+  };
+
+  if (opts.clampXZ) {
+    const clamped = opts.clampXZ(nextPos.x, nextPos.z);
+    if (clamped.x !== nextPos.x) hVel.x = 0;
+    if (clamped.z !== nextPos.z) hVel.z = 0;
+    nextPos.x = clamped.x;
+    nextPos.z = clamped.z;
+  }
+
+  if (opts.obstacles && opts.obstacles.length > 0) {
+    resolveCircleObstacles(nextPos, hVel, opts.playerRadius ?? 0.55, opts.obstacles);
+    if (opts.clampXZ) {
+      const clampedAfter = opts.clampXZ(nextPos.x, nextPos.z);
+      nextPos.x = clampedAfter.x;
+      nextPos.z = clampedAfter.z;
+    }
+  }
+
+  state.x = nextPos.x;
+  state.z = nextPos.z;
+  state.vx = hVel.x;
+  state.vz = hVel.z;
+
+  const floorY = opts.evalFloorY(state.x, state.z);
+  let jumped = false;
+  let landed = false;
+
+  const withinCoyote = nowMs - state.lastGroundedMs <= COYOTE_TIME_MS;
+  if (state.jumpBufferUntilMs >= nowMs && (state.grounded || withinCoyote || opts.isZeroG)) {
+    state.vy = opts.jumpVel;
+    state.grounded = false;
+    state.jumpBufferUntilMs = 0;
+    state.airTimeSec = 0;
+    jumped = true;
+  }
+
+  if (state.grounded) {
+    if (state.y - floorY <= GROUND_SLOPE_SNAP) {
+      state.y = floorY;
+      state.vy = 0;
+      state.lastGroundedMs = nowMs;
+      state.airTimeSec = 0;
+    } else {
+      state.grounded = false;
+      state.lastGroundedMs = nowMs;
+      state.airTimeSec = dt;
+      state.vy -= opts.gravity * dt;
+      state.y += state.vy * dt;
+    }
+  } else {
+    state.airTimeSec += dt;
+    state.vy -= opts.gravity * dt;
+    state.y += state.vy * dt;
+
+    if (state.vy > 0) {
+      // Ascending on an uphill slope keeps upward velocity intact instead of aborting the jump.
+      if (state.y < floorY) {
+        state.y = floorY;
+      }
+    } else if (state.y <= floorY) {
+      state.y = floorY;
+      state.vy = 0;
+      state.grounded = true;
+      state.lastGroundedMs = nowMs;
+      state.lastLandedMs = nowMs;
+      state.airTimeSec = 0;
+      landed = true;
+
+      if (state.jumpBufferUntilMs >= nowMs) {
+        state.vy = opts.jumpVel;
+        state.grounded = false;
+        state.jumpBufferUntilMs = 0;
+        jumped = true;
+      }
+    }
+  }
+
+  return {
+    speed: Math.hypot(state.vx, state.vz),
+    jumped,
+    landed,
+    isAirborne: !state.grounded,
+    isLanding: state.grounded && nowMs - state.lastLandedMs < 140
+  };
 }
 
 interface DustParticle {

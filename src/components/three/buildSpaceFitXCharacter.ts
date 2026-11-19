@@ -12,6 +12,7 @@ export interface SpaceFitXCharacterHandle {
     moveSpeed?: number;
     isRunning?: boolean;
     isJumping?: boolean;
+    isLanding?: boolean;
     isZeroG?: boolean;
     isSeated?: boolean;
     suitState?: SpaceFitXState;
@@ -665,6 +666,7 @@ export function buildSpaceFitXCharacter(options?: {
     moveSpeed = 0,
     isRunning = false,
     isJumping = false,
+    isLanding = false,
     isZeroG = false,
     isSeated = false,
     suitState,
@@ -676,6 +678,7 @@ export function buildSpaceFitXCharacter(options?: {
     moveSpeed?: number;
     isRunning?: boolean;
     isJumping?: boolean;
+    isLanding?: boolean;
     isZeroG?: boolean;
     isSeated?: boolean;
     suitState?: SpaceFitXState;
@@ -699,9 +702,17 @@ export function buildSpaceFitXCharacter(options?: {
     matRoboBeacon.emissive.setHex(themeSpec.accent);
     matRoboBeacon.emissiveIntensity = 0.75 + 0.55 * Math.sin(t * 4.2);
 
-    // Subtle Squash-and-Stretch Juice on Jump
-    const targetSy = isJumping ? rootScale * 1.07 : rootScale * (1 + Math.sin(t * 2.2) * 0.008);
-    const targetSxz = isJumping ? rootScale * 0.95 : rootScale;
+    // Subtle Squash-and-Stretch Juice on Jump & Landing Cushion
+    const targetSy = isJumping
+      ? rootScale * 1.07
+      : isLanding
+      ? rootScale * 0.93
+      : rootScale * (1 + Math.sin(t * 2.2) * 0.008);
+    const targetSxz = isJumping
+      ? rootScale * 0.95
+      : isLanding
+      ? rootScale * 1.04
+      : rootScale;
     group.scale.y += (targetSy - group.scale.y) * 0.2;
     group.scale.x += (targetSxz - group.scale.x) * 0.2;
     group.scale.z += (targetSxz - group.scale.z) * 0.2;

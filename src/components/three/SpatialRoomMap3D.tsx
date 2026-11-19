@@ -25,10 +25,17 @@ import { evalSectorFloorHeight, evalSectorTerrainNormal } from './terrainMath';
 import { createSpaceRoverVehicle, SpaceRoverController } from './buildRoverVehicle';
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
 import {
+  CircleObstacle,
   createDustPuffSystem,
   createFloorGuideArrowSystem,
+  createKinematicsState,
+  dampValue,
+  JUMP_BUFFER_MS,
   lerpAngle,
-  stepSmoothHorizontalVelocity
+  queueJumpInput,
+  stepSmoothHorizontalVelocity,
+  stepThirdPersonKinematics,
+  ThirdPersonKinematicsState
 } from './thirdPersonPhysics';
 import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
 import { getQualityRenderConfig, useDisplaySettings } from '../../utils/displaySettings';
@@ -147,10 +154,11 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
   const activeEntryRef = useRef<{ room: SpatialRoomNode; entrySpot: THREE.Vector3 } | null>(null);
 
   const playerPosRef = useRef(new THREE.Vector3(0, 0, 3.0));
-  const playerVelYRef = useRef(0);
-  const horizVelRef = useRef({ x: 0, z: 0 });
-  const isGroundedRef = useRef(true);
-  const lastGroundedMsRef = useRef(performance.now());
+  const kinematicsRef = useRef<ThirdPersonKinematicsState>(
+    createKinematicsState(0, 0, 3.0, performance.now())
+  );
+  const roverVelRef = useRef({ x: 0, z: 0 });
+  const roverBoostUntilRef = useRef(0);
   const sprintDustTimerRef = useRef(0);
   const walkTargetRef = useRef<THREE.Vector3 | null>(null);
   const pendingRoomRef = useRef<SpatialRoomNode | null>(null);
@@ -233,13 +241,16 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
   const triggerJump = () => {
     markPlayerActive();
-    const withinCoyote = performance.now() - lastGroundedMsRef.current <= 130;
-    if (isGroundedRef.current || withinCoyote || theme.isZeroG) {
-      playerVelYRef.current = theme.jumpVel;
-      isGroundedRef.current = false;
+    const now = performance.now();
+    if (isDrivingRoverRef.current) {
+      roverBoostUntilRef.current = now + 1150;
       soundManager.playClick();
+      return;
     }
+    queueJumpInput(kinematicsRef.current, now, JUMP_BUFFER_MS);
   };
+  const jumpHandlerRef = useRef(triggerJump);
+  jumpHandlerRef.current = triggerJump;
 
   const handleWalkToNextMission = () => {
     markPlayerActive();
@@ -284,11 +295,11 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
   useEffect(() => {
     // Reset astronaut to front mission promenade facing the 1 -> 2 -> 3 stations
+    const now = performance.now();
     playerPosRef.current.set(0, 0, 3.0);
-    playerVelYRef.current = 0;
-    horizVelRef.current = { x: 0, z: 0 };
-    isGroundedRef.current = true;
-    lastGroundedMsRef.current = performance.now();
+    kinematicsRef.current = createKinematicsState(0, 0, 3.0, now);
+    roverVelRef.current = { x: 0, z: 0 };
+    roverBoostUntilRef.current = 0;
     walkTargetRef.current = null;
     pendingRoomRef.current = null;
     cameraOrbitYawRef.current = 0;
@@ -708,22 +719,32 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       if (!roverCtrl) return;
       markPlayerActive();
       soundManager.playClick();
+      const now = performance.now();
       const next = !isDrivingRoverRef.current;
       isDrivingRoverRef.current = next;
       setIsDrivingRover(next);
       walkTargetRef.current = null;
       pendingRoomRef.current = null;
-      horizVelRef.current = { x: 0, z: 0 };
+      roverVelRef.current = { x: 0, z: 0 };
+      roverBoostUntilRef.current = 0;
       if (next) {
         roverCtrl.setHeadlights(true);
         if (roverBeaconRing) roverBeaconRing.visible = false;
         playerPosRef.current.copy(roverPosRef.current);
+        kinematicsRef.current = createKinematicsState(
+          roverPosRef.current.x,
+          roverPosRef.current.y,
+          roverPosRef.current.z,
+          now
+        );
       } else {
         roverCtrl.setHeadlights(false);
         if (roverBeaconRing) roverBeaconRing.visible = true;
         const sideX = roverPosRef.current.x + Math.cos(roverYawRef.current) * 2.15;
         const sideZ = roverPosRef.current.z - Math.sin(roverYawRef.current) * 2.15;
-        playerPosRef.current.set(sideX, evalSectorFloorHeight(levelId, sideX, sideZ), sideZ);
+        const sideY = evalSectorFloorHeight(levelId, sideX, sideZ);
+        playerPosRef.current.set(sideX, sideY, sideZ);
+        kinematicsRef.current = createKinematicsState(sideX, sideY, sideZ, now);
         roverSpeedRef.current = 0;
       }
     };
@@ -931,6 +952,12 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
     // Keyboard & Pointer Controls
     const keysDown = new Set<string>();
+    const stationObstacles: CircleObstacle[] = positionedRooms.map((pr) => ({
+      x: pr.pos.x,
+      z: pr.pos.z - 0.15,
+      radius: 1.35
+    }));
+
     const onKeyDown = (e: KeyboardEvent) => {
       markPlayerActive();
       const k = e.key.toLowerCase();
@@ -940,7 +967,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         }
       }
       keysDown.add(k);
-      if (k === ' ' || e.code === 'Space') triggerJump();
+      if ((k === ' ' || e.code === 'Space') && !e.repeat) jumpHandlerRef.current();
       if (k === 'e' || k === 'enter') enterCurrentRoom();
       if (k === 'r' && (levelId === 3 || levelId === 4)) roverToggleHandlerRef.current();
       if (k === 'shift') isSprintingRef.current = true;
@@ -1041,9 +1068,16 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       handleViewportTap(e.clientX, e.clientY);
     };
 
+    const onPointerCancel = (e: PointerEvent) => {
+      if (activeLookPointerId !== e.pointerId) return;
+      activeLookPointerId = null;
+      activeLookRef.current = false;
+    };
+
     domEl.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerCancel);
 
     const handleResize = () => {
       if (!mountRef.current) return;
@@ -1160,8 +1194,12 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       const rightZ = -Math.sin(yaw);
 
       const pos = playerPosRef.current;
+      const k = kinematicsRef.current;
       const sprint = isSprintingRef.current || keysDown.has('shift');
+      const inMag = Math.min(1, Math.hypot(ix, iz));
       let moveSpeed = 0;
+      let isAirborneAnim = false;
+      let isLandingAnim = false;
       const maxWalkRadius = islandRadius - 1.4;
       const boundX = levelId === 1 ? 34 : levelId === 2 ? 22 : 36;
       const boundZ = levelId === 1 ? 22 : levelId === 2 ? 8.5 : 24;
@@ -1170,8 +1208,9 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
       if (isDrivingRoverRef.current && roverCtrl) {
         const rPos = roverPosRef.current;
+        const roverBoosting = sprint || now < roverBoostUntilRef.current;
         let steerAngle = 0;
-        if (Math.abs(ix) > 0.08 || Math.abs(iz) > 0.08) {
+        if (inMag > 0.08) {
           walkTargetRef.current = null;
           pendingRoomRef.current = null;
           const len = Math.hypot(ix, iz);
@@ -1179,10 +1218,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           const nz = iz / len;
           const worldDirX = rightX * nx + forwardX * (-nz);
           const worldDirZ = rightZ * nx + forwardZ * (-nz);
-          const maxSpd = sprint ? 21.5 : 16.5;
+          const maxSpd = (roverBoosting ? 24.5 : 16.5) * inMag;
 
           const { speed } = stepSmoothHorizontalVelocity(
-            horizVelRef.current,
+            roverVelRef.current,
             worldDirX * maxSpd,
             worldDirZ * maxSpd,
             dt,
@@ -1190,17 +1229,17 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
             7
           );
           roverSpeedRef.current = speed;
-          rPos.x += horizVelRef.current.x * dt;
-          rPos.z += horizVelRef.current.z * dt;
+          rPos.x += roverVelRef.current.x * dt;
+          rPos.z += roverVelRef.current.z * dt;
           const targetYaw = Math.atan2(worldDirX, worldDirZ);
           const diff = Math.atan2(Math.sin(targetYaw - roverYawRef.current), Math.cos(targetYaw - roverYawRef.current));
           steerAngle = Math.max(-0.42, Math.min(0.42, diff * 0.65));
           roverYawRef.current = lerpAngle(roverYawRef.current, targetYaw, 1 - Math.exp(-8.5 * dt));
         } else {
-          const { speed } = stepSmoothHorizontalVelocity(horizVelRef.current, 0, 0, dt, 10, 7);
+          const { speed } = stepSmoothHorizontalVelocity(roverVelRef.current, 0, 0, dt, 10, 7);
           roverSpeedRef.current = speed;
-          rPos.x += horizVelRef.current.x * dt;
-          rPos.z += horizVelRef.current.z * dt;
+          rPos.x += roverVelRef.current.x * dt;
+          rPos.z += roverVelRef.current.z * dt;
         }
 
         rPos.x = Math.max(-boundX, Math.min(boundX, rPos.x));
@@ -1218,13 +1257,19 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         });
 
         pos.copy(rPos);
-        playerVelYRef.current = 0;
-        isGroundedRef.current = true;
+        k.x = rPos.x;
+        k.y = rPos.y;
+        k.z = rPos.z;
+        k.vx = roverVelRef.current.x;
+        k.vz = roverVelRef.current.z;
+        k.vy = 0;
+        k.grounded = true;
+        k.lastGroundedMs = now;
         moveSpeed = roverSpeedRef.current;
 
         if (moveSpeed > 2.2) {
           roverDustTimerRef.current += dt;
-          if (roverDustTimerRef.current >= 0.085) {
+          if (roverDustTimerRef.current >= (roverBoosting ? 0.055 : 0.085)) {
             roverDustTimerRef.current = 0;
             const bSin = Math.sin(roverYawRef.current);
             const bCos = Math.cos(roverYawRef.current);
@@ -1233,95 +1278,99 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
               rPos.y + 0.14,
               rPos.z - bCos * 1.15,
               biomeDustColor,
-              Math.max(1, Math.round(3 * qCfg.particleDensity)),
-              1.6
+              Math.max(1, Math.round((roverBoosting ? 5 : 3) * qCfg.particleDensity)),
+              roverBoosting ? 2.1 : 1.6
             );
           }
         }
       } else {
-        if (Math.abs(ix) > 0.08 || Math.abs(iz) > 0.08) {
+        let dirX = 0;
+        let dirZ = 0;
+        let inputMag = 0;
+        let stepMaxSpeed = sprint ? 11.8 : 7.8;
+
+        if (inMag > 0.08) {
           walkTargetRef.current = null;
           pendingRoomRef.current = null;
           const len = Math.hypot(ix, iz);
           const nx = ix / len;
           const nz = iz / len;
-          const worldDirX = rightX * nx + forwardX * (-nz);
-          const worldDirZ = rightZ * nx + forwardZ * (-nz);
-          const spd = sprint ? 11.8 : 7.8;
-
-          const { speed } = stepSmoothHorizontalVelocity(
-            horizVelRef.current,
-            worldDirX * spd,
-            worldDirZ * spd,
-            dt
-          );
-          pos.x += horizVelRef.current.x * dt;
-          pos.z += horizVelRef.current.z * dt;
-          moveSpeed = speed;
-          const targetYaw = Math.atan2(worldDirX, worldDirZ);
+          dirX = rightX * nx + forwardX * (-nz);
+          dirZ = rightZ * nx + forwardZ * (-nz);
+          inputMag = inMag;
+          const targetYaw = Math.atan2(dirX, dirZ);
           hero.group.rotation.y = lerpAngle(hero.group.rotation.y, targetYaw, 1 - Math.exp(-15 * dt));
         } else if (walkTargetRef.current) {
-          const dx = walkTargetRef.current.x - pos.x;
-          const dz = walkTargetRef.current.z - pos.z;
+          const dx = walkTargetRef.current.x - k.x;
+          const dz = walkTargetRef.current.z - k.z;
           const dist = Math.hypot(dx, dz);
           if (dist > 0.45) {
-            const spd = 9.4;
-            const step = Math.min(dist, spd * dt);
-            pos.x += (dx / dist) * step;
-            pos.z += (dz / dist) * step;
-            horizVelRef.current = { x: (dx / dist) * spd, z: (dz / dist) * spd };
-            moveSpeed = spd;
-            const targetYaw = Math.atan2(dx, dz);
+            dirX = dx / dist;
+            dirZ = dz / dist;
+            inputMag = 1;
+            stepMaxSpeed = 9.4;
+            const targetYaw = Math.atan2(dirX, dirZ);
             hero.group.rotation.y = lerpAngle(hero.group.rotation.y, targetYaw, 1 - Math.exp(-15 * dt));
           } else {
             walkTargetRef.current = null;
-            horizVelRef.current = { x: 0, z: 0 };
+            k.vx = 0;
+            k.vz = 0;
             const enterRoom = pendingRoomRef.current;
             pendingRoomRef.current = null;
             if (enterRoom) onEnterRoomRef.current(enterRoom);
           }
-        } else {
-          const { speed } = stepSmoothHorizontalVelocity(horizVelRef.current, 0, 0, dt);
-          pos.x += horizVelRef.current.x * dt;
-          pos.z += horizVelRef.current.z * dt;
-          moveSpeed = speed;
         }
 
-        // Open Planetary Biome Valley/Crater Containment
-        pos.x = Math.max(-boundX, Math.min(boundX, pos.x));
-        pos.z = Math.max(-boundZ, Math.min(boundZ, pos.z));
+        const res = stepThirdPersonKinematics(k, {
+          dt,
+          nowMs: now,
+          inputWorldDirX: dirX,
+          inputWorldDirZ: dirZ,
+          inputMagnitude: inputMag,
+          maxSpeed: stepMaxSpeed,
+          gravity: theme.gravity,
+          jumpVel: theme.jumpVel,
+          isZeroG: theme.isZeroG,
+          evalFloorY: (x, z) => evalSectorFloorHeight(levelId, x, z),
+          clampXZ: (x, z) => ({
+            x: Math.max(-boundX, Math.min(boundX, x)),
+            z: Math.max(-boundZ, Math.min(boundZ, z))
+          }),
+          obstacles: stationObstacles,
+          playerRadius: 0.55
+        });
 
-        // Level-Specific Gravity Physics (1G / 0G / 0.16G / 0.38G) + Sculpted Terrain Height + Landing Dust Puffs
-        const floorY = evalSectorFloorHeight(levelId, pos.x, pos.z);
+        pos.set(k.x, k.y, k.z);
+        moveSpeed = res.speed;
+        isAirborneAnim = res.isAirborne;
+        isLandingAnim = res.isLanding;
+
         const puffCount = Math.max(1, Math.round((levelId >= 3 ? 8 : 5) * qCfg.particleDensity));
-        if (!isGroundedRef.current || pos.y > floorY + 0.02) {
-          playerVelYRef.current -= theme.gravity * dt;
-          pos.y += playerVelYRef.current * dt;
-          if (pos.y <= floorY) {
-            if (!isGroundedRef.current) {
-              dustSystem.emit(pos.x, floorY, pos.z, biomeDustColor, puffCount, 1.8);
-            }
-            pos.y = floorY;
-            playerVelYRef.current = 0;
-            isGroundedRef.current = true;
-            lastGroundedMsRef.current = now;
-          }
-        } else {
-          pos.y = floorY;
-          lastGroundedMsRef.current = now;
-          if (sprint && moveSpeed > 3.5) {
-            sprintDustTimerRef.current += dt;
-            if (sprintDustTimerRef.current >= 0.14) {
-              sprintDustTimerRef.current = 0;
-              dustSystem.emit(
-                pos.x,
-                floorY,
-                pos.z,
-                biomeDustColor,
-                Math.max(1, Math.round(2 * qCfg.particleDensity)),
-                0.9
-              );
-            }
+        if (res.jumped) {
+          soundManager.playClick();
+          dustSystem.emit(
+            k.x,
+            k.y,
+            k.z,
+            biomeDustColor,
+            Math.max(1, Math.round(4 * qCfg.particleDensity)),
+            1.3
+          );
+        }
+        if (res.landed) {
+          dustSystem.emit(k.x, k.y, k.z, biomeDustColor, puffCount, 1.8);
+        } else if (sprint && k.grounded && moveSpeed > 3.5) {
+          sprintDustTimerRef.current += dt;
+          if (sprintDustTimerRef.current >= 0.14) {
+            sprintDustTimerRef.current = 0;
+            dustSystem.emit(
+              k.x,
+              k.y,
+              k.z,
+              biomeDustColor,
+              Math.max(1, Math.round(2 * qCfg.particleDensity)),
+              0.9
+            );
           }
         }
 
@@ -1355,7 +1404,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       const idleSeconds = (now - lastActivityMsRef.current) / 1000;
       const isBoredIdle =
         idleSeconds >= 8 &&
-        isGroundedRef.current &&
+        k.grounded &&
         !theme.isZeroG &&
         !isDrivingRoverRef.current &&
         moveSpeed <= 0.1 &&
@@ -1388,6 +1437,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           moveSpeed: 0,
           isRunning: false,
           isJumping: false,
+          isLanding: false,
           isZeroG: false,
           isSeated: true,
           suitState: suitStateRef.current,
@@ -1400,7 +1450,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           t: elapsed,
           moveSpeed,
           isRunning: sprint && moveSpeed > 0.1,
-          isJumping: !isGroundedRef.current,
+          isJumping: isAirborneAnim,
+          isLanding: isLandingAnim,
           isZeroG: theme.isZeroG,
           isSeated: false,
           suitState: suitStateRef.current,
@@ -1410,9 +1461,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       }
 
       // Floor directional guide arrow pointing toward current active step target
-      floorArrowSystem.update(pos, activeTargetWorldPos, 0, elapsed);
+      const currentGroundY = evalSectorFloorHeight(levelId, pos.x, pos.z);
+      floorArrowSystem.update(pos, activeTargetWorldPos, currentGroundY, elapsed);
 
-      // Auto-Follow Close Third-Person Camera (pauses 2.2s after manual look drag so camera never fights right thumb)
+      // Auto-Follow Close Over-the-Shoulder Third-Person Camera (pauses 2.2s after manual look drag)
       if (moveSpeed > 0.25 && !activeLookRef.current && now - lastManualLookMsRef.current > 2200) {
         const refYaw = isDrivingRoverRef.current ? roverYawRef.current : hero.group.rotation.y;
         const behindPlayerYaw = refYaw + Math.PI;
@@ -1424,20 +1476,20 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       }
 
       const followYaw = cameraOrbitYawRef.current;
-      const camDist = isDrivingRoverRef.current ? 6.8 : 5.1;
+      const camDist = isDrivingRoverRef.current ? 6.8 : 5.0;
       const horizDist = camDist * Math.cos(cameraOrbitPitchRef.current);
       const camHeight = 1.4 + camDist * Math.sin(cameraOrbitPitchRef.current);
       const desiredCamX = pos.x + Math.sin(followYaw) * horizDist;
       const desiredCamZ = pos.z + Math.cos(followYaw) * horizDist;
-      const minGroundCamY = evalSectorFloorHeight(levelId, desiredCamX, desiredCamZ) + 0.85;
+      const minGroundCamY = evalSectorFloorHeight(levelId, desiredCamX, desiredCamZ) + 0.9;
       const desiredCamY = Math.max(pos.y + camHeight, minGroundCamY);
 
-      camera.position.x += (desiredCamX - camera.position.x) * 0.16;
-      camera.position.y += (desiredCamY - camera.position.y) * 0.16;
-      camera.position.z += (desiredCamZ - camera.position.z) * 0.16;
-      const lookFwdX = -Math.sin(followYaw) * 3.8;
-      const lookFwdZ = -Math.cos(followYaw) * 3.8;
-      const targetLookY = Math.max(pos.y + 1.65, minGroundCamY - 0.15);
+      camera.position.x = dampValue(camera.position.x, desiredCamX, 14, dt);
+      camera.position.y = dampValue(camera.position.y, desiredCamY, 14, dt);
+      camera.position.z = dampValue(camera.position.z, desiredCamZ, 14, dt);
+      const lookFwdX = -Math.sin(followYaw) * 1.15;
+      const lookFwdZ = -Math.cos(followYaw) * 1.15;
+      const targetLookY = Math.max(pos.y + 1.55, minGroundCamY - 0.25);
       camera.lookAt(pos.x + lookFwdX, targetLookY, pos.z + lookFwdZ);
 
       renderer.render(scene, camera);
@@ -1448,6 +1500,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       mount.dataset.roverActive = isDrivingRoverRef.current ? 'true' : 'false';
       mount.dataset.cameraYaw = cameraOrbitYawRef.current.toFixed(3);
       mount.dataset.cameraPitch = cameraOrbitPitchRef.current.toFixed(3);
+      mount.dataset.playerY = pos.y.toFixed(3);
+      mount.dataset.playerVelY = k.vy.toFixed(3);
+      mount.dataset.playerSpeed = moveSpeed.toFixed(3);
+      mount.dataset.playerGrounded = k.grounded ? 'true' : 'false';
     };
 
     rafId = requestAnimationFrame(animate);
@@ -1468,6 +1524,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       domEl.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerCancel);
       window.removeEventListener('resize', handleResize);
       if (resizeObs) resizeObs.disconnect();
 
@@ -1641,7 +1698,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         }}
         onLookDrag={applyLookDelta}
         onViewportTap={(x, y) => viewportTapHandlerRef.current(x, y)}
-        onJump={triggerJump}
+        onJump={() => jumpHandlerRef.current()}
         jumpMode={isDrivingRover ? 'boost' : 'jump'}
         highlightInteract={Boolean(nearbyRoom && !nearbyLocked)}
         secondaryAction={

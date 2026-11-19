@@ -67,6 +67,43 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
   const rightPointerIdRef = useRef<number | null>(null);
   const rightDownPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const rightLastPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const lastButtonTriggerRef = useRef<Record<string, number>>({});
+  const pointerActiveBtnsRef = useRef<Set<string>>(new Set());
+
+  const makeThumbHandlers = (key: string, action: () => void, withClickSfx = true) => ({
+    onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => {
+      e.stopPropagation();
+      const now = performance.now();
+      const last = lastButtonTriggerRef.current[key] ?? -9999;
+      pointerActiveBtnsRef.current.add(key);
+      if (now - last < 90) return;
+      lastButtonTriggerRef.current[key] = now;
+      if (withClickSfx) soundManager.playClick();
+      action();
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLButtonElement>) => {
+      e.stopPropagation();
+      lastButtonTriggerRef.current[`${key}_up`] = performance.now();
+    },
+    onPointerLeave: () => {
+      pointerActiveBtnsRef.current.delete(key);
+    },
+    onPointerCancel: (e: React.PointerEvent<HTMLButtonElement>) => {
+      e.stopPropagation();
+      pointerActiveBtnsRef.current.delete(key);
+    },
+    onClick: (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.stopPropagation();
+      const now = performance.now();
+      const wasPointer = pointerActiveBtnsRef.current.delete(key);
+      const lastDown = lastButtonTriggerRef.current[key] ?? -9999;
+      const lastUp = lastButtonTriggerRef.current[`${key}_up`] ?? lastDown;
+      if (wasPointer || now - lastDown < 260 || now - lastUp < 140) return;
+      lastButtonTriggerRef.current[key] = now;
+      if (withClickSfx) soundManager.playClick();
+      action();
+    }
+  });
 
   const [floatingCenter, setFloatingCenter] = useState<{ x: number; y: number } | null>(null);
   const [knobOffset, setKnobOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -176,7 +213,7 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
           if (leftPointerIdRef.current !== e.pointerId) return;
           resetJoystick();
         }}
-        className={`${posMode} left-0 top-12 bottom-0 w-1/2 z-10 pointer-events-auto touch-none select-none`}
+        className={`${posMode} left-0 top-0 bottom-0 w-1/2 z-10 pointer-events-auto touch-none select-none`}
       >
         {/* Docked or Live Floating Analog Ring */}
         <div
@@ -251,7 +288,7 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
           rightPointerIdRef.current = null;
           onLookEnd?.();
         }}
-        className={`${posMode} right-0 top-12 bottom-0 w-1/2 z-10 pointer-events-auto touch-none select-none`}
+        className={`${posMode} right-0 top-0 bottom-0 w-1/2 z-10 pointer-events-auto touch-none select-none`}
       />
 
       {/* 3. ERGONOMIC BOTTOM-RIGHT THUMB ARC (Clean Circular Buttons Only) */}
@@ -264,13 +301,10 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
           <button
             type="button"
             data-testid="auto-walk-next-btn"
-            onClick={() => {
-              soundManager.playClick();
-              onAutoWalkNext();
-            }}
+            {...makeThumbHandlers('autoWalk', onAutoWalkNext, true)}
             aria-label={autoWalkLabel || tr(language, 'Auto-Guide Next Mission', 'توجيه تلقائي للمهمة')}
             title={autoWalkLabel || tr(language, 'Auto-Guide Next Mission', 'توجيه تلقائي للمهمة')}
-            className="pointer-events-auto w-11 h-11 rounded-full bg-slate-900/75 hover:bg-cyan-500 hover:text-slate-950 text-cyan-200 border-2 border-cyan-300/80 backdrop-blur-md shadow-lg flex items-center justify-center cursor-pointer active:scale-90 transition-all mb-1"
+            className="pointer-events-auto touch-none select-none w-11 h-11 rounded-full bg-slate-900/75 hover:bg-cyan-500 hover:text-slate-950 text-cyan-200 border-2 border-cyan-300/80 backdrop-blur-md shadow-lg flex items-center justify-center cursor-pointer active:scale-90 transition-all mb-1"
           >
             <Compass className="w-5 h-5" />
           </button>
@@ -281,13 +315,10 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
           <button
             type="button"
             data-testid={secondaryAction.testId}
-            onClick={() => {
-              soundManager.playClick();
-              secondaryAction.onClick();
-            }}
+            {...makeThumbHandlers('secondary', secondaryAction.onClick, false)}
             aria-label={secondaryAction.label}
             title={secondaryAction.label}
-            className={`pointer-events-auto w-12 h-12 rounded-full border-2 backdrop-blur-md shadow-lg flex items-center justify-center text-lg cursor-pointer active:scale-90 transition-all mb-3 ${
+            className={`pointer-events-auto touch-none select-none w-12 h-12 rounded-full border-2 backdrop-blur-md shadow-lg flex items-center justify-center text-lg cursor-pointer active:scale-90 transition-all mb-3 ${
               secondaryAction.active
                 ? 'bg-gradient-to-br from-orange-400 to-amber-500 text-slate-950 border-white shadow-[0_0_16px_rgba(251,146,60,0.7)]'
                 : 'bg-slate-900/75 hover:bg-slate-800 text-white border-cyan-300/75'
@@ -301,13 +332,10 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
         <button
           type="button"
           data-testid="third-person-interact-btn"
-          onClick={() => {
-            soundManager.playClick();
-            onInteract();
-          }}
+          {...makeThumbHandlers('interact', onInteract, false)}
           aria-label={interactHint}
           title={interactHint}
-          className={`pointer-events-auto w-14 h-14 sm:w-16 sm:h-16 rounded-full border-[3px] border-white flex flex-col items-center justify-center font-hud font-black cursor-pointer active:translate-y-0.5 transition-all mb-5 ${
+          className={`pointer-events-auto touch-none select-none w-14 h-14 sm:w-16 sm:h-16 rounded-full border-[3px] border-white flex flex-col items-center justify-center font-hud font-black cursor-pointer active:translate-y-0.5 transition-all mb-5 ${
             highlightInteract
               ? 'bg-gradient-to-b from-amber-300 via-amber-400 to-orange-500 text-slate-950 shadow-[0_0_20px_rgba(251,191,36,0.75)] ring-2 ring-amber-200/70'
               : 'bg-gradient-to-b from-amber-400/90 to-orange-500/90 text-slate-950 shadow-[0_4px_0_rgba(146,64,14,0.85)]'
@@ -323,11 +351,11 @@ export const ThirdPersonControlsOverlay: React.FC<ThirdPersonControlsOverlayProp
         <button
           type="button"
           data-testid="third-person-jump-btn"
-          onClick={onJump}
+          {...makeThumbHandlers('jump', onJump, false)}
           aria-label={
             jumpMode === 'boost' ? tr(language, 'Boost', 'دفع') : tr(language, 'Jump', 'قفز')
           }
-          className={`pointer-events-auto w-14 h-14 sm:w-16 sm:h-16 rounded-full border-[3px] border-white flex flex-col items-center justify-center font-hud font-black text-white cursor-pointer active:translate-y-0.5 transition-all ${
+          className={`pointer-events-auto touch-none select-none w-14 h-14 sm:w-16 sm:h-16 rounded-full border-[3px] border-white flex flex-col items-center justify-center font-hud font-black text-white cursor-pointer active:translate-y-0.5 transition-all ${
             jumpMode === 'boost'
               ? 'bg-gradient-to-b from-cyan-400 via-sky-500 to-blue-600 shadow-[0_4px_0_rgba(3,105,161,0.9)]'
               : 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-teal-600 shadow-[0_4px_0_rgba(6,95,70,0.9)]'

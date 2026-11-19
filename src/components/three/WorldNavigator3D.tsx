@@ -21,7 +21,16 @@ import {
 } from './blenderModelLoader';
 import { getQualityRenderConfig, useDisplaySettings } from '../../utils/displaySettings';
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
-import { createFloorGuideArrowSystem, lerpAngle } from './thirdPersonPhysics';
+import {
+  createFloorGuideArrowSystem,
+  createKinematicsState,
+  dampValue,
+  JUMP_BUFFER_MS,
+  lerpAngle,
+  queueJumpInput,
+  stepThirdPersonKinematics,
+  ThirdPersonKinematicsState
+} from './thirdPersonPhysics';
 import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
 import { clampOverworldPosition, evalOverworldTerrainHeight } from './terrainMath';
 
@@ -127,7 +136,7 @@ function createNodeLabelSprite(text: string, badgeColorHex: string, locked: bool
   texture.colorSpace = THREE.SRGBColorSpace;
   const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
   const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(5.4, 1.35, 1);
+  sprite.scale.set(3.0, 0.75, 1);
   return { sprite, texture };
 }
 
@@ -176,17 +185,19 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   const freeCraftPosRef = useRef<THREE.Vector3>(
     new THREE.Vector3(initNode.center.x, initGroundY, initNode.center.z + 1.65)
   );
-  const freeCraftVelYRef = useRef<number>(0);
-  const isGroundedRef = useRef<boolean>(true);
+  const kinematicsRef = useRef<ThirdPersonKinematicsState>(
+    createKinematicsState(initNode.center.x, initGroundY, initNode.center.z + 1.65, performance.now())
+  );
   const freeCraftYawRef = useRef<number>(0);
   const lockWarnCooldownRef = useRef<number>(0);
   const joystickVecRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const isBoostingRef = useRef<boolean>(false);
   const ascendUntilRef = useRef<number>(0);
+  const activeLookRef = useRef<boolean>(false);
   const orbitYawRef = useRef<number>(0);
-  const orbitPitchRef = useRef<number>(0.42);
+  const orbitPitchRef = useRef<number>(0.22);
   const targetOrbitYawRef = useRef<number>(0);
-  const targetOrbitPitchRef = useRef<number>(0.42);
+  const targetOrbitPitchRef = useRef<number>(0.22);
   const [displaySettings] = useDisplaySettings();
   const displaySettingsRef = useRef(displaySettings);
   displaySettingsRef.current = displaySettings;
@@ -298,13 +309,25 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         freeCraftPosRef.current.z,
         unlockedLevelsRef.current
       );
-      freeCraftPosRef.current.x = clamped.x;
-      freeCraftPosRef.current.z = clamped.z;
-      freeCraftPosRef.current.y = evalOverworldTerrainHeight(clamped.x, clamped.z);
-      freeCraftVelYRef.current = 0;
-      isGroundedRef.current = true;
+      const groundY = evalOverworldTerrainHeight(clamped.x, clamped.z);
+      freeCraftPosRef.current.set(clamped.x, groundY, clamped.z);
+      kinematicsRef.current = createKinematicsState(clamped.x, groundY, clamped.z, performance.now());
     }
   };
+
+  const triggerWorldJump = () => {
+    const now = performance.now();
+    lastActivityRef.current = now;
+    if (isFlightModeRef.current) {
+      ascendUntilRef.current = now + 260;
+      soundManager.playClick();
+      return;
+    }
+    if (isAutoFlyingRef.current) return;
+    queueJumpInput(kinematicsRef.current, now, JUMP_BUFFER_MS);
+  };
+  const jumpHandlerRef = useRef(triggerWorldJump);
+  jumpHandlerRef.current = triggerWorldJump;
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -338,19 +361,19 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     const scene = new THREE.Scene();
     let isDisposed = false;
     const camera = new THREE.PerspectiveCamera(58, dims.w / dims.h, 0.1, 240);
-    camera.position.set(-6, 17, 31);
-    orbitPitchRef.current = 0.78;
+    camera.position.set(-6, 10, 22);
+    orbitPitchRef.current = 0.56;
     orbitYawRef.current = -0.35;
-    targetOrbitPitchRef.current = 0.78;
+    targetOrbitPitchRef.current = 0.56;
     targetOrbitYawRef.current = -0.35;
     const worldFlyInTween = gsap.to(targetOrbitPitchRef, {
-      current: 0.42,
-      duration: 1.45,
+      current: 0.22,
+      duration: 1.25,
       ease: 'power2.out'
     });
     const worldYawInTween = gsap.to(targetOrbitYawRef, {
       current: 0,
-      duration: 1.45,
+      duration: 1.25,
       ease: 'power2.out'
     });
 
@@ -552,7 +575,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       const rawTitle = tr(language, cfg.enLabel, cfg.arLabel);
       const labelText = completed ? `✅ ${rawTitle}` : unlocked ? rawTitle : `🔒 ${rawTitle}`;
       const { sprite, texture } = createNodeLabelSprite(labelText, cfg.accentHex, !unlocked, completed);
-      sprite.position.set(0, 3.85, 0);
+      sprite.position.set(0, 3.15, 0);
       root.add(sprite);
       disposableTextures.push(texture);
 
@@ -566,7 +589,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
           roughness: 0.2
         })
       );
-      halo.position.set(0, 4.95, 0);
+      halo.position.set(0, 3.95, 0);
       halo.visible = isActive;
       root.add(halo);
 
@@ -611,7 +634,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       }
       keysDown.add(k);
       if (k === 'f') toggleFreeFlight();
-      if (k === ' ' || e.code === 'Space') ascendUntilRef.current = performance.now() + 260;
+      if ((k === ' ' || e.code === 'Space') && !e.repeat) jumpHandlerRef.current();
       if (k === 'e' || k === 'enter') flyCraftToNode(focusedLevelRef.current, true);
       if (k === 'shift') isBoostingRef.current = true;
     };
@@ -657,6 +680,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       if (activeLookPointerId !== null) return;
       lastActivityRef.current = performance.now();
       activeLookPointerId = e.pointerId;
+      activeLookRef.current = true;
       downPos = { x: e.clientX, y: e.clientY };
       prevPos = { x: e.clientX, y: e.clientY };
     };
@@ -670,12 +694,19 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     const onPointerUp = (e: PointerEvent) => {
       if (activeLookPointerId !== e.pointerId) return;
       activeLookPointerId = null;
+      activeLookRef.current = false;
       if (Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) > 7) return;
       handleViewportTap(e.clientX, e.clientY);
+    };
+    const onPointerCancel = (e: PointerEvent) => {
+      if (activeLookPointerId !== e.pointerId) return;
+      activeLookPointerId = null;
+      activeLookRef.current = false;
     };
     domEl.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerCancel);
 
     const onResize = () => {
       const next = getDims();
@@ -744,7 +775,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         ringInst.setMatrixAt(idx, ringDummy.matrix);
         if (halo.visible) {
           halo.rotation.y = elapsed * 2.2;
-          halo.position.y = 4.85 + Math.sin(elapsed * 3.4) * 0.25;
+          halo.position.y = 3.95 + Math.sin(elapsed * 3.4) * 0.22;
         }
       });
       ringInst.instanceMatrix.needsUpdate = true;
@@ -757,6 +788,8 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       if (keysDown.has('w') || keysDown.has('arrowup')) inputZ -= 1;
       if (keysDown.has('s') || keysDown.has('arrowdown')) inputZ += 1;
       const inLen = Math.hypot(inputX, inputZ);
+      const inMag = Math.min(1, inLen);
+      const k = kinematicsRef.current;
 
       // Transform camera-relative inputs using current orbit yaw
       const sinYaw = Math.sin(orbitYawRef.current);
@@ -764,25 +797,32 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       const moveWorldX = inLen > 0.08 ? (inputX * cosYaw + inputZ * sinYaw) / inLen : 0;
       const moveWorldZ = inLen > 0.08 ? (-inputX * sinYaw + inputZ * cosYaw) / inLen : 0;
 
+      let currentSpeed = 0;
+      let currentVelY = 0;
+      let walkedLanding = false;
+
       if (isFlightModeRef.current) {
-        if (inLen > 0.08) {
+        if (inMag > 0.08) {
           lastActivityRef.current = now;
-          const speed = (isBoostingRef.current ? 16.5 : 10.5) * dt;
-          freeCraftPosRef.current.x = Math.max(-22, Math.min(22, freeCraftPosRef.current.x + moveWorldX * speed));
-          freeCraftPosRef.current.z = Math.max(-13, Math.min(13, freeCraftPosRef.current.z + moveWorldZ * speed));
+          const speed = (isBoostingRef.current ? 16.5 : 10.5) * inMag;
+          currentSpeed = speed;
+          freeCraftPosRef.current.x = Math.max(-22, Math.min(22, freeCraftPosRef.current.x + moveWorldX * speed * dt));
+          freeCraftPosRef.current.z = Math.max(-13, Math.min(13, freeCraftPosRef.current.z + moveWorldZ * speed * dt));
           const yaw = Math.atan2(moveWorldX, moveWorldZ);
           freeCraftYawRef.current = lerpAngle(freeCraftYawRef.current, yaw, 1 - Math.exp(-10 * dt));
         }
         if (now < ascendUntilRef.current || isBoostingRef.current) {
+          currentVelY = 7.2;
           freeCraftPosRef.current.y = Math.min(10.5, freeCraftPosRef.current.y + 7.2 * dt);
         } else {
           const minHoverY = evalOverworldTerrainHeight(freeCraftPosRef.current.x, freeCraftPosRef.current.z) + 1.85;
           if (freeCraftPosRef.current.y > minHoverY) {
+            currentVelY = -2.8;
             freeCraftPosRef.current.y = Math.max(minHoverY, freeCraftPosRef.current.y - 2.8 * dt);
           }
         }
         playerCraftRoot.position.copy(freeCraftPosRef.current);
-        playerCraftRoot.rotation.set(inLen > 0.1 ? 0.28 : 0.08, freeCraftYawRef.current, inLen > 0.1 ? -inputX * 0.16 : 0);
+        playerCraftRoot.rotation.set(inMag > 0.1 ? 0.28 : 0.08, freeCraftYawRef.current, inMag > 0.1 ? -inputX * 0.16 : 0);
       } else if (isAutoFlyingRef.current) {
         const diff = targetSplineTRef.current - splineTRef.current;
         if (Math.abs(diff) > 0.005) {
@@ -792,13 +832,9 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
           splineTRef.current = targetSplineTRef.current;
           isAutoFlyingRef.current = false;
           const dockedNode = TRAJECTORY_NODES[Math.round(splineTRef.current * 3)] || TRAJECTORY_NODES[0];
-          freeCraftPosRef.current.set(
-            dockedNode.center.x,
-            evalOverworldTerrainHeight(dockedNode.center.x, dockedNode.center.z + 1.4),
-            dockedNode.center.z + 1.4
-          );
-          freeCraftVelYRef.current = 0;
-          isGroundedRef.current = true;
+          const dockedY = evalOverworldTerrainHeight(dockedNode.center.x, dockedNode.center.z + 1.4);
+          freeCraftPosRef.current.set(dockedNode.center.x, dockedY, dockedNode.center.z + 1.4);
+          kinematicsRef.current = createKinematicsState(dockedNode.center.x, dockedY, dockedNode.center.z + 1.4, now);
           const queued = pendingEnterLevelRef.current;
           if (queued) {
             pendingEnterLevelRef.current = null;
@@ -810,6 +846,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         const lookPt = trajectoryCurve.getPointAt(Math.min(1, splineTRef.current + 0.015));
         freeCraftPosRef.current.set(craftPt.x, craftPt.y + 1.4 + Math.sin(elapsed * 4) * 0.14, craftPt.z);
         playerCraftRoot.position.copy(freeCraftPosRef.current);
+        currentSpeed = 12;
         tmpNextPt.set(lookPt.x, playerCraftRoot.position.y, lookPt.z);
         if (playerCraftRoot.position.distanceToSquared(tmpNextPt) > 0.0001) {
           playerCraftRoot.lookAt(tmpNextPt);
@@ -817,48 +854,48 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         }
         playerCraftRoot.rotation.x = 0.25;
       } else {
-        // Walk directly across sculpted Terra-Island hills, lunar crater & unlocked Laser Bridges + Jetpack Hop
-        if (inLen > 0.08) {
+        // Walk directly across sculpted Terra-Island hills, lunar crater & unlocked Laser Bridges + Buffered Jump
+        if (inMag > 0.08) {
           lastActivityRef.current = now;
-          const walkSpeed = (isBoostingRef.current ? 9.6 : 5.6) * dt;
-          const rawNextX = freeCraftPosRef.current.x + moveWorldX * walkSpeed;
-          const rawNextZ = freeCraftPosRef.current.z + moveWorldZ * walkSpeed;
-          const clamped = clampOverworldPosition(rawNextX, rawNextZ, unlockedLevelsRef.current);
-          freeCraftPosRef.current.x = clamped.x;
-          freeCraftPosRef.current.z = clamped.z;
-          if (clamped.blockedBySector && now > lockWarnCooldownRef.current) {
-            lockWarnCooldownRef.current = now + 2200;
-            showLockedWarning(clamped.blockedBySector);
-          }
           const targetYaw = Math.atan2(moveWorldX, moveWorldZ);
           freeCraftYawRef.current = lerpAngle(freeCraftYawRef.current, targetYaw, 1 - Math.exp(-12 * dt));
         }
 
-        const groundY = evalOverworldTerrainHeight(freeCraftPosRef.current.x, freeCraftPosRef.current.z);
-        if (now < ascendUntilRef.current && isGroundedRef.current) {
-          freeCraftVelYRef.current = isBoostingRef.current ? 7.6 : 6.0;
-          isGroundedRef.current = false;
-        } else if (isBoostingRef.current && now < ascendUntilRef.current + 180) {
-          freeCraftVelYRef.current = Math.max(freeCraftVelYRef.current, 3.4);
-          isGroundedRef.current = false;
+        let blockedWarnSector: CampaignLevelId | null = null;
+        const walkedRes = stepThirdPersonKinematics(k, {
+          dt,
+          nowMs: now,
+          inputWorldDirX: moveWorldX,
+          inputWorldDirZ: moveWorldZ,
+          inputMagnitude: inMag,
+          maxSpeed: isBoostingRef.current ? 10.2 : 6.4,
+          gravity: 16.5,
+          jumpVel: 6.8,
+          evalFloorY: evalOverworldTerrainHeight,
+          clampXZ: (x, z) => {
+            const clamped = clampOverworldPosition(x, z, unlockedLevelsRef.current);
+            if (clamped.blockedBySector) blockedWarnSector = clamped.blockedBySector;
+            return { x: clamped.x, z: clamped.z };
+          }
+        });
+
+        const warnTarget = blockedWarnSector as CampaignLevelId | null;
+        if (warnTarget && now > lockWarnCooldownRef.current) {
+          lockWarnCooldownRef.current = now + 2200;
+          showLockedWarning(warnTarget);
+        }
+        if (walkedRes.jumped) {
+          soundManager.playClick();
         }
 
-        if (!isGroundedRef.current || freeCraftPosRef.current.y > groundY + 0.02) {
-          const grav = isBoostingRef.current ? 8.5 : 14.5;
-          freeCraftVelYRef.current -= grav * dt;
-          freeCraftPosRef.current.y += freeCraftVelYRef.current * dt;
-          if (freeCraftPosRef.current.y <= groundY) {
-            freeCraftPosRef.current.y = groundY;
-            freeCraftVelYRef.current = 0;
-            isGroundedRef.current = true;
-          }
-        } else {
-          freeCraftPosRef.current.y = groundY;
-        }
+        freeCraftPosRef.current.set(k.x, k.y, k.z);
+        currentSpeed = walkedRes.speed;
+        currentVelY = k.vy;
+        walkedLanding = walkedRes.isLanding;
 
         playerCraftRoot.position.copy(freeCraftPosRef.current);
         playerCraftRoot.rotation.set(
-          isBoostingRef.current && inLen > 0.1 ? 0.16 : 0,
+          isBoostingRef.current && inMag > 0.1 ? 0.14 : 0,
           freeCraftYawRef.current,
           0
         );
@@ -889,14 +926,11 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         setShowIdleHint(true);
       }
 
-      // Animate Full Sculpted SPACE-FIT X Astronaut (GLB + limbs + companion Robo) + Thruster Plume
+      // Animate Full Sculpted SPACE-FIT X Astronaut (decoupled Walk/Run/Jump/Land vs Zero-G Flight)
       const isCelebrating = now < celebrateUntilRef.current;
-      const jetActive =
-        isFlightModeRef.current ||
-        isAutoFlyingRef.current ||
-        isBoostingRef.current ||
-        now < ascendUntilRef.current ||
-        !isGroundedRef.current;
+      const isZeroGAnim = isFlightModeRef.current || isAutoFlyingRef.current;
+      const airborneWalk = !isZeroGAnim && !k.grounded;
+      const jetActive = isZeroGAnim || (isBoostingRef.current && inMag > 0.08);
       const themeHex =
         suitStateRef.current?.suitTheme === 'mars_crimson'
           ? 0xf43f5e
@@ -905,23 +939,20 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
           : 0x22d3ee;
 
       const activeSuit = suitStateRef.current || initialSpaceFitXState;
-      const moveSpeedNorm =
-        isFlightModeRef.current || isAutoFlyingRef.current
-          ? inLen > 0.08 || isAutoFlyingRef.current
-            ? 1.0
-            : 0.15
-          : inLen > 0.08
-          ? isBoostingRef.current
-            ? 1.0
-            : 0.65
-          : 0;
+      const walkSpeedNorm = currentSpeed > 0.12 ? Math.min(1.0, currentSpeed / 10.2 + 0.25) : 0;
+      const moveSpeedNorm = isZeroGAnim
+        ? inMag > 0.08 || isAutoFlyingRef.current
+          ? 1.0
+          : 0.15
+        : walkSpeedNorm;
 
       hero.update({
         t: elapsed,
         moveSpeed: moveSpeedNorm,
-        isRunning: isBoostingRef.current || isFlightModeRef.current || isAutoFlyingRef.current,
-        isJumping: !isGroundedRef.current,
-        isZeroG: jetActive,
+        isRunning: (isBoostingRef.current && inMag > 0.08) || isZeroGAnim,
+        isJumping: airborneWalk,
+        isLanding: !isZeroGAnim && walkedLanding,
+        isZeroG: isZeroGAnim,
         suitState: {
           ...activeSuit,
           helmetEnabled: true,
@@ -971,24 +1002,42 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         elapsed
       );
 
-      // Smooth Follow Camera framed closer behind SPACE-FIT X Astronaut & lush Earth/Moon trail
-      const camTarget = isFlightModeRef.current
-        ? playerCraftRoot.position
-        : playerCraftRoot.position.clone().lerp(new THREE.Vector3(0, 0.7, 0), inLen > 0.1 ? 0.22 : 0.45);
+      // Auto-Follow Close Over-the-Shoulder Third-Person Camera (pauses 2.2s after manual look drag)
+      if ((currentSpeed > 0.25 || isAutoFlyingRef.current) && !activeLookRef.current && now - lastManualLookMsRef.current > 2200) {
+        const behindPlayerYaw = freeCraftYawRef.current + Math.PI;
+        targetOrbitYawRef.current = lerpAngle(
+          targetOrbitYawRef.current,
+          behindPlayerYaw,
+          1 - Math.exp(-3.0 * dt)
+        );
+      }
 
-      const camDist = isFlightModeRef.current ? 9.5 : inLen > 0.1 ? 11.5 : 15.5;
-      const desiredX = camTarget.x + Math.sin(orbitYawRef.current) * camDist * 0.42;
-      const desiredY = camTarget.y + 3.2 + orbitPitchRef.current * 7.2;
-      const desiredZ = camTarget.z + Math.cos(orbitYawRef.current) * camDist;
+      const camTarget = playerCraftRoot.position;
+      const camDist = isFlightModeRef.current ? 7.4 : isAutoFlyingRef.current ? 8.2 : 5.4;
+      const horizDist = camDist * Math.cos(orbitPitchRef.current);
+      const camHeight = 1.35 + camDist * Math.sin(orbitPitchRef.current);
+      const desiredX = camTarget.x + Math.sin(orbitYawRef.current) * horizDist;
+      const desiredZ = camTarget.z + Math.cos(orbitYawRef.current) * horizDist;
+      const minCamY = evalOverworldTerrainHeight(desiredX, desiredZ) + 0.9;
+      const desiredY = Math.max(camTarget.y + camHeight, minCamY);
 
-      camera.position.lerp(new THREE.Vector3(desiredX, desiredY, desiredZ), 1 - Math.exp(-5.5 * dt));
-      camera.lookAt(camTarget.x, camTarget.y, camTarget.z);
+      camera.position.x = dampValue(camera.position.x, desiredX, 12, dt);
+      camera.position.y = dampValue(camera.position.y, desiredY, 12, dt);
+      camera.position.z = dampValue(camera.position.z, desiredZ, 12, dt);
+      const lookFwdX = -Math.sin(orbitYawRef.current) * 1.1;
+      const lookFwdZ = -Math.cos(orbitYawRef.current) * 1.1;
+      const targetLookY = Math.max(camTarget.y + 1.35, minCamY - 0.25);
+      camera.lookAt(camTarget.x + lookFwdX, targetLookY, camTarget.z + lookFwdZ);
 
       renderer.render(scene, camera);
       mount.dataset.drawCalls = String(renderer.info.render.calls);
       mount.dataset.glbLoaded = getLoadedGlbUrls().join(',');
       mount.dataset.cameraYaw = orbitYawRef.current.toFixed(3);
       mount.dataset.cameraPitch = orbitPitchRef.current.toFixed(3);
+      mount.dataset.playerY = playerCraftRoot.position.y.toFixed(3);
+      mount.dataset.playerVelY = currentVelY.toFixed(3);
+      mount.dataset.playerSpeed = currentSpeed.toFixed(3);
+      mount.dataset.playerGrounded = k.grounded && !isFlightModeRef.current && !isAutoFlyingRef.current ? 'true' : 'false';
     };
 
     animate();
@@ -1009,6 +1058,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       domEl.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerCancel);
       window.removeEventListener('resize', onResize);
       skyHandle.dispose();
       floorArrow.dispose();
@@ -1187,17 +1237,16 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
           joystickVecRef.current = { x: vec.x, y: vec.z };
         }}
         onLookStart={() => {
+          activeLookRef.current = true;
           lastManualLookMsRef.current = performance.now();
         }}
         onLookEnd={() => {
+          activeLookRef.current = false;
           lastManualLookMsRef.current = performance.now();
         }}
         onLookDrag={applyLookDelta}
         onViewportTap={(x, y) => viewportTapHandlerRef.current(x, y)}
-        onJump={() => {
-          lastActivityRef.current = performance.now();
-          ascendUntilRef.current = performance.now() + 260;
-        }}
+        onJump={() => jumpHandlerRef.current()}
         jumpMode={isFlightMode ? 'boost' : 'jump'}
         highlightInteract={focusedUnlocked}
         secondaryAction={{
