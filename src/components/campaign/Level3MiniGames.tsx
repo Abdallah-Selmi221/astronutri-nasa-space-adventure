@@ -15,6 +15,7 @@ import { ISS_WATER_MILESTONE, SCIENCE_BADGES } from '../../data/science';
 import { computeCrossStageEffects } from '../../utils/consequences';
 import { PipePuzzle } from '../lunar/PipePuzzle';
 import { BodyTelemetryMeters } from './BodyTelemetryMeters';
+import { StationLandscapeFrame } from './StationLandscapeFrame';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { AlertTriangle, Droplets, Lock, ShieldAlert, Sun, Unlock, Wrench } from 'lucide-react';
@@ -370,246 +371,242 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
     };
 
     return (
-      <div className="bg-slate-900/95 border-2 border-emerald-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
-        <BodyTelemetryMeters
-          language={language}
-          titleEn="Astronaut Bone & Muscle Telemetry (NASA OSDR)"
-          titleAr="مؤشر قوة العظام والعضلات (NASA OSDR)"
-          metrics={[
-            { key: 'bone', value: boneScore },
-            { key: 'muscle', value: muscleScore }
-          ]}
-        />
+      <StationLandscapeFrame
+        accentBorderClass="border-emerald-400/70"
+        roboTip={tr(
+          language,
+          'Pull ARED in the green zone for Legs, Arms & Core + pack all 4 EVA tools!',
+          'اسحب في النطاق الأخضر للتمارين الثلاثة ثم احزم أدوات القمر الأربع!'
+        )}
+        leftStage={
+          <div className="flex-1 min-h-0 flex flex-col justify-between gap-1.5 overflow-hidden">
+            <BodyTelemetryMeters
+              compact
+              language={language}
+              titleEn="Bone & Muscle (NASA OSDR)"
+              titleAr="العظام والعضلات (NASA OSDR)"
+              metrics={[
+                { key: 'bone', value: boneScore },
+                { key: 'muscle', value: muscleScore }
+              ]}
+            />
 
-        <div className="p-3.5 rounded-2xl bg-sky-950/75 border border-cyan-400/50 text-xs sm:text-sm font-hud text-cyan-100">
-          🧬 <strong>{osdrBone.osdrCode}:</strong>{' '}
-          {tr(
-            language,
-            'Astronauts lose ~1–1.5% bone density per month without heavy daily resistance workouts.',
-            osdrBone.findingAr
-          )}
-        </div>
+            <div className="grid grid-cols-3 gap-1 text-center font-hud font-black text-[10.5px] shrink-0">
+              <div className={`py-1 px-1.5 rounded-xl border ${exStage !== 'leg' ? 'bg-emerald-950 border-emerald-400 text-emerald-200' : 'bg-sky-900 border-amber-300 text-white'}`}>
+                🦵 {tr(language, 'Legs', 'الأرجل')} {exStage !== 'leg' ? '✓' : `(${exReps}/3)`}
+              </div>
+              <div className={`py-1 px-1.5 rounded-xl border ${exStage === 'core' || exStage === 'done' ? 'bg-emerald-950 border-emerald-400 text-emerald-200' : exStage === 'arm' ? 'bg-sky-900 border-amber-300 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}`}>
+                💪 {tr(language, 'Arms', 'الذراعين')} {exStage === 'core' || exStage === 'done' ? '✓' : exStage === 'arm' ? `(${exReps}/3)` : '○'}
+              </div>
+              <div className={`py-1 px-1.5 rounded-xl border ${exStage === 'done' ? 'bg-emerald-950 border-emerald-400 text-emerald-200' : exStage === 'core' ? 'bg-sky-900 border-amber-300 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}`}>
+                🧘 {tr(language, 'Core', 'الجذع')} {exStage === 'done' ? '✓' : exStage === 'core' ? `(${exReps}/3)` : '○'}
+              </div>
+            </div>
 
-        <div className="grid grid-cols-3 gap-2 text-center font-hud font-black text-xs sm:text-sm">
-          <div className={`p-3 rounded-2xl border-2 ${exStage !== 'leg' ? 'bg-emerald-950 border-emerald-400 text-emerald-200' : 'bg-sky-900 border-amber-300 text-white'}`}>
-            🦵 {tr(language, 'Legs', 'الأرجل')} {exStage !== 'leg' ? '✓' : `(${exReps}/3)`}
+            <div className="px-2 py-1 rounded-xl bg-sky-950/75 border border-cyan-400/45 text-[10px] font-hud text-cyan-100 truncate shrink-0">
+              🧬 <strong>{osdrBone.osdrCode}:</strong>{' '}
+              {tr(language, 'Daily ARED counters 1–1.5%/mo bone loss.', osdrBone.findingAr)}
+            </div>
           </div>
-          <div className={`p-3 rounded-2xl border-2 ${exStage === 'core' || exStage === 'done' ? 'bg-emerald-950 border-emerald-400 text-emerald-200' : exStage === 'arm' ? 'bg-sky-900 border-amber-300 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}`}>
-            💪 {tr(language, 'Arms', 'الذراعان')} {exStage === 'core' || exStage === 'done' ? '✓' : exStage === 'arm' ? `(${exReps}/3)` : '○'}
+        }
+        rightHeader={
+          <div className="flex items-center justify-between gap-2 text-xs font-hud font-black">
+            <span className="text-white truncate">{currentLabel}</span>
+            <span className={`shrink-0 ${isSweetSpot ? 'text-emerald-300' : 'text-amber-300'}`}>
+              {exStage === 'done'
+                ? tr(language, 'Workout Done ✓', 'التمرين مكتمل ✓')
+                : isSweetSpot
+                ? tr(language, 'GREEN SWEET SPOT!', 'النطاق الأخضر!')
+                : `${aredCursor}%`}
+            </span>
           </div>
-          <div className={`p-3 rounded-2xl border-2 ${exStage === 'done' ? 'bg-emerald-950 border-emerald-400 text-emerald-200' : exStage === 'core' ? 'bg-sky-900 border-amber-300 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}`}>
-            🧘 {tr(language, 'Core', 'الجذع')} {exStage === 'done' ? '✓' : exStage === 'core' ? `(${exReps}/3)` : '○'}
-          </div>
-        </div>
+        }
+        rightContent={
+          <div className="space-y-1.5">
+            {suit.emergencyReleased && (
+              <p className="text-[11px] font-black text-rose-300 bg-rose-950/70 border border-rose-400/60 px-2 py-1 rounded-lg">
+                {tr(language, '⚠️ Quick-release open! Re-lock Moon Suit mode below.', '⚠️ الإفلات السريع مفتوح! أعد قفل البدلة بالأسفل.')}
+              </p>
+            )}
 
-        <div className="p-6 rounded-2xl bg-slate-950 border border-emerald-500/40 text-center space-y-3">
-          <p className="font-hud font-black text-xl text-white">{currentLabel}</p>
-          {suit.emergencyReleased && (
-            <p className="text-xs font-black text-rose-300">
-              {tr(
-                language,
-                '⚠️ Emergency quick-release is open! Re-lock SPACE-FIT X tension below to exercise.',
-                '⚠️ تم تفعيل زر الإفلات السريع! أعد قفل مقاومة بدلة SPACE-FIT X من الأسفل لإكمال التمرين.'
-              )}
-            </p>
-          )}
-          {exStage !== 'done' && (
-            <div className="space-y-3 max-w-md mx-auto">
-              {/* Kinetic ARED Dual-Flywheel & Vacuum Piston Visualizer */}
-              <svg viewBox="0 0 280 58" className="w-full h-14 mx-auto overflow-visible">
-                <defs>
-                  <linearGradient id="aredBarGrad" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#38bdf8" />
-                    <stop offset="50%" stopColor={isSweetSpot ? '#34d399' : '#fbbf24'} />
-                    <stop offset="100%" stopColor="#38bdf8" />
-                  </linearGradient>
-                </defs>
-                {/* Left & Right Flywheels spinning with cursor tension */}
-                {[52, 228].map((fx, idx) => (
-                  <g key={fx} transform={`translate(${fx}, 29) rotate(${aredCursor * (idx === 0 ? 3.6 : -3.6)})`}>
-                    <circle r="19" fill="#0f172a" stroke={isSweetSpot ? '#34d399' : '#38bdf8'} strokeWidth="2.5" />
-                    {[0, 60, 120].map((deg) => (
-                      <line
-                        key={deg}
-                        x1="-15"
-                        y1="0"
-                        x2="15"
-                        y2="0"
-                        stroke="rgba(186,230,253,0.45)"
-                        strokeWidth="2"
-                        transform={`rotate(${deg})`}
-                      />
+            {exStage !== 'done' && (
+              <div className="p-2 rounded-xl bg-slate-950 border border-emerald-500/40 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <svg viewBox="0 0 280 54" className="w-28 sm:w-36 h-10 shrink-0 overflow-visible">
+                    <defs>
+                      <linearGradient id="aredBarGrad" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#38bdf8" />
+                        <stop offset="50%" stopColor={isSweetSpot ? '#34d399' : '#fbbf24'} />
+                        <stop offset="100%" stopColor="#38bdf8" />
+                      </linearGradient>
+                    </defs>
+                    {[52, 228].map((fx, idx) => (
+                      <g key={fx} transform={`translate(${fx}, 27) rotate(${aredCursor * (idx === 0 ? 3.6 : -3.6)})`}>
+                        <circle r="17" fill="#0f172a" stroke={isSweetSpot ? '#34d399' : '#38bdf8'} strokeWidth="2.5" />
+                        {[0, 60, 120].map((deg) => (
+                          <line
+                            key={deg}
+                            x1="-13"
+                            y1="0"
+                            x2="13"
+                            y2="0"
+                            stroke="rgba(186,230,253,0.45)"
+                            strokeWidth="2"
+                            transform={`rotate(${deg})`}
+                          />
+                        ))}
+                        <circle r="4.5" fill={isSweetSpot ? '#34d399' : '#fbbf24'} />
+                      </g>
                     ))}
-                    <circle r="5" fill={isSweetSpot ? '#34d399' : '#fbbf24'} />
-                  </g>
-                ))}
-                {/* Twin vacuum cylinder cables */}
-                <line x1="72" y1="29" x2="208" y2="29" stroke="#334155" strokeWidth="6" strokeLinecap="round" />
-                <line
-                  x1="72"
-                  y1={29 + (aredCursor - 50) * 0.28}
-                  x2="208"
-                  y2={29 + (aredCursor - 50) * 0.28}
-                  stroke="url(#aredBarGrad)"
-                  strokeWidth="6"
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="space-y-1 text-left">
-                <div className="flex justify-between text-[11px] font-hud font-bold">
-                  <span className="text-cyan-200">{tr(language, 'ARED Force Rhythm Zone', 'نطاق قوة السحب المثالي')}</span>
-                  <span className={isSweetSpot ? 'text-emerald-300' : 'text-amber-200'}>
-                    {isSweetSpot ? tr(language, 'GREEN SWEET SPOT!', 'النطاق الأخضر المثالي!') : `${aredCursor}%`}
-                  </span>
-                </div>
-                <div className="relative h-5 rounded-full bg-slate-900 border border-slate-700 overflow-hidden">
-                  <div className="absolute inset-y-0 left-[32%] right-[32%] bg-emerald-500/35 border-x-2 border-emerald-400" />
-                  <div
-                    className="absolute top-0 bottom-0 w-3 -ml-1.5 rounded-full bg-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.9)]"
-                    style={{ left: `${aredCursor}%` }}
-                  />
+                    <line x1="72" y1="27" x2="208" y2="27" stroke="#334155" strokeWidth="5" strokeLinecap="round" />
+                    <line
+                      x1="72"
+                      y1={27 + (aredCursor - 50) * 0.24}
+                      x2="208"
+                      y2={27 + (aredCursor - 50) * 0.24}
+                      stroke="url(#aredBarGrad)"
+                      strokeWidth="5"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="relative h-3.5 rounded-full bg-slate-900 border border-slate-700 overflow-hidden">
+                      <div className="absolute inset-y-0 left-[32%] right-[32%] bg-emerald-500/35 border-x-2 border-emerald-400" />
+                      <div
+                        className="absolute top-0 bottom-0 w-2.5 -ml-1 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(251,191,36,0.9)]"
+                        style={{ left: `${aredCursor}%` }}
+                      />
+                    </div>
+                    {aredFeedback && <p className="text-[10px] font-hud font-bold text-emerald-300 truncate">{aredFeedback}</p>}
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={suit.emergencyReleased}
+                    onClick={doRep}
+                    className={`px-3 py-2 rounded-xl font-hud font-black text-xs border-2 border-white shrink-0 ${
+                      suit.emergencyReleased
+                        ? 'bg-slate-800 text-slate-400 cursor-not-allowed'
+                        : isSweetSpot
+                        ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 cursor-pointer'
+                        : 'bg-gradient-to-r from-sky-400 to-cyan-500 text-slate-950 cursor-pointer'
+                    }`}
+                  >
+                    {tr(language, `Pull (${exReps}/3) 🏋️`, `اسحب (${exReps}/3) 🏋️`)}
+                  </button>
                 </div>
               </div>
-              {aredFeedback && <p className="text-xs font-hud font-bold text-emerald-300">{aredFeedback}</p>}
-              <button
-                type="button"
-                disabled={suit.emergencyReleased}
-                onClick={doRep}
-                className={`px-8 py-3.5 rounded-2xl font-hud font-black text-base sm:text-lg border-2 border-white transition-transform ${
-                  suit.emergencyReleased
-                    ? 'bg-slate-800 text-slate-400 cursor-not-allowed'
-                    : isSweetSpot
-                    ? 'bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 text-slate-950 cursor-pointer scale-[1.03]'
-                    : 'bg-gradient-to-r from-sky-400 to-cyan-500 text-slate-950 cursor-pointer hover:scale-105'
-                }`}
-              >
-                {tr(language, `Pull ARED Bar (${exReps}/3) 🏋️`, `اسحب قضيب ARED (${exReps}/3) 🏋️`)}
-              </button>
+            )}
+
+            {/* Compact 4-Tool EVA Rack */}
+            <div className="p-2 rounded-xl bg-slate-950/90 border border-amber-400/50 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] font-hud font-black text-amber-200">
+                <span>🎒 {tr(language, `Pack 4 EVA Crater Tools (${packedTools.length}/4)`, `أدوات الفوهة (${packedTools.length}/4)`)}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {EVA_TOOLS.map((tool) => {
+                  const packed = packedTools.includes(tool.id);
+                  return (
+                    <button
+                      key={tool.id}
+                      type="button"
+                      data-testid={`pack-tool-${tool.id}`}
+                      onClick={() => toggleFitnessTool(tool.id)}
+                      className={`p-1.5 rounded-xl border-2 flex items-center justify-between gap-1 cursor-pointer transition-all ${
+                        packed
+                          ? 'bg-emerald-950 border-emerald-400 text-white'
+                          : 'bg-slate-900 border-amber-400/60 text-slate-200 hover:border-cyan-400'
+                      }`}
+                    >
+                      <div className={`flex items-center gap-1.5 min-w-0 ${language === 'ar' ? 'text-right' : 'text-left'}`}>
+                        <span className="text-base shrink-0">{tool.icon}</span>
+                        <span className="font-hud font-black text-[11px] truncate">{tr(language, tool.nameEn, tool.nameAr)}</span>
+                      </div>
+                      <span className="text-[10px] font-hud font-black text-amber-300 shrink-0">
+                        {packed ? '✅' : '+'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* Manual Interactive 4-EVA Geological Tool Packing Rack (Required for Crater Samples) */}
-        <div className="p-4 rounded-2xl bg-slate-950/90 border-2 border-amber-400/55 space-y-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-hud font-black text-xs sm:text-sm text-amber-200">
-              🎒 {tr(
-                language,
-                `Pack 4 Geological EVA Tools (${packedTools.length}/4 Required for Crater Samples):`,
-                `جهّز الأدوات الجيولوجية الأربع (${packedTools.length}/4 مطلوبة في الفوهة):`
-              )}
-            </span>
-            {exStage === 'done' && allToolsPacked && !campaign.completedMiniGames.includes('l3_resistance_training') && (
-              <button
-                type="button"
-                onClick={() => completeFitnessStation(packedTools)}
-                className="px-3.5 py-1.5 rounded-xl bg-emerald-400 text-slate-950 font-hud font-black text-xs cursor-pointer"
-              >
-                {tr(language, 'Complete Station ✅', 'إنهاء المحطة ✅')}
-              </button>
-            )}
+            {/* 3-Button Moon Suit Strength Mode */}
+            <div
+              data-testid="moon-suit-strength-card"
+              className="p-2 rounded-xl bg-slate-950/85 border border-cyan-400/45 space-y-1.5"
+            >
+              <div className="flex items-center justify-between gap-2 text-[11px] font-hud font-black text-cyan-200">
+                <span>🌙 {tr(language, 'Moon Suit Strength:', 'قوة بدلة القمر:')}</span>
+                {suit.emergencyReleased && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundManager.playClick();
+                      onUpdateCampaign({
+                        spaceFitX: { ...suit, emergencyReleased: false, resistanceMode: 'level2', muscleLoadPct: 65 }
+                      });
+                    }}
+                    className="px-2 py-0.5 rounded-full bg-emerald-400 text-slate-950 text-[10px] cursor-pointer"
+                  >
+                    {tr(language, 'Re-Lock ✓', 'إعادة قفل ✓')}
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(
+                  [
+                    { mode: 'level1' as const, load: 35, en: '⭐ Easy', ar: '⭐ سهل' },
+                    { mode: 'level2' as const, load: 65, en: '⭐⭐ Strong', ar: '⭐⭐ قوي' },
+                    { mode: 'level3' as const, load: 90, en: '⭐⭐⭐ Super', ar: '⭐⭐⭐ خارق' }
+                  ]
+                ).map((opt) => (
+                  <button
+                    key={opt.mode}
+                    type="button"
+                    onClick={() => {
+                      soundManager.playClick();
+                      onUpdateCampaign({
+                        spaceFitX: {
+                          ...suit,
+                          emergencyReleased: false,
+                          resistanceMode: opt.mode,
+                          muscleLoadPct: opt.load,
+                          jointLoads: { shoulders: opt.load, elbows: opt.load, hips: opt.load, knees: opt.load, ankles: opt.load }
+                        }
+                      });
+                    }}
+                    className={`py-1.5 px-1.5 rounded-xl font-hud font-black text-[11px] border-2 cursor-pointer transition-all truncate ${
+                      suit.resistanceMode === opt.mode && !suit.emergencyReleased
+                        ? 'bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950 border-white shadow'
+                        : 'bg-slate-900 text-slate-200 border-slate-700 hover:border-cyan-400'
+                    }`}
+                  >
+                    {tr(language, opt.en, opt.ar)}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {EVA_TOOLS.map((tool) => {
-              const packed = packedTools.includes(tool.id);
-              return (
-                <button
-                  key={tool.id}
-                  type="button"
-                  data-testid={`pack-tool-${tool.id}`}
-                  onClick={() => toggleFitnessTool(tool.id)}
-                  className={`p-3 rounded-xl border-2 flex items-center justify-between cursor-pointer transition-all ${
-                    packed
-                      ? 'bg-emerald-950 border-emerald-400 text-white'
-                      : 'bg-slate-900 border-amber-400/60 text-slate-200 hover:border-cyan-400'
-                  }`}
-                >
-                  <div className={`flex items-center gap-2 ${language === 'ar' ? 'text-right' : 'text-left'}`}>
-                    <span className="text-xl">{tool.icon}</span>
-                    <div>
-                      <p className="font-hud font-black text-xs">{tr(language, tool.nameEn, `${tool.nameAr} (${tool.nameEn})`)}</p>
-                      <p className="text-[10px] text-cyan-200">{tr(language, tool.purposeEn, tool.purposeAr)}</p>
-                    </div>
-                  </div>
-                  <span className="text-[11px] font-hud font-black text-amber-300">
-                    {packed ? tr(language, 'Packed ✅', 'محزوم ✅') : tr(language, 'Pack +', 'أضف +')}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Fun 3-Button Moon Suit Strength Mode (zero clinical sliders) */}
-        <div
-          data-testid="moon-suit-strength-card"
-          className="p-3.5 rounded-2xl bg-slate-950/85 border-2 border-cyan-400/45 space-y-2.5"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-hud font-black text-xs sm:text-sm text-cyan-200">
-              🌙 {tr(language, 'Moon Suit Strength Mode:', 'قوة بدلة القمر الرياضية:')}
-            </span>
-            {suit.emergencyReleased && (
-              <button
-                type="button"
-                onClick={() => {
-                  soundManager.playClick();
-                  onUpdateCampaign({
-                    spaceFitX: {
-                      ...suit,
-                      emergencyReleased: false,
-                      resistanceMode: 'level2',
-                      muscleLoadPct: 65
-                    }
-                  });
-                }}
-                className="px-3 py-1 rounded-full bg-emerald-400 text-slate-950 font-hud font-black text-xs border border-white cursor-pointer"
-              >
-                {tr(language, 'Re-Lock Suit ✓', 'إعادة قفل البدلة ✓')}
-              </button>
-            )}
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {(
-              [
-                { mode: 'level1' as const, load: 35, en: '⭐ Easy', ar: '⭐ سهل' },
-                { mode: 'level2' as const, load: 65, en: '⭐⭐ Strong', ar: '⭐⭐ قوي' },
-                { mode: 'level3' as const, load: 90, en: '⭐⭐⭐ Super Moon', ar: '⭐⭐⭐ قمر خارق' }
-              ]
-            ).map((opt) => (
-              <button
-                key={opt.mode}
-                type="button"
-                onClick={() => {
-                  soundManager.playClick();
-                  onUpdateCampaign({
-                    spaceFitX: {
-                      ...suit,
-                      emergencyReleased: false,
-                      resistanceMode: opt.mode,
-                      muscleLoadPct: opt.load,
-                      jointLoads: {
-                        shoulders: opt.load,
-                        elbows: opt.load,
-                        hips: opt.load,
-                        knees: opt.load,
-                        ankles: opt.load
-                      }
-                    }
-                  });
-                }}
-                className={`py-2.5 px-2 rounded-2xl font-hud font-black text-xs sm:text-sm border-2 cursor-pointer transition-all ${
-                  suit.resistanceMode === opt.mode && !suit.emergencyReleased
-                    ? 'bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950 border-white shadow'
-                    : 'bg-slate-900 text-slate-200 border-slate-700 hover:border-cyan-400'
-                }`}
-              >
-                {tr(language, opt.en, opt.ar)}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+        }
+        primaryCta={
+          <button
+            type="button"
+            disabled={!(exStage === 'done' && allToolsPacked)}
+            onClick={() => completeFitnessStation(packedTools)}
+            className={`w-full py-2.5 rounded-xl font-hud font-black text-xs sm:text-sm border-2 ${
+              exStage === 'done' && allToolsPacked
+                ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 border-white cursor-pointer'
+                : 'bg-slate-800 text-slate-400 border-slate-700 cursor-not-allowed'
+            }`}
+          >
+            {exStage === 'done' && allToolsPacked
+              ? tr(language, 'Complete ARED Workout & EVA Kit ✅', 'اعتماد التمرين وأدوات القمر ✅')
+              : tr(language, `Finish ARED reps & pack ${packedTools.length}/4 EVA tools 🔒`, `أكمل التمرين وحزم ${packedTools.length}/4 أدوات 🔒`)}
+          </button>
+        }
+      />
     );
   }
 
@@ -620,90 +617,74 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
     const recoveryPct = waterRecycledDone ? 98 : pipeSolved ? 95 : 48;
 
     return (
-      <div className="bg-slate-900/95 border-2 border-cyan-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
-        <BodyTelemetryMeters
-          language={language}
-          titleEn="ECLSS Filter & Water Recovery Telemetry"
-          titleAr="حالة الفلتر واسترجاع المياه (ECLSS)"
-          metrics={[
-            { key: 'filter', value: recoveryPct },
-            { key: 'hydration', value: recoveryPct }
-          ]}
-        />
+      <StationLandscapeFrame
+        accentBorderClass="border-cyan-400/70"
+        roboTip={tr(
+          language,
+          'Rotate the 3×3 pipes to route reclaimed water cleanly to the greenhouse!',
+          'أدِر الأنابيب 3×3 لتوصيل مدخل العادم بخزان الشرب وتغذية النباتات!'
+        )}
+        leftStage={
+          <div className="flex-1 min-h-0 flex flex-col justify-between gap-1.5 overflow-hidden">
+            <BodyTelemetryMeters
+              compact
+              language={language}
+              titleEn="ECLSS Recovery Telemetry"
+              titleAr="حالة الفلتر والمياه (ECLSS)"
+              metrics={[
+                { key: 'filter', value: recoveryPct },
+                { key: 'hydration', value: recoveryPct }
+              ]}
+            />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="p-3.5 rounded-2xl bg-cyan-950/60 border border-cyan-400/50 space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-hud font-black text-xs sm:text-sm text-cyan-200">
-                {tr(
+            <div className="p-2 rounded-xl bg-emerald-950/55 border border-emerald-400/50 space-y-1 shrink-0">
+              <div className="flex items-center justify-between text-[11px] font-hud font-black text-emerald-200 gap-1">
+                <span className="truncate">🌱 {tr(language, 'Lunar Hydroponics', 'الزراعة المائية القمرية')}</span>
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-emerald-900 border border-emerald-400 text-emerald-200 shrink-0">
+                  {tr(language, `${ISS_WATER_MILESTONE.recoveryPercent}% ${SCIENCE_BADGES.ISS_PROVEN.labelEn}`, `${ISS_WATER_MILESTONE.recoveryPercent}% ${SCIENCE_BADGES.ISS_PROVEN.labelAr}`)}
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-slate-950 border border-emerald-500/40 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-all duration-500"
+                  style={{ width: `${recoveryPct}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        }
+        rightContent={<PipePuzzle compact isProcessorFailed={false} onPuzzleSolved={() => setPipeSolved(true)} />}
+        primaryCta={
+          <button
+            type="button"
+            disabled={!pipeSolved}
+            onClick={() => {
+              setWaterRecycledDone(true);
+              soundManager.playFanfare();
+              void dialogueManager.speak(
+                tr(
                   language,
-                  `💧 ISS Milestone: ${ISS_WATER_MILESTONE.recoveryPercent}% Water Recovery (${ISS_WATER_MILESTONE.dateLabelEn})`,
-                  `💧 إنجاز ISS: ${ISS_WATER_MILESTONE.recoveryPercent}% استرجاع المياه (${ISS_WATER_MILESTONE.dateLabelAr})`
-                )}
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-950 border border-emerald-400 text-emerald-200 shrink-0">
-                {tr(language, SCIENCE_BADGES.ISS_PROVEN.labelEn, SCIENCE_BADGES.ISS_PROVEN.labelAr)}
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-200 leading-relaxed">
-              {tr(
-                language,
-                'Reclaims humidity, sweat, urine & hygiene water via the Brine Processor Assembly.',
-                'تجمع المحطة ماء التنفس والعرق والبول ومياه النظافة وإعداد الطعام بمساعدة Brine Processor Assembly.'
-              )}
-            </p>
-          </div>
-
-          <div className="p-3.5 rounded-2xl bg-emerald-950/55 border border-emerald-400/50 space-y-1.5">
-            <div className="flex items-center justify-between text-xs font-hud font-black text-emerald-200">
-              <span>{tr(language, '🌱 Lunar Hydroponic Spirulina & Lettuce Tank', '🌱 حوض الزراعة المائية والسبيرولينا')}</span>
-              <span>{pipeSolved ? tr(language, '98% Fed ✓', 'مُغذّى 98% ✓') : tr(language, 'Waiting Flow', 'بانتظار الماء')}</span>
-            </div>
-            <div className="h-3 rounded-full bg-slate-950 border border-emerald-500/40 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-all duration-500"
-                style={{ width: `${recoveryPct}%` }}
-              />
-            </div>
-            <p className="text-[11px] text-emerald-100">
+                  'ECLSS water circuit restored to 98% purity and lunar greenhouse nourished!',
+                  'تم إصلاح دائرة المياه ECLSS بنسبة 98% وتغذية حوض النباتات القمري!'
+                )
+              );
+              onCompleteMiniGame('l3_water_recycling', { l3WaterRecycled: true });
+            }}
+            className={`w-full py-2.5 rounded-xl font-hud font-black text-xs sm:text-sm border-2 flex items-center justify-center gap-2 ${
+              pipeSolved
+                ? 'bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950 border-white cursor-pointer'
+                : 'bg-slate-800 text-slate-400 border-slate-700 cursor-not-allowed'
+            }`}
+          >
+            <Droplets className="w-4 h-4" />
+            <span>
               {pipeSolved
-                ? tr(language, '🌱 Fresh lunar lettuce & Spirulina thriving on 98% recovered ECLSS loop!', '🌱 الخس القمري والسبيرولينا ينموان بنجاح باستخدام 98% من المياه المعاد تدويرها!')
-                : tr(language, 'Solve the 3x3 ECLSS pipe loop below to route purified water to the greenhouse.', 'وصل أنابيب الشبكة 3×3 بالأسفل لإيصال الماء النقي لحوض النباتات.')}
-            </p>
-          </div>
-        </div>
-
-        <PipePuzzle isProcessorFailed={false} onPuzzleSolved={() => setPipeSolved(true)} />
-
-        <button
-          type="button"
-          disabled={!pipeSolved}
-          onClick={() => {
-            setWaterRecycledDone(true);
-            soundManager.playFanfare();
-            void dialogueManager.speak(
-              tr(
-                language,
-                'ECLSS water circuit restored to 98% purity and lunar greenhouse nourished!',
-                'تم إصلاح دائرة المياه ECLSS بنسبة 98% وتغذية حوض النباتات القمري!'
-              )
-            );
-            onCompleteMiniGame('l3_water_recycling', { l3WaterRecycled: true });
-          }}
-          className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 flex items-center justify-center gap-2 ${
-            pipeSolved
-              ? 'bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950 border-white cursor-pointer'
-              : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-          }`}
-        >
-          <Droplets className="w-5 h-5" />
-          <span>
-            {pipeSolved
-              ? tr(language, 'Seal 98% Water Loop & Feed Greenhouse 💧🌱', 'اعتماد نقاء المياه 98% وتغذية النباتات 💧🌱')
-              : tr(language, 'Connect Wastewater Inlet to Drink Tank first 🔒', 'وصّل شبكة الأنابيب أعلاه أولاً 🔒')}
-          </span>
-        </button>
-      </div>
+                ? tr(language, 'Seal 98% Water Loop & Feed Greenhouse 💧🌱', 'اعتماد نقاء المياه 98% وتغذية النباتات 💧🌱')
+                : tr(language, 'Connect Wastewater Inlet to Drink Tank first 🔒', 'وصّل شبكة الأنابيب باليمين أولاً 🔒')}
+            </span>
+          </button>
+        }
+      />
     );
   }
 
@@ -713,157 +694,140 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
   if (miniGameId === 'l3_solar_storm') {
     const tradeoff = NASA_ENGINEERING_TRADEOFFS[0];
     const shieldStrong = powerSplit.shield >= 45;
+    const totalPower = powerSplit.shield + powerSplit.water + powerSplit.hydro;
 
     return (
-      <div className="bg-slate-900/95 border-2 border-rose-400/80 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
-        <div className="p-4 rounded-2xl bg-rose-950/80 border-2 border-rose-400 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-rose-100">
-            <Sun className="w-6 h-6 text-amber-300 animate-spin" />
-            <div>
-              <p className="font-hud font-black text-sm sm:text-base">
-                {tr(language, `⚠️ NASA DONKI Solar Alert (${latestStorm.activityId})`, `⚠️ تنبيه طوارئ NASA DONKI (${latestStorm.activityId})`)}
-              </p>
-              <p className="font-hud text-xs text-rose-200">
-                {tr(
-                  language,
-                  `Coronal Mass Ejection at ${latestStorm.speedKmS || 1200} km/s — divert power to shields & O2!`,
-                  `انبعاث كتلي إكليلي بسرعة ${latestStorm.speedKmS || 1200} كم/ث — ${latestStorm.educationalLabelAr}`
-                )}
-              </p>
+      <StationLandscapeFrame
+        accentBorderClass="border-rose-400/75"
+        roboTip={tr(
+          language,
+          'Seal blast door, keep total ≤100% with Shield ≥45% & ECLSS ≥30%, then hold 10s!',
+          'أغلق البوابة واضبط الدروع ≥45% والمياه ≥30% (المجموع ≤100%) واصمد 10 ثوانٍ!'
+        )}
+        leftStage={
+          <div className="flex-1 min-h-0 flex flex-col justify-between gap-1.5 overflow-hidden">
+            <div className="px-2.5 py-1.5 rounded-xl bg-rose-950/80 border border-rose-400 flex items-center gap-2 shrink-0">
+              <Sun className="w-4 h-4 text-amber-300 animate-spin shrink-0" />
+              <div className="min-w-0">
+                <p className="font-hud font-black text-[11px] text-rose-100 truncate">
+                  {tr(language, `⚠️ NASA DONKI Alert (${latestStorm.activityId})`, `⚠️ تنبيه DONKI (${latestStorm.activityId})`)}
+                </p>
+                <p className="font-hud text-[10px] text-rose-200 truncate">
+                  {tr(language, `CME ${latestStorm.speedKmS || 1200} km/s`, `انبعاث ${latestStorm.speedKmS || 1200} كم/ث`)}
+                </p>
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* Animated Solar Storm Magnetic Plasma Dome Deflector */}
-        <div
-          data-testid="donki-solar-wave-viz"
-          className="relative h-28 rounded-2xl bg-slate-950 border-2 border-amber-400/60 overflow-hidden flex items-center justify-between px-4"
-        >
-          <svg
-            viewBox="0 0 420 100"
-            preserveAspectRatio="none"
-            className="absolute inset-0 w-full h-full pointer-events-none"
-          >
-            <defs>
-              <radialGradient id="solarFlareCore" cx="10%" cy="50%" r="48%">
-                <stop offset="0%" stopColor="#fef08a" stopOpacity="0.95" />
-                <stop offset="40%" stopColor="#f97316" stopOpacity="0.55" />
-                <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
-              </radialGradient>
-              <radialGradient id="domeShieldGlow" cx="50%" cy="95%" r="85%">
-                <stop offset="0%" stopColor={shieldStrong ? '#10b981' : '#f43f5e'} stopOpacity="0.45" />
-                <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
-              </radialGradient>
-            </defs>
-            <rect width="420" height="100" fill="url(#solarFlareCore)" />
-            {/* Geodesic Lunar Bio-Dome Silhouette on Lower-Right */}
-            <path d="M326 96 A38 36 0 0 1 402 96 Z" fill="url(#domeShieldGlow)" stroke="#38bdf8" strokeWidth="1.8" />
-            <path d="M344 96 A20 30 0 0 1 384 96 M364 60 L364 96" fill="none" stroke="rgba(186,230,253,0.45)" strokeWidth="1.2" />
-            {/* Outer Magnetic Shield Deflector Arc */}
-            <path
-              d="M306 96 A58 52 0 0 1 414 58"
-              fill="none"
-              stroke={shieldStrong ? '#34d399' : '#f43f5e'}
-              strokeWidth={shieldStrong ? 4 : 2}
-              strokeDasharray={shieldStrong ? 'none' : '8 6'}
-            />
-          </svg>
-
-          <span className="text-3xl z-10 select-none">☀️</span>
-
-          {/* Curved Deflected Solar Proton Particle Arcs */}
-          {[0, 1, 2, 3, 4].map((waveIdx) => (
-            <motion.div
-              key={waveIdx}
-              initial={{ x: -20, y: 0, opacity: 0.9 }}
-              animate={{
-                x: shieldStrong ? [0, 110, 155] : [0, 170, 240],
-                y: shieldStrong ? [0, -18, -32] : [0, 6, 12],
-                opacity: shieldStrong ? [0.95, 0.9, 0] : [0.95, 0.85, 0.25],
-                scale: [0.9, 1.15, 0.8]
-              }}
-              transition={{
-                duration: 1.5,
-                repeat: Infinity,
-                delay: waveIdx * 0.28,
-                ease: 'linear'
-              }}
-              className="text-base font-black text-amber-300 select-none pointer-events-none z-10"
-            >
-              {waveIdx % 2 === 0 ? '⚡' : '☄️'}
-            </motion.div>
-          ))}
-
-          {/* Magnetic Shield Deflection Status Pill (Cleanly above the dome arc) */}
-          <div className="flex items-center gap-2 z-10 self-start mt-2">
             <div
-              className={`px-3 py-1 rounded-full text-[11px] font-hud font-black border-2 transition-colors ${
-                shieldStrong
-                  ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200'
-                  : 'bg-rose-500/30 border-rose-400 text-rose-200 animate-pulse'
-              }`}
+              dir="ltr"
+              data-testid="donki-solar-wave-viz"
+              className="relative flex-1 min-h-[100px] rounded-xl bg-slate-950 border border-amber-400/60 overflow-hidden flex items-center justify-between px-3"
             >
-              {shieldStrong
-                ? tr(language, '🛡️ SHIELD DEFLECTING', '🛡️ الدرع يصد الموجة')
-                : tr(language, '⚠️ LOW SHIELD', '⚠️ الدرع ضعيف')}
-            </div>
-          </div>
-        </div>
+              <svg
+                viewBox="0 0 420 100"
+                preserveAspectRatio="none"
+                className="absolute inset-0 w-full h-full pointer-events-none"
+              >
+                <defs>
+                  <radialGradient id="solarFlareCore" cx="10%" cy="50%" r="48%">
+                    <stop offset="0%" stopColor="#fef08a" stopOpacity="0.95" />
+                    <stop offset="40%" stopColor="#f97316" stopOpacity="0.55" />
+                    <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
+                  </radialGradient>
+                  <radialGradient id="domeShieldGlow" cx="50%" cy="95%" r="85%">
+                    <stop offset="0%" stopColor={shieldStrong ? '#10b981' : '#f43f5e'} stopOpacity="0.45" />
+                    <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
+                  </radialGradient>
+                </defs>
+                <rect width="420" height="100" fill="url(#solarFlareCore)" />
+                <path d="M326 96 A38 36 0 0 1 402 96 Z" fill="url(#domeShieldGlow)" stroke="#38bdf8" strokeWidth="1.8" />
+                <path
+                  d="M306 96 A58 52 0 0 1 414 58"
+                  fill="none"
+                  stroke={shieldStrong ? '#34d399' : '#f43f5e'}
+                  strokeWidth={shieldStrong ? 4 : 2}
+                  strokeDasharray={shieldStrong ? 'none' : '8 6'}
+                />
+              </svg>
 
-        {/* Active 10s DONKI CME Storm Defense Controls */}
-        <div className="p-4 rounded-2xl bg-slate-950/90 border-2 border-amber-400/50 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="font-hud font-black text-sm text-amber-200">
-                {stormStep >= 4
-                  ? tr(language, '✅ Solar Proton Storm Cleared Safely!', '✅ انتهت العاصفة الشمسية بأمان!')
-                  : stormDefenseActive
-                  ? tr(
-                      language,
-                      `⏳ Active Shield Defense: ${(stormRemainMs / 1000).toFixed(1)}s remaining`,
-                      `⏳ صمود الدرع ضد الإشعاع: ${(stormRemainMs / 1000).toFixed(1)} ثانية`
-                    )
-                  : tr(language, '🛡️ 10s Active DONKI Storm Defense Simulator', '🛡️ محاكاة الدفاع النشط ضد العاصفة (10 ثوانٍ)')}
-              </p>
-              <p className="text-[11px] text-slate-300">
-                {tr(language, tradeoff.dilemmaEn, tradeoff.dilemmaAr)}
-              </p>
+              <span className="text-2xl z-10 select-none">☀️</span>
+
+              {[0, 1, 2, 3, 4].map((waveIdx) => (
+                <motion.div
+                  key={waveIdx}
+                  initial={{ x: -20, y: 0, opacity: 0.9 }}
+                  animate={{
+                    x: shieldStrong ? [0, 90, 130] : [0, 140, 200],
+                    y: shieldStrong ? [0, -16, -28] : [0, 6, 12],
+                    opacity: shieldStrong ? [0.95, 0.9, 0] : [0.95, 0.85, 0.25],
+                    scale: [0.9, 1.1, 0.8]
+                  }}
+                  transition={{ duration: 1.5, repeat: Infinity, delay: waveIdx * 0.28, ease: 'linear' }}
+                  className="text-sm font-black text-amber-300 select-none pointer-events-none z-10"
+                >
+                  {waveIdx % 2 === 0 ? '⚡' : '☄️'}
+                </motion.div>
+              ))}
+
+              <div
+                className={`z-10 self-start mt-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-hud font-black border transition-colors ${
+                  shieldStrong
+                    ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200'
+                    : 'bg-rose-500/30 border-rose-400 text-rose-200 animate-pulse'
+                }`}
+              >
+                {shieldStrong ? tr(language, '🛡️ DEFLECTING', '🛡️ الدرع يصد') : tr(language, '⚠️ LOW SHIELD', '⚠️ درع ضعيف')}
+              </div>
             </div>
+
             <button
               type="button"
               onClick={() => {
                 soundManager.playPressurizeHiss();
                 setBlastDoorSealed((s) => !s);
               }}
-              className={`px-3.5 py-2 rounded-xl font-hud font-black text-xs flex items-center gap-1.5 cursor-pointer border-2 ${
+              className={`w-full py-2 rounded-xl font-hud font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer border-2 shrink-0 ${
                 blastDoorSealed
                   ? 'bg-emerald-950 border-emerald-400 text-emerald-200'
                   : 'bg-rose-950 border-rose-400 text-rose-200 animate-pulse'
               }`}
             >
-              {blastDoorSealed ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+              {blastDoorSealed ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
               <span>
                 {blastDoorSealed
                   ? tr(language, 'Blast Door Sealed ✓', 'البوابة المدرعة مغلقة ✓')
-                  : tr(language, 'Seal Blast Door! 🚪', 'أغلق البوابة المدرعة! 🚪')}
+                  : tr(language, 'Seal Blast Door NOW! 🚪', 'أغلق البوابة المدرعة الآن! 🚪')}
               </span>
             </button>
           </div>
+        }
+        rightHeader={
+          <div className="flex items-center justify-between gap-2 text-xs font-hud font-black">
+            <span className="text-amber-200 truncate">
+              {stormStep >= 4
+                ? tr(language, '✅ Solar Storm Cleared!', '✅ انتهت العاصفة بأمان!')
+                : stormDefenseActive
+                ? tr(language, `⏳ Hold Shield: ${(stormRemainMs / 1000).toFixed(1)}s`, `⏳ صمود الدرع: ${(stormRemainMs / 1000).toFixed(1)}ث`)
+                : tr(language, '⚡ Power Split (Total ≤ 100%)', '⚡ توزيع الطاقة (المجموع ≤ 100%)')}
+            </span>
+            <span className={totalPower > 100 ? 'text-rose-300 shrink-0' : 'text-emerald-300 shrink-0'}>
+              {totalPower}%
+            </span>
+          </div>
+        }
+        rightContent={
+          <div className="space-y-1.5">
+            <p className="text-[10.5px] text-slate-300 leading-snug">
+              {tr(language, tradeoff.dilemmaEn, tradeoff.dilemmaAr)}
+            </p>
 
-          <div className="p-3 rounded-xl bg-slate-900/90 border border-amber-400/35 space-y-2">
-            <div className="flex items-center justify-between text-[11px] font-black text-amber-200">
-              <span>{tr(language, '⚡ Base Power Allocation (Total ≤ 100%):', '⚡ توزيع طاقة القاعدة (المجموع ≤ 100%):')}</span>
-              <span className={powerSplit.shield + powerSplit.water + powerSplit.hydro > 100 ? 'text-rose-300' : 'text-emerald-300'}>
-                {powerSplit.shield + powerSplit.water + powerSplit.hydro}%
-              </span>
-            </div>
             {[
-              { key: 'shield' as const, label: tr(language, '🛡️ Radiation Shield (Need ≥ 45%)', '🛡️ دروع الإشعاع (مطلوب ≥ 45%)'), color: 'accent-amber-400' },
-              { key: 'water' as const, label: tr(language, '💧 ECLSS Water & Air (Need ≥ 30%)', '💧 تدوير المياه والهواء ECLSS (مطلوب ≥ 30%)'), color: 'accent-cyan-400' },
-              { key: 'hydro' as const, label: tr(language, '🌱 Hydroponic Lights (Dim during storm)', '🌱 إضاءة الزراعة المائية (تُخفّض أثناء العاصفة)'), color: 'accent-emerald-400' }
+              { key: 'shield' as const, label: tr(language, '🛡️ Radiation Shield (≥ 45%)', '🛡️ دروع الإشعاع (≥ 45%)'), color: 'accent-amber-400' },
+              { key: 'water' as const, label: tr(language, '💧 ECLSS Water & Air (≥ 30%)', '💧 المياه والهواء ECLSS (≥ 30%)'), color: 'accent-cyan-400' },
+              { key: 'hydro' as const, label: tr(language, '🌱 Hydroponic Lights (Dim)', '🌱 إضاءة الزراعة (تُخفّض)'), color: 'accent-emerald-400' }
             ].map((row) => (
-              <div key={row.key} className="space-y-0.5">
-                <div className="flex justify-between text-[10px] font-bold text-slate-200">
+              <div key={row.key} className="p-1.5 rounded-xl bg-slate-950/90 border border-slate-800 space-y-0.5">
+                <div className="flex justify-between text-[11px] font-bold text-slate-200">
                   <span>{row.label}</span>
                   <span>{powerSplit[row.key]}%</span>
                 </div>
@@ -874,8 +838,7 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
                   step={5}
                   value={powerSplit[row.key]}
                   onChange={(e) => {
-                    const nextVal = Number(e.target.value);
-                    const updated = { ...powerSplit, [row.key]: nextVal };
+                    const updated = { ...powerSplit, [row.key]: Number(e.target.value) };
                     setPowerSplit(updated);
                     onUpdateCampaign({ ecoPowerSplit: updated });
                   }}
@@ -883,54 +846,57 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
                 />
               </div>
             ))}
-          </div>
 
-          {stormStep < 4 && (
-            <div className="space-y-2">
-              <div className="h-2.5 rounded-full bg-slate-900 border border-slate-700 overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-100"
-                  style={{ width: `${Math.round(((10000 - stormRemainMs) / 10000) * 100)}%` }}
-                />
+            {stormStep < 4 && (
+              <div className="space-y-1">
+                <div className="h-2 rounded-full bg-slate-900 border border-slate-700 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-100"
+                    style={{ width: `${Math.round(((10000 - stormRemainMs) / 10000) * 100)}%` }}
+                  />
+                </div>
+                {tradeOffChoice === 'farm_only' && !stormDefenseActive && (
+                  <p className="text-[11px] text-rose-300 font-hud font-bold">
+                    {tr(language, 'Seal blast door, set Shield ≥ 45%, ECLSS ≥ 30%, Total ≤ 100%!', 'أغلق البوابة واضبط الدروع ≥ 45% والمياه ≥ 30% والمجموع ≤ 100%!')}
+                  </p>
+                )}
               </div>
-              {!stormDefenseActive ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const totalPower = powerSplit.shield + powerSplit.water + powerSplit.hydro;
-                    if (!blastDoorSealed || powerSplit.shield < 45 || powerSplit.water < 30 || totalPower > 100) {
-                      soundManager.playAlertSiren();
-                      setTradeOffChoice('farm_only');
-                      return;
-                    }
-                    soundManager.playClick();
-                    setTradeOffChoice('shield_o2');
-                    setStormDefenseActive(true);
-                  }}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-hud font-black text-sm cursor-pointer border-2 border-white"
-                >
-                  {tr(language, 'Start 10s Storm Defense & Hold Shield! 🛡️', 'ابدأ صمود العاصفة (10 ثوانٍ) 🛡️')}
-                </button>
-              ) : (
-                <p className="text-xs font-hud font-bold text-center text-cyan-200">
-                  {blastDoorSealed && powerSplit.shield >= 45 && powerSplit.water >= 30 && powerSplit.shield + powerSplit.water + powerSplit.hydro <= 100
-                    ? tr(language, '🛡️ Shield holding steady against CME plasma burst!', '🛡️ الدرع يصد العاصفة الشمسية بنجاح!')
-                    : tr(language, '⚠️ Restore Shield ≥ 45%, ECLSS ≥ 30%, Total ≤ 100% & Seal Door!', '⚠️ اضبط الدرع ≥ 45% والمياه ≥ 30% والمجموع ≤ 100% وأغلق البوابة!')}
-                </p>
-              )}
-              {tradeOffChoice === 'farm_only' && !stormDefenseActive && (
-                <p className="text-xs text-rose-300 font-hud font-bold text-center">
-                  {tr(
-                    language,
-                    'Seal the blast door, set Shield ≥ 45%, ECLSS ≥ 30%, and Total ≤ 100% first!',
-                    'أغلق البوابة واضبط الدروع ≥ 45% والمياه ≥ 30% والمجموع ≤ 100% أولاً!'
-                  )}
-                </p>
-              )}
+            )}
+          </div>
+        }
+        primaryCta={
+          stormStep < 4 ? (
+            !stormDefenseActive ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!blastDoorSealed || powerSplit.shield < 45 || powerSplit.water < 30 || totalPower > 100) {
+                    soundManager.playAlertSiren();
+                    setTradeOffChoice('farm_only');
+                    return;
+                  }
+                  soundManager.playClick();
+                  setTradeOffChoice('shield_o2');
+                  setStormDefenseActive(true);
+                }}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-hud font-black text-xs sm:text-sm cursor-pointer border-2 border-white"
+              >
+                {tr(language, 'Start 10s Storm Defense & Hold Shield! 🛡️', 'ابدأ صمود العاصفة (10 ثوانٍ) 🛡️')}
+              </button>
+            ) : (
+              <div className="py-2 rounded-xl bg-cyan-950/80 border border-cyan-400 text-xs font-hud font-bold text-center text-cyan-200">
+                {blastDoorSealed && powerSplit.shield >= 45 && powerSplit.water >= 30 && totalPower <= 100
+                  ? tr(language, '🛡️ Shield holding steady against CME plasma burst!', '🛡️ الدرع يصد العاصفة الشمسية بنجاح!')
+                  : tr(language, '⚠️ Restore Shield ≥45%, ECLSS ≥30%, Total ≤100% & Seal Door!', '⚠️ أعد ضبط الطاقة وأغلق البوابة!')}
+              </div>
+            )
+          ) : (
+            <div className="py-2 rounded-xl bg-emerald-950/85 border border-emerald-400 text-center text-xs font-hud font-black text-emerald-200">
+              {tr(language, '✅ Lunar Base Safe — Solar Storm Deflected!', '✅ القاعدة آمنة — تم صد العاصفة الشمسية!')}
             </div>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
     );
   }
 
@@ -964,53 +930,49 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
     const all4ToolsPacked = packedTools.length >= EVA_TOOLS.length;
 
     return (
-      <div className="bg-slate-900/95 border-2 border-indigo-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
-        <div className="p-3 rounded-2xl bg-cyan-950/60 border border-cyan-400/50 text-xs text-cyan-100 leading-relaxed">
-          🦺{' '}
-          {tr(
-            language,
-            'Science Fact: Inside the station you wear the lightweight SPACE-FIT X (IVA) suit; outside on the Moon you must don the pressurized Artemis xEMU (EVA) suit!',
-            'معلومة علمية: داخل المحطة ترتدي بدلة التدريب SPACE-FIT X (IVA) الخفيفة، أما عند الخروج لسطح القمر فيلزم ارتداء بدلة الضغط الخارجية Artemis xEMU (EVA) ذات الخوذة والضغط الجوي!'
-          )}
-        </div>
+      <StationLandscapeFrame
+        accentBorderClass="border-indigo-400/70"
+        roboTip={tr(
+          language,
+          'Assemble all 5 pressurized Artemis xEMU parts and pack 4 geology tools!',
+          'ركّب أجزاء بدلة القمر الخمسة واحزم الأدوات الجيولوجية الأربع!'
+        )}
+        leftStage={
+          <div className="flex-1 min-h-0 flex flex-col justify-between gap-1.5 overflow-hidden">
+            <div className="px-2 py-1 rounded-xl bg-cyan-950/60 border border-cyan-400/50 text-[10.5px] text-cyan-100 leading-snug shrink-0">
+              🦺 {tr(language, 'EVA Artemis xEMU keeps 4.3 PSI outside on the Moon!', 'بدلة xEMU تحفظ ضغط 4.3 PSI خارج القمر!')}
+            </div>
 
-        <div>
-          <h3 className="font-hud font-black text-sm sm:text-base text-cyan-200 mb-2">
-            {tr(
-              language,
-              `Part A: Assemble Pressurized Lunar Suit (${suitParts.length}/${partASuit.length}):`,
-              `الجزء أ: ارتداء وفحص بدلة السير القمرية (${suitParts.length}/${partASuit.length}):`
-            )}
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-            {partASuit.map((p) => {
-              const ok = suitParts.includes(p.id);
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => toggleSuit(p.id)}
-                  className={`p-3 rounded-2xl border-2 font-hud font-bold text-xs sm:text-sm cursor-pointer ${
-                    language === 'ar' ? 'text-right' : 'text-left'
-                  } ${ok ? 'bg-emerald-950 border-emerald-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-200'}`}
-                >
-                  {ok ? '✅ ' : '⬜ '}
-                  {tr(language, p.labelEn, p.labelAr)}
-                </button>
-              );
-            })}
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
+              <div className="text-[11px] font-hud font-black text-cyan-200">
+                {tr(language, `Part A: xEMU Suit (${suitParts.length}/${partASuit.length})`, `أ: البدلة (${suitParts.length}/${partASuit.length})`)}
+              </div>
+              {partASuit.map((p) => {
+                const ok = suitParts.includes(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => toggleSuit(p.id)}
+                    className={`w-full p-1.5 rounded-xl border-2 font-hud font-bold text-[11px] cursor-pointer ${
+                      language === 'ar' ? 'text-right' : 'text-left'
+                    } ${ok ? 'bg-emerald-950 border-emerald-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-200'}`}
+                  >
+                    {ok ? '✅ ' : '⬜ '}
+                    {tr(language, p.labelEn, p.labelAr)}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
-
-        <div>
-          <h3 className="font-hud font-black text-sm sm:text-base text-amber-300 mb-2">
-            {tr(
-              language,
-              `Part B: Pack All 4 Scientific Tools (${packedTools.length}/4):`,
-              `الجزء ب: احزم الأدوات العلمية الأربع في الحقيبة (${packedTools.length}/4):`
-            )}
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        }
+        rightHeader={
+          <div className="text-xs font-hud font-black text-amber-300">
+            {tr(language, `Part B: Pack 4 Scientific Tools (${packedTools.length}/4)`, `ب: حزم الأدوات العلمية الأربع (${packedTools.length}/4)`)}
+          </div>
+        }
+        rightContent={
+          <div className="grid grid-cols-2 gap-1.5 my-auto">
             {EVA_TOOLS.map((tool) => {
               const packed = packedTools.includes(tool.id);
               return (
@@ -1019,31 +981,28 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
                   type="button"
                   data-testid={`pack-tool-${tool.id}`}
                   onClick={() => toggleTool(tool.id)}
-                  className={`p-3.5 rounded-2xl border-2 flex items-center justify-between cursor-pointer ${
+                  className={`p-2 rounded-xl border-2 flex items-center justify-between gap-1.5 cursor-pointer ${
                     packed
                       ? 'bg-emerald-950 border-emerald-400 text-white'
                       : 'bg-slate-800 border-amber-400/60 text-slate-200'
                   }`}
                 >
-                  <div className={`flex items-center gap-2.5 ${language === 'ar' ? 'text-right' : 'text-left'}`}>
-                    <span className="text-2xl">{tool.icon}</span>
-                    <div>
-                      <p className="font-hud font-black text-sm">
-                        {tr(language, tool.nameEn, `${tool.nameAr} (${tool.nameEn})`)}
-                      </p>
-                      <p className="font-hud text-xs text-cyan-200">{tr(language, tool.purposeEn, tool.purposeAr)}</p>
+                  <div className={`flex items-center gap-1.5 min-w-0 ${language === 'ar' ? 'text-right' : 'text-left'}`}>
+                    <span className="text-xl shrink-0">{tool.icon}</span>
+                    <div className="min-w-0">
+                      <p className="font-hud font-black text-xs truncate">{tr(language, tool.nameEn, tool.nameAr)}</p>
+                      <p className="font-hud text-[10px] text-cyan-200 truncate">{tr(language, tool.purposeEn, tool.purposeAr)}</p>
                     </div>
                   </div>
-                  <span className="text-xs font-hud font-black text-amber-300">
-                    {packed ? tr(language, 'Packed ✅', 'في الحقيبة ✅') : tr(language, 'Pack +', 'أضف للحقيبة +')}
+                  <span className="text-[11px] font-hud font-black text-amber-300 shrink-0">
+                    {packed ? '✅' : '+'}
                   </span>
                 </button>
               );
             })}
           </div>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
+        }
+        primaryCta={
           <button
             type="button"
             disabled={!partAReady}
@@ -1061,27 +1020,23 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
                 onCompleteMiniGame('l3_eva_prep', { l3EvaSuitAssembled: true, l3PackedTools: packedTools });
               } else {
                 void dialogueManager.speak(
-                  tr(
-                    language,
-                    'Suit ready — remember to pack all 4 tools before sampling!',
-                    'البدلة جاهزة لكن لاحظ أنك لم تحزم كل الأدوات بعد!'
-                  )
+                  tr(language, 'Suit ready — remember to pack all 4 tools before sampling!', 'البدلة جاهزة لكن تذكر حزم كل الأدوات!')
                 );
               }
               onJumpToRoom('lunar_exploration_zone', 'l3_lunar_samples');
             }}
-            className={`flex-1 py-3.5 rounded-2xl font-hud font-black text-base border-2 ${
+            className={`w-full py-2.5 rounded-xl font-hud font-black text-xs sm:text-sm border-2 ${
               partAReady
                 ? 'bg-gradient-to-r from-indigo-400 to-cyan-400 text-slate-950 border-white cursor-pointer'
-                : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+                : 'bg-slate-800 text-slate-400 border-slate-700 cursor-not-allowed'
             }`}
           >
             {all4ToolsPacked
-              ? tr(language, 'Step Out onto the Moon 👨‍🚀', 'تأكيد البدلة والأدوات ← الخروج لسطح القمر 👨‍🚀')
-              : tr(language, 'Exit to Moon (Pack all 4 tools recommended) 👨‍🚀', 'اخرج لسطح القمر الآن (تحتاج كل الأدوات لاحقاً) 👨‍🚀')}
+              ? tr(language, 'Step Out onto the Moon 👨‍🚀', 'تأكيد البدلة والأدوات ← سطح القمر 👨‍🚀')
+              : tr(language, 'Exit to Moon (Pack all 4 tools recommended) 👨‍🚀', 'اخرج لسطح القمر الآن 👨‍🚀')}
           </button>
-        </div>
-      </div>
+        }
+      />
     );
   }
 
@@ -1142,105 +1097,97 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
     };
 
     return (
-      <div className="bg-slate-900/95 border-2 border-slate-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-950 rounded-2xl p-3 border border-cyan-500/40">
-          <span className="font-hud font-black text-sm text-cyan-200">
-            {tr(language, `🌕 Lunar Gravity: 0.16G • Suit O2: ${suitO2}%`, `🌕 جاذبية سطح القمر: 0.16G • أكسجين البدلة: ${suitO2}%`)}
-          </span>
-          <span className="font-hud font-bold text-xs text-amber-300">
-            {tr(
-              language,
-              `Packed Tools: ${campaign.l3PackedTools.length}/4 (${campaign.l3PackedTools.join(', ') || 'Empty!'})`,
-              `الأدوات في حقيبتك: ${campaign.l3PackedTools.length}/4 (${campaign.l3PackedTools.join(', ') || 'فارغة!'})`
-            )}
-          </span>
-        </div>
-
-        {missingToolError && (
-          <div className="p-4 rounded-2xl bg-rose-950 border-2 border-rose-400 text-rose-100 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 font-hud font-black text-sm">
-              <AlertTriangle className="w-5 h-5 text-amber-300 shrink-0" />
-              <span>{missingToolError}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => onJumpToRoom('fitness_room', 'l3_resistance_training')}
-              className="px-4 py-2 rounded-xl bg-amber-400 text-slate-950 font-hud font-black text-xs cursor-pointer flex items-center gap-1.5"
-            >
-              <Wrench className="w-4 h-4" />
-              <span>{tr(language, 'Return to Fitness & EVA Tool Rack 🎒', 'العودة إلى محطة التمارين وحقيبة الأدوات 🎒')}</span>
-            </button>
-          </div>
+      <StationLandscapeFrame
+        accentBorderClass="border-slate-400/70"
+        roboTip={tr(
+          language,
+          'Visit each crater site and collect Basalt, Regolith & Pebbles using your tools!',
+          'زر مواقع القمر الثلاث واجمع عينات البازلت والريجوليث والحصى بأدواتك!'
         )}
+        leftStage={
+          <div className="flex-1 min-h-0 flex flex-col justify-between gap-1.5 overflow-hidden">
+            <div className="px-2 py-1.5 rounded-xl bg-slate-950 border border-cyan-500/40 flex items-center justify-between gap-1.5 text-[11px] shrink-0">
+              <span className="font-hud font-black text-cyan-200">
+                {tr(language, `🌕 0.16G • O2: ${suitO2}%`, `🌕 0.16G • أكسجين: ${suitO2}%`)}
+              </span>
+              <span className="font-hud font-bold text-amber-300 truncate">
+                {tr(language, `Tools: ${campaign.l3PackedTools.length}/4`, `الأدوات: ${campaign.l3PackedTools.length}/4`)}
+              </span>
+            </div>
 
-        {/* 0.16G Low-Gravity Crater Dust Settling Canvas */}
-        <div className="rounded-2xl bg-slate-950/90 border border-slate-700 p-2.5 space-y-1">
-          <div className="flex items-center justify-between text-[11px] font-hud font-bold text-slate-300">
-            <span>{tr(language, '🌑 0.16G Lunar Regolith Plume & Crater Rim Sensor', '🌑 مستشعر غبار القمر (جاذبية 0.16G)')}</span>
-            <span className="text-amber-300">{tr(language, `${collectedSamples.length}/3 Samples Sealed`, `${collectedSamples.length}/3 عينات`)}</span>
-          </div>
-          <canvas ref={craterCanvasRef} width={380} height={64} className="w-full h-16 rounded-xl" />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {LUNAR_SITES.map((site) => {
-            const collected = collectedSamples.includes(site.sampleId);
-            return (
-              <div
-                key={site.sampleId}
-                className={`p-4 rounded-2xl border-2 flex flex-col justify-between gap-3 ${
-                  collected ? 'bg-emerald-950 border-emerald-400' : 'bg-slate-800 border-slate-600'
-                }`}
-              >
-                <div>
-                  <span className="text-3xl">{site.icon}</span>
-                  <p className="font-hud font-black text-sm text-white mt-1">
-                    {tr(language, site.nameEn, site.nameAr)}
-                  </p>
-                  <p className="font-hud text-xs text-amber-200 mt-1">
-                    {tr(language, `Required Tool: ${site.requiredToolEn}`, `الأداة المطلوبة: ${site.requiredToolAr}`)}
-                  </p>
-                  {collected && (
-                    <p className="font-hud text-xs text-emerald-200 mt-2">
-                      📝 {tr(language, site.observationEn, `الملاحظة: ${site.observationAr}`)}
-                    </p>
-                  )}
+            {missingToolError && (
+              <div className="p-2 rounded-xl bg-rose-950 border border-rose-400 text-rose-100 flex items-center justify-between gap-2 text-[11px] shrink-0">
+                <div className="flex items-center gap-1.5 font-hud font-bold min-w-0">
+                  <AlertTriangle className="w-4 h-4 text-amber-300 shrink-0" />
+                  <span className="line-clamp-2">{missingToolError}</span>
                 </div>
                 <button
                   type="button"
-                  disabled={collected}
-                  onClick={() => tryCollectSite(site)}
-                  className={`py-2 rounded-xl font-hud font-black text-xs ${
-                    collected
-                      ? 'bg-emerald-500/20 text-emerald-300'
-                      : 'bg-cyan-500 text-slate-950 cursor-pointer hover:brightness-110'
-                  }`}
+                  onClick={() => onJumpToRoom('fitness_room', 'l3_resistance_training')}
+                  className="px-2.5 py-1 rounded-lg bg-amber-400 text-slate-950 font-hud font-black text-[10px] cursor-pointer flex items-center gap-1 shrink-0"
                 >
-                  {collected ? tr(language, 'Collected & Logged ✅', 'تم الجمع والتسجيل ✅') : tr(language, 'Collect Sample 🪨', 'اجمع العينة الآن 🪨')}
+                  <Wrench className="w-3 h-3" />
+                  <span>{tr(language, 'Tool Rack 🎒', 'الأدوات 🎒')}</span>
                 </button>
               </div>
-            );
-          })}
-        </div>
+            )}
 
-        <button
-          type="button"
-          disabled={!all3Collected}
-          onClick={finishSamples}
-          className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 ${
-            all3Collected
-              ? 'bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 border-white cursor-pointer'
-              : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-          }`}
-        >
-          {loggedObservations
-            ? tr(language, 'Samples Saved ✅ Ready for Earth Return Gate', 'تم حفظ عينات القمر ✅ جاهز لإذن العودة')
-            : tr(language, `Log Samples & Seal Container (${collectedSamples.length}/3)`, `تسجيل العينات وإغلاق الحاوية (${collectedSamples.length}/3)`)}
-        </button>
-
-        {loggedObservations && (
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-950 border-2 border-purple-400 text-center space-y-2.5">
-            {campaign.l3ReturnAuthorized ? (
+            <div className="flex-1 min-h-0 rounded-xl bg-slate-950/90 border border-slate-700 p-2 flex flex-col justify-between gap-1">
+              <div className="flex items-center justify-between text-[10.5px] font-hud font-bold text-slate-300 shrink-0">
+                <span>{tr(language, '🌑 0.16G Lunar Crater LIDAR', '🌑 مستشعر غبار فوهة القمر 0.16G')}</span>
+                <span className="text-amber-300">{tr(language, `${collectedSamples.length}/3 Sealed`, `${collectedSamples.length}/3 عينات`)}</span>
+              </div>
+              <canvas ref={craterCanvasRef} width={380} height={84} className="w-full flex-1 min-h-[80px] rounded-lg object-cover" />
+            </div>
+          </div>
+        }
+        rightHeader={
+          <div className="text-xs font-hud font-black text-slate-200">
+            {tr(language, `🪨 Lunar Crater Sampling Sites (${collectedSamples.length}/3)`, `🪨 مواقع جمع عينات القمر (${collectedSamples.length}/3)`)}
+          </div>
+        }
+        rightContent={
+          <div className="space-y-1.5 my-auto">
+            {LUNAR_SITES.map((site) => {
+              const collected = collectedSamples.includes(site.sampleId);
+              return (
+                <div
+                  key={site.sampleId}
+                  className={`p-2 rounded-xl border-2 flex items-center justify-between gap-2 ${
+                    collected ? 'bg-emerald-950 border-emerald-400' : 'bg-slate-800 border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className="text-2xl shrink-0">{site.icon}</span>
+                    <div className="min-w-0">
+                      <p className="font-hud font-black text-xs text-white truncate">{tr(language, site.nameEn, site.nameAr)}</p>
+                      <p className="font-hud text-[10.5px] text-amber-200 truncate">
+                        {collected
+                          ? `📝 ${tr(language, site.observationEn, site.observationAr)}`
+                          : tr(language, `Tool: ${site.requiredToolEn}`, `الأداة: ${site.requiredToolAr}`)}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={collected}
+                    onClick={() => tryCollectSite(site)}
+                    className={`px-3 py-1.5 rounded-lg font-hud font-black text-[11px] shrink-0 ${
+                      collected
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : 'bg-cyan-500 text-slate-950 cursor-pointer hover:brightness-110'
+                    }`}
+                  >
+                    {collected ? tr(language, 'Logged ✅', 'تم الجمع ✅') : tr(language, 'Collect 🪨', 'اجمع 🪨')}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        }
+        primaryCta={
+          loggedObservations ? (
+            campaign.l3ReturnAuthorized ? (
               <button
                 type="button"
                 data-testid="mission-next-level-btn"
@@ -1248,7 +1195,7 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
                   soundManager.playClick();
                   onNextLevel();
                 }}
-                className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-300 to-emerald-400 text-slate-950 font-hud font-black text-sm sm:text-base border-2 border-white cursor-pointer"
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-300 to-emerald-400 text-slate-950 font-hud font-black text-xs sm:text-sm border-2 border-white cursor-pointer"
               >
                 {tr(language, 'Earth Return Authorized! Launch Level 4 🌍🚀', 'تم اعتماد العودة! انطلق للمرحلة 4 🌍🚀')}
               </button>
@@ -1261,14 +1208,27 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
                   confetti({ particleCount: 140, spread: 90 });
                   onAuthorizeReturn();
                 }}
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-300 to-orange-400 text-slate-950 font-hud font-black text-base border-2 border-white shadow-lg cursor-pointer"
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-300 to-orange-400 text-slate-950 font-hud font-black text-xs sm:text-sm border-2 border-white shadow cursor-pointer"
               >
-                {tr(language, '🚀 Authorize Earth Return & Unlock Level 4 🌍', '🚀 اعتماد تصريح العودة وفتح المرحلة الرابعة 🌍')}
+                {tr(language, '🚀 Authorize Earth Return & Unlock Level 4 🌍', '🚀 اعتماد تصريح العودة وفتح المرحلة 4 🌍')}
               </button>
-            )}
-          </div>
-        )}
-      </div>
+            )
+          ) : (
+            <button
+              type="button"
+              disabled={!all3Collected}
+              onClick={finishSamples}
+              className={`w-full py-2.5 rounded-xl font-hud font-black text-xs sm:text-sm border-2 ${
+                all3Collected
+                  ? 'bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 border-white cursor-pointer'
+                  : 'bg-slate-800 text-slate-400 border-slate-700 cursor-not-allowed'
+              }`}
+            >
+              {tr(language, `Log Samples & Seal Container (${collectedSamples.length}/3)`, `تسجيل العينات وإغلاق الحاوية (${collectedSamples.length}/3)`)}
+            </button>
+          )
+        }
+      />
     );
   }
 
@@ -1284,83 +1244,87 @@ export const Level3MiniGames: React.FC<Level3Props> = ({
   ].every((id) => campaign.completedMiniGames.includes(id as MiniGameId));
 
   return (
-    <div className="bg-slate-900/95 border-4 border-purple-400 rounded-3xl p-6 flex flex-col gap-4 shadow-2xl">
-      <h2 className="font-hud font-black text-xl text-white flex items-center gap-2">
-        <ShieldAlert className="w-6 h-6 text-amber-300" />
-        <span>{tr(language, 'Lunar Mission Control — Earth Return Authorization', 'مركز قيادة القمر — مراجعة الإذن بالعودة للأرض')}</span>
-      </h2>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-hud font-black">
-        <div className="p-3.5 rounded-2xl bg-slate-950 border border-emerald-400/60">
-          <p className="text-emerald-300">{tr(language, '💪 Bone & Muscle Score (OSDR)', '💪 كثافة العظام والعضلات (OSDR)')}</p>
-          <p className="text-lg text-white mt-1">{campaign.l3BoneMuscleScore || (campaign.completedMiniGames.includes('l3_resistance_training') ? 100 : 60)}%</p>
+    <StationLandscapeFrame
+      accentBorderClass="border-purple-400/75"
+      roboTip={tr(
+        language,
+        'Review Moon mission telemetry and authorize Orion Trans-Earth Injection!',
+        'راجع نتائج القمر واعتمد إذن العودة إلى كوكب الأرض!'
+      )}
+      leftStage={
+        <div className="flex-1 min-h-0 flex flex-col justify-center gap-2 p-1">
+          <div className="flex items-center gap-2 text-sm font-hud font-black text-white">
+            <ShieldAlert className="w-5 h-5 text-amber-300 shrink-0" />
+            <span>{tr(language, 'Lunar Command Auth', 'إذن قيادة القمر')}</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-950 border border-emerald-400/60 flex justify-between text-xs font-hud font-black">
+            <span className="text-emerald-300">{tr(language, '💪 Bone Score', '💪 العظام والعضلات')}</span>
+            <span className="text-white">{campaign.l3BoneMuscleScore || (campaign.completedMiniGames.includes('l3_resistance_training') ? 100 : 60)}%</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-950 border border-cyan-400/60 flex justify-between text-xs font-hud font-black">
+            <span className="text-cyan-300">{tr(language, '🪨 Samples Stowed', '🪨 عينات القمر')}</span>
+            <span className="text-white">{campaign.l3CollectedSamples.length} / 3</span>
+          </div>
         </div>
-        <div className="p-3.5 rounded-2xl bg-slate-950 border border-cyan-400/60">
-          <p className="text-cyan-300">{tr(language, '🪨 Lunar Samples Stowed', '🪨 عينات القمر المحفوظة')}</p>
-          <p className="text-lg text-white mt-1">{campaign.l3CollectedSamples.length} / 3</p>
-        </div>
-        <div className="p-3.5 rounded-2xl bg-slate-950 border border-amber-400/60">
-          <p className="text-amber-300">{tr(language, '☀️ Outpost Missions', '☀️ حالة المهام الخمس')}</p>
-          <p className="text-lg text-white mt-1">
-            {all5Complete ? tr(language, '5/5 Complete ✅', 'مكتملة 5/5 ✅') : tr(language, 'Complete 5 Missions 🔒', 'أكمل المهام أولاً 🔒')}
+      }
+      rightContent={
+        <div className="my-auto p-3 rounded-2xl bg-slate-950/85 border border-purple-400/50 text-center space-y-2">
+          <p className="font-hud font-black text-sm text-amber-300">
+            {all5Complete ? tr(language, 'All Lunar Outpost Missions Complete ✅', 'المهام القمرية مكتملة ✅') : tr(language, 'Complete Outpost Missions First 🔒', 'أكمل مهام القمر أولاً 🔒')}
           </p>
-        </div>
-      </div>
-
-      {campaign.l3ReturnAuthorized ? (
-        <div className="p-5 rounded-3xl bg-gradient-to-br from-emerald-950 to-slate-950 border-4 border-emerald-300 text-center space-y-3">
-          <p className="font-mono font-black text-lg sm:text-2xl text-amber-300">
-            {tr(language, 'ALL SYSTEMS VERIFIED – RETURN TO EARTH AUTHORIZED!', 'تم التحقق من الأنظمة بالكامل — أُقر إذن العودة للأرض!')}
-          </p>
-          <p className="font-hud font-bold text-sm text-white">
+          <p className="text-xs text-slate-200">
             {tr(
               language,
-              'All lunar systems & samples verified! Level 4 Unlocked: Return to Earth 🌍',
-              'تم التحقق من كل الأنظمة وعينات القمر! فُتح المستوى الرابع: رحلة العودة إلى الأرض 🌍'
+              'All lunar systems & samples verified for Orion return trajectory.',
+              'تم التحقق من كل الأنظمة وعينات القمر لإطلاق رحلة العودة.'
             )}
           </p>
-          <div className="flex flex-wrap justify-center gap-3">
+        </div>
+      }
+      primaryCta={
+        campaign.l3ReturnAuthorized ? (
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onNextLevel}
               data-testid="mission-next-level-btn"
-              className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-300 via-teal-300 to-cyan-300 text-slate-950 font-hud font-black text-base border-2 border-white shadow-[0_0_26px_rgba(52,211,153,0.75)] cursor-pointer hover:scale-105 transition-transform animate-pulse"
+              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-300 via-teal-300 to-cyan-300 text-slate-950 font-hud font-black text-xs sm:text-sm border-2 border-white cursor-pointer"
             >
-              {tr(language, 'Mission Complete! Board Orion Home 🚀', 'المهمة اكتملت! انطلق للمرحلة التالية 🚀')}
+              {tr(language, 'Mission Complete! Board Orion Home 🚀', 'انطلق للمرحلة الرابعة 🌍🚀')}
             </button>
             <button
               type="button"
               onClick={onBackToLevel}
-              className="px-4 py-3 rounded-2xl bg-slate-800 text-white font-hud font-bold text-sm border border-cyan-400 cursor-pointer"
+              className="px-4 py-2.5 rounded-xl bg-slate-800 text-white font-hud font-bold text-xs border border-cyan-400 cursor-pointer"
             >
-              {tr(language, 'Back to Station Map', 'العودة للخريطة')}
+              {tr(language, 'Back', 'رجوع')}
             </button>
           </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          disabled={!all5Complete}
-          onClick={() => {
-            confetti({ particleCount: 140, spread: 90 });
-            void dialogueManager.speak(
-              tr(
-                language,
-                'Return to Earth authorized! Level 4 Orion Transit is unlocked!',
-                'الإذن بالعودة إلى الأرض مُعتمد! انطلق للمستوى الرابع!'
-              )
-            );
-            onAuthorizeReturn();
-          }}
-          className={`w-full py-4 rounded-2xl font-hud font-black text-lg border-2 ${
-            all5Complete
-              ? 'bg-gradient-to-r from-purple-500 to-emerald-500 text-white border-white cursor-pointer'
-              : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-          }`}
-        >
-          {tr(language, 'INITIATE RETURN TO EARTH 🚀', 'اعتماد انطلاق رحلة العودة للأرض 🚀')}
-        </button>
-      )}
-    </div>
+        ) : (
+          <button
+            type="button"
+            disabled={!all5Complete}
+            onClick={() => {
+              confetti({ particleCount: 140, spread: 90 });
+              void dialogueManager.speak(
+                tr(
+                  language,
+                  'Return to Earth authorized! Level 4 Orion Transit is unlocked!',
+                  'الإذن بالعودة إلى الأرض مُعتمد! انطلق للمستوى الرابع!'
+                )
+              );
+              onAuthorizeReturn();
+            }}
+            className={`w-full py-2.5 rounded-xl font-hud font-black text-xs sm:text-sm border-2 ${
+              all5Complete
+                ? 'bg-gradient-to-r from-purple-500 to-emerald-500 text-white border-white cursor-pointer'
+                : 'bg-slate-800 text-slate-400 border-slate-700 cursor-not-allowed'
+            }`}
+          >
+            {tr(language, 'INITIATE RETURN TO EARTH 🚀', 'اعتماد انطلاق رحلة العودة للأرض 🚀')}
+          </button>
+        )
+      }
+    />
   );
 };

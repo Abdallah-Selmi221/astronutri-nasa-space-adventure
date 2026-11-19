@@ -12,6 +12,7 @@ export interface AstronautBioTwinProps {
   radiationShielded?: boolean;
   language: AppLanguage;
   compact?: boolean;
+  mini?: boolean;
   onInteractClick?: () => void;
 }
 
@@ -57,6 +58,7 @@ export const AstronautBioTwin: React.FC<AstronautBioTwinProps> = ({
   radiationShielded = false,
   language,
   compact = false,
+  mini = false,
   onInteractClick
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -113,8 +115,9 @@ export const AstronautBioTwin: React.FC<AstronautBioTwinProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const w = compact ? 156 : 210;
-    const h = compact ? 176 : 230;
+    const isMini = mini;
+    const w = isMini ? 88 : compact ? 156 : 210;
+    const h = isMini ? 98 : compact ? 176 : 230;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = w * dpr;
     canvas.height = h * dpr;
@@ -158,7 +161,7 @@ export const AstronautBioTwin: React.FC<AstronautBioTwinProps> = ({
 
       const cx = w * 0.5;
       const cy = h * 0.49 + Math.sin(t * 2.1) * 2.5;
-      const scale = compact ? 54 : 74;
+      const scale = mini ? 34 : compact ? 54 : 74;
 
       // Hologram base scan grid & emitter beam
       const baseGlow = ctx.createRadialGradient(cx, h * 0.90, 4, cx, h * 0.90, w * 0.40);
@@ -166,7 +169,7 @@ export const AstronautBioTwin: React.FC<AstronautBioTwinProps> = ({
       baseGlow.addColorStop(1, 'rgba(34, 211, 238, 0)');
       ctx.fillStyle = baseGlow;
       ctx.beginPath();
-      ctx.ellipse(cx, h * 0.90, w * 0.36, compact ? 10 : 13, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, h * 0.90, w * 0.36, mini ? 6 : compact ? 10 : 13, 0, 0, Math.PI * 2);
       ctx.fill();
 
       // Draw volumetric scanline cone
@@ -236,7 +239,7 @@ export const AstronautBioTwin: React.FC<AstronautBioTwinProps> = ({
 
       // Stomach / Metabolic Energy Reactor Core
       const coreP = project3D({ x: 0, y: 0.08, z: 0.05 }, yaw, pitch, cx, cy, scale);
-      const coreRadius = (compact ? 11 : 15) * (0.78 + s.rationsGlow * 0.45 + Math.sin(t * 4.5) * 0.08);
+      const coreRadius = (mini ? 7 : compact ? 11 : 15) * (0.78 + s.rationsGlow * 0.45 + Math.sin(t * 4.5) * 0.08);
       const coreGrad = ctx.createRadialGradient(coreP.x, coreP.y, 1, coreP.x, coreP.y, coreRadius * 1.45);
       coreGrad.addColorStop(0, '#ffffff');
       coreGrad.addColorStop(0.45, stomachColor);
@@ -248,7 +251,7 @@ export const AstronautBioTwin: React.FC<AstronautBioTwinProps> = ({
 
       // Helmet + Cranial Hydration Halo
       const headP = project3D({ x: 0, y: 0.74, z: 0 }, yaw, pitch, cx, cy, scale);
-      const headR = compact ? 13 : 17;
+      const headR = mini ? 9 : compact ? 13 : 17;
       ctx.strokeStyle = hydrColor;
       ctx.lineWidth = focusZone === 'hydration' ? 3 : 2;
       ctx.beginPath();
@@ -269,7 +272,7 @@ export const AstronautBioTwin: React.FC<AstronautBioTwinProps> = ({
         );
         ctx.fillStyle = hydrColor;
         ctx.beginPath();
-        ctx.arc(hp.x, hp.y, compact ? 2.4 : 3, 0, Math.PI * 2);
+        ctx.arc(hp.x, hp.y, mini ? 1.8 : compact ? 2.4 : 3, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -300,7 +303,7 @@ export const AstronautBioTwin: React.FC<AstronautBioTwinProps> = ({
 
     rafId = requestAnimationFrame(renderFrame);
     return () => cancelAnimationFrame(rafId);
-  }, [compact, focusZone, rationsCount, suitCalibrated]);
+  }, [compact, mini, focusZone, rationsCount, suitCalibrated]);
 
   const statusText = useMemo(() => {
     if (focusZone === 'core') {
@@ -337,8 +340,12 @@ export const AstronautBioTwin: React.FC<AstronautBioTwinProps> = ({
       ref={cardRef}
       data-testid="astronaut-bio-twin"
       dir={language === 'ar' ? 'rtl' : 'ltr'}
-      className={`rounded-2xl bg-slate-950/92 border-2 border-cyan-400/55 ${
-        compact ? 'p-2.5 flex items-center gap-2.5' : 'p-3.5 space-y-2.5'
+      className={`rounded-2xl bg-slate-950/92 border ${
+        mini
+          ? 'border-cyan-400/45 p-1.5 flex items-center gap-2'
+          : compact
+          ? 'border-2 border-cyan-400/55 p-2.5 flex items-center gap-2.5'
+          : 'border-2 border-cyan-400/55 p-3.5 space-y-2.5'
       } shadow-xl backdrop-blur-md`}
     >
       <button
@@ -369,20 +376,25 @@ export const AstronautBioTwin: React.FC<AstronautBioTwinProps> = ({
         <canvas
           ref={canvasRef}
           data-testid="bio-twin-canvas"
-          style={{ width: compact ? 156 : 210, height: compact ? 176 : 230 }}
+          style={{
+            width: mini ? 88 : compact ? 156 : 210,
+            height: mini ? 98 : compact ? 176 : 230
+          }}
           className="block"
         />
-        <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-300/50 text-[9px] font-hud font-black text-cyan-100">
-          {tr(language, 'SPACE BUDDY', 'بطل الفضاء')}
-        </span>
+        {!mini && (
+          <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-300/50 text-[9px] font-hud font-black text-cyan-100">
+            {tr(language, 'SPACE BUDDY', 'بطل الفضاء')}
+          </span>
+        )}
       </button>
 
-      <div className="flex-1 min-w-0 space-y-2">
-        <div className="text-[11px] font-hud font-black text-cyan-200 leading-snug">
+      <div className={`flex-1 min-w-0 ${mini ? 'space-y-1' : 'space-y-2'}`}>
+        <div className={`${mini ? 'text-[10px]' : 'text-[11px]'} font-hud font-black text-cyan-200 leading-tight truncate`}>
           {statusText}
         </div>
 
-        <div className="grid grid-cols-2 gap-1.5 text-[10px] font-bold">
+        <div className={`grid grid-cols-2 ${mini ? 'gap-1 text-[9.5px]' : 'gap-1.5 text-[10px]'} font-bold`}>
           <button
             type="button"
             onClick={() => {

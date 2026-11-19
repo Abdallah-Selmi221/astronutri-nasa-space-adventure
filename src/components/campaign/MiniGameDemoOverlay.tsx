@@ -9,6 +9,7 @@ import { soundManager } from '../../utils/sound';
 interface MiniGameDemoOverlayProps {
   miniGameId: MiniGameId | string;
   onFinish: () => void;
+  compact?: boolean;
 }
 
 interface DemoSpec {
@@ -790,7 +791,8 @@ function renderDemoCanvasFrame(
 
 export const MiniGameDemoOverlay: React.FC<MiniGameDemoOverlayProps> = ({
   miniGameId,
-  onFinish
+  onFinish,
+  compact = true
 }) => {
   const { language } = useGameState();
   const spec = DEMO_SPECS[miniGameId] || DEMO_SPECS.l1_food_prep;
@@ -850,15 +852,17 @@ export const MiniGameDemoOverlay: React.FC<MiniGameDemoOverlayProps> = ({
       animate={{ opacity: 1 }}
       data-testid="minigame-demo-overlay"
       dir={language === 'ar' ? 'rtl' : 'ltr'}
-      className="rounded-3xl bg-slate-950/95 border-2 border-cyan-400/75 p-4 sm:p-5 shadow-2xl space-y-4 max-h-[82vh] overflow-y-auto"
+      className={`rounded-3xl bg-slate-950/95 border-2 border-cyan-400/75 shadow-2xl flex flex-col overflow-hidden ${
+        compact ? 'p-3 sm:p-4 gap-2.5 max-h-[335px] sm:max-h-[420px]' : 'p-4 sm:p-5 gap-3 max-h-[340px] sm:max-h-[82vh]'
+      }`}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-300/60 text-cyan-200 font-hud font-black text-[11px]">
-            <Play className="w-3.5 h-3.5 fill-current" />
-            {tr(language, 'LIVE VISUAL DEMO • 5s', 'شرح مرئي تفاعلي • 5 ثوانٍ')}
+      <div className="flex items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-300/60 text-cyan-200 font-hud font-black text-[11px] shrink-0">
+            <Play className="w-3 h-3 fill-current" />
+            {tr(language, 'LIVE DEMO • 5s', 'شرح مرئي • 5ث')}
           </span>
-          <span className="text-xs font-mono font-bold text-slate-300">{remainSec}s</span>
+          <span className="text-xs font-mono font-bold text-slate-300 shrink-0">{remainSec}s</span>
         </div>
 
         <button
@@ -868,42 +872,46 @@ export const MiniGameDemoOverlay: React.FC<MiniGameDemoOverlayProps> = ({
             soundManager.playClick();
             onFinish();
           }}
-          className="px-4 py-2 rounded-full bg-gradient-to-r from-amber-400 via-yellow-300 to-emerald-400 hover:brightness-110 active:scale-95 text-slate-950 font-hud font-black text-xs sm:text-sm shadow-lg inline-flex items-center gap-1.5 cursor-pointer"
+          className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-amber-400 via-yellow-300 to-emerald-400 hover:brightness-110 active:scale-95 text-slate-950 font-hud font-black text-xs shadow-lg inline-flex items-center gap-1.5 cursor-pointer shrink-0"
         >
           <span>{tr(language, 'Skip / Play Now 🚀', 'تخطي / العب الآن 🚀')}</span>
-          <SkipForward className="w-4 h-4" />
+          <SkipForward className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      {/* High-Craft 60fps HTML5 Physics Simulation Canvas */}
-      <div className="relative rounded-2xl bg-slate-950 border border-cyan-400/30 overflow-hidden shadow-inner">
-        <canvas
-          ref={canvasRef}
-          data-testid="demo-physics-canvas"
-          className="w-full h-36 sm:h-44 block"
-        />
-      </div>
-
-      {/* Clear 1-line Objective + Control Strip */}
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-2 text-cyan-200 font-hud font-black text-sm sm:text-base">
-          <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
-          <span>{tr(language, spec.titleEn, spec.titleAr)}</span>
+      {/* Horizontal 2-Column Landscape Demo Stage (zero scroll on 844x390) */}
+      <div className="grid grid-cols-12 gap-3 items-center flex-1 min-h-0">
+        <div className="col-span-6 h-full min-h-0 rounded-2xl bg-slate-950 border border-cyan-400/30 overflow-hidden shadow-inner flex items-center">
+          <canvas
+            ref={canvasRef}
+            data-testid="demo-physics-canvas"
+            className="w-full h-36 sm:h-48 block"
+          />
         </div>
-        <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
-          {tr(language, spec.goalEn, spec.goalAr)}
-        </p>
-        <div className="inline-block px-3 py-1 rounded-xl bg-white/10 border border-white/15 text-[11px] font-hud font-bold text-amber-200">
-          {tr(language, spec.keyControlsEn, spec.keyControlsAr)}
-        </div>
-      </div>
 
-      {/* Progress Bar */}
-      <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-        <div
-          className="h-full bg-gradient-to-r from-cyan-400 via-sky-400 to-emerald-400 transition-all duration-75"
-          style={{ width: `${pct}%` }}
-        />
+        <div className="col-span-6 min-w-0 flex flex-col justify-between gap-2 h-full">
+          <div className="space-y-1.5 min-w-0">
+            <div className="flex items-center gap-1.5 text-cyan-200 font-hud font-black text-xs sm:text-base">
+              <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
+              <span className="truncate">{tr(language, spec.titleEn, spec.titleAr)}</span>
+            </div>
+            <p className="text-[11px] sm:text-sm text-slate-200 leading-snug line-clamp-3">
+              {tr(language, spec.goalEn, spec.goalAr)}
+            </p>
+            <div className="inline-block px-2.5 py-1 rounded-xl bg-white/10 border border-white/15 text-[11px] font-hud font-bold text-amber-200 leading-snug">
+              {tr(language, spec.keyControlsEn, spec.keyControlsAr)}
+            </div>
+          </div>
+
+          <div className="space-y-1 shrink-0">
+            <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-cyan-400 via-sky-400 to-emerald-400 transition-all duration-75"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </motion.div>
   );

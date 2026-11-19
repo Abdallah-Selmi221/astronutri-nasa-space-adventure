@@ -22,6 +22,7 @@ export interface PipeCell {
 interface PipePuzzleProps {
   isProcessorFailed: boolean;
   onPuzzleSolved: () => void;
+  compact?: boolean;
 }
 
 // Initial configuration for 3x3 grid designed to have a solvable continuous circuit
@@ -54,7 +55,11 @@ function getOppositeDir(dir: Direction): Direction {
   return ((dir + 2) % 4) as Direction;
 }
 
-export const PipePuzzle: React.FC<PipePuzzleProps> = ({ isProcessorFailed, onPuzzleSolved }) => {
+export const PipePuzzle: React.FC<PipePuzzleProps> = ({
+  isProcessorFailed,
+  onPuzzleSolved,
+  compact = false
+}) => {
   const { language } = useGameState();
   const [grid, setGrid] = useState<PipeCell[]>(() =>
     INITIAL_TILES.map((t) => ({
@@ -304,6 +309,101 @@ export const PipePuzzle: React.FC<PipePuzzleProps> = ({ isProcessorFailed, onPuz
     );
   };
 
+  if (compact) {
+    return (
+      <div
+        data-testid="pipe-puzzle-compact"
+        className="w-full h-full min-h-0 bg-space-950/90 border border-slate-700 rounded-2xl p-2 flex flex-col justify-between gap-1.5 relative overflow-hidden select-none"
+      >
+        <div className="flex items-center justify-between gap-2 shrink-0 border-b border-slate-800 pb-1">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Droplets className={`w-4 h-4 shrink-0 ${isFlowComplete ? 'text-cyan-400' : 'text-amber-400'}`} />
+            <h4 className="font-hud font-black text-xs text-white truncate">
+              {tr(language, '3×3 ECLSS Pipe Loop', 'شبكة أنابيب ECLSS 3×3')}
+            </h4>
+          </div>
+          <button
+            type="button"
+            onClick={scramblePipes}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-space-800 hover:bg-space-700 text-slate-200 text-[11px] font-bold border border-slate-700 cursor-pointer shrink-0"
+            title={tr(language, 'Scramble pipes', 'إعادة خلط الأنابيب')}
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>{tr(language, 'Reset', 'إعادة')}</span>
+          </button>
+        </div>
+
+        <div dir="ltr" className="flex-1 min-h-0 flex items-center justify-center gap-2">
+          <div className="flex flex-col items-center gap-1 shrink-0">
+            <span className="text-[10px] font-black text-amber-300 bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-600/50">
+              {tr(language, 'In 🚿', 'دخول 🚿')}
+            </span>
+            <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
+          </div>
+
+          <div
+            className="grid grid-cols-3 gap-1.5 p-1.5 rounded-xl bg-slate-900/90 border border-slate-700/80 shadow-inner w-[164px] sm:w-[174px] lg:w-[260px] aspect-square shrink-0"
+            style={{ touchAction: 'manipulation' }}
+          >
+            {grid.map((cell) => {
+              const isFlowing = connectedCellIds.has(cell.id);
+              return (
+                <motion.button
+                  key={cell.id}
+                  type="button"
+                  onClick={() => handleRotatePipe(cell.id)}
+                  whileTap={{ scale: 0.92 }}
+                  animate={{ rotate: cell.rotation }}
+                  transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+                  className={`relative aspect-square rounded-lg flex items-center justify-center p-0.5 transition-colors border-2 cursor-pointer ${
+                    isFlowing
+                      ? 'bg-cyan-950/60 border-cyan-400 shadow-cyan-500/30'
+                      : 'bg-space-950 border-slate-800 hover:border-slate-600'
+                  }`}
+                  style={{ touchAction: 'manipulation' }}
+                  aria-label={tr(
+                    language,
+                    `Pipe row ${cell.row + 1} col ${cell.col + 1} rotate`,
+                    `أنبوب صف ${cell.row + 1} عمود ${cell.col + 1} - اضغط للتدوير`
+                  )}
+                >
+                  {renderPipeGraphic(cell.type, isFlowing)}
+                </motion.button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-col items-center gap-1 shrink-0">
+            <span
+              className={`text-[10px] font-black px-1.5 py-0.5 rounded border ${
+                isFlowComplete
+                  ? 'text-emerald-300 bg-emerald-950/90 border-emerald-500'
+                  : 'text-cyan-300 bg-cyan-950/80 border-cyan-600/50'
+              }`}
+            >
+              {tr(language, 'Out 💧', 'خزان 💧')}
+            </span>
+            <div className={`w-2.5 h-2.5 rounded-full ${isFlowComplete ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-500'}`} />
+          </div>
+        </div>
+
+        <div className="shrink-0 pt-1 border-t border-slate-800 flex items-center justify-between text-[11px] font-bold">
+          {isFlowComplete ? (
+            <span className="flex items-center gap-1 text-emerald-400">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              {tr(language, 'Circuit sealed! 98% potable water recovered.', 'اكتمل التدفق! تم استرجاع 98% من الماء.')}
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-amber-300">
+              <AlertCircle className="w-3.5 h-3.5" />
+              {tr(language, 'Loop open: connect left inlet to right outlet.', 'المسار مفتوح: وصّل المدخل الأيسر بالمخرج الأيمن.')}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full bg-space-950/90 border-2 border-slate-700 rounded-3xl p-4 sm:p-5 shadow-2xl relative overflow-hidden select-none">
       {/* Header telemetry */}
@@ -336,7 +436,7 @@ export const PipePuzzle: React.FC<PipePuzzleProps> = ({ isProcessorFailed, onPuz
       </div>
 
       {/* Circuit Board with Habitat Inlet (Left) and Storage Outlet (Right) */}
-      <div className="relative flex items-center justify-center py-2">
+      <div dir="ltr" className="relative flex items-center justify-center py-2">
         {/* Inlet Indicator (Left) */}
         <div className="absolute -left-2 sm:left-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1 z-10">
           <span className="text-[9px] font-black text-amber-300 bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-600/50 shadow">

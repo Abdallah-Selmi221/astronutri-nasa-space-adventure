@@ -6,11 +6,11 @@ import { useGameState, initialSpaceFitXState } from '../../context/GameContext';
 import { tr } from '../../utils/i18n';
 import { soundManager } from '../../utils/sound';
 import { dialogueManager } from '../../utils/geminiTTS';
-import { NASA_ENGINEERING_TRADEOFFS } from '../../services/nasa/nasaOSDR';
 import { EGYPTIAN_SINAI_SPACE_FOODS, FOOD_DATABASE } from '../../data/foodItems';
 import { SCIENCE_BADGES } from '../../data/science';
 import { BodyTelemetryMeters } from './BodyTelemetryMeters';
 import { AstronautBioTwin } from './AstronautBioTwin';
+import { StationLandscapeFrame } from './StationLandscapeFrame';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -471,140 +471,39 @@ const FoodPackingScene: React.FC<{
     });
   };
 
+  const sinaiEgCount = packed.filter((p) => EGYPTIAN_SINAI_SPACE_FOODS.some((e) => e.id === p.id)).length;
+  const fuelGain =
+    (selectedIds.includes('sinai_honey') ? 2 : selectedIds.length > 0 ? 1 : 0) +
+    (totalKg > 0 && totalKg <= 16 ? 1 : 0);
+
   return (
-    <div className="bg-slate-900/95 border-2 border-emerald-400/70 rounded-3xl p-4 sm:p-5 space-y-4 shadow-2xl">
-      {/* Educational Header + Simplified Game Rule Notice */}
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-950/85 rounded-2xl p-3 border border-cyan-500/35">
-        <div className="text-xs font-hud font-bold text-slate-200">
-          {tr(
-            language,
-            '🇪🇬 Pick 4+ crumb-free Egyptian, Sinai & NASA foods within 20 kg to balance nutrition:',
-            '🇪🇬 اختر أطعمة مصرية وسيناوية وعالمية آمنة بلا فتات لبناء وجبة الفضاء المتوازنة (4+ أصناف ضمن 20 كجم):'
-          )}
-        </div>
-        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black border bg-amber-950/80 border-amber-400 text-amber-200">
-          {tr(language, 'Educational Sim • Simplified Game Rule', `${SCIENCE_BADGES.GAME_RULE.labelAr} • تبسيط تعليمي`)}
-        </span>
-      </div>
-
-      {safeToast && (
-        <div
-          data-testid="food-safe-toast"
-          className="p-3 rounded-2xl bg-emerald-950/90 border-2 border-emerald-400 text-emerald-100 font-hud font-black text-xs sm:text-sm flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.28)]"
-        >
-          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-          <span>{safeToast}</span>
-        </div>
+    <StationLandscapeFrame
+      accentBorderClass="border-emerald-400/60"
+      leftDataTestId="food-tray-dropzone"
+      leftExtraClass={`bg-gradient-to-b from-indigo-950/85 to-slate-950 border-2 ${
+        isDragOverTray ? 'border-emerald-300 ring-2 ring-emerald-400/60' : 'border-indigo-400/50'
+      }`}
+      leftExtraProps={{
+        onDragOver: (e) => {
+          e.preventDefault();
+          setIsDragOverTray(true);
+        },
+        onDragLeave: () => setIsDragOverTray(false),
+        onDrop: (e) => {
+          e.preventDefault();
+          setIsDragOverTray(false);
+          const droppedId = e.dataTransfer.getData('text/plain');
+          const entry = PANTRY_ENTRIES.find((p) => p.id === droppedId);
+          if (entry) toggleItem(entry);
+        }
+      }}
+      roboTip={tr(
+        language,
+        'Tap or drag 4+ zero-crumb snacks (like Sinai Honey!) within 20 kg.',
+        'اسحب أو اضغط 4+ وجبات بلا فتات (مثل عسل سيناء) ضمن 20 كجم.'
       )}
-
-      {safetyAlert && (
-        <div
-          data-testid="food-hazard-alert"
-          className="p-3 rounded-2xl bg-rose-950 border-2 border-rose-400 text-rose-100 font-hud font-bold text-xs sm:text-sm flex items-center gap-2"
-        >
-          <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
-          <span>{safetyAlert}</span>
-        </div>
-      )}
-
-      {/* 3-Column Illustrated Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        {/* LEFT: Pantry Shelves (Egyptian, Sinai, Hydroponic & Warning Items) */}
-        <div className="lg:col-span-5 rounded-2xl bg-slate-950/80 border border-slate-700 p-3 space-y-2.5 max-h-[430px] overflow-y-auto">
-          <div className="font-hud font-black text-xs text-cyan-200">
-            {tr(language, `🥫 Space Pantry (${PANTRY_ENTRIES.length} items)`, `🥫 رفوف المخزن الفضائي (${PANTRY_ENTRIES.length} أصناف)`)}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
-            {PANTRY_ENTRIES.map((entry) => {
-              const isSelected = selectedIds.includes(entry.id);
-              const displayName = tr(language, entry.nameEn, entry.nameAr);
-              return (
-                <button
-                  key={entry.id}
-                  type="button"
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('text/plain', entry.id);
-                    e.dataTransfer.effectAllowed = 'copy';
-                  }}
-                  data-testid={`pantry-item-${entry.id}`}
-                  onClick={() => toggleItem(entry)}
-                  className={`p-2.5 rounded-2xl border-2 flex items-center justify-between gap-2 transition-all cursor-pointer ${
-                    language === 'ar' ? 'text-right' : 'text-left'
-                  } ${
-                    entry.isBanned
-                      ? 'bg-rose-950/45 border-rose-500/75 hover:bg-rose-900/60'
-                      : isSelected
-                      ? 'bg-emerald-950/75 border-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.35)]'
-                      : 'bg-slate-900/85 border-slate-700 hover:border-cyan-400'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    {entry.svgAsset ? (
-                      <img src={entry.svgAsset} alt={displayName} className="w-10 h-10 object-contain shrink-0" />
-                    ) : (
-                      <span className="text-2xl shrink-0">{entry.icon}</span>
-                    )}
-                    <div className="min-w-0">
-                      <div className="font-hud font-black text-xs text-white truncate">{displayName}</div>
-                      <div className="flex flex-wrap items-center gap-1 text-[10px] font-bold text-slate-200 mt-0.5">
-                        {entry.isBanned ? (
-                          <span className="text-rose-300">
-                            {tr(language, '⚠️ Crumb Hazard!', '⚠️ يسبب فتاتاً خطراً!')}
-                          </span>
-                        ) : (
-                          <>
-                            <span className="text-amber-300">
-                              ⚡ {entry.kcal >= 220 ? tr(language, 'High Energy', 'طاقة عالية') : tr(language, 'Light Snack', 'طاقة خفيفة')}
-                            </span>
-                            {entry.protein >= 10 && (
-                              <span className="text-sky-300">
-                                • 💪 {tr(language, 'Body Builder', 'مقوّي')}
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end shrink-0 gap-0.5">
-                    {entry.originBadge && (
-                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
-                        entry.isBanned ? 'bg-rose-900 text-rose-200' : 'bg-cyan-950 text-cyan-200 border border-cyan-500/40'
-                      }`}>
-                        {tr(language, entry.originBadgeEn || entry.originBadge, entry.originBadge)}
-                      </span>
-                    )}
-                    <span className="text-[10px] font-black text-amber-300">
-                      {entry.weightKg} {tr(language, 'kg', 'كجم')}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* CENTER: Astronaut Chef & Drag-or-Tap Meal Tray + HEPA Airflow Physics */}
-        <div
-          data-testid="food-tray-dropzone"
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragOverTray(true);
-          }}
-          onDragLeave={() => setIsDragOverTray(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDragOverTray(false);
-            const droppedId = e.dataTransfer.getData('text/plain');
-            const entry = PANTRY_ENTRIES.find((p) => p.id === droppedId);
-            if (entry) toggleItem(entry);
-          }}
-          className={`lg:col-span-4 rounded-2xl bg-gradient-to-b from-indigo-950/80 to-slate-950 border-2 p-4 flex flex-col items-center justify-between gap-3 min-h-[380px] relative overflow-hidden transition-colors ${
-            isDragOverTray ? 'border-emerald-300 ring-2 ring-emerald-400/60' : 'border-indigo-400/50'
-          }`}
-        >
-          {/* Zero-G Floating Crumbs / Droplets Visualizer */}
+      leftStage={
+        <div className="relative flex-1 min-h-0 flex flex-col justify-between gap-1.5 overflow-hidden">
           <AnimatePresence>
             {crumbParticles.map((p) => (
               <motion.span
@@ -620,70 +519,89 @@ const FoodPackingScene: React.FC<{
                 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 1.9, ease: 'easeOut' }}
-                className="pointer-events-none absolute z-30 text-2xl sm:text-3xl px-1.5 py-0.5 rounded-full bg-rose-950/80 border border-rose-300/80 select-none shadow-[0_0_16px_rgba(244,63,94,0.95)]"
+                className="pointer-events-none absolute z-30 text-xl sm:text-2xl px-1 py-0.5 rounded-full bg-rose-950/85 border border-rose-300/80 select-none"
               >
                 {p.emoji}
               </motion.span>
             ))}
           </AnimatePresence>
 
-          <div className="text-center space-y-1 relative z-10 w-full">
-            <AstronautBioTwin
-              compact
-              language={language}
-              rationsCount={packed.length}
-              hydrationPct={Math.min(98, 72 + packed.length * 5)}
-              boneMusclePct={Math.min(100, 76 + packed.length * 6)}
-              suitCalibrated={false}
-            />
-            <div className="font-hud font-black text-sm text-white pt-1">
-              {tr(language, 'Meal Tray & HEPA Filter', 'صينية الوجبة وفلتر الهواء')}
+          {safeToast && (
+            <div
+              data-testid="food-safe-toast"
+              className="shrink-0 px-2 py-1 rounded-xl bg-emerald-950/95 border border-emerald-400 text-emerald-100 font-hud font-bold text-[10.5px] flex items-center gap-1.5"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="truncate">{safeToast}</span>
             </div>
-            <div className="text-[11px] text-indigo-200">
-              {tr(
-                language,
-                'Drag OR Tap zero-crumb foods here to earn Orbit Fuel!',
-                'اسحب أو اضغط الأطعمة الآمنة هنا لكسب وقود الدفع!'
-              )}
+          )}
+
+          {safetyAlert && (
+            <div
+              data-testid="food-hazard-alert"
+              className="shrink-0 px-2 py-1 rounded-xl bg-rose-950/95 border border-rose-400 text-rose-100 font-hud font-bold text-[10.5px] flex items-center gap-1.5"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+              <span className="line-clamp-2">{safetyAlert}</span>
             </div>
-            <div className="mt-1.5 rounded-xl bg-slate-950/85 border border-cyan-500/40 p-2 space-y-1">
-              <div className="flex items-center justify-between text-[10px] font-hud font-bold">
-                <span className="text-cyan-200">
-                  {tr(language, `Cabin HEPA Airflow: ${cabinFilterPct}%`, `كفاءة فلتر الكابينة: ${cabinFilterPct}%`)}
-                </span>
-                <span className="text-amber-300">
-                  {tr(
-                    language,
-                    `+${(selectedIds.includes('sinai_honey') ? 2 : selectedIds.length > 0 ? 1 : 0) + (totalKg > 0 && totalKg <= 16 ? 1 : 0)}⚡ Fuel`,
-                    `+${(selectedIds.includes('sinai_honey') ? 2 : selectedIds.length > 0 ? 1 : 0) + (totalKg > 0 && totalKg <= 16 ? 1 : 0)}⚡ دفع`
-                  )}
-                </span>
-              </div>
-              <canvas ref={hepaCanvasRef} width={220} height={34} className="w-full h-8 rounded-lg" />
+          )}
+
+          <AstronautBioTwin
+            mini
+            language={language}
+            rationsCount={packed.length}
+            hydrationPct={Math.min(98, 72 + packed.length * 5)}
+            boneMusclePct={Math.min(100, 76 + packed.length * 6)}
+            suitCalibrated={false}
+          />
+
+          {/* Compact HEPA Airflow & Bag Weight Bar */}
+          <div className="shrink-0 rounded-xl bg-slate-950/90 border border-cyan-500/40 p-1.5 space-y-1">
+            <div className="flex items-center justify-between text-[10.5px] font-hud font-bold gap-1">
+              <span className="text-cyan-200 truncate">
+                {tr(language, `HEPA Air: ${cabinFilterPct}%`, `فلتر الهواء: ${cabinFilterPct}%`)}
+              </span>
+              <span className="text-amber-300 shrink-0">
+                {totalKg}/{maxKg} {tr(language, 'kg', 'كجم')} • +{fuelGain}⚡
+              </span>
             </div>
+            <canvas ref={hepaCanvasRef} width={220} height={24} className="w-full h-5 rounded-md block" />
           </div>
 
-          <div className="w-full flex-1 rounded-2xl bg-slate-900/80 border border-slate-700 p-3 space-y-2 relative z-10">
-            <div className="flex items-center justify-between text-xs font-black text-emerald-300">
-              <span>{tr(language, `📦 Packed (${packed.length})`, `📦 العناصر المحزومة (${packed.length})`)}</span>
-              <span>{totalKcal} kcal</span>
-            </div>
+          {/* 5 Compact Nutrient Power Bars */}
+          <div className="shrink-0 grid grid-cols-5 gap-1">
+            {[
+              { label: '💪', title: tr(language, 'Protein', 'بروتين'), pctVal: proteinPct, color: 'bg-sky-400' },
+              { label: '🚀', title: tr(language, 'Carbs', 'طاقة'), pctVal: carbsPct, color: 'bg-amber-400' },
+              { label: '🧠', title: tr(language, 'Fats', 'دهون'), pctVal: fatsPct, color: 'bg-yellow-300' },
+              { label: '🛡️', title: tr(language, 'Vitamins', 'فيتامين'), pctVal: vitPct, color: 'bg-emerald-400' },
+              { label: '🌿', title: tr(language, 'Fiber', 'ألياف'), pctVal: fiberPct, color: 'bg-pink-400' }
+            ].map((bar) => (
+              <div key={bar.label} title={bar.title} className="p-1 rounded-lg bg-slate-950/80 border border-slate-800 space-y-0.5 text-center">
+                <div className="text-[10px] font-black text-slate-200 leading-none">
+                  {bar.label} {bar.pctVal}%
+                </div>
+                <div className="h-1.5 rounded-full bg-slate-900 overflow-hidden">
+                  <div className={`h-full ${bar.color} rounded-full transition-all`} style={{ width: `${bar.pctVal}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Packed Meal Tray Chips */}
+          <div className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-slate-950/75 border border-slate-700/80 p-1.5">
             {packed.length === 0 ? (
-              <div className="h-32 flex items-center justify-center text-xs text-slate-400 text-center">
-                {tr(
-                  language,
-                  'Tray empty — choose safe Egyptian, Sinai or hydroponic items!',
-                  'الصينية فارغة الآن — اختر أطعمة مصرية أو سيناوية أو مائية آمنة!'
-                )}
+              <div className="h-full flex items-center justify-center text-[11px] text-slate-400 text-center px-2">
+                {tr(language, 'Tray empty — pick safe snacks from pantry ▶', 'الصينية فارغة — اختر وجبات آمنة من اليمين')}
               </div>
             ) : (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1">
                 {packed.map((p) => (
                   <button
                     key={p.id}
                     type="button"
                     onClick={() => toggleItem(p)}
-                    className="px-2.5 py-1.5 rounded-xl bg-emerald-950/80 border border-emerald-400/70 text-[11px] font-bold text-white flex items-center gap-1.5 cursor-pointer hover:bg-rose-950/70"
+                    className="px-2 py-0.5 rounded-lg bg-emerald-950/85 border border-emerald-400/70 text-[10.5px] font-bold text-white flex items-center gap-1 cursor-pointer hover:bg-rose-950/70"
                     title={tr(language, 'Tap to remove', 'اضغط للإزالة')}
                   >
                     <span>{p.icon}</span>
@@ -694,133 +612,115 @@ const FoodPackingScene: React.FC<{
               </div>
             )}
           </div>
-
-          <div className="w-full text-[11px] text-cyan-200 bg-sky-950/70 rounded-xl p-2.5 border border-cyan-500/30 text-center font-bold relative z-10">
-            {tr(
-              language,
-              `Egyptian/Sinai foods packed: ${packed.filter((p) => EGYPTIAN_SINAI_SPACE_FOODS.some((e) => e.id === p.id)).length}`,
-              `عدد عناصر السيناوي/المصري بالصندوق: ${packed.filter((p) => EGYPTIAN_SINAI_SPACE_FOODS.some((e) => e.id === p.id)).length}`
-            )}
-          </div>
         </div>
-
-        {/* RIGHT: Fun Space Lunchbox Meter */}
-        <div className="lg:col-span-3 rounded-2xl bg-slate-950/90 border border-cyan-400/40 p-3.5 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="font-hud font-black text-xs text-white">
-              {tr(language, '🎒 Space Lunchbox', '🎒 صندوق غداء الفضاء')}
+      }
+      rightHeader={
+        <div className="flex items-center justify-between gap-2 text-xs font-hud font-black">
+          <span className="text-cyan-200 truncate">
+            {tr(language, `🥫 Pantry (${PANTRY_ENTRIES.length}) • ${packed.length}/4+ Packed`, `🥫 المخزن (${PANTRY_ENTRIES.length}) • المحزوم: ${packed.length}/4+`)}
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-sky-950 border border-sky-400/50 text-sky-200">
+              🇪🇬 {sinaiEgCount} • {totalKcal} kcal
             </span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-              safetyAlert ? 'bg-rose-600 text-white' : 'bg-emerald-500 text-slate-950'
-            }`}>
-              {safetyAlert ? tr(language, 'WARNING ⚠️', 'تحذير ⚠️') : tr(language, 'Safe ✅', 'آمن ✅')}
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] ${
+                safetyAlert ? 'bg-rose-600 text-white' : 'bg-emerald-500 text-slate-950'
+              }`}
+            >
+              {safetyAlert ? tr(language, 'Hazard ⚠️', 'تحذير ⚠️') : tr(language, 'Clean ✅', 'آمن ✅')}
             </span>
           </div>
-
-          {/* Bag Space Meter */}
-          <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-            <div className="flex justify-between text-[11px] font-black">
-              <span className="text-amber-300">{tr(language, 'Bag Space', 'سعة الحقيبة')}</span>
-              <span className="text-white">{totalKg} / {maxKg} {tr(language, 'kg', 'كجم')}</span>
-            </div>
-            <div className="h-2.5 rounded-full bg-slate-950 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all"
-                style={{ width: `${Math.min(100, (totalKg / maxKg) * 100)}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Kid-Friendly Rainbow Power Bars */}
-          <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-black text-cyan-200">
-                {tr(language, 'Hero Powers', 'قوى البطل الغذائية')}
-              </span>
-              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-950 border border-emerald-400 text-emerald-200">
-                {tr(language, 'Goal: 100%', 'الهدف: 100%')}
-              </span>
-            </div>
-            {[
-              { label: tr(language, '💪 Muscle Fuel', '💪 بناء العضلات'), pctVal: proteinPct, color: 'bg-sky-400' },
-              { label: tr(language, '🚀 Rocket Energy', '🚀 طاقة الحركة'), pctVal: carbsPct, color: 'bg-amber-400' },
-              { label: tr(language, '🧠 Brain Sparks', '🧠 طاقة العقل'), pctVal: fatsPct, color: 'bg-yellow-300' },
-              { label: tr(language, '🛡️ Cosmic Shield', '🛡️ درع الفيتامينات'), pctVal: vitPct, color: 'bg-emerald-400' },
-              { label: tr(language, '🌿 Fresh Greens', '🌿 ألياف طبيعية'), pctVal: fiberPct, color: 'bg-pink-400' }
-            ].map((bar) => (
-              <div key={bar.label} className="space-y-0.5">
-                <div className="flex justify-between text-[10px] font-bold text-slate-200">
-                  <span>{bar.label}</span>
-                  <span>{bar.pctVal}%</span>
-                </div>
-                <div className="h-2 rounded-full bg-slate-950 overflow-hidden">
-                  <div className={`h-full ${bar.color} transition-all rounded-full`} style={{ width: `${bar.pctVal}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="p-2 rounded-xl bg-sky-950/60 border border-sky-400/35 text-[10px] text-sky-100 leading-relaxed">
-            🌟 <strong>{tr(language, 'Astronaut Tip:', 'نصيحة الرائد:')}</strong>{' '}
-            {tr(
-              language,
-              'Pick 4+ yummy zero-crumb snacks so our space cabin air stays sparkling clean!',
-              'اختر 4 وجبات فضائية لذيذة بدون فتات لتحافظ على هواء المركبة نظيفاً!'
-            )}
-          </div>
         </div>
-      </div>
-
-      <div className="p-3 rounded-2xl bg-sky-950/60 border border-cyan-500/35 text-xs font-hud text-cyan-100">
-        🛰️ <strong>{tr(language, 'NASA Food Engineering:', `${NASA_ENGINEERING_TRADEOFFS[1].titleAr}:`)}</strong>{' '}
-        {tr(
-          language,
-          'Zero-crumb pastes (Sinai Honey, pouches) protect air filters while hydroponics supply fresh micronutrients.',
-          NASA_ENGINEERING_TRADEOFFS[1].optimalDecisionAr
-        )}
-      </div>
-
-      <button
-        type="button"
-        disabled={!isBalanced}
-        onClick={() => {
-          soundManager.playFanfare();
-          setFoodMissionDone(true);
-          void dialogueManager.speak(
-            tr(
-              language,
-              'Awesome! Your zero-crumb mission tray is balanced and packed for launch!',
-              'عاش يا بطل! الوجبة متوازنة وتجمع أكلات مصر وسيناء الآمنة بدون فتات!'
-            )
-          );
-          onComplete(selectedIds, totalKg);
-        }}
-        className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 transition-all ${
-          isBalanced
-            ? 'bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 border-white cursor-pointer hover:brightness-110'
-            : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-        }`}
-      >
-        {isBalanced
-          ? tr(language, 'Confirm Safe Space Meals & Seal Crate 🚀', 'تأكيد تعبئة الطعام الآمن وإغلاق الصندوق 🚀')
-          : tr(language, 'Add 4+ varied crumb-free foods to continue', 'أضف 4+ أصناف متنوعة آمنة لنقلها لصندوق المهمة')}
-      </button>
-
-      {foodMissionDone && (
-        <div
-          data-testid="mission-complete-cta"
-          className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-950 border-2 border-emerald-300 text-center space-y-2 shadow-[0_0_25px_rgba(52,211,153,0.35)]"
-        >
-          <p className="font-hud font-black text-base text-emerald-200">
-            {tr(
-              language,
-              '✓ Mission rations sealed — zero-crumb & nutritionally balanced!',
-              '✓ تم حفظ وجبات البعثة بنجاح — وجبة فضائية آمنة ومغذية!'
-            )}
-          </p>
+      }
+      rightContent={
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+          {PANTRY_ENTRIES.map((entry) => {
+            const isSelected = selectedIds.includes(entry.id);
+            const displayName = tr(language, entry.nameEn, entry.nameAr);
+            return (
+              <button
+                key={entry.id}
+                type="button"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', entry.id);
+                  e.dataTransfer.effectAllowed = 'copy';
+                }}
+                data-testid={`pantry-item-${entry.id}`}
+                onClick={() => toggleItem(entry)}
+                className={`p-2 rounded-xl border-2 flex items-center gap-1.5 transition-all cursor-pointer ${
+                  language === 'ar' ? 'text-right' : 'text-left'
+                } ${
+                  entry.isBanned
+                    ? 'bg-rose-950/45 border-rose-500/75 hover:bg-rose-900/60'
+                    : isSelected
+                    ? 'bg-emerald-950/75 border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)]'
+                    : 'bg-slate-800/85 border-slate-700 hover:border-cyan-400'
+                }`}
+              >
+                {entry.svgAsset ? (
+                  <img src={entry.svgAsset} alt={displayName} className="w-7 h-7 object-contain shrink-0" />
+                ) : (
+                  <span className="text-xl shrink-0">{entry.icon}</span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="font-hud font-black text-[11px] text-white truncate">{displayName}</div>
+                  <div className="flex items-center justify-between gap-1 text-[10px] font-bold mt-0.5">
+                    {entry.isBanned ? (
+                      <span className="text-rose-300 truncate">{tr(language, '⚠️ Hazard', '⚠️ خطر')}</span>
+                    ) : (
+                      <span className="text-cyan-200 truncate">
+                        {tr(language, entry.originBadgeEn || entry.originBadge || '', entry.originBadge || '')}
+                      </span>
+                    )}
+                    <span className="text-amber-300 shrink-0">{entry.weightKg}kg</span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
-      )}
-    </div>
+      }
+      primaryCta={
+        <div className="space-y-1">
+          <button
+            type="button"
+            disabled={!isBalanced}
+            onClick={() => {
+              soundManager.playFanfare();
+              setFoodMissionDone(true);
+              void dialogueManager.speak(
+                tr(
+                  language,
+                  'Awesome! Your zero-crumb mission tray is balanced and packed for launch!',
+                  'عاش يا بطل! الوجبة متوازنة وتجمع أكلات مصر وسيناء الآمنة بدون فتات!'
+                )
+              );
+              onComplete(selectedIds, totalKg);
+            }}
+            className={`w-full py-2.5 rounded-xl font-hud font-black text-xs sm:text-sm border-2 transition-all ${
+              isBalanced
+                ? 'bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 border-white cursor-pointer hover:brightness-110'
+                : 'bg-slate-800 text-slate-400 border-slate-700 cursor-not-allowed'
+            }`}
+          >
+            {isBalanced
+              ? tr(language, 'Confirm Safe Space Meals & Seal Crate 🚀', 'تأكيد تعبئة الطعام الآمن وإغلاق الصندوق 🚀')
+              : tr(language, `Add 4+ varied safe foods (${packed.length}/4)`, `أضف 4+ أصناف آمنة (${packed.length}/4)`)}
+          </button>
+
+          {foodMissionDone && (
+            <div
+              data-testid="mission-complete-cta"
+              className="px-2.5 py-1 rounded-lg bg-emerald-950/90 border border-emerald-400 text-center font-hud font-black text-[11px] text-emerald-200"
+            >
+              {tr(language, '✓ Mission rations sealed!', '✓ تم حفظ وجبات البعثة بنجاح!')}
+            </div>
+          )}
+        </div>
+      }
+    />
   );
 };
 
@@ -878,234 +778,238 @@ const EquipmentInspectionScene: React.FC<{
   const resolvedCount = Object.keys(decisions).length;
 
   return (
-    <div className="bg-slate-900/95 border-2 border-amber-400/70 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-hud font-bold text-xs sm:text-sm text-amber-200">
-          {tr(
-            language,
-            `Inspect every item: pack certified hardware and reject damaged/excess cargo (${resolvedCount}/${EQUIP_INSPECTION_LIST.length}):`,
-            `افحص كل عنصر: احزم المعدات السليمة فقط، وارفض التالف أو الزائد عن الحاجة (${resolvedCount}/${EQUIP_INSPECTION_LIST.length}):`
-          )}
-        </p>
-        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-950 border border-amber-400 text-amber-200">
-          {tr(language, `Valid hardware needed: ${validItemsCount}`, `المعدات الصالحة المطلوبة: ${validItemsCount}`)}
-        </span>
-      </div>
-
-      {/* Interactive Launch Loadout Balance Beam (<= 18 kg) */}
-      <div className="rounded-2xl bg-slate-950/90 border border-amber-400/40 p-3 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="flex-1 w-full space-y-1">
-          <div className="flex items-center justify-between text-xs font-hud font-black">
-            <span className={packedKg > maxEquipKg ? 'text-rose-300' : 'text-emerald-300'}>
-              {tr(
-                language,
-                `⚖️ Loadout Beam: ${packedKg.toFixed(1)} / ${maxEquipKg} kg`,
-                `⚖️ ميزان الحمولة: ${packedKg.toFixed(1)} / ${maxEquipKg} كجم`
-              )}
-            </span>
-            <span className="text-slate-300">
-              {packedKg > maxEquipKg
-                ? tr(language, 'Overweight!', 'وزن زائد!')
-                : resolvedCorrectly
-                ? tr(language, 'Balanced ✓', 'متوازن ✓')
-                : tr(language, 'Within Limit', 'ضمن الحد المسموح')}
-            </span>
-          </div>
-          <svg viewBox="0 0 260 54" className="w-full h-14 overflow-visible">
-            <defs>
-              <linearGradient id="equipBeamGrad" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#38bdf8" />
-                <stop offset="50%" stopColor={packedKg > maxEquipKg ? '#f43f5e' : '#34d399'} />
-                <stop offset="100%" stopColor="#fbbf24" />
-              </linearGradient>
-              <linearGradient id="equipFulcrum" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#94a3b8" />
-                <stop offset="100%" stopColor="#1e293b" />
-              </linearGradient>
-            </defs>
-            {/* Base plate & twin hydraulic dampener cylinders */}
-            <rect x="34" y="47" width="192" height="4" rx="2" fill="#334155" />
-            <line x1="60" y1="30" x2="60" y2="48" stroke="rgba(56,189,248,0.45)" strokeWidth="3" strokeDasharray="3 2" />
-            <line x1="200" y1="30" x2="200" y2="48" stroke="rgba(251,191,36,0.45)" strokeWidth="3" strokeDasharray="3 2" />
-            <polygon points="130,27 118,48 142,48" fill="url(#equipFulcrum)" stroke="#64748b" strokeWidth="1" />
-            <circle cx="130" cy="27" r="4" fill="#e2e8f0" />
-            <g transform={`rotate(${beamTiltDeg}, 130, 27)`}>
-              <rect x="26" y="23" width="208" height="7" rx="3.5" fill="url(#equipBeamGrad)" />
-              <rect x="34" y="6" width="46" height="16" rx="4" fill="#0284c7" stroke="#7dd3fc" strokeWidth="1.2" />
-              <path d="M47 6 L47 2 L67 2 L67 6" fill="none" stroke="#bae6fd" strokeWidth="1.8" />
-              <rect x="180" y="6" width="46" height="16" rx="4" fill="#d97706" stroke="#fde047" strokeWidth="1.2" />
-              <path d="M193 6 L193 2 L213 2 L213 6" fill="none" stroke="#fef08a" strokeWidth="1.8" />
-            </g>
-          </svg>
-        </div>
-      </div>
-
-      {feedback && (
-        <div className="p-3 rounded-2xl bg-slate-950/90 border border-cyan-500/40 text-xs font-bold text-cyan-100">
-          {feedback}
-        </div>
+    <StationLandscapeFrame
+      accentBorderClass="border-amber-400/65"
+      roboTip={tr(
+        language,
+        'Pack certified gear (≤18 kg), reject unsafe mass & set SPACE-FIT X mode.',
+        'احزم المعدات السليمة (≤18 كجم) وارفض التالف واضبط قوة البدلة.'
       )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {EQUIP_INSPECTION_LIST.map((item) => {
-          const d = decisions[item.id];
-          return (
-            <div
-              key={item.id}
-              className={`p-3.5 rounded-2xl border-2 flex flex-col justify-between gap-2.5 transition-all ${
-                d === 'packed'
-                  ? 'bg-emerald-950/60 border-emerald-400'
-                  : d === 'rejected'
-                  ? 'bg-slate-950/70 border-slate-600 opacity-85'
-                  : 'bg-slate-800/85 border-slate-600'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-3xl shrink-0">{item.icon}</span>
-                <div>
-                  <div className="font-hud font-black text-sm text-white">
-                    {tr(language, item.nameEn, item.nameAr)}
-                  </div>
-                  <div className="text-[11px] text-slate-300">
-                    {tr(language, item.bayEn, item.bay)}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleDecide(item, 'packed')}
-                  className={`flex-1 py-1.5 rounded-xl text-xs font-black flex items-center justify-center gap-1 cursor-pointer border ${
-                    d === 'packed'
-                      ? 'bg-emerald-500 text-slate-950 border-white'
-                      : 'bg-slate-900 hover:bg-emerald-900/60 text-emerald-200 border-emerald-500/50'
-                  }`}
-                >
-                  <PackageCheck className="w-3.5 h-3.5" />
-                  <span>{d === 'packed' ? tr(language, 'Packed ✅', 'تم الحزم ✅') : tr(language, 'Pack Gear', 'احزم للمهمة')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDecide(item, 'rejected')}
-                  className={`flex-1 py-1.5 rounded-xl text-xs font-black flex items-center justify-center gap-1 cursor-pointer border ${
-                    d === 'rejected'
-                      ? 'bg-rose-500 text-white border-white'
-                      : 'bg-slate-900 hover:bg-rose-900/60 text-rose-200 border-rose-500/50'
-                  }`}
-                >
-                  <XCircle className="w-3.5 h-3.5" />
-                  <span>{d === 'rejected' ? tr(language, 'Rejected 🚫', 'تم الاستبعاد 🚫') : tr(language, 'Reject', 'رفض / استبعاد')}</span>
-                </button>
-              </div>
+      leftStage={
+        <div className="flex-1 min-h-0 flex flex-col justify-between gap-2 overflow-hidden">
+          {/* Interactive Launch Loadout Balance Beam (<= 18 kg) */}
+          <div className="rounded-xl bg-slate-950/90 border border-amber-400/40 p-2 space-y-1 shrink-0">
+            <div className="flex items-center justify-between text-[11px] font-hud font-black">
+              <span className={packedKg > maxEquipKg ? 'text-rose-300' : 'text-emerald-300'}>
+                {tr(
+                  language,
+                  `⚖️ Loadout: ${packedKg.toFixed(1)} / ${maxEquipKg} kg`,
+                  `⚖️ الحمولة: ${packedKg.toFixed(1)} / ${maxEquipKg} كجم`
+                )}
+              </span>
+              <span className="text-slate-300">
+                {packedKg > maxEquipKg
+                  ? tr(language, 'Overweight!', 'وزن زائد!')
+                  : resolvedCorrectly
+                  ? tr(language, 'Balanced ✓', 'متوازن ✓')
+                  : tr(language, 'Within Limit', 'ضمن الحد')}
+              </span>
             </div>
-          );
-        })}
-      </div>
+            <svg viewBox="0 0 260 50" className="w-full h-11 overflow-visible">
+              <defs>
+                <linearGradient id="equipBeamGrad" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#38bdf8" />
+                  <stop offset="50%" stopColor={packedKg > maxEquipKg ? '#f43f5e' : '#34d399'} />
+                  <stop offset="100%" stopColor="#fbbf24" />
+                </linearGradient>
+                <linearGradient id="equipFulcrum" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#94a3b8" />
+                  <stop offset="100%" stopColor="#1e293b" />
+                </linearGradient>
+              </defs>
+              <rect x="34" y="43" width="192" height="4" rx="2" fill="#334155" />
+              <line x1="60" y1="26" x2="60" y2="44" stroke="rgba(56,189,248,0.45)" strokeWidth="3" strokeDasharray="3 2" />
+              <line x1="200" y1="26" x2="200" y2="44" stroke="rgba(251,191,36,0.45)" strokeWidth="3" strokeDasharray="3 2" />
+              <polygon points="130,23 118,44 142,44" fill="url(#equipFulcrum)" stroke="#64748b" strokeWidth="1" />
+              <circle cx="130" cy="23" r="4" fill="#e2e8f0" />
+              <g transform={`rotate(${beamTiltDeg}, 130, 23)`}>
+                <rect x="26" y="19" width="208" height="7" rx="3.5" fill="url(#equipBeamGrad)" />
+                <rect x="34" y="3" width="46" height="15" rx="4" fill="#0284c7" stroke="#7dd3fc" strokeWidth="1.2" />
+                <rect x="180" y="3" width="46" height="15" rx="4" fill="#d97706" stroke="#fde047" strokeWidth="1.2" />
+              </g>
+            </svg>
+          </div>
 
-      {/* Kid-Friendly Space Suit Power Selector (replaces complex joint sliders) */}
-      {onUpdateCampaign && (
-        <div
-          data-testid="kid-suit-power-card"
-          className="pt-2 border-t border-slate-800 space-y-2.5"
-        >
-          <p className="font-hud font-black text-xs sm:text-sm text-cyan-200">
-            {tr(
-              language,
-              '🦺 Choose Your Space Suit Power Mode:',
-              '🦺 اختر وضع قوة بدلتك الفضائية:'
-            )}
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            {(
-              [
-                { mode: 'level1' as const, comp: 'low' as const, load: 35, en: '🌱 Light', ar: '🌱 خفيف' },
-                { mode: 'level2' as const, comp: 'medium' as const, load: 65, en: '🚀 Hero', ar: '🚀 بطل' },
-                { mode: 'level3' as const, comp: 'high' as const, load: 90, en: '⚡ Super', ar: '⚡ خارق' }
-              ]
-            ).map((opt) => {
-              const cur = campaign.spaceFitX || initialSpaceFitXState;
-              const selected = cur.resistanceMode === opt.mode;
-              return (
+          {feedback && (
+            <div className="px-2.5 py-1.5 rounded-xl bg-slate-950/95 border border-cyan-500/45 text-[11px] font-bold text-cyan-100 line-clamp-2 shrink-0">
+              {feedback}
+            </div>
+          )}
+
+          {/* Kid-Friendly Space Suit Power Selector (no clinical sliders) */}
+          {onUpdateCampaign && (
+            <div
+              data-testid="kid-suit-power-card"
+              className="rounded-xl bg-slate-950/85 border border-cyan-400/40 p-2 space-y-1.5 shrink-0"
+            >
+              <p className="font-hud font-black text-[11px] text-cyan-200">
+                {tr(language, '🦺 Space Suit Power Mode:', '🦺 قوة بدلتك الفضائية:')}
+              </p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {(
+                  [
+                    { mode: 'level1' as const, comp: 'low' as const, load: 35, en: '🌱 Light', ar: '🌱 خفيف' },
+                    { mode: 'level2' as const, comp: 'medium' as const, load: 65, en: '🚀 Hero', ar: '🚀 بطل' },
+                    { mode: 'level3' as const, comp: 'high' as const, load: 90, en: '⚡ Super', ar: '⚡ خارق' }
+                  ]
+                ).map((opt) => {
+                  const cur = campaign.spaceFitX || initialSpaceFitXState;
+                  const selected = cur.resistanceMode === opt.mode;
+                  return (
+                    <button
+                      key={opt.mode}
+                      type="button"
+                      onClick={() => {
+                        soundManager.playClick();
+                        onUpdateCampaign({
+                          spaceFitX: {
+                            ...cur,
+                            resistanceMode: opt.mode,
+                            compressionLevel: opt.comp,
+                            emergencyReleased: false,
+                            muscleLoadPct: opt.load,
+                            jointLoads: {
+                              shoulders: opt.load,
+                              elbows: opt.load,
+                              hips: opt.load,
+                              knees: opt.load,
+                              ankles: opt.load
+                            }
+                          }
+                        });
+                      }}
+                      className={`py-1.5 px-2 rounded-xl font-hud font-black text-[11px] border-2 transition-all cursor-pointer ${
+                        selected
+                          ? 'bg-gradient-to-r from-cyan-400 to-sky-300 text-slate-950 border-white shadow-[0_0_12px_rgba(34,211,238,0.45)]'
+                          : 'bg-slate-900 text-slate-200 border-slate-700 hover:border-cyan-400'
+                      }`}
+                    >
+                      {tr(language, opt.en, opt.ar)}
+                    </button>
+                  );
+                })}
                 <button
-                  key={opt.mode}
                   type="button"
                   onClick={() => {
                     soundManager.playClick();
+                    const cur = campaign.spaceFitX || initialSpaceFitXState;
                     onUpdateCampaign({
                       spaceFitX: {
                         ...cur,
-                        resistanceMode: opt.mode,
-                        compressionLevel: opt.comp,
-                        emergencyReleased: false,
-                        muscleLoadPct: opt.load,
-                        jointLoads: {
-                          shoulders: opt.load,
-                          elbows: opt.load,
-                          hips: opt.load,
-                          knees: opt.load,
-                          ankles: opt.load
-                        }
+                        impactProtectionActive: !cur.impactProtectionActive
                       }
                     });
                   }}
-                  className={`flex-1 min-w-[90px] py-2.5 px-3 rounded-2xl font-hud font-black text-xs sm:text-sm border-2 transition-all cursor-pointer ${
-                    selected
-                      ? 'bg-gradient-to-r from-cyan-400 to-sky-300 text-slate-950 border-white shadow-[0_0_14px_rgba(34,211,238,0.5)]'
-                      : 'bg-slate-900 text-slate-200 border-slate-700 hover:border-cyan-400'
+                  className={`py-1.5 px-2 rounded-xl font-hud font-black text-[11px] border-2 cursor-pointer transition-all truncate ${
+                    (campaign.spaceFitX || initialSpaceFitXState).impactProtectionActive
+                      ? 'bg-emerald-500/25 border-emerald-400 text-emerald-100'
+                      : 'bg-slate-900 border-slate-700 text-slate-300'
                   }`}
                 >
-                  {tr(language, opt.en, opt.ar)}
+                  🛡️ {tr(language, 'Cushion Pads', 'وسائد الحماية')} {(campaign.spaceFitX || initialSpaceFitXState).impactProtectionActive ? '✓' : ''}
                 </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => {
-                soundManager.playClick();
-                const cur = campaign.spaceFitX || initialSpaceFitXState;
-                onUpdateCampaign({
-                  spaceFitX: {
-                    ...cur,
-                    impactProtectionActive: !cur.impactProtectionActive
-                  }
-                });
-              }}
-              className={`py-2.5 px-3.5 rounded-2xl font-hud font-black text-xs sm:text-sm border-2 cursor-pointer transition-all ${
-                (campaign.spaceFitX || initialSpaceFitXState).impactProtectionActive
-                  ? 'bg-emerald-500/25 border-emerald-400 text-emerald-100'
-                  : 'bg-slate-900 border-slate-700 text-slate-400'
-              }`}
-            >
-              🛡️ {tr(language, 'Cushion Pads', 'وسائد الحماية')} {(campaign.spaceFitX || initialSpaceFitXState).impactProtectionActive ? '✓' : ''}
-            </button>
-          </div>
+              </div>
+            </div>
+          )}
         </div>
-      )}
-
-      <button
-        type="button"
-        disabled={!resolvedCorrectly}
-        onClick={() => {
-          soundManager.playFanfare();
-          void dialogueManager.speak(
-            tr(
+      }
+      rightHeader={
+        <div className="flex items-center justify-between gap-2 text-xs font-hud font-black">
+          <span className="text-amber-200 truncate">
+            {tr(
               language,
-              'Excellent! You verified certified equipment and rejected unsafe mass!',
-              'ممتاز! فرزت المعدات السليمة واستبعدت الأوزان والأشياء التالفة بنجاح!'
-            )
-          );
-          onComplete(EQUIP_INSPECTION_LIST.filter((i) => i.shouldPack).map((i) => i.id));
-        }}
-        className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 ${
-          resolvedCorrectly
-            ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 border-white cursor-pointer'
-            : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-        }`}
-      >
-        {tr(language, 'Confirm Equipment Inspection ✅', 'تأكيد فحص وحزم المعدات ✅')}
-      </button>
-    </div>
+              `🧰 Inspect Cargo (${resolvedCount}/${EQUIP_INSPECTION_LIST.length})`,
+              `🧰 فحص المعدات (${resolvedCount}/${EQUIP_INSPECTION_LIST.length})`
+            )}
+          </span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-950 border border-amber-400 text-amber-200 shrink-0">
+            {tr(language, `Valid: ${validItemsCount}`, `صالحة: ${validItemsCount}`)}
+          </span>
+        </div>
+      }
+      rightContent={
+        <div className="grid grid-cols-2 gap-1.5">
+          {EQUIP_INSPECTION_LIST.map((item) => {
+            const d = decisions[item.id];
+            return (
+              <div
+                key={item.id}
+                className={`p-2 rounded-xl border-2 flex flex-col justify-between gap-1.5 transition-all ${
+                  d === 'packed'
+                    ? 'bg-emerald-950/60 border-emerald-400'
+                    : d === 'rejected'
+                    ? 'bg-slate-950/70 border-slate-600 opacity-85'
+                    : 'bg-slate-800/85 border-slate-600'
+                }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xl shrink-0">{item.icon}</span>
+                  <div className="min-w-0">
+                    <div className="font-hud font-black text-[11px] text-white truncate">
+                      {tr(language, item.nameEn, item.nameAr)}
+                    </div>
+                    <div className="text-[10px] text-slate-300 truncate">
+                      {tr(language, item.bayEn, item.bay)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleDecide(item, 'packed')}
+                    className={`flex-1 py-1 rounded-lg text-[11px] font-black flex items-center justify-center gap-1 cursor-pointer border ${
+                      d === 'packed'
+                        ? 'bg-emerald-500 text-slate-950 border-white'
+                        : 'bg-slate-900 hover:bg-emerald-900/60 text-emerald-200 border-emerald-500/50'
+                    }`}
+                  >
+                    <PackageCheck className="w-3 h-3 shrink-0" />
+                    <span>{d === 'packed' ? tr(language, 'Packed', 'حُزم') : tr(language, 'Pack', 'احزم')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDecide(item, 'rejected')}
+                    className={`flex-1 py-1 rounded-lg text-[11px] font-black flex items-center justify-center gap-1 cursor-pointer border ${
+                      d === 'rejected'
+                        ? 'bg-rose-500 text-white border-white'
+                        : 'bg-slate-900 hover:bg-rose-900/60 text-rose-200 border-rose-500/50'
+                    }`}
+                  >
+                    <XCircle className="w-3 h-3 shrink-0" />
+                    <span>{d === 'rejected' ? tr(language, 'Rejected', 'رُفض') : tr(language, 'Reject', 'ارفض')}</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      }
+      primaryCta={
+        <button
+          type="button"
+          disabled={!resolvedCorrectly}
+          onClick={() => {
+            soundManager.playFanfare();
+            void dialogueManager.speak(
+              tr(
+                language,
+                'Excellent! You verified certified equipment and rejected unsafe mass!',
+                'ممتاز! فرزت المعدات السليمة واستبعدت الأوزان والأشياء التالفة بنجاح!'
+              )
+            );
+            onComplete(EQUIP_INSPECTION_LIST.filter((i) => i.shouldPack).map((i) => i.id));
+          }}
+          className={`w-full py-2.5 rounded-xl font-hud font-black text-xs sm:text-sm border-2 ${
+            resolvedCorrectly
+              ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 border-white cursor-pointer'
+              : 'bg-slate-800 text-slate-400 border-slate-700 cursor-not-allowed'
+          }`}
+        >
+          {tr(language, 'Confirm Equipment Inspection ✅', 'تأكيد فحص وحزم المعدات ✅')}
+        </button>
+      }
+    />
   );
 };
 
@@ -1311,104 +1215,117 @@ const MissionControlLaunchScene: React.FC<{
   };
 
   return (
-    <div className="bg-slate-900/95 border-2 border-purple-400/75 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
-      {/* Launch Pad Illustrated Window + Telemetry Checklist */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-        <div className="md:col-span-5 rounded-2xl bg-gradient-to-b from-[#081b3b] to-slate-950 border-2 border-cyan-400/50 p-3 flex flex-col items-center justify-between gap-2 relative overflow-hidden min-h-[190px]">
-          <div className="text-[11px] font-black text-cyan-200 self-end">
-            {tr(language, '🪟 Artemis Gantry Live View', '🪟 منصة إطلاق أرتميس المباشرة')}
+    <StationLandscapeFrame
+      accentBorderClass="border-purple-400/70"
+      roboTip={tr(
+        language,
+        'Calibrate LOX/LH2 valves to 68%–84%, sync navigation, then ignite countdown!',
+        'اضبط صمامات LOX وLH2 بين 68%–84% وزامن الملاحة ثم ابدأ العد التنازلي!'
+      )}
+      leftStage={
+        <div className="flex-1 min-h-0 flex flex-col justify-between gap-1.5 overflow-hidden">
+          <div className="flex items-center justify-between text-[11px] font-black text-cyan-200 shrink-0">
+            <span>{tr(language, '🪟 Artemis Gantry Live View', '🪟 منصة أرتميس المباشرة')}</span>
+            <span className={launchSuccess ? 'text-emerald-300' : canLaunch ? 'text-amber-300' : 'text-slate-300'}>
+              {launchSuccess
+                ? tr(language, '🔥 Ascending!', '🔥 انطلق للمدار!')
+                : canLaunch
+                ? tr(language, 'Go Ignition', 'جاهز للإطلاق')
+                : tr(language, 'Hold', 'تجهيز')}
+            </span>
           </div>
-          <canvas
-            ref={gantryCanvasRef}
-            width={216}
-            height={162}
-            className="w-full max-w-[230px] h-40 rounded-xl border border-cyan-500/30"
-          />
-          <div className="text-[11px] font-bold text-slate-300">
-            {launchSuccess
-              ? tr(language, '🔥 Ascending to Orbit!', '🔥 تم الإقلاع نحو المدار!')
-              : canLaunch
-              ? tr(language, 'Go for Ignition', 'جاهز للاشتعال الكامل')
-              : tr(language, 'Calibrate LOX/LH2 & sync navigation', 'عاير صمامَي الوقود وزامن الملاحة')}
+
+          <div className="relative flex-1 min-h-0 rounded-xl bg-slate-950 border border-cyan-500/35 overflow-hidden flex items-center justify-center">
+            <canvas
+              ref={gantryCanvasRef}
+              width={216}
+              height={162}
+              className="w-full h-full object-contain block"
+            />
+            {countdown !== null && countdown > 0 && (
+              <div className="absolute inset-0 flex items-center justify-center bg-slate-950/45 pointer-events-none">
+                <span className="font-hud font-black text-5xl sm:text-6xl text-amber-300 animate-bounce drop-shadow-[0_0_18px_rgba(251,191,36,0.9)]">
+                  {countdown}
+                </span>
+              </div>
+            )}
           </div>
         </div>
-
-        <div className="md:col-span-7 space-y-3">
-          <h2 className="font-hud font-black text-base text-white flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-cyan-400" />
-            <span>{tr(language, 'Final Pre-Launch Checklist:', 'قائمة التحقق النهائية للإطلاق:')}</span>
-          </h2>
-
-          <div className="grid grid-cols-2 gap-2.5 text-xs font-hud font-black">
+      }
+      rightHeader={
+        <div className="flex items-center justify-between text-xs font-hud font-black text-white">
+          <span className="flex items-center gap-1.5">
+            <ShieldCheck className="w-4 h-4 text-cyan-400" />
+            {tr(language, 'Pre-Launch Checklist & Propellant', 'قائمة الإطلاق ومعايرة الوقود')}
+          </span>
+          <span className={propCalibrated ? 'text-emerald-300' : 'text-amber-300'}>
+            {propCalibrated ? tr(language, 'Valves Sealed ✓', 'الصمامات متزنة ✓') : tr(language, 'Target: 68%–84%', 'الهدف: 68%–84%')}
+          </span>
+        </div>
+      }
+      rightContent={
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-1.5 text-[11px] font-hud font-black">
             {[
-              { ok: reqFood, label: tr(language, '1. Food Pantry', '1. مخزن الطعام (Food)') },
-              { ok: reqEquip, label: tr(language, '2. Gear Check', '2. فحص المعدات (Equipment)') },
-              { ok: reqMed, label: tr(language, '3. Medical OK', '3. الفحص الطبي (Medical)') },
-              { ok: reqShip, label: tr(language, '4. LOX/LH2 Propellant', '4. صمامات الوقود LOX/LH2') }
+              { ok: reqFood, label: tr(language, '1. Food Pantry', '1. مخزن الطعام') },
+              { ok: reqEquip, label: tr(language, '2. Gear Check', '2. فحص المعدات') },
+              { ok: reqMed, label: tr(language, '3. Medical OK', '3. الفحص الطبي') },
+              { ok: reqShip, label: tr(language, '4. LOX/LH2 Propellant', '4. صمامات الوقود') }
             ].map((r) => (
               <div
                 key={r.label}
-                className={`p-3 rounded-2xl border-2 flex items-center gap-2 ${
+                className={`p-2 rounded-xl border-2 flex items-center gap-1.5 ${
                   r.ok ? 'bg-emerald-950/70 border-emerald-400 text-emerald-200' : 'bg-rose-950/50 border-rose-500 text-rose-200'
                 }`}
               >
-                {r.ok ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
-                <span>{r.label}</span>
+                {r.ok ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+                <span className="truncate">{r.label}</span>
               </div>
             ))}
           </div>
 
-          <div className="p-3 rounded-2xl bg-slate-950/85 border border-cyan-500/40 space-y-2 text-xs">
-            <div className="flex items-center justify-between font-hud font-black">
-              <span className="text-cyan-200">
-                {tr(language, '⚗️ Cryogenic Propellant Valves (Target: 68%–84%)', '⚗️ معايرة صمامات الوقود (النطاق الأخضر: 68%–84%)')}
+          <div className="p-2 rounded-xl bg-slate-950/85 border border-cyan-500/40 grid grid-cols-2 gap-2 text-[11px]">
+            <label className="space-y-0.5 block">
+              <span className="flex justify-between font-bold text-sky-200">
+                <span>{tr(language, 'LOX Oxygen', 'الأكسجين LOX')}</span>
+                <span className={loxPct >= 68 && loxPct <= 84 ? 'text-emerald-300' : 'text-amber-300'}>{loxPct}%</span>
               </span>
-              <span className={propCalibrated ? 'text-emerald-300' : 'text-amber-300'}>
-                {propCalibrated ? tr(language, 'Sealed ✓', 'متوازن ✓') : tr(language, 'Adjust Sliders', 'اضبط المؤشرات')}
+              <input
+                type="range"
+                min={30}
+                max={100}
+                value={loxPct}
+                onChange={(e) => setLoxPct(Number(e.target.value))}
+                className="w-full accent-sky-400 cursor-pointer"
+              />
+            </label>
+            <label className="space-y-0.5 block">
+              <span className="flex justify-between font-bold text-amber-200">
+                <span>{tr(language, 'LH2 Hydrogen', 'الهيدروجين LH2')}</span>
+                <span className={lh2Pct >= 68 && lh2Pct <= 84 ? 'text-emerald-300' : 'text-amber-300'}>{lh2Pct}%</span>
               </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="space-y-1 block">
-                <span className="flex justify-between text-[11px] font-bold text-sky-200">
-                  <span>{tr(language, 'LOX Oxygen', 'الأكسجين السائل LOX')}</span>
-                  <span className={loxPct >= 68 && loxPct <= 84 ? 'text-emerald-300' : 'text-amber-300'}>{loxPct}%</span>
-                </span>
-                <input
-                  type="range"
-                  min={30}
-                  max={100}
-                  value={loxPct}
-                  onChange={(e) => setLoxPct(Number(e.target.value))}
-                  className="w-full accent-sky-400 cursor-pointer"
-                />
-              </label>
-              <label className="space-y-1 block">
-                <span className="flex justify-between text-[11px] font-bold text-amber-200">
-                  <span>{tr(language, 'LH2 Hydrogen', 'الهيدروجين السائل LH2')}</span>
-                  <span className={lh2Pct >= 68 && lh2Pct <= 84 ? 'text-emerald-300' : 'text-amber-300'}>{lh2Pct}%</span>
-                </span>
-                <input
-                  type="range"
-                  min={30}
-                  max={100}
-                  value={lh2Pct}
-                  onChange={(e) => setLh2Pct(Number(e.target.value))}
-                  className="w-full accent-amber-400 cursor-pointer"
-                />
-              </label>
-            </div>
+              <input
+                type="range"
+                min={30}
+                max={100}
+                value={lh2Pct}
+                onChange={(e) => setLh2Pct(Number(e.target.value))}
+                className="w-full accent-amber-400 cursor-pointer"
+              />
+            </label>
           </div>
 
-          {/* Interactive Fault Resolution: Sync Navigation Data */}
-          <div className={`p-3 rounded-2xl border-2 flex flex-wrap items-center justify-between gap-2 ${
-            navSynced ? 'bg-emerald-950/60 border-emerald-400' : 'bg-amber-950/50 border-amber-400 animate-pulse'
-          }`}>
-            <div className="text-xs font-bold text-white flex items-center gap-2">
-              <Radio className="w-4 h-4 text-amber-300" />
-              <span>
+          <div
+            className={`p-2 rounded-xl border-2 flex items-center justify-between gap-2 ${
+              navSynced ? 'bg-emerald-950/60 border-emerald-400' : 'bg-amber-950/50 border-amber-400'
+            }`}
+          >
+            <div className="text-[11px] font-bold text-white flex items-center gap-1.5 min-w-0">
+              <Radio className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+              <span className="truncate">
                 {navSynced
-                  ? tr(language, '✅ Navigation telemetry synced!', '✅ تم مزامنة بيانات الملاحة بنجاح!')
-                  : tr(language, 'Alert: Sync navigation link before ignition', 'تنبيه: بيانات الملاحة تحتاج مزامنة قبل الإطلاق')}
+                  ? tr(language, 'Navigation telemetry synced!', 'تمت مزامنة الملاحة بنجاح!')
+                  : tr(language, 'Sync navigation link before ignition', 'زامن بيانات الملاحة قبل الإطلاق')}
               </span>
             </div>
             <button
@@ -1417,72 +1334,60 @@ const MissionControlLaunchScene: React.FC<{
                 soundManager.playCrystalSparkle();
                 setNavSynced(true);
               }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black cursor-pointer ${
+              className={`px-3 py-1 rounded-lg text-[11px] font-black cursor-pointer shrink-0 ${
                 navSynced ? 'bg-emerald-500 text-slate-950' : 'bg-amber-400 hover:bg-amber-300 text-slate-950'
               }`}
             >
-              {navSynced ? tr(language, 'Synced ✓', 'تمت المزامنة ✓') : tr(language, 'Sync Navigation Data 🛰️', 'مزامنة الملاحة 🛰️')}
+              {navSynced ? tr(language, 'Synced ✓', 'متزامن ✓') : tr(language, 'Sync Nav 🛰️', 'مزامنة 🛰️')}
             </button>
           </div>
         </div>
-      </div>
-
-      {countdown !== null && countdown > 0 && (
-        <div className="py-4 text-center font-hud font-black text-6xl text-amber-300 animate-bounce">
-          {countdown}
-        </div>
-      )}
-
-      {launchSuccess ? (
-        <div className="p-5 rounded-3xl bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-950 border-4 border-emerald-300 text-center space-y-3">
-          <p className="font-mono font-black text-lg sm:text-2xl text-amber-300 tracking-wide">
-            {tr(language, 'LAUNCH SUCCESSFUL! THE JOURNEY TO THE MOON BEGINS!', 'انطلاق ناجح! بدأت رحلة الصاروخ نحو القمر!')}
-          </p>
-          <p className="font-hud font-black text-base text-white">
-            {tr(
-              language,
-              'Liftoff confirmed! Level 2 Unlocked: Zero-G Orbit Transit 🚀🌕',
-              'تم الإطلاق بنجاح! فُتح المستوى الثاني: الرحلة في انعدام الجاذبية 🚀🌕'
-            )}
-          </p>
-          <div className="flex flex-wrap justify-center gap-3 pt-1">
-            <button
-              type="button"
-              onClick={onNextLevel}
-              data-testid="mission-next-level-btn"
-              className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-300 via-yellow-300 to-orange-400 text-slate-950 font-hud font-black text-base border-2 border-white shadow-[0_0_26px_rgba(251,191,36,0.75)] cursor-pointer hover:scale-105 transition-transform animate-pulse"
-            >
-              {tr(language, 'Mission Complete! Advance to Level 2 🚀', 'المهمة اكتملت! انطلق للمرحلة التالية 🚀')}
-            </button>
-            <button
-              type="button"
-              onClick={onBackToLevel}
-              className="px-5 py-3 rounded-2xl bg-slate-800 text-white font-hud font-bold text-sm border border-cyan-400 cursor-pointer"
-            >
-              {tr(language, 'Back to Station Map', 'العودة لخريطة الغرف')}
-            </button>
+      }
+      primaryCta={
+        launchSuccess ? (
+          <div className="p-2 rounded-xl bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-950 border-2 border-emerald-300 flex items-center justify-between gap-2">
+            <span className="font-hud font-black text-xs sm:text-sm text-amber-300 truncate">
+              {tr(language, 'LIFTOFF CONFIRMED! Level 2 Unlocked 🚀🌕', 'تم الإقلاع! فُتح المستوى الثاني 🚀🌕')}
+            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={onNextLevel}
+                data-testid="mission-next-level-btn"
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-300 to-orange-400 text-slate-950 font-hud font-black text-xs border border-white cursor-pointer"
+              >
+                {tr(language, 'Advance to Level 2 🚀', 'للمستوى الثاني 🚀')}
+              </button>
+              <button
+                type="button"
+                onClick={onBackToLevel}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 text-white font-hud font-bold text-xs border border-cyan-400 cursor-pointer"
+              >
+                {tr(language, 'Deck', 'الخريطة')}
+              </button>
+            </div>
           </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          disabled={!canLaunch || countdown !== null}
-          onClick={startCountdown}
-          className={`w-full py-4 rounded-2xl font-hud font-black text-lg border-2 flex items-center justify-center gap-2 ${
-            canLaunch
-              ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-amber-500 text-white border-white cursor-pointer hover:brightness-110 shadow-[0_0_30px_rgba(168,85,247,0.5)]'
-              : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-          }`}
-        >
-          <Rocket className="w-6 h-6" />
-          <span>
-            {canLaunch
-              ? tr(language, 'INITIATE LAUNCH (3-2-1) 🚀', 'ابدأ العد التنازلي والإطلاق (3-2-1) 🚀')
-              : tr(language, 'Complete all station checks & sync navigation 🔒', 'أكمل محطات المهمة وزامن الملاحة للإطلاق 🔒')}
-          </span>
-        </button>
-      )}
-    </div>
+        ) : (
+          <button
+            type="button"
+            disabled={!canLaunch || countdown !== null}
+            onClick={startCountdown}
+            className={`w-full py-2.5 rounded-xl font-hud font-black text-xs sm:text-sm border-2 flex items-center justify-center gap-2 ${
+              canLaunch
+                ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-amber-500 text-white border-white cursor-pointer hover:brightness-110 shadow-[0_0_20px_rgba(168,85,247,0.45)]'
+                : 'bg-slate-800 text-slate-400 border-slate-700 cursor-not-allowed'
+            }`}
+          >
+            <Rocket className="w-4 h-4" />
+            <span>
+              {canLaunch
+                ? tr(language, 'INITIATE LAUNCH (3-2-1) 🚀', 'ابدأ العد التنازلي والإطلاق (3-2-1) 🚀')
+                : tr(language, 'Complete checks, calibrate valves & sync nav 🔒', 'أكمل الفحص والمعايرة والمزامنة 🔒')}
+            </span>
+          </button>
+        )
+      }
+    />
   );
 };
 
@@ -1566,73 +1471,79 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
     const allClear = nutritionReady && hydrationFixed && sleepFixed;
 
     return (
-      <div className="bg-slate-900/95 border-2 border-pink-400/70 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
-        <BodyTelemetryMeters
-          language={language}
-          titleEn="Pre-Flight Astronaut Biometrics"
-          titleAr="المؤشرات الحيوية قبل الإطلاق"
-          metrics={[
-            { key: 'hydration', value: hydrationFixed ? 96 : 62 },
-            { key: 'muscle', value: sleepFixed ? 92 : 65 }
-          ]}
-        />
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className={`p-4 rounded-2xl border-2 ${nutritionReady ? 'bg-emerald-950/70 border-emerald-400' : 'bg-amber-950/70 border-amber-400'}`}>
-            <p className="font-hud font-black text-base text-white">
-              {tr(language, '🥗 Nutrition Status', '🥗 مؤشر التغذية')}
-            </p>
-            <p className="font-hud text-xs mt-1 text-slate-200">
-              {nutritionReady
-                ? tr(language, 'Certified balanced pantry stowage verified.', 'مكتمل ومعتمد من مخزن الطعام (تأثير مباشر على جاهزية الطاقم).')
-                : tr(language, 'Alert: Complete Food Storage check first.', 'تنبيه! لم تجهز الوجبات المتوازنة في مخزن الطعام بعد.')}
-            </p>
-          </div>
-
-          <div className={`p-4 rounded-2xl border-2 ${hydrationFixed ? 'bg-emerald-950/70 border-emerald-400' : 'bg-rose-950/70 border-rose-400'}`}>
-            <p className="font-hud font-black text-base text-white">
-              {tr(language, '💧 Hydration Level', '💧 مؤشر الترطيب')}
-            </p>
-            <p className="font-hud text-xs mt-1 text-slate-200">
-              {hydrationFixed
-                ? tr(language, 'Optimal hydration: 96%!', 'ترطيب مثالي: 96%!')
-                : tr(language, 'Hold hydration valve for 1.5s to rehydrate before launch.', 'اضغط مطوّلاً 1.5 ثانية لملء الترطيب قبل الإطلاق.')}
-            </p>
-            <div className="mt-2 h-2.5 w-full rounded-full bg-slate-950 overflow-hidden border border-cyan-500/40">
-              <div
-                className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-all duration-100"
-                style={{ width: `${Math.min(100, Math.round((hydrationHoldMs / 1500) * 100))}%` }}
-              />
+      <StationLandscapeFrame
+        accentBorderClass="border-pink-400/65"
+        roboTip={tr(
+          language,
+          'Hold the hydration valve for 1.5s and slide bedtime to 10 PM (8h sleep)!',
+          'اضغط مطوّلاً على صمام الترطيب 1.5ث واسحب النوم إلى 10 مساءً (8 ساعات)!'
+        )}
+        leftStage={
+          <div className="flex-1 min-h-0 flex flex-col justify-between gap-1.5 overflow-hidden">
+            <BodyTelemetryMeters
+              compact
+              language={language}
+              titleEn="Pre-Flight Biometrics"
+              titleAr="المؤشرات الحيوية"
+              metrics={[
+                { key: 'hydration', value: hydrationFixed ? 96 : 62 },
+                { key: 'muscle', value: sleepFixed ? 92 : 65 }
+              ]}
+            />
+            <div className="px-2 py-1.5 rounded-xl bg-emerald-950/45 border border-emerald-400/40 text-[10.5px] text-emerald-100 flex items-center justify-between gap-1.5 shrink-0">
+              <span className="truncate">
+                💊 {tr(language, 'Ca, Vit D/K/C/B12, Fe, Mg, K, Omega-3 & Zinc', 'الكالسيوم، فيتامينات D/K/C/B12، الحديد، المغنيسيوم وأوميغا-3')}
+              </span>
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-emerald-900 border border-emerald-400 text-emerald-200 shrink-0">
+                {tr(language, SCIENCE_BADGES.ISS_PROVEN.labelEn, SCIENCE_BADGES.ISS_PROVEN.labelAr)}
+              </span>
             </div>
-            {!hydrationFixed && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onPointerDown={startHydrationHold}
-                  onPointerUp={stopHydrationHold}
-                  onPointerLeave={stopHydrationHold}
-                  className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-hud font-black text-xs cursor-pointer select-none"
-                >
-                  {tr(language, 'Hold Valve 1.5s 💧', 'اضغط الصمام 1.5ث 💧')}
-                </button>
-              </div>
-            )}
           </div>
+        }
+        rightContent={
+          <div className="space-y-2">
+            <div className={`p-2 rounded-xl border-2 flex items-center justify-between gap-2 ${nutritionReady ? 'bg-emerald-950/70 border-emerald-400' : 'bg-amber-950/70 border-amber-400'}`}>
+              <div className="min-w-0">
+                <p className="font-hud font-black text-xs text-white">{tr(language, '🥗 Nutrition Status', '🥗 مؤشر التغذية')}</p>
+                <p className="font-hud text-[11px] text-slate-200 truncate">
+                  {nutritionReady
+                    ? tr(language, 'Balanced pantry stowage verified.', 'مكتمل ومعتمد من مخزن الطعام.')
+                    : tr(language, 'Complete Food Pantry station first.', 'أكمل محطة مخزن الطعام أولاً.')}
+                </p>
+              </div>
+              <span className="text-xs font-hud font-black shrink-0">{nutritionReady ? '✅' : '⏳'}</span>
+            </div>
 
-          <div className={`p-4 rounded-2xl border-2 ${sleepFixed ? 'bg-emerald-950/70 border-emerald-400' : 'bg-amber-950/70 border-amber-400'}`}>
-            <p className="font-hud font-black text-base text-white">
-              {tr(language, '😴 Circadian Sleep (10 PM → 6 AM)', '😴 الساعة البيولوجية (10 م ← 6 ص)')}
-            </p>
-            <p className="font-hud text-xs mt-1 text-slate-200">
-              {sleepFixed
-                ? tr(language, 'Aligned 10 PM → 6 AM (8h restorative cycle!)', 'مضبوط 10 م ← 6 ص (8 ساعات نوم متكاملة!)')
-                : tr(language, 'Slide bedtime to 10 PM (22:00) for an 8h sleep cycle.', 'اسحب وقت النوم إلى 10 مساءً (22:00) لإتمام 8 ساعات.')}
-            </p>
-            <div className="mt-2 space-y-1">
-              <div className="flex justify-between text-[11px] font-bold text-indigo-200">
-                <span>{tr(language, `Bedtime: ${sleepBedHour}:00`, `وقت النوم: ${sleepBedHour}:00`)}</span>
-                <span className={sleepFixed ? 'text-emerald-300' : 'text-amber-300'}>
-                  {sleepFixed ? '8.0h ✓' : `${Math.max(4, 30 - sleepBedHour - 2).toFixed(0)}h`}
+            <div className={`p-2 rounded-xl border-2 space-y-1.5 ${hydrationFixed ? 'bg-emerald-950/70 border-emerald-400' : 'bg-rose-950/70 border-rose-400'}`}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-hud font-black text-xs text-white">
+                  {tr(language, '💧 Hydration Level', '💧 مؤشر الترطيب')}: {hydrationFixed ? '96% ✅' : `${Math.min(100, Math.round((hydrationHoldMs / 1500) * 100))}%`}
+                </p>
+                {!hydrationFixed && (
+                  <button
+                    type="button"
+                    onPointerDown={startHydrationHold}
+                    onPointerUp={stopHydrationHold}
+                    onPointerLeave={stopHydrationHold}
+                    className="px-3 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-hud font-black text-[11px] cursor-pointer select-none shrink-0"
+                  >
+                    {tr(language, 'Hold Valve 1.5s 💧', 'اضغط الصمام 1.5ث 💧')}
+                  </button>
+                )}
+              </div>
+              <div className="h-2 w-full rounded-full bg-slate-950 overflow-hidden border border-cyan-500/40">
+                <div
+                  className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-all duration-100"
+                  style={{ width: `${Math.min(100, Math.round((hydrationHoldMs / 1500) * 100))}%` }}
+                />
+              </div>
+            </div>
+
+            <div className={`p-2 rounded-xl border-2 space-y-1 ${sleepFixed ? 'bg-emerald-950/70 border-emerald-400' : 'bg-amber-950/70 border-amber-400'}`}>
+              <div className="flex items-center justify-between text-xs font-hud font-black">
+                <span className="text-white">{tr(language, '😴 Circadian Sleep (10 PM → 6 AM)', '😴 الساعة البيولوجية (10 م ← 6 ص)')}</span>
+                <span className={sleepFixed ? 'text-emerald-300' : 'text-amber-200'}>
+                  {sleepBedHour}:00 • {sleepFixed ? '8.0h ✓' : `${Math.max(4, 30 - sleepBedHour - 2).toFixed(0)}h`}
                 </span>
               </div>
               <input
@@ -1655,43 +1566,30 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
               />
             </div>
           </div>
-        </div>
-
-        <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-400/40 text-xs text-emerald-100 flex flex-wrap items-center justify-between gap-2">
-          <span>
-            💊{' '}
-            {tr(
-              language,
-              'Key Micro-Nutrients: Calcium, Vitamins D/K/C/B12, Iron, Magnesium, Potassium, Omega-3 & Zinc for bone density and immunity.',
-              'المغذيات الدقيقة للبعثة: الكالسيوم، فيتامينات D وK وC وB12، الحديد، المغنيسيوم، البوتاسيوم، أوميغا-3، والزنك لحماية العظام والمناعة.'
-            )}
-          </span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-900 border border-emerald-400 text-emerald-200">
-            {tr(language, SCIENCE_BADGES.ISS_PROVEN.labelEn, SCIENCE_BADGES.ISS_PROVEN.labelAr)}
-          </span>
-        </div>
-
-        <button
-          type="button"
-          disabled={!allClear}
-          onClick={() => {
-            soundManager.playFanfare();
-            void dialogueManager.speak(
-              tr(language, 'Flight surgeon clearance granted! Crew is 100% go for launch!', 'أحسنت! الفحص الطبي سليم 100% والطاقم لائق للانطلاق!')
-            );
-            onCompleteMiniGame('l1_medical_check', { l1MedicalCleared: true });
-          }}
-          className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 ${
-            allClear
-              ? 'bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 border-white cursor-pointer'
-              : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-          }`}
-        >
-          {nutritionReady
-            ? tr(language, 'Approve Medical Flight Clearance 🩺', 'اعتماد التصريح الطبي للانطلاق 🩺')
-            : tr(language, 'Complete Food Pantry first, then certify medical exam', 'أكمل مخزن الطعام أولاً ثم اعتمد الفحص الطبي')}
-        </button>
-      </div>
+        }
+        primaryCta={
+          <button
+            type="button"
+            disabled={!allClear}
+            onClick={() => {
+              soundManager.playFanfare();
+              void dialogueManager.speak(
+                tr(language, 'Flight surgeon clearance granted! Crew is 100% go for launch!', 'أحسنت! الفحص الطبي سليم 100% والطاقم لائق للانطلاق!')
+              );
+              onCompleteMiniGame('l1_medical_check', { l1MedicalCleared: true });
+            }}
+            className={`w-full py-2.5 rounded-xl font-hud font-black text-xs sm:text-sm border-2 ${
+              allClear
+                ? 'bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 border-white cursor-pointer'
+                : 'bg-slate-800 text-slate-400 border-slate-700 cursor-not-allowed'
+            }`}
+          >
+            {nutritionReady
+              ? tr(language, 'Approve Medical Flight Clearance 🩺', 'اعتماد التصريح الطبي للانطلاق 🩺')
+              : tr(language, 'Complete Food Pantry first, then certify medical exam', 'أكمل مخزن الطعام أولاً ثم اعتمد الفحص الطبي')}
+          </button>
+        }
+      />
     );
   }
 
@@ -1703,59 +1601,79 @@ export const Level1MiniGames: React.FC<Level1Props> = ({
     };
 
     return (
-      <div className="bg-slate-900/95 border-2 border-indigo-400/70 rounded-3xl p-5 flex flex-col gap-4 shadow-xl">
-        <p className="font-hud font-bold text-sm text-indigo-200">
-          {tr(
-            language,
-            `Inspect all 5 spacecraft systems inside the hangar (${checkedShip.length}/${L1_SHIP_SYSTEMS.length}):`,
-            `افحص أنظمة المركبة الخمسة في حظيرة الصاروخ (${checkedShip.length}/${L1_SHIP_SYSTEMS.length}):`
-          )}
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {L1_SHIP_SYSTEMS.map((sys) => {
-            const ok = checkedShip.includes(sys.id);
-            return (
-              <button
-                key={sys.id}
-                type="button"
-                onClick={() => toggleCheck(sys.id)}
-                className={`p-4 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${
-                  ok
-                    ? 'bg-emerald-950 border-emerald-400 text-white'
-                    : 'bg-slate-800 border-slate-600 text-slate-200 hover:border-cyan-400'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{sys.icon}</span>
-                  <span className="font-hud font-black text-sm">{tr(language, sys.nameEn, sys.nameAr)}</span>
-                </div>
-                <span className={`text-xs font-hud font-black ${ok ? 'text-emerald-300' : 'text-amber-300'}`}>
-                  {ok ? tr(language, '100% GO ✓', 'سليم 100% ✓') : tr(language, 'Inspect', 'افحص الآن')}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <button
-          type="button"
-          disabled={!allChecked}
-          onClick={() => {
-            soundManager.playFanfare();
-            void dialogueManager.speak(
-              tr(language, 'All spacecraft systems green! Proceed to the Launch Pad!', 'أنظمة المركبة خضراء بالكامل! توجه إلى منصة الإطلاق!')
-            );
-            onCompleteMiniGame('l1_spaceship_inspect', { l1SpaceshipInspected: true });
-          }}
-          className={`w-full py-3.5 rounded-2xl font-hud font-black text-base border-2 ${
-            allChecked
-              ? 'bg-gradient-to-r from-indigo-400 to-cyan-400 text-slate-950 border-white cursor-pointer'
-              : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-          }`}
-        >
-          {tr(language, 'Confirm Spacecraft Readiness 🛸', 'تأكيد سلامة المركبة الفضائية 🛸')}
-        </button>
-      </div>
+      <StationLandscapeFrame
+        accentBorderClass="border-indigo-400/70"
+        roboTip={tr(
+          language,
+          'Inspect all 5 spacecraft life-support and power systems to turn every gauge green!',
+          'افحص أنظمة المركبة الخمسة حتى تضيء جميعها باللون الأخضر!'
+        )}
+        leftStage={
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 text-center p-2">
+            <span className="text-5xl">🛸</span>
+            <div className="font-hud font-black text-sm text-indigo-200">
+              {tr(
+                language,
+                `Systems Inspected: ${checkedShip.length}/${L1_SHIP_SYSTEMS.length}`,
+                `الأنظمة المفحوصة: ${checkedShip.length}/${L1_SHIP_SYSTEMS.length}`
+              )}
+            </div>
+            <div className="w-full h-3 rounded-full bg-slate-950 border border-indigo-400/50 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-indigo-400 to-emerald-400 transition-all"
+                style={{ width: `${(checkedShip.length / L1_SHIP_SYSTEMS.length) * 100}%` }}
+              />
+            </div>
+          </div>
+        }
+        rightContent={
+          <div className="grid grid-cols-2 gap-1.5">
+            {L1_SHIP_SYSTEMS.map((sys) => {
+              const ok = checkedShip.includes(sys.id);
+              return (
+                <button
+                  key={sys.id}
+                  type="button"
+                  onClick={() => toggleCheck(sys.id)}
+                  className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 cursor-pointer transition-all ${
+                    ok
+                      ? 'bg-emerald-950 border-emerald-400 text-white'
+                      : 'bg-slate-800 border-slate-600 text-slate-200 hover:border-cyan-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xl shrink-0">{sys.icon}</span>
+                    <span className="font-hud font-black text-xs truncate">{tr(language, sys.nameEn, sys.nameAr)}</span>
+                  </div>
+                  <span className={`text-[11px] font-hud font-black shrink-0 ${ok ? 'text-emerald-300' : 'text-amber-300'}`}>
+                    {ok ? tr(language, 'OK ✓', 'سليم ✓') : tr(language, 'Inspect', 'افحص')}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        }
+        primaryCta={
+          <button
+            type="button"
+            disabled={!allChecked}
+            onClick={() => {
+              soundManager.playFanfare();
+              void dialogueManager.speak(
+                tr(language, 'All spacecraft systems green! Proceed to the Launch Pad!', 'أنظمة المركبة خضراء بالكامل! توجه إلى منصة الإطلاق!')
+              );
+              onCompleteMiniGame('l1_spaceship_inspect', { l1SpaceshipInspected: true });
+            }}
+            className={`w-full py-2.5 rounded-xl font-hud font-black text-xs sm:text-sm border-2 ${
+              allChecked
+                ? 'bg-gradient-to-r from-indigo-400 to-cyan-400 text-slate-950 border-white cursor-pointer'
+                : 'bg-slate-800 text-slate-400 border-slate-700 cursor-not-allowed'
+            }`}
+          >
+            {tr(language, 'Confirm Spacecraft Readiness 🛸', 'تأكيد سلامة المركبة الفضائية 🛸')}
+          </button>
+        }
+      />
     );
   }
 

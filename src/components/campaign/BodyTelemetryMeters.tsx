@@ -65,19 +65,20 @@ export const BodyTelemetryMeters: React.FC<BodyTelemetryMetersProps> = ({
   return (
     <div
       data-testid="body-telemetry-meters"
-      className={`rounded-3xl bg-slate-950/88 border-2 border-cyan-400/50 ${
-        compact ? 'p-2.5 space-y-2' : 'p-3.5 space-y-2.5'
+      className={`rounded-2xl bg-slate-950/88 border border-cyan-400/45 ${
+        compact ? 'p-2 space-y-1.5' : 'p-3.5 space-y-2.5'
       }`}
     >
-      <div className="flex items-center justify-between text-xs font-hud font-black text-cyan-200">
-        <span>❤️ {tr(language, titleEn, titleAr)}</span>
-        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[10px]">
+      <div className={`flex items-center justify-between ${compact ? 'text-[11px]' : 'text-xs'} font-hud font-black text-cyan-200 gap-1.5`}>
+        <span className="truncate">❤️ {tr(language, titleEn, titleAr)}</span>
+        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[10px] shrink-0">
           {tr(language, 'READY ✨', 'جاهز ✨')}
         </span>
       </div>
 
       <AstronautBioTwin
         compact
+        mini={compact}
         language={language}
         rationsCount={3}
         hydrationPct={hydrVal}
@@ -86,7 +87,7 @@ export const BodyTelemetryMeters: React.FC<BodyTelemetryMetersProps> = ({
         radiationShielded={shieldReady}
       />
 
-      <div className={`grid grid-cols-1 ${metrics.length > 1 ? 'sm:grid-cols-2' : ''} gap-2.5`}>
+      <div className={`grid ${metrics.length > 1 ? 'grid-cols-2' : 'grid-cols-1'} ${compact ? 'gap-1.5' : 'gap-2.5'}`}>
         {metrics.map((m) => {
           const meta = METRIC_META[m.key];
           const clamped = Math.max(0, Math.min(100, Math.round(m.value)));
@@ -111,18 +112,20 @@ export const BodyTelemetryMeters: React.FC<BodyTelemetryMetersProps> = ({
             <div
               key={m.key}
               data-testid={`telemetry-metric-${m.key}`}
-              className={`rounded-2xl bg-slate-900/90 border-2 p-2.5 transition-colors ${
+              className={`rounded-xl bg-slate-900/90 border transition-colors ${
+                compact ? 'p-1.5' : 'p-2.5'
+              } ${
                 computedStatus === 'critical' ? 'border-rose-400/70' : 'border-cyan-500/30'
               }`}
             >
-              <div className="flex items-center justify-between text-xs font-black mb-1.5">
-                <span className="text-slate-100 flex items-center gap-1.5">
+              <div className={`flex items-center justify-between ${compact ? 'text-[10.5px] mb-1' : 'text-xs mb-1.5'} font-black gap-1`}>
+                <span className="text-slate-100 flex items-center gap-1 truncate">
                   <span>{meta.icon}</span>
-                  <span>{tr(language, meta.labelEn, meta.labelAr)}</span>
+                  <span className="truncate">{tr(language, meta.labelEn, meta.labelAr)}</span>
                 </span>
-                <span className={`font-hud font-black ${textColor}`}>{clamped}%</span>
+                <span className={`font-hud font-black shrink-0 ${textColor}`}>{clamped}%</span>
               </div>
-              <div className="h-3.5 rounded-full bg-slate-950 overflow-hidden border border-slate-700/80 p-0.5">
+              <div className={`${compact ? 'h-2' : 'h-3.5'} rounded-full bg-slate-950 overflow-hidden border border-slate-700/80 p-0.5`}>
                 <div
                   className={`h-full rounded-full bg-gradient-to-r ${barGradient} transition-all duration-500`}
                   style={{ width: `${clamped}%` }}

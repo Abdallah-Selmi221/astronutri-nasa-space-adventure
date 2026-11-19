@@ -4,10 +4,12 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
+  Info,
   Rocket,
   Satellite,
   Sparkles,
-  Volume2
+  Volume2,
+  X
 } from 'lucide-react';
 import { useGameState } from '../../context/GameContext';
 import { MINI_GAME_SPECS } from '../../data/campaignLevels';
@@ -37,14 +39,14 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
   children
 }) => {
   const { state, language, ageGroup, setLanguage } = useGameState();
-  const [briefingAccepted, setBriefingAccepted] = useState<boolean>(isCompleted);
-  const [demoDismissed, setDemoDismissed] = useState<boolean>(isCompleted);
+  const [isInfoOpen, setIsInfoOpen] = useState<boolean>(false);
+  const [isDemoOpen, setIsDemoOpen] = useState<boolean>(false);
   const campaign = state.campaign;
 
   useEffect(() => {
-    setBriefingAccepted(isCompleted);
-    setDemoDismissed(isCompleted);
-  }, [miniGameId, isCompleted]);
+    setIsInfoOpen(false);
+    setIsDemoOpen(false);
+  }, [miniGameId]);
 
   const spec = MINI_GAME_SPECS[miniGameId];
   const briefing = MINI_GAME_BRIEFINGS[miniGameId];
@@ -63,11 +65,14 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
   return (
     <div
       dir={isAr ? 'rtl' : 'ltr'}
-      className="h-[100dvh] w-full scrollable-panel pt-4 pb-10 px-3 sm:px-6 max-w-5xl mx-auto space-y-4"
+      className="h-[100dvh] w-full overflow-hidden flex flex-col bg-slate-950 text-white select-none"
     >
-      {/* Top Action & Context Header */}
-      <header className="flex flex-wrap items-center justify-between gap-2.5 bg-slate-900/95 border-2 border-cyan-400/50 rounded-3xl p-3 sm:p-4 shadow-xl backdrop-blur-md">
-        <div className="flex items-center gap-2.5 min-w-0">
+      {/* Ultra-Slim Single-Row Landscape Game Header (<= 40px height) */}
+      <header
+        data-testid="minigame-top-bar"
+        className="h-9 sm:h-10 max-h-[40px] shrink-0 px-2 sm:px-3 bg-slate-900/95 border-b border-cyan-400/40 flex items-center justify-between gap-1.5 backdrop-blur-md z-30"
+      >
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <button
             type="button"
             data-testid="minigame-back-btn"
@@ -75,57 +80,96 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
               soundManager.playClick();
               onBackToLevel();
             }}
-            className="px-3 py-2 rounded-2xl bg-slate-800 hover:bg-cyan-700 text-white font-hud font-black text-xs sm:text-sm border border-cyan-400/40 flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors"
+            className="h-7 px-2 sm:px-2.5 rounded-full bg-slate-800 hover:bg-cyan-700 text-white font-hud font-black text-[11px] sm:text-xs border border-cyan-400/45 flex items-center gap-1 cursor-pointer shrink-0 transition-colors"
           >
-            {isAr ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
-            <span>{tr(language, 'Mission Deck', 'منصة المهمة')}</span>
+            {isAr ? <ArrowRight className="w-3.5 h-3.5" /> : <ArrowLeft className="w-3.5 h-3.5" />}
+            <span>{tr(language, 'Back', 'رجوع')}</span>
           </button>
 
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-lg sm:text-xl leading-none">{spec.icon}</span>
-              <h1 className="font-hud font-black text-sm sm:text-lg text-white truncate">
-                {titleText}
-              </h1>
-              <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 text-[10px] font-black">
-                {tr(language, `Level ${spec.levelId}`, `المستوى ${spec.levelId}`)}
-              </span>
-            </div>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-base leading-none shrink-0">{spec.icon}</span>
+            <h1 className="font-hud font-black text-xs sm:text-sm text-white truncate">
+              {titleText}
+            </h1>
+            <span className="hidden lg:inline-flex px-2 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 text-[10px] font-black shrink-0">
+              {tr(language, `L${spec.levelId}`, `م${spec.levelId}`)}
+            </span>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          {briefingAccepted && (
-            <>
-              {demoDismissed && (
-                <button
-                  type="button"
-                  data-testid="replay-demo-btn"
-                  onClick={() => {
-                    soundManager.playClick();
-                    setDemoDismissed(false);
-                  }}
-                  className="px-2.5 py-1.5 rounded-2xl bg-cyan-950/90 hover:bg-cyan-900 text-cyan-100 border border-cyan-400/60 text-xs font-hud font-black flex items-center gap-1 cursor-pointer"
-                >
-                  <span>🎬</span>
-                  <span className="hidden sm:inline">{tr(language, 'Watch 5s Demo', 'مشاهدة العرض')}</span>
-                </button>
-              )}
+          {/* Inline Compact Completion Pill (never pushes workspace downward) */}
+          {isCompleted && (
+            <div
+              data-testid="minigame-completed-banner"
+              className="flex items-center gap-1 shrink-0"
+            >
               <button
                 type="button"
-                data-testid="reopen-briefing-btn"
+                data-testid="minigame-continue-btn"
                 onClick={() => {
                   soundManager.playClick();
-                  setBriefingAccepted(false);
+                  if (onContinueNext) onContinueNext();
+                  else onBackToLevel();
                 }}
-                className="px-2.5 py-1.5 rounded-2xl bg-indigo-950/90 hover:bg-indigo-900 text-indigo-100 border border-indigo-400/60 text-xs font-hud font-black flex items-center gap-1 cursor-pointer"
+                className="h-7 px-2.5 rounded-full bg-gradient-to-r from-emerald-400 to-amber-300 hover:brightness-110 text-slate-950 font-hud font-black text-[11px] shadow cursor-pointer flex items-center gap-1 whitespace-nowrap"
               >
-                <span>🤖</span>
-                <span className="hidden sm:inline">{tr(language, 'Show Robo Briefing', 'عرض شرح روبو')}</span>
-                <span className="sm:hidden">{tr(language, 'Tip', 'شرح')}</span>
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span>{tr(language, onContinueNext ? 'Next Mission' : 'Deck', onContinueNext ? 'المهمة التالية' : 'المنصة')}</span>
+                {onContinueNext && <Rocket className="w-3 h-3 shrink-0" />}
               </button>
-            </>
+            </div>
           )}
+        </div>
+
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {campaign && (
+            <MissionInventoryBar
+              inlineSlim
+              campaign={campaign}
+              activeLevelId={spec.levelId}
+              language={language}
+            />
+          )}
+
+          <button
+            type="button"
+            data-testid="replay-demo-btn"
+            onClick={() => {
+              soundManager.playClick();
+              setIsInfoOpen(false);
+              setIsDemoOpen((v) => !v);
+            }}
+            title={tr(language, 'Watch 5s Demo', 'مشاهدة العرض')}
+            aria-label={tr(language, 'Watch 5s Demo', 'مشاهدة العرض')}
+            className={`h-7 px-2 rounded-full border text-[11px] font-hud font-black flex items-center gap-1 cursor-pointer transition-colors ${
+              isDemoOpen
+                ? 'bg-cyan-400 text-slate-950 border-white'
+                : 'bg-cyan-950/90 hover:bg-cyan-900 text-cyan-100 border-cyan-400/60'
+            }`}
+          >
+            <span>🎬</span>
+            <span className="hidden lg:inline">{tr(language, 'Demo', 'عرض')}</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="minigame-info-btn"
+            onClick={() => {
+              soundManager.playClick();
+              setIsDemoOpen(false);
+              setIsInfoOpen((v) => !v);
+            }}
+            title={tr(language, 'NASA Science Info', 'معلومات ناسا وشرح روبو')}
+            aria-label={tr(language, 'NASA Science Info', 'معلومات ناسا وشرح روبو')}
+            className={`h-7 px-2 rounded-full border text-[11px] font-hud font-black flex items-center gap-1 cursor-pointer transition-colors ${
+              isInfoOpen
+                ? 'bg-indigo-400 text-slate-950 border-white'
+                : 'bg-indigo-950/90 hover:bg-indigo-900 text-indigo-100 border-indigo-400/65'
+            }`}
+          >
+            <Info className="w-3.5 h-3.5 shrink-0" />
+            <span className="md:hidden">{tr(language, 'Info', 'شرح روبو')}</span>
+            <span className="hidden md:inline">{tr(language, 'NASA Info', 'شرح ناسا')}</span>
+          </button>
 
           <button
             type="button"
@@ -134,212 +178,140 @@ export const MiniGameShell: React.FC<MiniGameShellProps> = ({
               soundManager.playClick();
               setLanguage(isAr ? 'en' : 'ar');
             }}
-            className="px-2.5 py-1.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-amber-200 border border-amber-300/60 text-xs font-hud font-black cursor-pointer"
+            className="h-7 px-2 rounded-full bg-slate-800 hover:bg-slate-700 text-amber-200 border border-amber-300/60 text-[11px] font-hud font-black cursor-pointer"
           >
-            {isAr ? '🌐 اللغة: عربي' : '🌐 EN • AR'}
-          </button>
-
-          <button
-            type="button"
-            data-testid="open-nasa-drawer-btn"
-            onClick={() => {
-              soundManager.playClick();
-              openNasaDrawer();
-            }}
-            className="px-2.5 py-1.5 rounded-2xl bg-cyan-950 hover:bg-cyan-900 text-cyan-200 border border-cyan-400/60 text-xs font-hud font-black flex items-center gap-1 cursor-pointer"
-          >
-            <Satellite className="w-3.5 h-3.5 text-cyan-300" />
-            <span>{tr(language, 'NASA', 'بيانات ناسا')}</span>
+            {isAr ? 'EN' : 'AR'}
           </button>
         </div>
       </header>
 
-      {/* Persistent Mission Carry-Over Inventory & Biometrics Bar */}
-      {campaign && (
-        <div className="flex justify-center">
-          <MissionInventoryBar
-            campaign={campaign}
-            activeLevelId={spec.levelId}
-            language={language}
-          />
+      {/* Immediate Zero-Scroll 2-Column Landscape Workspace */}
+      <main
+        data-testid="minigame-workspace"
+        className="flex-1 min-h-0 h-[calc(100dvh-40px)] w-full overflow-hidden p-1.5 sm:p-2.5 lg:p-4 flex flex-col"
+      >
+        <div className="w-full max-w-6xl mx-auto flex-1 min-h-0 flex flex-col overflow-hidden">
+          {children}
+        </div>
+      </main>
+
+      {/* Progressive Disclosure Popover: NASA Science Info & Robo Explanation */}
+      {isInfoOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-5"
+          onClick={() => setIsInfoOpen(false)}
+        >
+          <motion.section
+            key={`info-${miniGameId}`}
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            data-testid="robo-info-popover"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl max-h-[calc(100dvh-20px)] overflow-y-auto rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950/90 to-slate-900 border-2 border-cyan-400/80 p-3.5 sm:p-5 shadow-2xl space-y-3"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/20 border border-cyan-300/60 text-cyan-100 text-[11px] font-hud font-black">
+                  <span>🤖</span>
+                  <span>{tr(language, 'ROBO SCIENCE INFO', 'شرح روبو العلمي')}</span>
+                </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-400/20 border border-amber-300/70 text-amber-200 text-[11px] font-hud font-black">
+                  <Satellite className="w-3 h-3 text-amber-300" />
+                  <span>{briefing.datasetTag}</span>
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handlePlayVoice}
+                  className="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-cyan-200 border border-cyan-400/50 font-hud font-black text-[11px] flex items-center gap-1 cursor-pointer"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>{tr(language, 'Read', 'استمع')}</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="open-nasa-drawer-btn"
+                  onClick={() => {
+                    soundManager.playClick();
+                    setIsInfoOpen(false);
+                    openNasaDrawer();
+                  }}
+                  className="px-2.5 py-1 rounded-full bg-cyan-950 hover:bg-cyan-900 text-cyan-200 border border-cyan-400/60 text-[11px] font-hud font-black flex items-center gap-1 cursor-pointer"
+                >
+                  <Satellite className="w-3.5 h-3.5 text-cyan-300" />
+                  <span>{tr(language, 'NASA Data', 'بيانات ناسا')}</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="robo-info-close-btn"
+                  onClick={() => {
+                    soundManager.playClick();
+                    setIsInfoOpen(false);
+                  }}
+                  aria-label={tr(language, 'Close Info', 'إغلاق')}
+                  className="w-7 h-7 rounded-full bg-slate-800 hover:bg-rose-600 text-white border border-slate-600 flex items-center justify-center cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-950/75 border border-cyan-400/40 p-2.5 sm:p-3">
+              <div className="shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/30 border border-cyan-300/50 flex items-center justify-center overflow-hidden">
+                <RoboCharacter pose="TALKING" size={60} animated interactive={false} showShadow={false} />
+              </div>
+              <div className="flex-1 min-w-0 space-y-1">
+                <p className="text-xs sm:text-sm font-bold text-white leading-snug">
+                  {briefingSentences[0]}
+                </p>
+                <p className="text-[11px] sm:text-xs font-semibold text-cyan-200 leading-snug">
+                  {briefingSentences[1]}
+                </p>
+              </div>
+              <div className="hidden sm:flex items-center gap-1.5 shrink-0">
+                {briefing.icons.map((iconChar, idx) => (
+                  <span
+                    key={idx}
+                    className="w-10 h-10 rounded-xl bg-slate-900 border border-cyan-400/40 flex items-center justify-center text-xl"
+                  >
+                    {iconChar}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-emerald-950/45 border border-emerald-400/50 p-2.5 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-300 shrink-0" />
+              <p className="text-xs font-bold text-emerald-50">
+                <span className="text-emerald-300 font-hud font-black me-1.5">
+                  {tr(language, `Age ${ageGroup}:`, `عمر ${ageGroup}:`)}
+                </span>
+                {ageHint}
+              </p>
+            </div>
+
+            <StageStoryBanner compact levelId={spec.levelId} language={language} />
+          </motion.section>
         </div>
       )}
 
-      {/* Completion Victory Banner */}
-      {isCompleted && (
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          data-testid="minigame-completed-banner"
-          className="rounded-3xl bg-gradient-to-r from-emerald-950/90 via-teal-950/90 to-cyan-950/90 border-2 border-emerald-400/80 p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 shadow-xl"
+      {/* On-Demand Zero-Scroll Compact 5s Demo Overlay */}
+      {isDemoOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4"
+          onClick={() => setIsDemoOpen(false)}
         >
-          <div className="flex items-center gap-2.5">
-            <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
-            <div>
-              <p className="font-hud font-black text-sm sm:text-base text-emerald-100">
-                {tr(
-                  language,
-                  'Mission Accomplished! Next Step Unlocked!',
-                  'أحسنت! تم إكمال المهمة وفتح الخطوة التالية!'
-                )}
-              </p>
-              <p className="text-xs text-emerald-200/85">
-                {tr(
-                  language,
-                  'You can replay anytime or follow the golden floor arrow to your next station.',
-                  'يمكنك إعادة التجربة الآن أو العودة لاتباع السهم الذهبي للمحطة التالية.'
-                )}
-              </p>
-            </div>
+          <div className="w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+            <MiniGameDemoOverlay
+              compact
+              key={`demo-${miniGameId}`}
+              miniGameId={miniGameId}
+              onFinish={() => setIsDemoOpen(false)}
+            />
           </div>
-
-          <div className="flex items-center gap-2">
-            {onContinueNext ? (
-              <button
-                type="button"
-                data-testid="minigame-continue-btn"
-                onClick={() => {
-                  soundManager.playClick();
-                  onContinueNext();
-                }}
-                className="px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 hover:brightness-110 text-slate-950 font-hud font-black text-xs sm:text-sm shadow-lg cursor-pointer flex items-center gap-1.5"
-              >
-                <Rocket className="w-4 h-4" />
-                <span>{tr(language, 'Go to Next Mission', 'للمهمة التالية')}</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                data-testid="minigame-continue-btn"
-                onClick={() => {
-                  soundManager.playClick();
-                  onBackToLevel();
-                }}
-                className="px-4 py-2 rounded-2xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-hud font-black text-xs sm:text-sm shadow cursor-pointer"
-              >
-                {tr(language, 'Return to Mission Deck', 'العودة لمنصة المهمة')}
-              </button>
-            )}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Stage 1: Learn-Before-Play Robo Briefing Card */}
-      {!briefingAccepted ? (
-        <motion.section
-          key={`briefing-${miniGameId}`}
-          initial={{ opacity: 0, scale: 0.96, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          data-testid="robo-briefing-card"
-          className="rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950/90 to-slate-900 border-2 border-cyan-400/80 p-5 sm:p-7 shadow-2xl space-y-5"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-300/60 text-cyan-100 text-xs font-hud font-black">
-              <span>🤖</span>
-              <span>{tr(language, 'ROBO SCIENCE BRIEFING', 'شرح روبو السريع')}</span>
-            </div>
-
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-300/70 text-amber-200 text-xs font-hud font-black">
-              <Satellite className="w-3.5 h-3.5 text-amber-300" />
-              <span>NASA Data: {briefing.datasetTag}</span>
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3 sm:gap-4 rounded-2xl bg-slate-950/65 border border-cyan-400/40 p-3 sm:p-4">
-            <div
-              data-testid="briefing-robo-character"
-              className="shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/30 border border-cyan-300/50 flex items-center justify-center overflow-hidden"
-            >
-              <RoboCharacter pose="TALKING" size={84} animated interactive={false} showShadow={false} />
-            </div>
-            <div className="flex-1 min-w-0 space-y-1.5">
-              <p className="text-xs font-hud font-black text-cyan-300 uppercase tracking-wide">
-                {tr(language, 'Robo says:', 'روبو يقول لك:')}
-              </p>
-              <p className="text-sm sm:text-base font-bold text-white leading-snug">
-                {ageHint || briefingSentences[0]}
-              </p>
-            </div>
-          </div>
-
-          <StageStoryBanner compact levelId={spec.levelId} language={language} />
-
-          {/* 3 Cartoon Visual Story Icons */}
-          <div className="flex items-center justify-center gap-3 sm:gap-5 py-2">
-            {briefing.icons.map((iconChar, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ y: 8, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: idx * 0.08 }}
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-slate-950/80 border-2 border-cyan-400/50 flex items-center justify-center text-3xl sm:text-4xl shadow-lg"
-              >
-                {iconChar}
-              </motion.div>
-            ))}
-          </div>
-
-          {/* 2 Concise Educational Sentences */}
-          <div className="rounded-2xl bg-slate-950/75 border border-slate-700/80 p-4 space-y-2.5 text-center sm:text-start">
-            <p className="text-sm sm:text-base font-bold text-white leading-relaxed">
-              {briefingSentences[0]}
-            </p>
-            <p className="text-xs sm:text-sm font-semibold text-cyan-200 leading-relaxed">
-              {briefingSentences[1]}
-            </p>
-          </div>
-
-          {/* Age-Adapted Robo Tip Pill */}
-          <div className="rounded-2xl bg-emerald-950/45 border border-emerald-400/50 p-3.5 flex items-start gap-2.5">
-            <Sparkles className="w-5 h-5 text-emerald-300 shrink-0 mt-0.5" />
-            <div className="space-y-0.5">
-              <div className="text-[11px] font-hud font-black text-emerald-300 uppercase">
-                {tr(language, `Cadet Tip (Age ${ageGroup})`, `نصيحة روبو (عمر ${ageGroup})`)}
-              </div>
-              <p className="text-xs sm:text-sm font-bold text-emerald-50">{ageHint}</p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <button
-              type="button"
-              onClick={handlePlayVoice}
-              className="px-4 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-cyan-200 border border-cyan-400/50 font-hud font-black text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer"
-            >
-              <Volume2 className="w-4 h-4" />
-              <span>{tr(language, 'Read Aloud', 'استمع للشرح')}</span>
-            </button>
-
-            <button
-              type="button"
-              data-testid="briefing-start-btn"
-              onClick={() => {
-                soundManager.playClick();
-                setBriefingAccepted(true);
-              }}
-              className="flex-1 sm:flex-none px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-orange-400 hover:brightness-105 active:scale-95 text-slate-950 font-hud font-black text-sm sm:text-base border-2 border-white shadow-[0_4px_0_#b45309] flex items-center justify-center gap-2 cursor-pointer transition-transform"
-            >
-              <span>{tr(language, 'Got it! Start Mission 🚀', 'فهمت! ابدأ المهمة 🚀')}</span>
-            </button>
-          </div>
-        </motion.section>
-      ) : !demoDismissed ? (
-        <MiniGameDemoOverlay
-          key={`demo-${miniGameId}`}
-          miniGameId={miniGameId}
-          onFinish={() => setDemoDismissed(true)}
-        />
-      ) : (
-        /* Stage 2: Interactive Mini-Game Workspace */
-        <motion.section
-          key={`workspace-${miniGameId}`}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          data-testid="minigame-workspace"
-          className="rounded-3xl bg-slate-900/90 border-2 border-slate-700/80 p-3.5 sm:p-5 shadow-2xl"
-        >
-          {children}
-        </motion.section>
+        </div>
       )}
     </div>
   );

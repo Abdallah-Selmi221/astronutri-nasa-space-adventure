@@ -19,12 +19,13 @@ export interface RoboGuideOverlayProps {
   onAction?: () => void;
   onDismiss?: () => void;
   testId?: string;
-  placement?: 'bottom-center' | 'bottom-left';
+  placement?: 'top-left' | 'bottom-center' | 'bottom-left';
 }
 
 /**
- * Reusable animated Robo Guide speech bubble banner anchored clear of
- * mobile dual-thumb joystick and action buttons.
+ * Low-profile animated Robo Guide speech pill anchored near the top-left
+ * below the ultra-slim 36px HUD bar so the 3D astronaut character and
+ * bottom dual-thumb mobile controls remain 100% unobstructed.
  */
 export const RoboGuideOverlay: React.FC<RoboGuideOverlayProps> = ({
   visible,
@@ -39,7 +40,7 @@ export const RoboGuideOverlay: React.FC<RoboGuideOverlayProps> = ({
   onAction,
   onDismiss,
   testId = 'robo-guide-overlay',
-  placement = 'bottom-center',
+  placement = 'top-left'
 }) => {
   const isAr = language === 'ar';
   const dir = isAr ? 'rtl' : 'ltr';
@@ -49,7 +50,7 @@ export const RoboGuideOverlay: React.FC<RoboGuideOverlayProps> = ({
     actionLabelEn && actionLabelAr ? tr(language, actionLabelEn, actionLabelAr) : null;
 
   // Muted auto-TTS by default: user clicks speaker button to hear Web Speech.
-  // Playful fast typewriter text animation + soft Web Audio cartoon UI blips instead.
+  // Fast typewriter text animation + soft Web Audio UI blips instead.
   const [typedCount, setTypedCount] = useState<number>(0);
 
   useEffect(() => {
@@ -83,7 +84,9 @@ export const RoboGuideOverlay: React.FC<RoboGuideOverlayProps> = ({
   const wrapperClass =
     placement === 'bottom-left'
       ? 'robo-guide-wrapper robo-guide-left pointer-events-none fixed bottom-3 left-3 z-30 flex justify-start'
-      : 'robo-guide-wrapper pointer-events-none fixed bottom-2.5 inset-x-0 z-30 flex justify-center px-2';
+      : placement === 'bottom-center'
+      ? 'robo-guide-wrapper pointer-events-none fixed bottom-2.5 inset-x-0 z-30 flex justify-center px-2'
+      : 'robo-guide-wrapper robo-guide-top-left pointer-events-none fixed top-11 left-2 sm:top-[52px] sm:left-3 z-30 flex justify-start max-w-[calc(100vw-16px)]';
 
   return (
     <AnimatePresence>
@@ -92,73 +95,39 @@ export const RoboGuideOverlay: React.FC<RoboGuideOverlayProps> = ({
           <motion.aside
             dir={dir}
             key={message}
-            initial={{ opacity: 0, y: 18, scale: 0.94 }}
+            initial={{ opacity: 0, y: 6, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 14, scale: 0.95 }}
-            transition={{ duration: 0.24, ease: 'easeOut' }}
+            exit={{ opacity: 0, y: 4, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
             data-testid={testId}
-            className="pointer-events-auto relative flex items-center gap-2 sm:gap-2.5 w-full max-w-[355px] sm:max-w-[390px] rounded-2xl bg-slate-950/92 border-2 border-cyan-300/80 shadow-[0_12px_36px_rgba(2,6,23,0.85)] backdrop-blur-md p-2 sm:p-2.5 text-white"
+            aria-label={speakerName}
+            className="pointer-events-auto relative flex items-center gap-1.5 sm:gap-2 w-auto max-w-[348px] sm:max-w-[400px] max-h-[58px] sm:max-h-[64px] rounded-2xl bg-slate-950/90 border border-cyan-300/75 shadow-[0_8px_24px_rgba(2,6,23,0.75)] backdrop-blur-md px-2 py-1 text-white overflow-hidden"
           >
-            {/* Animated Robo Avatar */}
-            <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-cyan-500/25 to-indigo-600/35 border border-cyan-300/50 flex items-center justify-center overflow-hidden">
+            {/* Compact Animated Robo Avatar */}
+            <div className="shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-cyan-500/25 to-indigo-600/35 border border-cyan-300/50 flex items-center justify-center overflow-hidden">
               <RoboCharacter
                 pose={pose}
-                size={48}
+                size={34}
                 animated
                 interactive={false}
                 showShadow={false}
               />
             </div>
 
-            {/* Speech Bubble Text & Action CTA */}
-            <div className="min-w-0 flex-1 space-y-1">
-              <div className="flex items-center justify-between gap-1.5">
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-300/45 text-cyan-200 font-hud font-black text-[9px] sm:text-[10px] leading-none">
-                  <span>🤖</span>
-                  <span>{speakerName}</span>
-                </span>
+            {/* Compact 1–2 Line Speech Text */}
+            <p
+              onClick={() => setTypedCount(message.length)}
+              title={tr(language, 'Tap to reveal full text', 'اضغط لعرض النص كاملاً')}
+              className="min-w-0 flex-1 font-sans text-[10.5px] sm:text-xs font-semibold text-slate-100 leading-tight line-clamp-2 cursor-pointer"
+            >
+              {displayedText}
+              {isTyping && (
+                <span className="inline-block w-1 h-2.5 ms-0.5 align-middle bg-cyan-300 animate-pulse" />
+              )}
+            </p>
 
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    aria-label={tr(language, 'Listen', 'استمع')}
-                    onClick={() => {
-                      soundManager.playClick();
-                      speakWebSpeechNonBlocking(message, language);
-                    }}
-                    className="w-6 h-6 rounded-full bg-indigo-500/35 hover:bg-indigo-500/60 border border-indigo-300/50 text-cyan-100 flex items-center justify-center cursor-pointer transition-colors"
-                  >
-                    <Volume2 className="w-3 h-3" />
-                  </button>
-
-                  {onDismiss && (
-                    <button
-                      type="button"
-                      data-testid="robo-guide-dismiss-btn"
-                      aria-label={tr(language, 'Dismiss Robo', 'إغلاق مرشد روبو')}
-                      onClick={() => {
-                        soundManager.playClick();
-                        onDismiss();
-                      }}
-                      className="w-6 h-6 rounded-full bg-slate-800/90 hover:bg-rose-500/80 border border-slate-600/70 text-slate-200 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <p
-                onClick={() => setTypedCount(message.length)}
-                title={tr(language, 'Tap to reveal full text', 'اضغط لعرض النص كاملاً')}
-                className="font-sans text-[11px] sm:text-xs font-semibold text-slate-100 leading-snug line-clamp-2 cursor-pointer"
-              >
-                {displayedText}
-                {isTyping && (
-                  <span className="inline-block w-1.5 h-3 ml-0.5 align-middle bg-cyan-300 animate-pulse" />
-                )}
-              </p>
-
+            {/* Inline Action Chip + Manual Speaker + Dismiss */}
+            <div className="flex items-center gap-1 shrink-0">
               {actionLabel && onAction && (
                 <button
                   type="button"
@@ -167,10 +136,37 @@ export const RoboGuideOverlay: React.FC<RoboGuideOverlayProps> = ({
                     soundManager.playClick();
                     onAction();
                   }}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-hud font-black text-[10px] sm:text-[11px] shadow-md cursor-pointer active:scale-95 transition-transform"
+                  className="inline-flex items-center gap-0.5 px-2 py-1 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-hud font-black text-[10px] shadow cursor-pointer active:scale-95 transition-transform whitespace-nowrap max-w-[96px]"
                 >
-                  <span>{actionLabel}</span>
-                  <ArrowRight className={`w-3 h-3 ${isAr ? 'rotate-180' : ''}`} />
+                  <span className="truncate">{actionLabel}</span>
+                  <ArrowRight className={`w-2.5 h-2.5 shrink-0 ${isAr ? 'rotate-180' : ''}`} />
+                </button>
+              )}
+
+              <button
+                type="button"
+                aria-label={tr(language, 'Listen', 'استمع')}
+                onClick={() => {
+                  soundManager.playClick();
+                  speakWebSpeechNonBlocking(message, language);
+                }}
+                className="w-6 h-6 rounded-full bg-indigo-500/35 hover:bg-indigo-500/60 border border-indigo-300/50 text-cyan-100 flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <Volume2 className="w-3 h-3" />
+              </button>
+
+              {onDismiss && (
+                <button
+                  type="button"
+                  data-testid="robo-guide-dismiss-btn"
+                  aria-label={tr(language, 'Dismiss Robo', 'إغلاق مرشد روبو')}
+                  onClick={() => {
+                    soundManager.playClick();
+                    onDismiss();
+                  }}
+                  className="w-6 h-6 rounded-full bg-slate-800/90 hover:bg-rose-500/80 border border-slate-600/70 text-slate-200 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+                >
+                  <X className="w-3 h-3" />
                 </button>
               )}
             </div>
