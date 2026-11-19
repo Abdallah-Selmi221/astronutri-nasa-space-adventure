@@ -141,12 +141,12 @@ def eval_terrain_height_and_color(x, y):
     z = z * (1.0 - w_road) + nearest_h * w_road
 
     # Biome vertex color (4 seamless regions + canyon mineral bands)
-    c_earth_grass = (0.14, 0.72, 0.42)
-    c_earth_hill = (0.10, 0.56, 0.34)
-    c_orbit_ridge = (0.16, 0.28, 0.52)
-    c_lunar_regolith = (0.58, 0.64, 0.74)
-    c_lunar_rim = (0.42, 0.48, 0.60)
-    c_reentry_coast = (0.86, 0.54, 0.26)
+    c_earth_grass = (0.24, 0.86, 0.44)
+    c_earth_hill = (0.16, 0.70, 0.36)
+    c_orbit_ridge = (0.20, 0.34, 0.60)
+    c_lunar_regolith = (0.64, 0.70, 0.80)
+    c_lunar_rim = (0.46, 0.52, 0.64)
+    c_reentry_coast = (0.90, 0.54, 0.24)
     c_road_slate = (0.14, 0.22, 0.34)
     c_canyon_glow = (0.10, 0.44, 0.58)
 
@@ -253,9 +253,9 @@ def generate_massive_terra_island_mesh(mat_terrain, mat_glow):
     # 2. Extrude deep rocky floating asteroid cliff strata underneath boundary edges
     bm.edges.ensure_lookup_table()
     boundary_edges = [e for e in bm.edges if len(e.link_faces) == 1]
-    c_cliff_upper = (0.34, 0.25, 0.22)
-    c_cliff_mid = (0.23, 0.19, 0.24)
-    c_cliff_keel = (0.11, 0.14, 0.22)
+    c_cliff_upper = (0.44, 0.34, 0.28)
+    c_cliff_mid = (0.28, 0.23, 0.28)
+    c_cliff_keel = (0.14, 0.17, 0.26)
 
     if boundary_edges:
         bottom_keel_verts = {}

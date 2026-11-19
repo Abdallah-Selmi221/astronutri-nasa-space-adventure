@@ -181,12 +181,80 @@ export function createIslandSurfaceTexture(
  * 'nebula' Zero-G cosmos, 'lunar' horizon + Earth crescent, or 'tropical' golden hour)
  * with low-poly clouds, combined starfield, and an orbiting telemetry satellite (3-4 draw calls).
  */
-const SKY_THEME_PALETTE: Record<SkyMode, { bg: number; fog: number; density: number }> = {
-  sunny: { bg: 0x0f3275, fog: 0x164494, density: 0.0034 },
-  tropical: { bg: 0x09517f, fog: 0x0e6a9e, density: 0.0036 },
-  lunar: { bg: 0x050918, fog: 0x09112b, density: 0.0044 },
-  nebula: { bg: 0x0a1438, fog: 0x111f54, density: 0.0048 },
-  mars: { bg: 0x45160c, fog: 0x6b2210, density: 0.0042 }
+interface SkyPaletteTheme {
+  bg: number;
+  fog: number;
+  density: number;
+  top: number;
+  mid: number;
+  horizon: number;
+  sun: number;
+  sunStrength: number;
+  sunDir: [number, number, number];
+  showStars: boolean;
+}
+
+const SKY_THEME_PALETTE: Record<SkyMode, SkyPaletteTheme> = {
+  sunny: {
+    bg: 0x38bdf8,
+    fog: 0x9bd7ff,
+    density: 0.0042,
+    top: 0x1d8cf8,
+    mid: 0x60c5ff,
+    horizon: 0xe6f7ff,
+    sun: 0xfef08a,
+    sunStrength: 1.0,
+    sunDir: [0.45, 0.52, -0.72],
+    showStars: false
+  },
+  tropical: {
+    bg: 0x0ea5e9,
+    fog: 0x7dd3fc,
+    density: 0.0038,
+    top: 0x0284c7,
+    mid: 0x38bdf8,
+    horizon: 0xfef3c7,
+    sun: 0xfde047,
+    sunStrength: 0.95,
+    sunDir: [0.4, 0.45, -0.78],
+    showStars: false
+  },
+  lunar: {
+    bg: 0x040814,
+    fog: 0x0a1228,
+    density: 0.0036,
+    top: 0x030712,
+    mid: 0x0a1126,
+    horizon: 0x141e38,
+    sun: 0xe0f2fe,
+    sunStrength: 0.55,
+    sunDir: [0.5, 0.45, -0.72],
+    showStars: true
+  },
+  nebula: {
+    bg: 0x07163b,
+    fog: 0x111f54,
+    density: 0.0038,
+    top: 0x07163b,
+    mid: 0x0f2766,
+    horizon: 0x1d4ed8,
+    sun: 0x93c5fd,
+    sunStrength: 0.65,
+    sunDir: [0.35, 0.4, -0.84],
+    showStars: true
+  },
+  mars: {
+    bg: 0x9a3412,
+    fog: 0xc46036,
+    density: 0.0046,
+    top: 0x6e2614,
+    mid: 0xbe4d28,
+    horizon: 0xf5aa6e,
+    sun: 0xffedd5,
+    sunStrength: 0.9,
+    sunDir: [0.46, 0.48, -0.74],
+    showStars: false
+  }
 };
 
 export function createCosmicSkyBackdrop(
@@ -200,6 +268,12 @@ export function createCosmicSkyBackdrop(
   const fogColor = new THREE.Color(initTheme.fog);
   const targetBgColor = new THREE.Color(initTheme.bg);
   const targetFogColor = new THREE.Color(initTheme.fog);
+  const targetTopColor = new THREE.Color(initTheme.top);
+  const targetMidColor = new THREE.Color(initTheme.mid);
+  const targetHorizonColor = new THREE.Color(initTheme.horizon);
+  const targetSunColor = new THREE.Color(initTheme.sun);
+  let targetSunStrength = initTheme.sunStrength;
+
   scene.background = bgColor;
   const fog = new THREE.FogExp2(initTheme.fog, initTheme.density);
   scene.fog = fog;
@@ -207,20 +281,69 @@ export function createCosmicSkyBackdrop(
   const disposableTextures: THREE.Texture[] = [];
   const disposableObjects: THREE.Object3D[] = [];
 
-  // 1. Dual-Layer Twinkling Cosmic Starfield (primary canopy + vibrant twinkle sparkles -> 2 draw calls)
-  const starCount = isDaylight ? 420 : 720;
+  // 0. Smooth Vertical-Gradient Shader Sky Dome Sphere (1 draw call, BackSide, depthWrite off)
+  const skyUniforms = {
+    uTopColor: { value: new THREE.Color(initTheme.top) },
+    uMidColor: { value: new THREE.Color(initTheme.mid) },
+    uHorizonColor: { value: new THREE.Color(initTheme.horizon) },
+    uSunColor: { value: new THREE.Color(initTheme.sun) },
+    uSunDir: { value: new THREE.Vector3(...initTheme.sunDir).normalize() },
+    uSunStrength: { value: initTheme.sunStrength }
+  };
+  const skyDomeMat = new THREE.ShaderMaterial({
+    uniforms: skyUniforms,
+    side: THREE.BackSide,
+    depthWrite: false,
+    fog: false,
+    vertexShader: `
+      varying vec3 vDir;
+      void main() {
+        vDir = normalize(position);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uTopColor;
+      uniform vec3 uMidColor;
+      uniform vec3 uHorizonColor;
+      uniform vec3 uSunColor;
+      uniform vec3 uSunDir;
+      uniform float uSunStrength;
+      varying vec3 vDir;
+      void main() {
+        vec3 d = normalize(vDir);
+        float h = clamp(d.y * 1.15 + 0.08, 0.0, 1.0);
+        vec3 sky = mix(uHorizonColor, uMidColor, smoothstep(0.0, 0.34, h));
+        sky = mix(sky, uTopColor, smoothstep(0.34, 0.90, h));
+        float sunDot = max(dot(d, normalize(uSunDir)), 0.0);
+        float halo = pow(sunDot, 16.0) * 0.42 + pow(sunDot, 110.0) * 0.95;
+        sky += uSunColor * halo * uSunStrength;
+        gl_FragColor = vec4(sky, 1.0);
+      }
+    `
+  });
+  const skyDome = new THREE.Mesh(new THREE.SphereGeometry(175, 24, 16), skyDomeMat);
+  skyDome.frustumCulled = false;
+  scene.add(skyDome);
+  disposableObjects.push(skyDome);
+
+  // 1. Twinkling Cosmic Starfield (hidden automatically on bright daytime Earth/Mars skies)
+  const starCount = 720;
   const starGeo = new THREE.BufferGeometry();
   const starPos = new Float32Array(starCount * 3);
   const starCols = new Float32Array(starCount * 3);
-  const palette = isDaylight
-    ? [new THREE.Color(0xffffff), new THREE.Color(0xfef9c3), new THREE.Color(0x7dd3fc), new THREE.Color(0xc4b5fd)]
-    : [new THREE.Color(0xe0f2fe), new THREE.Color(0xfef08a), new THREE.Color(0x7dd3fc), new THREE.Color(0xf9a8d4)];
+  const palette = [
+    new THREE.Color(0xe0f2fe),
+    new THREE.Color(0xfef08a),
+    new THREE.Color(0x7dd3fc),
+    new THREE.Color(0xf9a8d4)
+  ];
 
   for (let i = 0; i < starCount; i++) {
-    const r = 34 + Math.random() * 58;
+    const r = 68 + Math.random() * 68;
     const theta = Math.random() * Math.PI * 2;
     starPos[i * 3] = Math.cos(theta) * r;
-    starPos[i * 3 + 1] = isDaylight ? 6 + Math.random() * 34 : 2 + (Math.random() - 0.35) * 46;
+    starPos[i * 3 + 1] = 8 + (Math.random() - 0.15) * 64;
     starPos[i * 3 + 2] = Math.sin(theta) * r;
     const c = palette[i % palette.length];
     starCols[i * 3] = c.r;
@@ -231,38 +354,47 @@ export function createCosmicSkyBackdrop(
   starGeo.setAttribute('color', new THREE.BufferAttribute(starCols, 3));
   const starPoints = new THREE.Points(
     starGeo,
-    new THREE.PointsMaterial({ size: isDaylight ? 0.32 : 0.38, vertexColors: true, transparent: true, opacity: 0.9 })
+    new THREE.PointsMaterial({ size: 0.46, vertexColors: true, transparent: true, opacity: 0.92, fog: false })
   );
+  starPoints.visible = initTheme.showStars;
   scene.add(starPoints);
   disposableObjects.push(starPoints);
 
-  // 2. Sculpted Low-Poly Clouds OR Luminous Nebula Billboard (1 draw call)
+  // 2. Sculpted Puffy White Daytime Clouds (1 merged mesh) OR Deep-Space Nebula Sprite
   let cloudMesh: THREE.Mesh | null = null;
   let neb1: THREE.Sprite | null = null;
 
   if (isDaylight) {
     const cloudParts: ColoredGeometryPart[] = [];
     const cloudSpots: [number, number, number, number][] = [
-      [-28, 12, -26, 1.3],
-      [26, 14, -30, 1.45],
-      [0, 17, -42, 1.6],
-      [-34, 10, 18, 1.15],
-      [32, 11, 20, 1.2]
+      [-46, 26, -48, 2.2],
+      [42, 29, -54, 2.45],
+      [0, 32, -68, 2.8],
+      [-56, 24, 34, 2.0],
+      [52, 25, 36, 2.1],
+      [-18, 28, -40, 1.75]
     ];
     cloudSpots.forEach(([cx, cy, cz, sc]) => {
       cloudParts.push(
-        { geometry: new THREE.DodecahedronGeometry(2.1 * sc, 1), color: 0xffffff, position: [cx, cy, cz], scale: [1.5, 0.72, 1.0] },
-        { geometry: new THREE.DodecahedronGeometry(1.6 * sc, 1), color: 0xf0f9ff, position: [cx - 2.1 * sc, cy - 0.25 * sc, cz], scale: [1.1, 0.75, 0.9] },
-        { geometry: new THREE.DodecahedronGeometry(1.5 * sc, 1), color: 0xe0f2fe, position: [cx + 2.2 * sc, cy - 0.3 * sc, cz], scale: [1.15, 0.7, 0.9] }
+        { geometry: new THREE.DodecahedronGeometry(2.2 * sc, 1), color: 0xffffff, position: [cx, cy, cz], scale: [1.65, 0.72, 1.05] },
+        { geometry: new THREE.DodecahedronGeometry(1.65 * sc, 1), color: 0xf0f9ff, position: [cx - 2.3 * sc, cy - 0.3 * sc, cz], scale: [1.15, 0.75, 0.9] },
+        { geometry: new THREE.DodecahedronGeometry(1.55 * sc, 1), color: 0xe0f2fe, position: [cx + 2.4 * sc, cy - 0.35 * sc, cz], scale: [1.2, 0.72, 0.9] }
       );
     });
     cloudMesh = new THREE.Mesh(
       mergeColoredParts(cloudParts),
-      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.02, flatShading: true })
+      new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.92,
+        metalness: 0.0,
+        flatShading: true,
+        emissive: 0xe0f2fe,
+        emissiveIntensity: 0.18
+      })
     );
     scene.add(cloudMesh);
     disposableObjects.push(cloudMesh);
-  } else {
+  } else if (skyMode !== 'mars' && !options?.skipSatellite) {
     const nebTex1 = createRadialNebulaTexture(
       skyMode === 'lunar' ? 'rgba(59, 130, 246, 0.55)' : 'rgba(56, 189, 248, 0.52)',
       'rgba(168, 85, 247, 0.18)'
@@ -271,37 +403,37 @@ export function createCosmicSkyBackdrop(
     const sp = new THREE.Sprite(
       new THREE.SpriteMaterial({ map: nebTex1, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
     );
-    sp.position.set(0, 13, -39);
-    sp.scale.set(56, 36, 1);
+    sp.position.set(0, 18, -56);
+    sp.scale.set(78, 48, 1);
     scene.add(sp);
     disposableObjects.push(sp);
     neb1 = sp;
   }
 
-  // Lunar Horizon Crescent Earth OR Sun Glow Disc (1 draw call on lunar/sunny!)
+  // Lunar Horizon Earthrise Globe (1 draw call on lunar sky!)
   let celestialAccent: THREE.Mesh | null = null;
   if (skyMode === 'lunar') {
     const earthParts: ColoredGeometryPart[] = [
-      { geometry: new THREE.SphereGeometry(4.2, 20, 16), color: 0x0284c7, position: [22, 16, -42] },
-      { geometry: new THREE.DodecahedronGeometry(1.7, 1), color: 0x22c55e, position: [20.6, 16.8, -38.6], scale: [1.3, 0.9, 0.4] },
-      { geometry: new THREE.DodecahedronGeometry(1.4, 1), color: 0x4ade80, position: [23.4, 15.2, -38.8], scale: [1.1, 1.0, 0.4] }
+      { geometry: new THREE.SphereGeometry(5.6, 22, 16), color: 0x0284c7, position: [32, 22, -62] },
+      { geometry: new THREE.DodecahedronGeometry(2.2, 1), color: 0x22c55e, position: [30.2, 23.0, -57.4], scale: [1.3, 0.9, 0.4] },
+      { geometry: new THREE.DodecahedronGeometry(1.8, 1), color: 0x4ade80, position: [33.8, 21.0, -57.6], scale: [1.1, 1.0, 0.4] }
     ];
     celestialAccent = new THREE.Mesh(
       mergeColoredParts(earthParts),
-      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, emissive: 0x0369a1, emissiveIntensity: 0.25 })
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, emissive: 0x0369a1, emissiveIntensity: 0.35 })
     );
     scene.add(celestialAccent);
     disposableObjects.push(celestialAccent);
   }
 
-  // Orbiting Stylized NASA Satellite (1 draw call, skipped on Overworld which already hosts ISS GLB)
+  // Orbiting Stylized NASA Satellite (1 draw call, skipped when caller sets skipSatellite)
   let satMesh: THREE.Mesh | null = null;
   if (!options?.skipSatellite) {
     const satGeom = mergeColoredParts([
-      { geometry: new THREE.OctahedronGeometry(0.45, 0), color: 0xf59e0b },
-      { geometry: new THREE.BoxGeometry(1.5, 0.05, 0.55), color: 0x0284c7, position: [-1.15, 0, 0] },
-      { geometry: new THREE.BoxGeometry(1.5, 0.05, 0.55), color: 0x0284c7, position: [1.15, 0, 0] },
-      { geometry: new THREE.ConeGeometry(0.32, 0.24, 14), color: 0xe2e8f0, position: [0, -0.45, 0] }
+      { geometry: new THREE.OctahedronGeometry(0.5, 0), color: 0xf59e0b },
+      { geometry: new THREE.BoxGeometry(1.65, 0.06, 0.6), color: 0x0284c7, position: [-1.25, 0, 0] },
+      { geometry: new THREE.BoxGeometry(1.65, 0.06, 0.6), color: 0x0284c7, position: [1.25, 0, 0] },
+      { geometry: new THREE.ConeGeometry(0.36, 0.28, 14), color: 0xe2e8f0, position: [0, -0.5, 0] }
     ]);
     satMesh = new THREE.Mesh(
       satGeom,
@@ -314,11 +446,11 @@ export function createCosmicSkyBackdrop(
   const update = (t: number) => {
     starPoints.rotation.y = t * 0.006;
     if (cloudMesh) {
-      cloudMesh.rotation.y = t * 0.015;
+      cloudMesh.rotation.y = t * 0.012;
     }
-    if (neb1) neb1.position.y = 13 + Math.sin(t * 0.3) * 1.1;
+    if (neb1) neb1.position.y = 18 + Math.sin(t * 0.3) * 1.1;
     if (satMesh) {
-      satMesh.position.set(Math.cos(t * 0.22) * 26, 12.5 + Math.sin(t * 0.5) * 1.6, Math.sin(t * 0.22) * 22);
+      satMesh.position.set(Math.cos(t * 0.22) * 34, 16.5 + Math.sin(t * 0.5) * 1.6, Math.sin(t * 0.22) * 30);
       satMesh.rotation.y = -t * 0.22 + Math.PI / 2;
     }
   };
@@ -327,10 +459,22 @@ export function createCosmicSkyBackdrop(
     const theme = SKY_THEME_PALETTE[mode] ?? SKY_THEME_PALETTE.sunny;
     targetBgColor.setHex(theme.bg);
     targetFogColor.setHex(theme.fog);
+    targetTopColor.setHex(theme.top);
+    targetMidColor.setHex(theme.mid);
+    targetHorizonColor.setHex(theme.horizon);
+    targetSunColor.setHex(theme.sun);
+    targetSunStrength = theme.sunStrength;
+
     bgColor.lerp(targetBgColor, blendAlpha);
     fogColor.lerp(targetFogColor, blendAlpha);
     fog.color.copy(fogColor);
     fog.density += (theme.density - fog.density) * blendAlpha;
+    skyUniforms.uTopColor.value.lerp(targetTopColor, blendAlpha);
+    skyUniforms.uMidColor.value.lerp(targetMidColor, blendAlpha);
+    skyUniforms.uHorizonColor.value.lerp(targetHorizonColor, blendAlpha);
+    skyUniforms.uSunColor.value.lerp(targetSunColor, blendAlpha);
+    skyUniforms.uSunStrength.value += (targetSunStrength - skyUniforms.uSunStrength.value) * blendAlpha;
+    starPoints.visible = theme.showStars;
   };
 
   const dispose = () => {

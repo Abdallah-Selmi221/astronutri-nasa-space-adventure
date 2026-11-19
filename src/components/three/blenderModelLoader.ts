@@ -419,3 +419,34 @@ export function attachSectorDeckGlb(opts: {
     }
   });
 }
+
+export function attachRoverGlb(opts: {
+  targetParent: THREE.Object3D;
+  position?: [number, number, number];
+  rotationY?: number;
+  scale?: number;
+  fallbackNodes?: THREE.Object3D[];
+  isDisposed: () => boolean;
+  onLoaded?: (roverGlb: THREE.Group) => void;
+}): void {
+  const s = opts.scale ?? 1;
+  attachGlbScene({
+    url: '/models/astronaut_rover.glb',
+    name: 'BlenderSpaceRover',
+    targetParent: opts.targetParent,
+    scale: [s, s, s],
+    position: opts.position ?? [0, 0, 0],
+    rotationY: opts.rotationY ?? 0,
+    fallbackNodes: opts.fallbackNodes,
+    isDisposed: opts.isDisposed,
+    onLoaded: (glb) => {
+      glb.traverse((node) => {
+        if (node instanceof THREE.Mesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+        }
+      });
+      opts.onLoaded?.(glb);
+    }
+  });
+}

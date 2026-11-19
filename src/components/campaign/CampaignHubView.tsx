@@ -13,6 +13,7 @@ import { Level3MiniGames } from './Level3MiniGames';
 import { Level4MiniGames } from './Level4MiniGames';
 import { MissionInventoryBar } from './MissionInventoryBar';
 import { RoboGuideOverlay } from '../common/RoboGuideOverlay';
+import { RocketLaunchCutscene } from '../three/RocketLaunchCutscene';
 import { EcoBioCabin } from './EcoBioCabin';
 import { ScientificSourcesModal } from './ScientificSourcesModal';
 import { SettingsMenu } from '../common/SettingsMenu';
@@ -91,6 +92,13 @@ export const CampaignHubView: React.FC = () => {
   const [isRoomsDrawerOpen, setIsRoomsDrawerOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [launchCutsceneTargetLevel, setLaunchCutsceneTargetLevel] = useState<CampaignLevelId | null>(null);
+
+  const triggerRocketLaunch = (targetLevel: CampaignLevelId = 2) => {
+    dialogueManager.stop();
+    setIsMobileMenuOpen(false);
+    setLaunchCutsceneTargetLevel(targetLevel);
+  };
 
   useEffect(() => {
     setIsEcoCabinOpen(false);
@@ -226,6 +234,25 @@ export const CampaignHubView: React.FC = () => {
       </div>
     ) : null;
 
+  // ==================== CINEMATIC 3D ROCKET LAUNCH CUTSCENE ====================
+  if (launchCutsceneTargetLevel !== null) {
+    const destLvl = launchCutsceneTargetLevel;
+    return (
+      <RocketLaunchCutscene
+        isOpen
+        language={language}
+        onComplete={() => {
+          setLaunchCutsceneTargetLevel(null);
+          if (campaign.unlockedLevels.includes(destLvl)) {
+            setCampaignView('level_hub', destLvl, null, null);
+          } else {
+            setCampaignView('level_hub', activeLevelId, null, null);
+          }
+        }}
+      />
+    );
+  }
+
   // ==================== VIEW 3: ACTIVE MINI-GAME OR L3 AUTH CONSOLE ====================
   if (campaign.viewMode === 'minigame') {
     const isL3ReturnConsole =
@@ -327,6 +354,10 @@ export const CampaignHubView: React.FC = () => {
             }
             const nextLvl = (activeLevelId + 1) as CampaignLevelId;
             if (activeLevelId < 4 && campaign.unlockedLevels.includes(nextLvl)) {
+              if (activeLevelId === 1) {
+                triggerRocketLaunch(2);
+                return;
+              }
               setCampaignView('level_hub', nextLvl, null, null);
               return;
             }
@@ -339,7 +370,7 @@ export const CampaignHubView: React.FC = () => {
               campaign={campaign}
               onCompleteMiniGame={handleCompleteMiniGame}
               onUpdateCampaign={updateCampaignState}
-              onNextLevel={() => setCampaignView('level_hub', 2, null, null)}
+              onNextLevel={() => triggerRocketLaunch(2)}
               onBackToLevel={handleBackToLevel}
             />
           )}
@@ -404,6 +435,23 @@ export const CampaignHubView: React.FC = () => {
             onEnterRoom={handleEnterRoom}
           />
         </div>
+
+        {/* Direct 1-Tap Orbital Launch Action on Earth Spaceport Valley (Level 1) */}
+        {activeLevelId === 1 && (
+          <button
+            type="button"
+            data-testid="launch-to-space-btn"
+            dir={langDir}
+            onClick={() => {
+              soundManager.playClick();
+              triggerRocketLaunch(2);
+            }}
+            className="pointer-events-auto fixed top-[56px] sm:top-[64px] left-3 sm:left-4 z-20 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 hover:brightness-110 text-slate-950 font-hud font-black text-[11px] sm:text-xs border-2 border-white shadow-[0_4px_16px_rgba(251,146,60,0.55)] cursor-pointer active:scale-95 transition-transform flex items-center gap-1.5"
+          >
+            <span>🚀</span>
+            <span>{tr(language, 'Launch to Space', 'انطلق للفضاء')}</span>
+          </button>
+        )}
 
         {/* Minimalist Corner Kids HUD */}
         <header
@@ -704,7 +752,11 @@ export const CampaignHubView: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setIsMobileMenuOpen(false);
-                    setCampaignView('level_hub', nextLevelId, null, null);
+                    if (nextLevelId === 2) {
+                      triggerRocketLaunch(2);
+                    } else {
+                      setCampaignView('level_hub', nextLevelId, null, null);
+                    }
                   }}
                   className="col-span-2 p-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-hud font-black text-xs border-2 border-white flex items-center justify-center gap-1.5 cursor-pointer"
                 >

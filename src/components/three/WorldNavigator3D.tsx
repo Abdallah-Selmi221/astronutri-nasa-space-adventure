@@ -351,9 +351,9 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     });
 
     const skyHandle = createCosmicSkyBackdrop(scene, 'nebula', { skipSatellite: true });
-    const hemi = new THREE.HemisphereLight(0xe0f2fe, 0x0f172a, 1.28);
-    const sun = new THREE.DirectionalLight(0xfffbeb, 1.75);
-    sun.position.set(16, 22, 18);
+    const hemi = new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 1.5);
+    const sun = new THREE.DirectionalLight(0xfffbeb, 2.1);
+    sun.position.set(16, 24, 18);
     sun.castShadow = initUltraShadows;
     sun.shadow.mapSize.set(1024, 1024);
     sun.shadow.camera.near = 2;
@@ -363,7 +363,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     sun.shadow.camera.top = 12;
     sun.shadow.camera.bottom = -12;
     sunLightRef.current = sun;
-    const rim = new THREE.DirectionalLight(0x38bdf8, 0.85);
+    const rim = new THREE.DirectionalLight(0x38bdf8, 0.95);
     rim.position.set(-18, -6, -12);
     scene.add(hemi, sun, rim);
 
@@ -962,14 +962,14 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         elapsed
       );
 
-      // Smooth Follow Camera framed along Earth-to-Moon trajectory
+      // Smooth Follow Camera framed closer behind SPACE-FIT X Astronaut & lush Earth/Moon trail
       const camTarget = isFlightModeRef.current
         ? playerCraftRoot.position
-        : playerCraftRoot.position.clone().lerp(new THREE.Vector3(0, 0.8, 0), inLen > 0.1 ? 0.36 : 0.58);
+        : playerCraftRoot.position.clone().lerp(new THREE.Vector3(0, 0.7, 0), inLen > 0.1 ? 0.22 : 0.45);
 
-      const camDist = isFlightModeRef.current ? 12.5 : inLen > 0.1 ? 22.0 : 27.0;
-      const desiredX = camTarget.x + Math.sin(orbitYawRef.current) * camDist * 0.45;
-      const desiredY = camTarget.y + 4.8 + orbitPitchRef.current * 9.5;
+      const camDist = isFlightModeRef.current ? 9.5 : inLen > 0.1 ? 11.5 : 15.5;
+      const desiredX = camTarget.x + Math.sin(orbitYawRef.current) * camDist * 0.42;
+      const desiredY = camTarget.y + 3.2 + orbitPitchRef.current * 7.2;
       const desiredZ = camTarget.z + Math.cos(orbitYawRef.current) * camDist;
 
       camera.position.lerp(new THREE.Vector3(desiredX, desiredY, desiredZ), 1 - Math.exp(-5.5 * dt));

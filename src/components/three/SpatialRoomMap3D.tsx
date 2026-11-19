@@ -21,7 +21,8 @@ import {
   attachStationPropGlb,
   getLoadedGlbUrls
 } from './blenderModelLoader';
-import { evalSectorFloorHeight } from './terrainMath';
+import { evalSectorFloorHeight, evalSectorTerrainNormal } from './terrainMath';
+import { createSpaceRoverVehicle, SpaceRoverController } from './buildRoverVehicle';
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
 import {
   createDustPuffSystem,
@@ -63,13 +64,13 @@ function getBiomeTheme(levelId: CampaignLevelId, language: 'en' | 'ar'): {
       return {
         topColor: 0x22c55e,
         rimColor: 0x38bdf8,
-        rockColor: 0xb45309,
+        rockColor: 0x2f855a,
         crystalColor: 0x22d3ee,
         walkwayColor: 0xd99b52,
         skyMode: 'sunny',
         gravity: 21,
         jumpVel: 8.4,
-        gravityLabelAr: tr(language, 'Earth Gravity 1.0G', 'جاذبية الأرض 1G'),
+        gravityLabelAr: tr(language, 'Earth Surface • 1.0G', 'سطح الأرض • 1.0G'),
         isZeroG: false,
         accentCraters: false
       };
@@ -83,7 +84,7 @@ function getBiomeTheme(levelId: CampaignLevelId, language: 'en' | 'ar'): {
         skyMode: 'nebula',
         gravity: 5.8,
         jumpVel: 5.8,
-        gravityLabelAr: tr(language, 'Zero-G Orbit 0.0G', 'انعدام الوزن 0G — طفو حر'),
+        gravityLabelAr: tr(language, 'Zero-G Orbit • 0.0G', 'انعدام الوزن • 0.0G'),
         isZeroG: true,
         accentCraters: false
       };
@@ -97,24 +98,24 @@ function getBiomeTheme(levelId: CampaignLevelId, language: 'en' | 'ar'): {
         skyMode: 'lunar',
         gravity: 7.4,
         jumpVel: 7.6,
-        gravityLabelAr: tr(language, 'Lunar Gravity 0.16G — High Jump', 'جاذبية القمر 0.16G — قفزة عالية'),
+        gravityLabelAr: tr(language, 'Lunar Crater • 0.16G', 'فوهة القمر • 0.16G'),
         isZeroG: false,
         accentCraters: true
       };
     case 4:
     default:
       return {
-        topColor: 0x0284c7,
-        rimColor: 0x10b981,
-        rockColor: 0x0f766e,
-        crystalColor: 0x34d399,
-        walkwayColor: 0xfde047,
-        skyMode: 'tropical',
-        gravity: 21,
-        jumpVel: 8.4,
-        gravityLabelAr: tr(language, 'Earth Splashdown 1.0G', 'جاذبية العودة للأرض 1G'),
+        topColor: 0xc2410c,
+        rimColor: 0xfb923c,
+        rockColor: 0x7c2d12,
+        crystalColor: 0xfdba74,
+        walkwayColor: 0xfb923c,
+        skyMode: 'mars',
+        gravity: 9.8,
+        jumpVel: 7.4,
+        gravityLabelAr: tr(language, 'Mars Canyon • 0.38G', 'وادي المريخ • 0.38G'),
         isZeroG: false,
-        accentCraters: false
+        accentCraters: true
       };
   }
 }
@@ -169,6 +170,13 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
   const waveUntilMsRef = useRef(performance.now() + 2500);
   const celebrateUntilMsRef = useRef(0);
   const boredVoiceFiredRef = useRef(false);
+  const [isDrivingRover, setIsDrivingRover] = useState(false);
+  const isDrivingRoverRef = useRef(false);
+  const roverPosRef = useRef(new THREE.Vector3(5.5, 0, 6.5));
+  const roverYawRef = useRef(Math.PI * 0.75);
+  const roverSpeedRef = useRef(0);
+  const roverDustTimerRef = useRef(0);
+  const roverToggleHandlerRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const r = rendererRef.current;
@@ -188,7 +196,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     const sens = displaySettingsRef.current.cameraSensitivity;
     targetCameraYawRef.current -= dx * 0.0046 * sens;
     targetCameraPitchRef.current = Math.max(
-      0.18,
+      0.08,
       Math.min(0.92, targetCameraPitchRef.current + dy * 0.0034 * sens)
     );
   };
@@ -280,6 +288,11 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     walkTargetRef.current = null;
     pendingRoomRef.current = null;
     cameraOrbitYawRef.current = 0;
+    isDrivingRoverRef.current = false;
+    setIsDrivingRover(false);
+    roverPosRef.current.set(5.5, evalSectorFloorHeight(levelId, 5.5, 6.5), 6.5);
+    roverYawRef.current = Math.PI * 0.75;
+    roverSpeedRef.current = 0;
     waveUntilMsRef.current = performance.now() + 2500;
     lastActivityMsRef.current = performance.now();
     boredVoiceFiredRef.current = false;
@@ -319,54 +332,57 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
     const scene = new THREE.Scene();
     let isSceneDisposed = false;
-    const camera = new THREE.PerspectiveCamera(50, dims.w / dims.h, 0.1, 200);
-    camera.position.set(-4, 13.5, 19.5);
-    cameraOrbitPitchRef.current = 0.78;
-    cameraOrbitYawRef.current = -0.38;
-    targetCameraPitchRef.current = 0.78;
-    targetCameraYawRef.current = -0.38;
+    const camera = new THREE.PerspectiveCamera(50, dims.w / dims.h, 0.1, 360);
+    camera.position.set(0, 2.8, 10.5);
+    cameraOrbitPitchRef.current = 0.22;
+    cameraOrbitYawRef.current = 0;
+    targetCameraPitchRef.current = 0.15;
+    targetCameraYawRef.current = 0;
     const deckPitchIn = gsap.to(targetCameraPitchRef, {
-      current: 0.42,
-      duration: 1.35,
+      current: 0.14,
+      duration: 0.65,
       ease: 'power2.out'
     });
     const deckYawIn = gsap.to(targetCameraYawRef, {
       current: 0,
-      duration: 1.35,
+      duration: 0.65,
       ease: 'power2.out'
     });
 
-    const skyHandle = createCosmicSkyBackdrop(scene, theme.skyMode);
+    const skyHandle = createCosmicSkyBackdrop(scene, theme.skyMode, { skipSatellite: levelId >= 3 });
 
-    // Bright Biome Lighting (warm daylight sun for Earth & Splashdown, crisp lunar/orbital lights)
+    // Bright Biome Lighting (warm daylight sun for Earth & Mars Canyon, crisp lunar/orbital lights)
     const hemi = new THREE.HemisphereLight(
-      theme.skyMode === 'sunny' || theme.skyMode === 'tropical' ? 0xf0f9ff : 0xe0f2fe,
-      theme.rockColor,
-      theme.skyMode === 'sunny' ? 1.5 : 1.35
+      levelId === 1 ? 0xc2e9ff : levelId === 4 ? 0xfdba74 : 0xe0f2fe,
+      levelId === 1 ? 0x2f855a : levelId === 4 ? 0x7c2d12 : theme.rockColor,
+      levelId === 1 ? 1.55 : levelId === 4 ? 1.35 : 1.4
     );
     scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xfffbeb, 1.85);
-    dir.position.set(16, 26, 18);
+    const dir = new THREE.DirectionalLight(
+      levelId === 1 ? 0xfff7d6 : levelId === 4 ? 0xffdfb8 : 0xfffbeb,
+      levelId === 1 ? 2.25 : levelId === 4 ? 2.15 : 1.85
+    );
+    dir.position.set(22, 34, 24);
     dir.castShadow = initUltraShadows;
     dir.shadow.mapSize.set(1024, 1024);
     dir.shadow.camera.near = 2;
-    dir.shadow.camera.far = 75;
-    dir.shadow.camera.left = -20;
-    dir.shadow.camera.right = 20;
-    dir.shadow.camera.top = 12;
-    dir.shadow.camera.bottom = -12;
+    dir.shadow.camera.far = 120;
+    dir.shadow.camera.left = -42;
+    dir.shadow.camera.right = 42;
+    dir.shadow.camera.top = 28;
+    dir.shadow.camera.bottom = -28;
     dirLightRef.current = dir;
     scene.add(dir);
     const fill = new THREE.DirectionalLight(theme.rimColor, 0.72);
-    fill.position.set(-16, 8, -14);
+    fill.position.set(-18, 10, -16);
     scene.add(fill);
 
-    // Streamlined Linear Mission Deck Promenade (3 to 4 Core Stations arranged 1 -> 2 -> 3 -> 4)
+    // Expansive Linear Mission Deck Promenade + Open Planetary Biome Terrain (128m-136m)
     const rooms = levelSpec.rooms;
     const roomCount = Math.max(1, rooms.length);
-    const stationSpacing = roomCount >= 4 ? 7.2 : 8.4;
-    const deckWidth = roomCount >= 4 ? 30.0 : 25.0;
-    const deckDepth = 13.8;
+    const stationSpacing = roomCount >= 4 ? 8.8 : 10.0;
+    const deckWidth = roomCount >= 4 ? 38.0 : 34.0;
+    const deckDepth = 15.0;
     const halfDeckX = deckWidth * 0.45;
     const islandRadius = deckWidth * 0.52;
 
@@ -377,7 +393,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         ? 0x1e293b
         : levelId === 3
         ? 0x475569
-        : 0x1e3a5f;
+        : 0x334155;
 
     const deckParts: ColoredGeometryPart[] = [
       // Main architectural space mission deck
@@ -412,19 +428,299 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       }
     });
 
-    // Subtle Distant Orbit Beacon Landmark on Lunar Sector
-    let radarDishMesh: THREE.Mesh | null = null;
-    if (levelId === 3) {
-      radarDishMesh = new THREE.Mesh(
-        mergeColoredParts([
-          { geometry: new THREE.CylinderGeometry(0.16, 0.24, 1.6, 8), color: 0xe2e8f0, position: [0, 0.8, 0] },
-          { geometry: new THREE.ConeGeometry(0.75, 0.35, 12), color: 0xf8fafc, position: [0, 1.75, 0], rotation: [0, 0, Math.PI * 0.65] }
-        ]),
-        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.4 })
+    // Deterministic seeded PRNG for lush InstancedMesh biome dressing (< 4 draw calls total!)
+    const makeRng = (seed: number) => {
+      let s = seed >>> 0;
+      return () => {
+        s = (s * 1664525 + 1013904223) >>> 0;
+        return s / 4294967296;
+      };
+    };
+    const rng = makeRng(levelId * 9173 + 42);
+    const biomeDummy = new THREE.Object3D();
+    const biomeCol = new THREE.Color();
+
+    // Level 1: Vast Sunlit Earth Spaceport Valley — Instanced Stylized Trees, Grass Tufts & Rock Cliffs (4 draw calls)
+    if (levelId === 1) {
+      const treeCount = 52;
+      const trunkInst = new THREE.InstancedMesh(
+        new THREE.CylinderGeometry(0.18, 0.28, 1.5, 6),
+        new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.85, flatShading: true }),
+        treeCount
       );
-      radarDishMesh.position.set(deckWidth * 0.44, 0, -5.8);
-      scene.add(radarDishMesh);
+      const crownGeom = mergeColoredParts([
+        { geometry: new THREE.ConeGeometry(1.25, 1.7, 7), color: 0xffffff, position: [0, 0.85, 0] },
+        { geometry: new THREE.ConeGeometry(0.88, 1.45, 7), color: 0xffffff, position: [0, 1.85, 0] }
+      ]);
+      const crownInst = new THREE.InstancedMesh(
+        crownGeom,
+        new THREE.MeshStandardMaterial({ roughness: 0.65, flatShading: true }),
+        treeCount
+      );
+      const greens = [0x16a34a, 0x22c55e, 0x4ade80, 0x15803d];
+      let placedTrees = 0;
+      const scenicBackPines: [number, number, number][] = [
+        [-24, -12.0, 1.35],
+        [-19, -15.5, 1.5],
+        [-13, -11.5, 1.25],
+        [-7, -14.0, 1.4],
+        [-2, -16.5, 1.55],
+        [4, -12.0, 1.3],
+        [10, -15.0, 1.45],
+        [16, -11.5, 1.3],
+        [21, -14.5, 1.5],
+        [26, -12.5, 1.35]
+      ];
+      for (const [sx, sz, sc] of scenicBackPines) {
+        if (placedTrees >= treeCount) break;
+        const sy = evalSectorFloorHeight(1, sx, sz);
+        biomeDummy.position.set(sx, sy + 0.7 * sc, sz);
+        biomeDummy.rotation.set(0, placedTrees * 0.9, 0);
+        biomeDummy.scale.setScalar(sc);
+        biomeDummy.updateMatrix();
+        trunkInst.setMatrixAt(placedTrees, biomeDummy.matrix);
+
+        biomeDummy.position.set(sx, sy + 1.35 * sc, sz);
+        biomeDummy.updateMatrix();
+        crownInst.setMatrixAt(placedTrees, biomeDummy.matrix);
+        biomeCol.setHex(greens[placedTrees % greens.length]);
+        crownInst.setColorAt(placedTrees, biomeCol);
+        placedTrees++;
+      }
+      let tries = 0;
+      while (placedTrees < treeCount && tries < 600) {
+        tries++;
+        const tx = (rng() - 0.5) * 86;
+        const tz = (rng() - 0.5) * 68;
+        if (Math.abs(tx) < 16.8 && Math.abs(tz) < 8.0) continue;
+        if (Math.abs(tz) < 3.0 && Math.abs(tx) < 34) continue;
+        const ty = evalSectorFloorHeight(1, tx, tz);
+        const sc = 0.9 + rng() * 0.75;
+        biomeDummy.position.set(tx, ty + 0.7 * sc, tz);
+        biomeDummy.rotation.set(0, rng() * Math.PI * 2, 0);
+        biomeDummy.scale.setScalar(sc);
+        biomeDummy.updateMatrix();
+        trunkInst.setMatrixAt(placedTrees, biomeDummy.matrix);
+
+        biomeDummy.position.set(tx, ty + 1.35 * sc, tz);
+        biomeDummy.updateMatrix();
+        crownInst.setMatrixAt(placedTrees, biomeDummy.matrix);
+        biomeCol.setHex(greens[placedTrees % greens.length]);
+        crownInst.setColorAt(placedTrees, biomeCol);
+        placedTrees++;
+      }
+      trunkInst.count = placedTrees;
+      crownInst.count = placedTrees;
+      trunkInst.instanceMatrix.needsUpdate = true;
+      crownInst.instanceMatrix.needsUpdate = true;
+      if (crownInst.instanceColor) crownInst.instanceColor.needsUpdate = true;
+      scene.add(trunkInst, crownInst);
+
+      const grassCount = 220;
+      const tuftGeom = mergeColoredParts([
+        { geometry: new THREE.ConeGeometry(0.08, 0.52, 4), color: 0xffffff, position: [-0.08, 0.24, 0], rotation: [0.18, 0, 0.22] },
+        { geometry: new THREE.ConeGeometry(0.08, 0.58, 4), color: 0xffffff, position: [0.06, 0.27, 0.05], rotation: [-0.15, 0.3, -0.18] },
+        { geometry: new THREE.ConeGeometry(0.07, 0.44, 4), color: 0xffffff, position: [0.0, 0.2, -0.07], rotation: [-0.22, -0.4, 0.1] }
+      ]);
+      const grassInst = new THREE.InstancedMesh(
+        tuftGeom,
+        new THREE.MeshStandardMaterial({ roughness: 0.7, flatShading: true }),
+        grassCount
+      );
+      let placedGrass = 0;
+      tries = 0;
+      while (placedGrass < grassCount && tries < 1200) {
+        tries++;
+        const gx = (rng() - 0.5) * 76;
+        const gz = (rng() - 0.5) * 56;
+        if (Math.abs(gx) < 16.5 && Math.abs(gz) < 6.4) continue;
+        const gy = evalSectorFloorHeight(1, gx, gz);
+        biomeDummy.position.set(gx, gy, gz);
+        biomeDummy.rotation.set(0, rng() * Math.PI * 2, 0);
+        biomeDummy.scale.setScalar(0.95 + rng() * 0.75);
+        biomeDummy.updateMatrix();
+        grassInst.setMatrixAt(placedGrass, biomeDummy.matrix);
+        biomeCol.setHex(placedGrass % 3 === 0 ? 0x84cc16 : placedGrass % 2 === 0 ? 0x4ade80 : 0x22c55e);
+        grassInst.setColorAt(placedGrass, biomeCol);
+        placedGrass++;
+      }
+      grassInst.count = placedGrass;
+      grassInst.instanceMatrix.needsUpdate = true;
+      if (grassInst.instanceColor) grassInst.instanceColor.needsUpdate = true;
+      scene.add(grassInst);
+
+      const cliffCount = 28;
+      const cliffInst = new THREE.InstancedMesh(
+        new THREE.DodecahedronGeometry(2.6, 0),
+        new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.88, flatShading: true }),
+        cliffCount
+      );
+      const scenicBoulders: [number, number][] = [
+        [-22, -16],
+        [-11, -18],
+        [0, -21],
+        [11, -18],
+        [22, -16],
+        [28, -12]
+      ];
+      for (let c = 0; c < cliffCount; c++) {
+        let rx: number;
+        let rz: number;
+        if (c < scenicBoulders.length) {
+          rx = scenicBoulders[c][0];
+          rz = scenicBoulders[c][1];
+        } else {
+          const ang = ((c - scenicBoulders.length) / (cliffCount - scenicBoulders.length)) * Math.PI * 2;
+          rx = Math.cos(ang) * (36 + rng() * 14);
+          rz = Math.sin(ang) * (25 + rng() * 11);
+        }
+        const ry = evalSectorFloorHeight(1, rx, rz);
+        biomeDummy.position.set(rx, ry + 0.8, rz);
+        biomeDummy.rotation.set(rng() * 0.4, rng() * Math.PI, rng() * 0.4);
+        biomeDummy.scale.set(1.25 + rng() * 0.7, 0.8 + rng() * 0.7, 1.15 + rng() * 0.6);
+        biomeDummy.updateMatrix();
+        cliffInst.setMatrixAt(c, biomeDummy.matrix);
+      }
+      cliffInst.instanceMatrix.needsUpdate = true;
+      scene.add(cliffInst);
     }
+
+    // Level 2: Huge Sunlit Rotating Curved Blue Marble Earth Prominently Visible Behind ISS Horizon (2 draw calls)
+    let earthOrbitalSphere: THREE.Mesh | null = null;
+    if (levelId === 2) {
+      const earthMat = new THREE.MeshStandardMaterial({
+        color: 0x1d4ed8,
+        roughness: 0.68,
+        metalness: 0.04,
+        emissive: 0x0369a1,
+        emissiveIntensity: 0.35
+      });
+      new THREE.TextureLoader().load('/assets/nasa/earth_blue_marble.jpg', (tex) => {
+        if (isSceneDisposed) {
+          tex.dispose();
+          return;
+        }
+        tex.colorSpace = THREE.SRGBColorSpace;
+        disposableTextures.push(tex);
+        earthMat.color.setHex(0xffffff);
+        earthMat.map = tex;
+        earthMat.needsUpdate = true;
+      });
+      earthOrbitalSphere = new THREE.Mesh(new THREE.SphereGeometry(46, 36, 24), earthMat);
+      earthOrbitalSphere.position.set(0, -24, -62);
+      const earthRim = new THREE.Mesh(
+        new THREE.SphereGeometry(47.6, 32, 20),
+        new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.28, side: THREE.BackSide })
+      );
+      earthRim.position.copy(earthOrbitalSphere.position);
+      scene.add(earthOrbitalSphere, earthRim);
+    }
+
+    // Levels 3 & 4: Vast Crater/Canyon Boulders + Illuminated Rover Trail Beacons (2 draw calls) + Drivable Rover
+    let roverCtrl: SpaceRoverController | null = null;
+    let roverBeaconRing: THREE.Mesh | null = null;
+    if (levelId === 3 || levelId === 4) {
+      const boulderCount = 32;
+      const boulderInst = new THREE.InstancedMesh(
+        new THREE.DodecahedronGeometry(1.55, 0),
+        new THREE.MeshStandardMaterial({
+          color: levelId === 3 ? 0x64748b : 0xb45309,
+          roughness: 0.88,
+          flatShading: true
+        }),
+        boulderCount
+      );
+      let placedBoulders = 0;
+      for (let b = 0; b < boulderCount * 2 && placedBoulders < boulderCount; b++) {
+        const ang = (b / boulderCount) * Math.PI * 2 + rng() * 0.25;
+        const radScale = 0.72 + rng() * 0.55;
+        const bx = Math.cos(ang) * 33 * radScale;
+        const bz = Math.sin(ang) * 23 * radScale;
+        if (Math.abs(bx) < 20.5 && Math.abs(bz) < 10.5) continue;
+        const by = evalSectorFloorHeight(levelId, bx, bz);
+        biomeDummy.position.set(bx, by + 0.35, bz);
+        biomeDummy.rotation.set(rng(), rng() * Math.PI, rng());
+        biomeDummy.scale.set(0.8 + rng() * 1.1, 0.55 + rng() * 0.85, 0.8 + rng() * 1.0);
+        biomeDummy.updateMatrix();
+        boulderInst.setMatrixAt(placedBoulders, biomeDummy.matrix);
+        placedBoulders++;
+      }
+      boulderInst.count = placedBoulders;
+      boulderInst.instanceMatrix.needsUpdate = true;
+      scene.add(boulderInst);
+
+      const beaconCount = 14;
+      const beaconGeom = mergeColoredParts([
+        { geometry: new THREE.CylinderGeometry(0.12, 0.16, 1.35, 8), color: 0xe2e8f0, position: [0, 0.68, 0] },
+        { geometry: new THREE.OctahedronGeometry(0.28, 0), color: levelId === 3 ? 0x38bdf8 : 0xfbbf24, position: [0, 1.52, 0] }
+      ]);
+      const beaconInst = new THREE.InstancedMesh(
+        beaconGeom,
+        new THREE.MeshStandardMaterial({
+          vertexColors: true,
+          emissive: levelId === 3 ? 0x0284c7 : 0xea580c,
+          emissiveIntensity: 0.55,
+          roughness: 0.3
+        }),
+        beaconCount
+      );
+      for (let p = 0; p < beaconCount; p++) {
+        const ang = (p / beaconCount) * Math.PI * 2;
+        const wx = Math.cos(ang) * 28.5;
+        const wz = Math.sin(ang) * 16.5;
+        const wy = evalSectorFloorHeight(levelId, wx, wz);
+        biomeDummy.position.set(wx, wy, wz);
+        biomeDummy.rotation.set(0, -ang, 0);
+        biomeDummy.scale.setScalar(1);
+        biomeDummy.updateMatrix();
+        beaconInst.setMatrixAt(p, biomeDummy.matrix);
+      }
+      beaconInst.instanceMatrix.needsUpdate = true;
+      scene.add(beaconInst);
+
+      const initRoverY = evalSectorFloorHeight(levelId, roverPosRef.current.x, roverPosRef.current.z);
+      roverPosRef.current.y = initRoverY;
+      roverCtrl = createSpaceRoverVehicle({
+        scene,
+        position: [roverPosRef.current.x, initRoverY, roverPosRef.current.z],
+        rotationY: roverYawRef.current,
+        isDisposed: () => isSceneDisposed
+      });
+
+      roverBeaconRing = new THREE.Mesh(
+        new THREE.TorusGeometry(1.75, 0.08, 8, 28),
+        new THREE.MeshBasicMaterial({
+          color: levelId === 3 ? 0x38bdf8 : 0xfbbf24,
+          transparent: true,
+          opacity: 0.78
+        })
+      );
+      roverBeaconRing.rotation.x = Math.PI / 2;
+      roverBeaconRing.position.set(roverPosRef.current.x, initRoverY + 0.08, roverPosRef.current.z);
+      scene.add(roverBeaconRing);
+    }
+
+    roverToggleHandlerRef.current = () => {
+      if (!roverCtrl) return;
+      markPlayerActive();
+      soundManager.playClick();
+      const next = !isDrivingRoverRef.current;
+      isDrivingRoverRef.current = next;
+      setIsDrivingRover(next);
+      walkTargetRef.current = null;
+      pendingRoomRef.current = null;
+      horizVelRef.current = { x: 0, z: 0 };
+      if (next) {
+        roverCtrl.setHeadlights(true);
+        playerPosRef.current.copy(roverPosRef.current);
+      } else {
+        roverCtrl.setHeadlights(false);
+        const sideX = roverPosRef.current.x + Math.cos(roverYawRef.current) * 2.15;
+        const sideZ = roverPosRef.current.z - Math.sin(roverYawRef.current) * 2.15;
+        playerPosRef.current.set(sideX, evalSectorFloorHeight(levelId, sideX, sideZ), sideZ);
+        roverSpeedRef.current = 0;
+      }
+    };
 
     const walkwayParts: ColoredGeometryPart[] = [];
 
@@ -640,6 +936,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       keysDown.add(k);
       if (k === ' ' || e.code === 'Space') triggerJump();
       if (k === 'e' || k === 'enter') enterCurrentRoom();
+      if (k === 'r' && (levelId === 3 || levelId === 4)) roverToggleHandlerRef.current();
       if (k === 'shift') isSprintingRef.current = true;
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -754,7 +1051,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     const satDummy = new THREE.Object3D();
     const dustSystem = createDustPuffSystem(scene, 20);
     const floorArrowSystem = createFloorGuideArrowSystem(scene);
-    const biomeDustColor = levelId === 3 ? 0xe2e8f0 : levelId === 2 ? 0x818cf8 : 0xfef3c7;
+    const biomeDustColor =
+      levelId === 3 ? 0xe2e8f0 : levelId === 4 ? 0xfb923c : levelId === 2 ? 0x818cf8 : 0xfef3c7;
     let rafId = 0;
     let lastTime = performance.now();
     const startTime = lastTime;
@@ -806,8 +1104,16 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       curtainsInst.instanceMatrix.needsUpdate = true;
       exclInst.instanceMatrix.needsUpdate = true;
 
-      if (radarDishMesh) {
-        radarDishMesh.rotation.y = Math.sin(elapsed * 0.85) * 1.1;
+      if (earthOrbitalSphere) {
+        earthOrbitalSphere.rotation.y = elapsed * 0.018;
+      }
+
+      if (roverBeaconRing) {
+        roverBeaconRing.visible = !isDrivingRoverRef.current;
+        if (roverBeaconRing.visible) {
+          const pulseScale = 1 + Math.sin(elapsed * 3.4) * 0.09;
+          roverBeaconRing.scale.set(pulseScale, pulseScale, 1);
+        }
       }
 
       if (orbitSatellitesInst) {
@@ -848,91 +1154,175 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       const sprint = isSprintingRef.current || keysDown.has('shift');
       let moveSpeed = 0;
       const maxWalkRadius = islandRadius - 1.4;
-
-      if (Math.abs(ix) > 0.08 || Math.abs(iz) > 0.08) {
-        walkTargetRef.current = null;
-        pendingRoomRef.current = null;
-        const len = Math.hypot(ix, iz);
-        const nx = ix / len;
-        const nz = iz / len;
-        const worldDirX = rightX * nx + forwardX * (-nz);
-        const worldDirZ = rightZ * nx + forwardZ * (-nz);
-        const spd = sprint ? 11.4 : 7.4;
-
-        const { speed } = stepSmoothHorizontalVelocity(
-          horizVelRef.current,
-          worldDirX * spd,
-          worldDirZ * spd,
-          dt
-        );
-        pos.x += horizVelRef.current.x * dt;
-        pos.z += horizVelRef.current.z * dt;
-        moveSpeed = speed;
-        const targetYaw = Math.atan2(worldDirX, worldDirZ);
-        hero.group.rotation.y = lerpAngle(hero.group.rotation.y, targetYaw, 1 - Math.exp(-15 * dt));
-      } else if (walkTargetRef.current) {
-        const dx = walkTargetRef.current.x - pos.x;
-        const dz = walkTargetRef.current.z - pos.z;
-        const dist = Math.hypot(dx, dz);
-        if (dist > 0.45) {
-          const spd = 9.2;
-          const step = Math.min(dist, spd * dt);
-          pos.x += (dx / dist) * step;
-          pos.z += (dz / dist) * step;
-          horizVelRef.current = { x: (dx / dist) * spd, z: (dz / dist) * spd };
-          moveSpeed = spd;
-          const targetYaw = Math.atan2(dx, dz);
-          hero.group.rotation.y = lerpAngle(hero.group.rotation.y, targetYaw, 1 - Math.exp(-15 * dt));
-        } else {
-          walkTargetRef.current = null;
-          horizVelRef.current = { x: 0, z: 0 };
-          const enterRoom = pendingRoomRef.current;
-          pendingRoomRef.current = null;
-          if (enterRoom) onEnterRoomRef.current(enterRoom);
-        }
-      } else {
-        const { speed } = stepSmoothHorizontalVelocity(horizVelRef.current, 0, 0, dt);
-        pos.x += horizVelRef.current.x * dt;
-        pos.z += horizVelRef.current.z * dt;
-        moveSpeed = speed;
-      }
-
-      // Rectilinear Promenade Deck Containment
-      pos.x = Math.max(-halfDeckX, Math.min(halfDeckX, pos.x));
-      pos.z = Math.max(-5.6, Math.min(5.6, pos.z));
+      const boundX = levelId === 1 ? 34 : levelId === 2 ? 22 : 36;
+      const boundZ = levelId === 1 ? 22 : levelId === 2 ? 8.5 : 24;
+      void halfDeckX;
       void maxWalkRadius;
 
-      // Level-Specific Gravity Physics (1G / 0G / 0.16G) + Sculpted Floor Height + Landing Dust Puffs
-      const floorY = evalSectorFloorHeight(levelId, pos.x, pos.z);
-      const puffCount = Math.max(1, Math.round((levelId === 3 ? 8 : 5) * qCfg.particleDensity));
-      if (!isGroundedRef.current || pos.y > floorY + 0.02) {
-        playerVelYRef.current -= theme.gravity * dt;
-        pos.y += playerVelYRef.current * dt;
-        if (pos.y <= floorY) {
-          if (!isGroundedRef.current) {
-            dustSystem.emit(pos.x, floorY, pos.z, biomeDustColor, puffCount, 1.8);
-          }
-          pos.y = floorY;
-          playerVelYRef.current = 0;
-          isGroundedRef.current = true;
-          lastGroundedMsRef.current = now;
+      if (isDrivingRoverRef.current && roverCtrl) {
+        const rPos = roverPosRef.current;
+        let steerAngle = 0;
+        if (Math.abs(ix) > 0.08 || Math.abs(iz) > 0.08) {
+          walkTargetRef.current = null;
+          pendingRoomRef.current = null;
+          const len = Math.hypot(ix, iz);
+          const nx = ix / len;
+          const nz = iz / len;
+          const worldDirX = rightX * nx + forwardX * (-nz);
+          const worldDirZ = rightZ * nx + forwardZ * (-nz);
+          const maxSpd = sprint ? 21.5 : 16.5;
+
+          const { speed } = stepSmoothHorizontalVelocity(
+            horizVelRef.current,
+            worldDirX * maxSpd,
+            worldDirZ * maxSpd,
+            dt,
+            10,
+            7
+          );
+          roverSpeedRef.current = speed;
+          rPos.x += horizVelRef.current.x * dt;
+          rPos.z += horizVelRef.current.z * dt;
+          const targetYaw = Math.atan2(worldDirX, worldDirZ);
+          const diff = Math.atan2(Math.sin(targetYaw - roverYawRef.current), Math.cos(targetYaw - roverYawRef.current));
+          steerAngle = Math.max(-0.42, Math.min(0.42, diff * 0.65));
+          roverYawRef.current = lerpAngle(roverYawRef.current, targetYaw, 1 - Math.exp(-8.5 * dt));
+        } else {
+          const { speed } = stepSmoothHorizontalVelocity(horizVelRef.current, 0, 0, dt, 10, 7);
+          roverSpeedRef.current = speed;
+          rPos.x += horizVelRef.current.x * dt;
+          rPos.z += horizVelRef.current.z * dt;
         }
-      } else {
-        pos.y = floorY;
-        lastGroundedMsRef.current = now;
-        if (sprint && moveSpeed > 3.5) {
-          sprintDustTimerRef.current += dt;
-          if (sprintDustTimerRef.current >= 0.14) {
-            sprintDustTimerRef.current = 0;
+
+        rPos.x = Math.max(-boundX, Math.min(boundX, rPos.x));
+        rPos.z = Math.max(-boundZ, Math.min(boundZ, rPos.z));
+        rPos.y = evalSectorFloorHeight(levelId, rPos.x, rPos.z);
+        const normal = evalSectorTerrainNormal(levelId, rPos.x, rPos.z);
+
+        roverCtrl.group.position.copy(rPos);
+        roverCtrl.group.rotation.y = roverYawRef.current;
+        roverCtrl.updateVisuals({
+          dt,
+          speed: roverSpeedRef.current,
+          steerAngle,
+          normal
+        });
+
+        pos.copy(rPos);
+        playerVelYRef.current = 0;
+        isGroundedRef.current = true;
+        moveSpeed = roverSpeedRef.current;
+
+        if (moveSpeed > 2.2) {
+          roverDustTimerRef.current += dt;
+          if (roverDustTimerRef.current >= 0.085) {
+            roverDustTimerRef.current = 0;
+            const bSin = Math.sin(roverYawRef.current);
+            const bCos = Math.cos(roverYawRef.current);
             dustSystem.emit(
-              pos.x,
-              floorY,
-              pos.z,
+              rPos.x - bSin * 1.15,
+              rPos.y + 0.14,
+              rPos.z - bCos * 1.15,
               biomeDustColor,
-              Math.max(1, Math.round(2 * qCfg.particleDensity)),
-              0.9
+              Math.max(1, Math.round(3 * qCfg.particleDensity)),
+              1.6
             );
           }
+        }
+      } else {
+        if (Math.abs(ix) > 0.08 || Math.abs(iz) > 0.08) {
+          walkTargetRef.current = null;
+          pendingRoomRef.current = null;
+          const len = Math.hypot(ix, iz);
+          const nx = ix / len;
+          const nz = iz / len;
+          const worldDirX = rightX * nx + forwardX * (-nz);
+          const worldDirZ = rightZ * nx + forwardZ * (-nz);
+          const spd = sprint ? 11.8 : 7.8;
+
+          const { speed } = stepSmoothHorizontalVelocity(
+            horizVelRef.current,
+            worldDirX * spd,
+            worldDirZ * spd,
+            dt
+          );
+          pos.x += horizVelRef.current.x * dt;
+          pos.z += horizVelRef.current.z * dt;
+          moveSpeed = speed;
+          const targetYaw = Math.atan2(worldDirX, worldDirZ);
+          hero.group.rotation.y = lerpAngle(hero.group.rotation.y, targetYaw, 1 - Math.exp(-15 * dt));
+        } else if (walkTargetRef.current) {
+          const dx = walkTargetRef.current.x - pos.x;
+          const dz = walkTargetRef.current.z - pos.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist > 0.45) {
+            const spd = 9.4;
+            const step = Math.min(dist, spd * dt);
+            pos.x += (dx / dist) * step;
+            pos.z += (dz / dist) * step;
+            horizVelRef.current = { x: (dx / dist) * spd, z: (dz / dist) * spd };
+            moveSpeed = spd;
+            const targetYaw = Math.atan2(dx, dz);
+            hero.group.rotation.y = lerpAngle(hero.group.rotation.y, targetYaw, 1 - Math.exp(-15 * dt));
+          } else {
+            walkTargetRef.current = null;
+            horizVelRef.current = { x: 0, z: 0 };
+            const enterRoom = pendingRoomRef.current;
+            pendingRoomRef.current = null;
+            if (enterRoom) onEnterRoomRef.current(enterRoom);
+          }
+        } else {
+          const { speed } = stepSmoothHorizontalVelocity(horizVelRef.current, 0, 0, dt);
+          pos.x += horizVelRef.current.x * dt;
+          pos.z += horizVelRef.current.z * dt;
+          moveSpeed = speed;
+        }
+
+        // Open Planetary Biome Valley/Crater Containment
+        pos.x = Math.max(-boundX, Math.min(boundX, pos.x));
+        pos.z = Math.max(-boundZ, Math.min(boundZ, pos.z));
+
+        // Level-Specific Gravity Physics (1G / 0G / 0.16G / 0.38G) + Sculpted Terrain Height + Landing Dust Puffs
+        const floorY = evalSectorFloorHeight(levelId, pos.x, pos.z);
+        const puffCount = Math.max(1, Math.round((levelId >= 3 ? 8 : 5) * qCfg.particleDensity));
+        if (!isGroundedRef.current || pos.y > floorY + 0.02) {
+          playerVelYRef.current -= theme.gravity * dt;
+          pos.y += playerVelYRef.current * dt;
+          if (pos.y <= floorY) {
+            if (!isGroundedRef.current) {
+              dustSystem.emit(pos.x, floorY, pos.z, biomeDustColor, puffCount, 1.8);
+            }
+            pos.y = floorY;
+            playerVelYRef.current = 0;
+            isGroundedRef.current = true;
+            lastGroundedMsRef.current = now;
+          }
+        } else {
+          pos.y = floorY;
+          lastGroundedMsRef.current = now;
+          if (sprint && moveSpeed > 3.5) {
+            sprintDustTimerRef.current += dt;
+            if (sprintDustTimerRef.current >= 0.14) {
+              sprintDustTimerRef.current = 0;
+              dustSystem.emit(
+                pos.x,
+                floorY,
+                pos.z,
+                biomeDustColor,
+                Math.max(1, Math.round(2 * qCfg.particleDensity)),
+                0.9
+              );
+            }
+          }
+        }
+
+        if (roverCtrl) {
+          roverCtrl.updateVisuals({
+            dt,
+            speed: 0,
+            steerAngle: 0,
+            normal: evalSectorTerrainNormal(levelId, roverPosRef.current.x, roverPosRef.current.z)
+          });
         }
       }
       dustSystem.update(dt);
@@ -958,6 +1348,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         idleSeconds >= 8 &&
         isGroundedRef.current &&
         !theme.isZeroG &&
+        !isDrivingRoverRef.current &&
         moveSpeed <= 0.1 &&
         !walkTargetRef.current;
 
@@ -970,30 +1361,46 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       const activeEmote: AstronautEmote =
         now < celebrateUntilMsRef.current
           ? 'celebrate'
-          : now < waveUntilMsRef.current && moveSpeed <= 0.1
+          : now < waveUntilMsRef.current && moveSpeed <= 0.1 && !isDrivingRoverRef.current
           ? 'wave'
           : closestDist < 4.5 && closestRoom && !isRoomCompleted(closestRoom) && moveSpeed <= 0.1
           ? 'point'
           : 'none';
 
-      hero.group.position.copy(pos);
-      hero.update({
-        t: elapsed,
-        moveSpeed,
-        isRunning: sprint && moveSpeed > 0.1,
-        isJumping: !isGroundedRef.current,
-        isZeroG: theme.isZeroG,
-        suitState: suitStateRef.current,
-        idleSeconds,
-        emote: activeEmote
-      });
+      if (isDrivingRoverRef.current && roverCtrl) {
+        hero.group.position.set(roverPosRef.current.x, roverPosRef.current.y + 0.56, roverPosRef.current.z);
+        hero.group.rotation.y = roverYawRef.current;
+        hero.update({
+          t: elapsed,
+          moveSpeed: 0,
+          isRunning: false,
+          isJumping: false,
+          isZeroG: false,
+          suitState: suitStateRef.current,
+          idleSeconds: 0,
+          emote: 'none'
+        });
+      } else {
+        hero.group.position.copy(pos);
+        hero.update({
+          t: elapsed,
+          moveSpeed,
+          isRunning: sprint && moveSpeed > 0.1,
+          isJumping: !isGroundedRef.current,
+          isZeroG: theme.isZeroG,
+          suitState: suitStateRef.current,
+          idleSeconds,
+          emote: activeEmote
+        });
+      }
 
       // Floor directional guide arrow pointing toward current active step target
       floorArrowSystem.update(pos, activeTargetWorldPos, 0, elapsed);
 
-      // Auto-Follow Third-Person Camera behind player while walking (no two-finger camera needed on mobile!)
+      // Auto-Follow Close Third-Person Camera behind player or Rover
       if (moveSpeed > 0.25 && !activeLookRef.current) {
-        const behindPlayerYaw = hero.group.rotation.y + Math.PI;
+        const refYaw = isDrivingRoverRef.current ? roverYawRef.current : hero.group.rotation.y;
+        const behindPlayerYaw = refYaw + Math.PI;
         targetCameraYawRef.current = lerpAngle(
           targetCameraYawRef.current,
           behindPlayerYaw,
@@ -1002,23 +1409,27 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       }
 
       const followYaw = cameraOrbitYawRef.current;
-      const camDist = 13.4;
+      const camDist = isDrivingRoverRef.current ? 7.4 : 6.0;
       const horizDist = camDist * Math.cos(cameraOrbitPitchRef.current);
-      const camHeight = 2.3 + camDist * Math.sin(cameraOrbitPitchRef.current);
+      const camHeight = 1.2 + camDist * Math.sin(cameraOrbitPitchRef.current);
       const desiredCamX = pos.x + Math.sin(followYaw) * horizDist;
       const desiredCamZ = pos.z + Math.cos(followYaw) * horizDist;
-      const desiredCamY = pos.y + camHeight;
+      const minGroundCamY = evalSectorFloorHeight(levelId, desiredCamX, desiredCamZ) + 0.9;
+      const desiredCamY = Math.max(pos.y + camHeight, minGroundCamY);
 
       camera.position.x += (desiredCamX - camera.position.x) * 0.14;
       camera.position.y += (desiredCamY - camera.position.y) * 0.14;
       camera.position.z += (desiredCamZ - camera.position.z) * 0.14;
-      camera.lookAt(pos.x, pos.y + 1.45, pos.z);
+      const lookFwdX = -Math.sin(followYaw) * 3.8;
+      const lookFwdZ = -Math.cos(followYaw) * 3.8;
+      camera.lookAt(pos.x + lookFwdX, pos.y + 1.85, pos.z + lookFwdZ);
 
       renderer.render(scene, camera);
       mount.dataset.drawCalls = String(renderer.info.render.calls);
       mount.dataset.idleBored = isBoredIdle ? 'true' : 'false';
       mount.dataset.idleSeconds = String(Math.floor(idleSeconds));
       mount.dataset.glbLoaded = getLoadedGlbUrls().join(',');
+      mount.dataset.roverActive = isDrivingRoverRef.current ? 'true' : 'false';
     };
 
     rafId = requestAnimationFrame(animate);
@@ -1045,6 +1456,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       skyHandle.dispose();
       dustSystem.dispose();
       floorArrowSystem.dispose();
+      roverCtrl?.dispose();
       hero.dispose();
       disposableTextures.forEach((tex) => tex.dispose());
       scene.traverse((obj) => {
@@ -1133,6 +1545,28 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         data-testid="three-canvas-mount"
         className="w-full h-full cursor-grab active:cursor-grabbing"
       />
+
+      {/* Top-Left Non-Overlapping Drivable Space Rover Board / Exit Action (Moon & Mars) */}
+      {(levelId === 3 || levelId === 4) && (
+        <button
+          type="button"
+          data-testid="toggle-rover-btn"
+          dir={language === 'ar' ? 'rtl' : 'ltr'}
+          onClick={() => roverToggleHandlerRef.current()}
+          className={`pointer-events-auto fixed top-[56px] sm:top-[64px] left-3 sm:left-4 z-30 px-3 py-1.5 rounded-full border-2 font-hud font-black text-[11px] sm:text-xs shadow-xl cursor-pointer active:scale-95 transition-all flex items-center gap-1.5 ${
+            isDrivingRover
+              ? 'bg-gradient-to-r from-orange-400 to-amber-500 text-slate-950 border-white shadow-[0_0_16px_rgba(251,146,60,0.65)]'
+              : 'bg-slate-950/85 hover:bg-slate-900 text-cyan-200 border-cyan-300/80'
+          }`}
+        >
+          <span>{isDrivingRover ? '🚶' : '🚙'}</span>
+          <span>
+            {isDrivingRover
+              ? tr(language, 'Exit Rover (R)', 'نزول من المركبة (R)')
+              : tr(language, 'Drive Rover (R)', 'قيادة المركبة (R)')}
+          </span>
+        </button>
+      )}
 
       {/* Sequential Station Lock Warning Toast with 1-Tap Auto-Walk Shortcut */}
       {lockedToast && (

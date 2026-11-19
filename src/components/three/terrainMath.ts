@@ -125,17 +125,73 @@ export function clampOverworldPosition(
 }
 
 /**
- * Computes subtle floor elevation inside Sculpted Sector Hubs (sector1..4_*.glb)
- * keeping the central promenade cleanly flat at 0 and rising gently toward outer crater/hill berms.
+ * Computes exact surface elevation inside Sculpted Stage 2 Biome Worlds (sector1..4_*.glb)
+ * mirroring generate_stage2_biomes_mcp.py with yb = -z so central promenade stays flat at 0
+ * while hills, craters, and canyons undulate smoothly around it.
  */
 export function evalSectorFloorHeight(levelId: CampaignLevelId, x: number, z: number): number {
-  const halfX = levelId === 1 || levelId === 3 ? 16.0 : 13.5;
-  const halfY = 7.4;
   const yb = -z;
-  const backHill = smoothstep(4.2, halfY, yb);
-  const sideBerm = smoothstep(halfX - 2.4, halfX, Math.abs(x));
-  const rim = Math.max(backHill, sideBerm * 0.6);
-  if (rim <= 0.01) return 0;
-  const amp = levelId === 3 ? 1.45 : levelId === 1 ? 1.15 : 0.62;
-  return rim * amp;
+  const px = smoothstep(17.0, 22.0, Math.abs(x));
+  const py = smoothstep(8.2, 13.0, Math.abs(yb));
+  const outPlaza = Math.max(px, py);
+
+  if (levelId === 1) {
+    const cliffX = smoothstep(35.0, 56.0, Math.abs(x));
+    const cliffY = smoothstep(23.5, 48.0, Math.abs(yb));
+    const cliff = Math.max(cliffX, cliffY);
+    const hills =
+      Math.sin(x * 0.13 + yb * 0.09) * 0.85 +
+      Math.cos(x * 0.21 - yb * 0.16) * 0.55 +
+      0.55;
+    const cliffRidge = cliff * (9.2 + 2.4 * Math.sin(x * 0.18) * Math.cos(yb * 0.18));
+    return outPlaza * (Math.max(0.0, hills) * 1.15 + cliffRidge);
+  }
+
+  if (levelId === 2) {
+    const backRim = smoothstep(9.2, 11.8, Math.abs(yb));
+    const sideRim = smoothstep(23.5, 26.0, Math.abs(x));
+    return Math.max(backRim, sideRim) * 0.55;
+  }
+
+  if (levelId === 3) {
+    const cliff = Math.max(smoothstep(37.5, 58.0, Math.abs(x)), smoothstep(25.5, 50.0, Math.abs(yb)));
+    const undul = Math.sin(x * 0.14 - yb * 0.11) * 0.72 + Math.cos(x * 0.24 + yb * 0.19) * 0.42;
+    const dC1 = Math.hypot(x + 27.0, yb - 16.0);
+    const crater1 =
+      -0.85 * Math.exp(-Math.pow(dC1 / 6.0, 2)) + 0.65 * Math.exp(-Math.pow((dC1 - 7.5) / 2.2, 2));
+    const dC2 = Math.hypot(x - 28.0, yb + 15.0);
+    const crater2 =
+      -0.85 * Math.exp(-Math.pow(dC2 / 6.2, 2)) + 0.65 * Math.exp(-Math.pow((dC2 - 7.8) / 2.2, 2));
+    const rim = cliff * (11.8 + 2.6 * Math.sin(x * 0.15 + yb * 0.17));
+    return outPlaza * (undul * 0.58 + crater1 + crater2 + rim);
+  }
+
+  // Level 4: Martian Red Canyon & Dunes
+  const cliff = Math.max(smoothstep(37.5, 58.0, Math.abs(x)), smoothstep(25.5, 50.0, Math.abs(yb)));
+  const dune = Math.sin(x * 0.12 + yb * 0.17) * 0.78 + Math.cos(x * 0.22 - yb * 0.14) * 0.44;
+  const canyonWall =
+    cliff * 11.2 +
+    Math.sin(cliff * 10.0) * 0.35 +
+    Math.cos(x * 0.16 - yb * 0.16) * cliff * 2.0;
+  return outPlaza * (dune * 0.68 + canyonWall);
+}
+
+/**
+ * Central-difference terrain surface normal for rover pitch/roll alignment on hills & craters.
+ */
+export function evalSectorTerrainNormal(
+  levelId: CampaignLevelId,
+  x: number,
+  z: number
+): { x: number; y: number; z: number } {
+  const eps = 0.45;
+  const hL = evalSectorFloorHeight(levelId, x - eps, z);
+  const hR = evalSectorFloorHeight(levelId, x + eps, z);
+  const hD = evalSectorFloorHeight(levelId, x, z - eps);
+  const hU = evalSectorFloorHeight(levelId, x, z + eps);
+  const nx = hL - hR;
+  const ny = 2 * eps;
+  const nz = hD - hU;
+  const len = Math.hypot(nx, ny, nz) || 1;
+  return { x: nx / len, y: ny / len, z: nz / len };
 }
