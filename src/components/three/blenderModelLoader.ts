@@ -299,7 +299,10 @@ export function animateBlenderEnvironmentGlb(root: THREE.Object3D, elapsed: numb
 
   const medHalo = root.getObjectByName('MedHaloRing');
   if (medHalo) {
-    medHalo.position.y = 0.85 + Math.sin(elapsed * 2.1) * 0.12;
+    if (medHalo.userData.baseY === undefined) {
+      medHalo.userData.baseY = medHalo.position.y;
+    }
+    medHalo.position.y = (medHalo.userData.baseY as number) + Math.sin(elapsed * 2.1) * 0.12;
     medHalo.rotation.z = Math.sin(elapsed * 1.6) * 0.16;
   }
 
@@ -328,6 +331,47 @@ export type StationPropModelKey =
   | 'prop_medical_pod'
   | 'prop_hydro_rack'
   | 'prop_storm_console';
+
+export type EarthBuildingModelKey =
+  | 'earth_kitchen_dome'
+  | 'earth_suit_hangar'
+  | 'earth_medical_pavilion'
+  | 'earth_launch_complex'
+  | 'earth_academy_hq'
+  | 'earth_discovery_kiosk';
+
+export function attachEarthBuildingGlb(opts: {
+  modelName: EarthBuildingModelKey;
+  targetParent: THREE.Object3D;
+  scale?: number;
+  position?: [number, number, number];
+  rotationY?: number;
+  fallbackNodes?: THREE.Object3D[];
+  isDisposed: () => boolean;
+  onLoaded?: (buildingGlb: THREE.Group) => void;
+}): void {
+  const s = opts.scale ?? 1.0;
+  attachGlbScene({
+    url: `/models/${opts.modelName}.glb`,
+    name: `BlenderEarthBuilding_${opts.modelName}`,
+    targetParent: opts.targetParent,
+    scale: [s, s, s],
+    position: opts.position ?? [0, 0, 0],
+    rotationY: opts.rotationY ?? 0,
+    fallbackNodes: opts.fallbackNodes,
+    compactStaticMeshes: true,
+    isDisposed: opts.isDisposed,
+    onLoaded: (glb) => {
+      glb.traverse((node) => {
+        if (node instanceof THREE.Mesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+        }
+      });
+      opts.onLoaded?.(glb);
+    }
+  });
+}
 
 export function attachSpaceNodeGlb(opts: {
   modelKey: SpaceNodeModelKey;

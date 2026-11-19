@@ -13,15 +13,25 @@ import {
   createCosmicSkyBackdrop,
   createCourtyardSignboardsMesh,
   createFloatingExclamationGeometry,
+  createFloatingLabelSprite,
   SkyMode
 } from './archipelagoPrimitives';
 import {
   animateBlenderEnvironmentGlb,
+  attachEarthBuildingGlb,
   attachSectorDeckGlb,
   attachStationPropGlb,
+  EarthBuildingModelKey,
   getLoadedGlbUrls
 } from './blenderModelLoader';
-import { evalSectorFloorHeight, evalSectorTerrainNormal } from './terrainMath';
+import {
+  EARTH_L1_PADS,
+  EARTH_L1_PLAY_BOUNDS,
+  evalSectorFloorHeight,
+  evalSectorTerrainNormal
+} from './terrainMath';
+import { buildEarthEnvironment, EarthEnvironmentHandle } from './earthEnvironmentBuilder';
+import { EARTH_L1_KIOSKS, markFactDiscovered, SpaceDiscoveryFact } from '../../data/earthDiscoveryFacts';
 import { createSpaceRoverVehicle, SpaceRoverController } from './buildRoverVehicle';
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
 import {
@@ -33,6 +43,7 @@ import {
   JUMP_BUFFER_MS,
   lerpAngle,
   queueJumpInput,
+  resolveCircleObstacles,
   stepSmoothHorizontalVelocity,
   stepThirdPersonKinematics,
   ThirdPersonKinematicsState
@@ -50,8 +61,49 @@ interface SpatialRoomMap3DProps {
 interface PositionedRoom {
   room: SpatialRoomNode;
   pos: THREE.Vector3;
+  entrySpot: THREE.Vector3;
   yawToCenter: number;
 }
+
+const EARTH_L1_BUILDING_SPEC: Record<
+  string,
+  {
+    modelName: EarthBuildingModelKey;
+    scale: number;
+    obstacleRadius: number;
+    entryDist: number;
+    labelY: number;
+  }
+> = {
+  food_storage: {
+    modelName: 'earth_kitchen_dome',
+    scale: 1.05,
+    obstacleRadius: 5.5,
+    entryDist: 8.6,
+    labelY: 7.4
+  },
+  equipment_room: {
+    modelName: 'earth_suit_hangar',
+    scale: 1.05,
+    obstacleRadius: 6.0,
+    entryDist: 9.0,
+    labelY: 8.4
+  },
+  medical_room: {
+    modelName: 'earth_medical_pavilion',
+    scale: 1.05,
+    obstacleRadius: 5.5,
+    entryDist: 8.6,
+    labelY: 7.2
+  },
+  launch_area: {
+    modelName: 'earth_launch_complex',
+    scale: 1.02,
+    obstacleRadius: 6.8,
+    entryDist: 10.8,
+    labelY: 16.2
+  }
+};
 
 function getBiomeTheme(levelId: CampaignLevelId, language: 'en' | 'ar'): {
   topColor: number;
@@ -151,11 +203,18 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
   const nearbyRoomRef = useRef<SpatialRoomNode | null>(nearbyRoom);
   const [showIdleHint, setShowIdleHint] = useState(false);
   const [lockedToast, setLockedToast] = useState<string | null>(null);
+  const [activeKioskFact, setActiveKioskFact] = useState<SpaceDiscoveryFact | null>(null);
+  const [kioskBonusBanner, setKioskBonusBanner] = useState<string | null>(null);
+  const activeKioskIdRef = useRef<string | null>(null);
+  const suppressedKioskIdRef = useRef<string | null>(null);
   const activeEntryRef = useRef<{ room: SpatialRoomNode; entrySpot: THREE.Vector3 } | null>(null);
 
-  const playerPosRef = useRef(new THREE.Vector3(0, 0, 3.0));
+  const initSpawnX = 0;
+  const initSpawnZ = levelId === 1 ? 32.0 : 3.0;
+  const initSpawnY = evalSectorFloorHeight(levelId, initSpawnX, initSpawnZ);
+  const playerPosRef = useRef(new THREE.Vector3(initSpawnX, initSpawnY, initSpawnZ));
   const kinematicsRef = useRef<ThirdPersonKinematicsState>(
-    createKinematicsState(0, 0, 3.0, performance.now())
+    createKinematicsState(initSpawnX, initSpawnY, initSpawnZ, performance.now())
   );
   const roverVelRef = useRef({ x: 0, z: 0 });
   const roverBoostUntilRef = useRef(0);
@@ -182,8 +241,12 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
   const boredVoiceFiredRef = useRef(false);
   const [isDrivingRover, setIsDrivingRover] = useState(false);
   const isDrivingRoverRef = useRef(false);
-  const roverPosRef = useRef(new THREE.Vector3(5.5, 0, 6.5));
-  const roverYawRef = useRef(Math.PI * 0.75);
+  const initRoverX = levelId === 1 ? 8.6 : 5.5;
+  const initRoverZ = levelId === 1 ? 29.0 : 6.5;
+  const roverPosRef = useRef(
+    new THREE.Vector3(initRoverX, evalSectorFloorHeight(levelId, initRoverX, initRoverZ), initRoverZ)
+  );
+  const roverYawRef = useRef(levelId === 1 ? Math.PI : Math.PI * 0.75);
   const roverSpeedRef = useRef(0);
   const roverDustTimerRef = useRef(0);
   const roverToggleHandlerRef = useRef<() => void>(() => {});
@@ -258,7 +321,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     const active = activeEntryRef.current;
     if (!active) return;
     soundManager.playClick();
-    if (playerPosRef.current.distanceTo(active.entrySpot) < 1.2) {
+    if (playerPosRef.current.distanceTo(active.entrySpot) < 2.6) {
       onEnterRoomRef.current(active.room);
     } else {
       walkTargetRef.current = active.entrySpot.clone();
@@ -294,10 +357,13 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
   }, []);
 
   useEffect(() => {
-    // Reset astronaut to front mission promenade facing the 1 -> 2 -> 3 stations
+    // Reset astronaut to starting pad (Spaceport Plaza on Level 1, Deck Promenade on Levels 2–4)
     const now = performance.now();
-    playerPosRef.current.set(0, 0, 3.0);
-    kinematicsRef.current = createKinematicsState(0, 0, 3.0, now);
+    const spawnX = 0;
+    const spawnZ = levelId === 1 ? 32.0 : 3.0;
+    const spawnY = evalSectorFloorHeight(levelId, spawnX, spawnZ);
+    playerPosRef.current.set(spawnX, spawnY, spawnZ);
+    kinematicsRef.current = createKinematicsState(spawnX, spawnY, spawnZ, now);
     roverVelRef.current = { x: 0, z: 0 };
     roverBoostUntilRef.current = 0;
     walkTargetRef.current = null;
@@ -305,8 +371,13 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     cameraOrbitYawRef.current = 0;
     isDrivingRoverRef.current = false;
     setIsDrivingRover(false);
-    roverPosRef.current.set(5.5, evalSectorFloorHeight(levelId, 5.5, 6.5), 6.5);
-    roverYawRef.current = Math.PI * 0.75;
+    setActiveKioskFact(null);
+    activeKioskIdRef.current = null;
+    suppressedKioskIdRef.current = null;
+    const rX = levelId === 1 ? 8.6 : 5.5;
+    const rZ = levelId === 1 ? 29.0 : 6.5;
+    roverPosRef.current.set(rX, evalSectorFloorHeight(levelId, rX, rZ), rZ);
+    roverYawRef.current = levelId === 1 ? Math.PI : Math.PI * 0.75;
     roverSpeedRef.current = 0;
     waveUntilMsRef.current = performance.now() + 2500;
     lastActivityMsRef.current = performance.now();
@@ -347,14 +418,18 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
     const scene = new THREE.Scene();
     let isSceneDisposed = false;
-    const camera = new THREE.PerspectiveCamera(58, dims.w / dims.h, 0.1, 360);
-    camera.position.set(0, 2.8, 10.5);
-    cameraOrbitPitchRef.current = 0.22;
+    const camera = new THREE.PerspectiveCamera(58, dims.w / dims.h, 0.1, levelId === 1 ? 420 : 360);
+    camera.position.set(
+      playerPosRef.current.x,
+      playerPosRef.current.y + 2.8,
+      playerPosRef.current.z + 7.5
+    );
+    cameraOrbitPitchRef.current = levelId === 1 ? 0.24 : 0.22;
     cameraOrbitYawRef.current = 0;
-    targetCameraPitchRef.current = 0.15;
+    targetCameraPitchRef.current = levelId === 1 ? 0.16 : 0.15;
     targetCameraYawRef.current = 0;
     const deckPitchIn = gsap.to(targetCameraPitchRef, {
-      current: 0.14,
+      current: levelId === 1 ? 0.15 : 0.14,
       duration: 0.65,
       ease: 'power2.out'
     });
@@ -364,35 +439,39 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       ease: 'power2.out'
     });
 
-    const skyHandle = createCosmicSkyBackdrop(scene, theme.skyMode, { skipSatellite: levelId >= 3 });
+    let earthEnv: EarthEnvironmentHandle | null = null;
+    const skyHandle =
+      levelId === 1
+        ? null
+        : createCosmicSkyBackdrop(scene, theme.skyMode, { skipSatellite: levelId >= 3 });
 
     // Bright Biome Lighting (warm daylight sun for Earth & Mars Canyon, crisp lunar/orbital lights)
     const hemi = new THREE.HemisphereLight(
-      levelId === 1 ? 0xc2e9ff : levelId === 4 ? 0xfdba74 : 0xe0f2fe,
-      levelId === 1 ? 0x2f855a : levelId === 4 ? 0x7c2d12 : theme.rockColor,
+      levelId === 1 ? 0xd8f3ff : levelId === 4 ? 0xfdba74 : 0xe0f2fe,
+      levelId === 1 ? 0x3b8c4a : levelId === 4 ? 0x7c2d12 : theme.rockColor,
       levelId === 1 ? 1.55 : levelId === 4 ? 1.35 : 1.4
     );
     scene.add(hemi);
     const dir = new THREE.DirectionalLight(
-      levelId === 1 ? 0xfff7d6 : levelId === 4 ? 0xffdfb8 : 0xfffbeb,
-      levelId === 1 ? 2.25 : levelId === 4 ? 2.15 : 1.85
+      levelId === 1 ? 0xfff6d6 : levelId === 4 ? 0xffdfb8 : 0xfffbeb,
+      levelId === 1 ? 2.35 : levelId === 4 ? 2.15 : 1.85
     );
-    dir.position.set(22, 34, 24);
+    dir.position.set(levelId === 1 ? 38 : 22, levelId === 1 ? 64 : 34, levelId === 1 ? 44 : 24);
     dir.castShadow = initUltraShadows;
     dir.shadow.mapSize.set(1024, 1024);
     dir.shadow.camera.near = 2;
-    dir.shadow.camera.far = 120;
-    dir.shadow.camera.left = -42;
-    dir.shadow.camera.right = 42;
-    dir.shadow.camera.top = 28;
-    dir.shadow.camera.bottom = -28;
+    dir.shadow.camera.far = levelId === 1 ? 210 : 120;
+    const scBound = levelId === 1 ? 82 : 42;
+    dir.shadow.camera.left = -scBound;
+    dir.shadow.camera.right = scBound;
+    dir.shadow.camera.top = scBound;
+    dir.shadow.camera.bottom = -scBound;
     dirLightRef.current = dir;
     scene.add(dir);
-    const fill = new THREE.DirectionalLight(theme.rimColor, 0.72);
-    fill.position.set(-18, 10, -16);
+    const fill = new THREE.DirectionalLight(levelId === 1 ? 0x7dd3fc : theme.rimColor, 0.72);
+    fill.position.set(-28, 18, -26);
     scene.add(fill);
 
-    // Expansive Linear Mission Deck Promenade + Open Planetary Biome Terrain (128m-136m)
     const rooms = levelSpec.rooms;
     const roomCount = Math.max(1, rooms.length);
     const stationSpacing = roomCount >= 4 ? 8.8 : 10.0;
@@ -401,49 +480,9 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     const halfDeckX = deckWidth * 0.45;
     const islandRadius = deckWidth * 0.52;
 
-    const deckFloorColor =
-      levelId === 1
-        ? 0x334155
-        : levelId === 2
-        ? 0x1e293b
-        : levelId === 3
-        ? 0x475569
-        : 0x334155;
-
-    const deckParts: ColoredGeometryPart[] = [
-      // Main architectural space mission deck
-      { geometry: new THREE.BoxGeometry(deckWidth, 0.72, deckDepth), color: deckFloorColor, position: [0, -0.36, -0.2] },
-      // Underside hull taper
-      { geometry: new THREE.BoxGeometry(deckWidth - 2.4, 0.55, deckDepth - 1.8), color: 0x0f172a, position: [0, -0.96, -0.2] },
-      // Glowing front & back perimeter safety strips
-      { geometry: new THREE.BoxGeometry(deckWidth + 0.16, 0.12, 0.24), color: theme.rimColor, position: [0, -0.02, deckDepth * 0.5 - 0.2] },
-      { geometry: new THREE.BoxGeometry(deckWidth + 0.16, 0.12, 0.24), color: theme.rimColor, position: [0, -0.02, -deckDepth * 0.5 - 0.2] },
-      // Center starting launch pad ring at (0, 0, 3.0)
-      { geometry: new THREE.CylinderGeometry(1.75, 1.9, 0.06, 20), color: 0x0f172a, position: [0, 0.02, 3.0] },
-      { geometry: new THREE.TorusGeometry(1.75, 0.08, 8, 24), color: theme.rimColor, position: [0, 0.05, 3.0], rotation: [Math.PI / 2, 0, 0] }
-    ];
-
-    const deckMesh = new THREE.Mesh(
-      mergeColoredParts(deckParts),
-      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.46, metalness: 0.28, flatShading: true })
-    );
-    deckMesh.receiveShadow = true;
-    scene.add(deckMesh);
-
     const disposableTextures: THREE.Texture[] = [];
     const blenderEnvGroups: THREE.Group[] = [];
 
-    attachSectorDeckGlb({
-      levelId,
-      targetParent: scene,
-      fallbackNodes: [deckMesh],
-      isDisposed: () => isSceneDisposed,
-      onLoaded: (sectorGlb) => {
-        blenderEnvGroups.push(sectorGlb);
-      }
-    });
-
-    // Deterministic seeded PRNG for lush InstancedMesh biome dressing (< 4 draw calls total!)
     const makeRng = (seed: number) => {
       let s = seed >>> 0;
       return () => {
@@ -453,151 +492,63 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     };
     const rng = makeRng(levelId * 9173 + 42);
     const biomeDummy = new THREE.Object3D();
-    const biomeCol = new THREE.Color();
 
-    // Level 1: Vast Sunlit Earth Spaceport Valley — Instanced Stylized Trees, Grass Tufts & Rock Cliffs (4 draw calls)
     if (levelId === 1) {
-      const treeCount = 52;
-      const trunkInst = new THREE.InstancedMesh(
-        new THREE.CylinderGeometry(0.18, 0.28, 1.5, 6),
-        new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.85, flatShading: true }),
-        treeCount
-      );
-      const crownGeom = mergeColoredParts([
-        { geometry: new THREE.ConeGeometry(1.25, 1.7, 7), color: 0xffffff, position: [0, 0.85, 0] },
-        { geometry: new THREE.ConeGeometry(0.88, 1.45, 7), color: 0xffffff, position: [0, 1.85, 0] }
-      ]);
-      const crownInst = new THREE.InstancedMesh(
-        crownGeom,
-        new THREE.MeshStandardMaterial({ roughness: 0.65, flatShading: true }),
-        treeCount
-      );
-      const greens = [0x16a34a, 0x22c55e, 0x4ade80, 0x15803d];
-      let placedTrees = 0;
-      const scenicBackPines: [number, number, number][] = [
-        [-24, -12.0, 1.35],
-        [-19, -15.5, 1.5],
-        [-13, -11.5, 1.25],
-        [-7, -14.0, 1.4],
-        [-2, -16.5, 1.55],
-        [4, -12.0, 1.3],
-        [10, -15.0, 1.45],
-        [16, -11.5, 1.3],
-        [21, -14.5, 1.5],
-        [26, -12.5, 1.35]
+      // PHASE 2 EARTH SPACEPORT VERTICAL SLICE: 320m Lush Valley + Blended Terrain & Roads + Wind-Sway Grass + Multi-Canopy Trees
+      earthEnv = buildEarthEnvironment({
+        scene,
+        mode: 'earth_l1',
+        isDisposed: () => isSceneDisposed,
+        maxAnisotropy: renderer.capabilities.getMaxAnisotropy()
+      });
+
+      // Open Cantilevered Space Buggy Carport (East-side piers at x = 11.4 so rear driving camera has ZERO obstruction!)
+      const gY = evalSectorFloorHeight(1, 8.6, 29.0);
+      const garageParts: ColoredGeometryPart[] = [
+        { geometry: new THREE.BoxGeometry(5.6, 0.14, 6.6), color: 0x334155, position: [8.6, gY + 0.04, 29.0] },
+        { geometry: new THREE.BoxGeometry(0.32, 4.4, 0.36), color: 0xe2e8f0, position: [11.3, gY + 2.1, 26.2] },
+        { geometry: new THREE.BoxGeometry(0.32, 4.4, 0.36), color: 0xe2e8f0, position: [11.3, gY + 2.1, 31.8] },
+        { geometry: new THREE.BoxGeometry(5.8, 0.34, 6.8), color: 0xf97316, position: [8.8, gY + 4.35, 29.0] },
+        { geometry: new THREE.BoxGeometry(5.2, 0.16, 0.24), color: 0x38bdf8, position: [8.8, gY + 4.18, 25.65] },
+        // Scenic Central Spaceport Welcome Emblem Arch ahead of Spawn Plaza at (0, 20.5)
+        { geometry: new THREE.CylinderGeometry(2.1, 2.4, 0.32, 16), color: 0x475569, position: [0, evalSectorFloorHeight(1, 0, 20.5) + 0.1, 20.5] },
+        { geometry: new THREE.TorusGeometry(3.4, 0.24, 10, 24, Math.PI), color: 0x0284c7, position: [0, evalSectorFloorHeight(1, 0, 20.5) + 0.2, 20.5] },
+        { geometry: new THREE.TorusGeometry(3.15, 0.10, 8, 24, Math.PI), color: 0xfacc15, position: [0, evalSectorFloorHeight(1, 0, 20.5) + 0.2, 20.5] }
       ];
-      for (const [sx, sz, sc] of scenicBackPines) {
-        if (placedTrees >= treeCount) break;
-        const sy = evalSectorFloorHeight(1, sx, sz);
-        biomeDummy.position.set(sx, sy + 0.7 * sc, sz);
-        biomeDummy.rotation.set(0, placedTrees * 0.9, 0);
-        biomeDummy.scale.setScalar(sc);
-        biomeDummy.updateMatrix();
-        trunkInst.setMatrixAt(placedTrees, biomeDummy.matrix);
-
-        biomeDummy.position.set(sx, sy + 1.35 * sc, sz);
-        biomeDummy.updateMatrix();
-        crownInst.setMatrixAt(placedTrees, biomeDummy.matrix);
-        biomeCol.setHex(greens[placedTrees % greens.length]);
-        crownInst.setColorAt(placedTrees, biomeCol);
-        placedTrees++;
-      }
-      let tries = 0;
-      while (placedTrees < treeCount && tries < 600) {
-        tries++;
-        const tx = (rng() - 0.5) * 86;
-        const tz = (rng() - 0.5) * 68;
-        if (Math.abs(tx) < 16.8 && Math.abs(tz) < 8.0) continue;
-        if (Math.abs(tz) < 3.0 && Math.abs(tx) < 34) continue;
-        const ty = evalSectorFloorHeight(1, tx, tz);
-        const sc = 0.9 + rng() * 0.75;
-        biomeDummy.position.set(tx, ty + 0.7 * sc, tz);
-        biomeDummy.rotation.set(0, rng() * Math.PI * 2, 0);
-        biomeDummy.scale.setScalar(sc);
-        biomeDummy.updateMatrix();
-        trunkInst.setMatrixAt(placedTrees, biomeDummy.matrix);
-
-        biomeDummy.position.set(tx, ty + 1.35 * sc, tz);
-        biomeDummy.updateMatrix();
-        crownInst.setMatrixAt(placedTrees, biomeDummy.matrix);
-        biomeCol.setHex(greens[placedTrees % greens.length]);
-        crownInst.setColorAt(placedTrees, biomeCol);
-        placedTrees++;
-      }
-      trunkInst.count = placedTrees;
-      crownInst.count = placedTrees;
-      trunkInst.instanceMatrix.needsUpdate = true;
-      crownInst.instanceMatrix.needsUpdate = true;
-      if (crownInst.instanceColor) crownInst.instanceColor.needsUpdate = true;
-      scene.add(trunkInst, crownInst);
-
-      const grassCount = 220;
-      const tuftGeom = mergeColoredParts([
-        { geometry: new THREE.ConeGeometry(0.08, 0.52, 4), color: 0xffffff, position: [-0.08, 0.24, 0], rotation: [0.18, 0, 0.22] },
-        { geometry: new THREE.ConeGeometry(0.08, 0.58, 4), color: 0xffffff, position: [0.06, 0.27, 0.05], rotation: [-0.15, 0.3, -0.18] },
-        { geometry: new THREE.ConeGeometry(0.07, 0.44, 4), color: 0xffffff, position: [0.0, 0.2, -0.07], rotation: [-0.22, -0.4, 0.1] }
-      ]);
-      const grassInst = new THREE.InstancedMesh(
-        tuftGeom,
-        new THREE.MeshStandardMaterial({ roughness: 0.7, flatShading: true }),
-        grassCount
+      const garageMesh = new THREE.Mesh(
+        mergeColoredParts(garageParts),
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.28 })
       );
-      let placedGrass = 0;
-      tries = 0;
-      while (placedGrass < grassCount && tries < 1200) {
-        tries++;
-        const gx = (rng() - 0.5) * 76;
-        const gz = (rng() - 0.5) * 56;
-        if (Math.abs(gx) < 16.5 && Math.abs(gz) < 6.4) continue;
-        const gy = evalSectorFloorHeight(1, gx, gz);
-        biomeDummy.position.set(gx, gy, gz);
-        biomeDummy.rotation.set(0, rng() * Math.PI * 2, 0);
-        biomeDummy.scale.setScalar(0.95 + rng() * 0.75);
-        biomeDummy.updateMatrix();
-        grassInst.setMatrixAt(placedGrass, biomeDummy.matrix);
-        biomeCol.setHex(placedGrass % 3 === 0 ? 0x84cc16 : placedGrass % 2 === 0 ? 0x4ade80 : 0x22c55e);
-        grassInst.setColorAt(placedGrass, biomeCol);
-        placedGrass++;
-      }
-      grassInst.count = placedGrass;
-      grassInst.instanceMatrix.needsUpdate = true;
-      if (grassInst.instanceColor) grassInst.instanceColor.needsUpdate = true;
-      scene.add(grassInst);
-
-      const cliffCount = 28;
-      const cliffInst = new THREE.InstancedMesh(
-        new THREE.DodecahedronGeometry(2.6, 0),
-        new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.88, flatShading: true }),
-        cliffCount
-      );
-      const scenicBoulders: [number, number][] = [
-        [-22, -16],
-        [-11, -18],
-        [0, -21],
-        [11, -18],
-        [22, -16],
-        [28, -12]
+      garageMesh.castShadow = true;
+      garageMesh.receiveShadow = true;
+      scene.add(garageMesh);
+    } else {
+      // Preserved Levels 2, 3, 4 Sector Deck & Biome Terrain (Untouched for Phase 3)
+      const deckFloorColor = levelId === 2 ? 0x1e293b : levelId === 3 ? 0x475569 : 0x334155;
+      const deckParts: ColoredGeometryPart[] = [
+        { geometry: new THREE.BoxGeometry(deckWidth, 0.72, deckDepth), color: deckFloorColor, position: [0, -0.36, -0.2] },
+        { geometry: new THREE.BoxGeometry(deckWidth - 2.4, 0.55, deckDepth - 1.8), color: 0x0f172a, position: [0, -0.96, -0.2] },
+        { geometry: new THREE.BoxGeometry(deckWidth + 0.16, 0.12, 0.24), color: theme.rimColor, position: [0, -0.02, deckDepth * 0.5 - 0.2] },
+        { geometry: new THREE.BoxGeometry(deckWidth + 0.16, 0.12, 0.24), color: theme.rimColor, position: [0, -0.02, -deckDepth * 0.5 - 0.2] },
+        { geometry: new THREE.CylinderGeometry(1.75, 1.9, 0.06, 20), color: 0x0f172a, position: [0, 0.02, 3.0] },
+        { geometry: new THREE.TorusGeometry(1.75, 0.08, 8, 24), color: theme.rimColor, position: [0, 0.05, 3.0], rotation: [Math.PI / 2, 0, 0] }
       ];
-      for (let c = 0; c < cliffCount; c++) {
-        let rx: number;
-        let rz: number;
-        if (c < scenicBoulders.length) {
-          rx = scenicBoulders[c][0];
-          rz = scenicBoulders[c][1];
-        } else {
-          const ang = ((c - scenicBoulders.length) / (cliffCount - scenicBoulders.length)) * Math.PI * 2;
-          rx = Math.cos(ang) * (36 + rng() * 14);
-          rz = Math.sin(ang) * (25 + rng() * 11);
+      const deckMesh = new THREE.Mesh(
+        mergeColoredParts(deckParts),
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.46, metalness: 0.28, flatShading: true })
+      );
+      deckMesh.receiveShadow = true;
+      scene.add(deckMesh);
+
+      attachSectorDeckGlb({
+        levelId,
+        targetParent: scene,
+        fallbackNodes: [deckMesh],
+        isDisposed: () => isSceneDisposed,
+        onLoaded: (sectorGlb) => {
+          blenderEnvGroups.push(sectorGlb);
         }
-        const ry = evalSectorFloorHeight(1, rx, rz);
-        biomeDummy.position.set(rx, ry + 0.8, rz);
-        biomeDummy.rotation.set(rng() * 0.4, rng() * Math.PI, rng() * 0.4);
-        biomeDummy.scale.set(1.25 + rng() * 0.7, 0.8 + rng() * 0.7, 1.15 + rng() * 0.6);
-        biomeDummy.updateMatrix();
-        cliffInst.setMatrixAt(c, biomeDummy.matrix);
-      }
-      cliffInst.instanceMatrix.needsUpdate = true;
-      scene.add(cliffInst);
+      });
     }
 
     // Level 2: Huge Sunlit Rotating Curved Blue Marble Earth Prominently Visible Behind ISS Horizon (2 draw calls)
@@ -631,67 +582,69 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       scene.add(earthOrbitalSphere, earthRim);
     }
 
-    // Levels 3 & 4: Vast Crater/Canyon Boulders + Illuminated Rover Trail Beacons (2 draw calls) + Drivable Rover
+    // Level 1 (Garage Space Buggy) + Levels 3 & 4: Crater/Canyon Boulders, Beacons & Drivable Rover
     let roverCtrl: SpaceRoverController | null = null;
     let roverBeaconRing: THREE.Mesh | null = null;
-    if (levelId === 3 || levelId === 4) {
-      const boulderCount = 32;
-      const boulderInst = new THREE.InstancedMesh(
-        new THREE.DodecahedronGeometry(1.55, 0),
-        new THREE.MeshStandardMaterial({
-          color: levelId === 3 ? 0x64748b : 0xb45309,
-          roughness: 0.88,
-          flatShading: true
-        }),
-        boulderCount
-      );
-      let placedBoulders = 0;
-      for (let b = 0; b < boulderCount * 2 && placedBoulders < boulderCount; b++) {
-        const ang = (b / boulderCount) * Math.PI * 2 + rng() * 0.25;
-        const radScale = 0.72 + rng() * 0.55;
-        const bx = Math.cos(ang) * 33 * radScale;
-        const bz = Math.sin(ang) * 23 * radScale;
-        if (Math.abs(bx) < 20.5 && Math.abs(bz) < 10.5) continue;
-        const by = evalSectorFloorHeight(levelId, bx, bz);
-        biomeDummy.position.set(bx, by + 0.35, bz);
-        biomeDummy.rotation.set(rng(), rng() * Math.PI, rng());
-        biomeDummy.scale.set(0.8 + rng() * 1.1, 0.55 + rng() * 0.85, 0.8 + rng() * 1.0);
-        biomeDummy.updateMatrix();
-        boulderInst.setMatrixAt(placedBoulders, biomeDummy.matrix);
-        placedBoulders++;
-      }
-      boulderInst.count = placedBoulders;
-      boulderInst.instanceMatrix.needsUpdate = true;
-      scene.add(boulderInst);
+    if (levelId === 1 || levelId === 3 || levelId === 4) {
+      if (levelId === 3 || levelId === 4) {
+        const boulderCount = 32;
+        const boulderInst = new THREE.InstancedMesh(
+          new THREE.DodecahedronGeometry(1.55, 0),
+          new THREE.MeshStandardMaterial({
+            color: levelId === 3 ? 0x64748b : 0xb45309,
+            roughness: 0.88,
+            flatShading: true
+          }),
+          boulderCount
+        );
+        let placedBoulders = 0;
+        for (let b = 0; b < boulderCount * 2 && placedBoulders < boulderCount; b++) {
+          const ang = (b / boulderCount) * Math.PI * 2 + rng() * 0.25;
+          const radScale = 0.72 + rng() * 0.55;
+          const bx = Math.cos(ang) * 33 * radScale;
+          const bz = Math.sin(ang) * 23 * radScale;
+          if (Math.abs(bx) < 20.5 && Math.abs(bz) < 10.5) continue;
+          const by = evalSectorFloorHeight(levelId, bx, bz);
+          biomeDummy.position.set(bx, by + 0.35, bz);
+          biomeDummy.rotation.set(rng(), rng() * Math.PI, rng());
+          biomeDummy.scale.set(0.8 + rng() * 1.1, 0.55 + rng() * 0.85, 0.8 + rng() * 1.0);
+          biomeDummy.updateMatrix();
+          boulderInst.setMatrixAt(placedBoulders, biomeDummy.matrix);
+          placedBoulders++;
+        }
+        boulderInst.count = placedBoulders;
+        boulderInst.instanceMatrix.needsUpdate = true;
+        scene.add(boulderInst);
 
-      const beaconCount = 14;
-      const beaconGeom = mergeColoredParts([
-        { geometry: new THREE.CylinderGeometry(0.12, 0.16, 1.35, 8), color: 0xe2e8f0, position: [0, 0.68, 0] },
-        { geometry: new THREE.OctahedronGeometry(0.28, 0), color: levelId === 3 ? 0x38bdf8 : 0xfbbf24, position: [0, 1.52, 0] }
-      ]);
-      const beaconInst = new THREE.InstancedMesh(
-        beaconGeom,
-        new THREE.MeshStandardMaterial({
-          vertexColors: true,
-          emissive: levelId === 3 ? 0x0284c7 : 0xea580c,
-          emissiveIntensity: 0.55,
-          roughness: 0.3
-        }),
-        beaconCount
-      );
-      for (let p = 0; p < beaconCount; p++) {
-        const ang = (p / beaconCount) * Math.PI * 2;
-        const wx = Math.cos(ang) * 28.5;
-        const wz = Math.sin(ang) * 16.5;
-        const wy = evalSectorFloorHeight(levelId, wx, wz);
-        biomeDummy.position.set(wx, wy, wz);
-        biomeDummy.rotation.set(0, -ang, 0);
-        biomeDummy.scale.setScalar(1);
-        biomeDummy.updateMatrix();
-        beaconInst.setMatrixAt(p, biomeDummy.matrix);
+        const beaconCount = 14;
+        const beaconGeom = mergeColoredParts([
+          { geometry: new THREE.CylinderGeometry(0.12, 0.16, 1.35, 8), color: 0xe2e8f0, position: [0, 0.68, 0] },
+          { geometry: new THREE.OctahedronGeometry(0.28, 0), color: levelId === 3 ? 0x38bdf8 : 0xfbbf24, position: [0, 1.52, 0] }
+        ]);
+        const beaconInst = new THREE.InstancedMesh(
+          beaconGeom,
+          new THREE.MeshStandardMaterial({
+            vertexColors: true,
+            emissive: levelId === 3 ? 0x0284c7 : 0xea580c,
+            emissiveIntensity: 0.55,
+            roughness: 0.3
+          }),
+          beaconCount
+        );
+        for (let p = 0; p < beaconCount; p++) {
+          const ang = (p / beaconCount) * Math.PI * 2;
+          const wx = Math.cos(ang) * 28.5;
+          const wz = Math.sin(ang) * 16.5;
+          const wy = evalSectorFloorHeight(levelId, wx, wz);
+          biomeDummy.position.set(wx, wy, wz);
+          biomeDummy.rotation.set(0, -ang, 0);
+          biomeDummy.scale.setScalar(1);
+          biomeDummy.updateMatrix();
+          beaconInst.setMatrixAt(p, biomeDummy.matrix);
+        }
+        beaconInst.instanceMatrix.needsUpdate = true;
+        scene.add(beaconInst);
       }
-      beaconInst.instanceMatrix.needsUpdate = true;
-      scene.add(beaconInst);
 
       const initRoverY = evalSectorFloorHeight(levelId, roverPosRef.current.x, roverPosRef.current.z);
       roverPosRef.current.y = initRoverY;
@@ -705,9 +658,9 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       roverBeaconRing = new THREE.Mesh(
         new THREE.TorusGeometry(1.75, 0.08, 8, 28),
         new THREE.MeshBasicMaterial({
-          color: levelId === 3 ? 0x38bdf8 : 0xfbbf24,
+          color: levelId === 1 ? 0x38bdf8 : levelId === 3 ? 0x38bdf8 : 0xfbbf24,
           transparent: true,
-          opacity: 0.78
+          opacity: 0.82
         })
       );
       roverBeaconRing.rotation.x = Math.PI / 2;
@@ -771,27 +724,51 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       scene.add(orbitSatellitesInst);
     }
 
-    // Arrange 3–4 Core Stations cleanly Left-to-Right along 1 -> 2 -> 3 -> 4 Promenade!
+    // Arrange Stations: Spaced-Out NASA Buildings along Spaceport Road on Level 1 (40–65m apart),
+    // or Promenade Layout on Levels 2–4 (untouched for Phase 3)
     const clickTargets: { group: THREE.Group; room: SpatialRoomNode; entrySpot: THREE.Vector3; pos: THREE.Vector3 }[] = [];
+    const kioskTargets: {
+      group: THREE.Group;
+      fact: SpaceDiscoveryFact;
+      pos: THREE.Vector3;
+    }[] = [];
 
     const positionedRooms: PositionedRoom[] = rooms.map((room, idx) => {
+      if (levelId === 1) {
+        const pad = EARTH_L1_PADS.find((p) => p.id === room.id);
+        const bSpec = EARTH_L1_BUILDING_SPEC[room.id];
+        if (pad && bSpec) {
+          const py = evalSectorFloorHeight(1, pad.x, pad.z);
+          const rotY = Math.atan2((pad.facingX ?? 0) - pad.x, (pad.facingZ ?? 0) - pad.z);
+          const ex = pad.x + Math.sin(rotY) * bSpec.entryDist;
+          const ez = pad.z + Math.cos(rotY) * bSpec.entryDist;
+          const ey = evalSectorFloorHeight(1, ex, ez);
+          return {
+            room,
+            pos: new THREE.Vector3(pad.x, py, pad.z),
+            entrySpot: new THREE.Vector3(ex, ey, ez),
+            yawToCenter: rotY
+          };
+        }
+      }
       const rx = (idx - (roomCount - 1) / 2) * stationSpacing;
       const rz = -3.4;
       return {
         room,
         pos: new THREE.Vector3(rx, 0, rz),
+        entrySpot: new THREE.Vector3(rx, 0, rz + 2.65),
         yawToCenter: 0
       };
     });
 
     const portalRingsInst = new THREE.InstancedMesh(
-      new THREE.TorusGeometry(0.76, 0.11, 10, 24, Math.PI * 1.15),
+      new THREE.TorusGeometry(levelId === 1 ? 1.25 : 0.76, levelId === 1 ? 0.14 : 0.11, 10, 24, Math.PI * 1.15),
       new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.45, roughness: 0.25 }),
       roomCount
     );
     const curtainsInst = new THREE.InstancedMesh(
-      new THREE.CircleGeometry(0.68, 20),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.32, side: THREE.DoubleSide }),
+      new THREE.CircleGeometry(levelId === 1 ? 1.12 : 0.68, 20),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.34, side: THREE.DoubleSide }),
       roomCount
     );
     const exclInst = new THREE.InstancedMesh(
@@ -809,10 +786,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     let activeTargetWorldPos: THREE.Vector3 | null = null;
     activeEntryRef.current = null;
     const signboardItems: Parameters<typeof createCourtyardSignboardsMesh>[0] = [];
-    const courtyardBuildingGeoms: THREE.BufferGeometry[] = [];
     const padBatchParts: ColoredGeometryPart[] = [];
+    const stationObstacles: CircleObstacle[] = [];
 
-    positionedRooms.forEach(({ room, pos, yawToCenter }, idx) => {
+    positionedRooms.forEach(({ room, pos, entrySpot, yawToCenter }, idx) => {
       const completed = isRoomCompleted(room);
       const isActive = !seqTarget.isAllDone && seqTarget.activeRoom?.id === room.id;
       const locked = !completed && !isActive && !isDemoMode;
@@ -821,90 +798,153 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       stationRoot.position.copy(pos);
       scene.add(stationRoot);
 
-      // Station Illuminated Pedestal + Baked Dark-Cyan Ambient Occlusion Ground Skirt & Center Prop Contact Shadow (1 draw call for all stations!)
       const padColor = completed ? 0x065f46 : isActive ? 0x1e3a8a : locked ? 0x1e293b : 0x0f172a;
       const ringHex = completed ? '#10b981' : isActive ? '#facc15' : locked ? '#475569' : room.accentHex;
-      padBatchParts.push(
-        { geometry: new THREE.CylinderGeometry(2.52, 2.86, 0.035, 22), color: 0x030d1c, position: [pos.x, 0.018, pos.z] },
-        { geometry: new THREE.CylinderGeometry(2.30, 2.52, 0.08, 22), color: 0x07223a, position: [pos.x, 0.045, pos.z] },
-        { geometry: new THREE.CylinderGeometry(2.15, 2.34, 0.20, 20), color: padColor, position: [pos.x, 0.11, pos.z] },
-        { geometry: new THREE.CylinderGeometry(1.24, 1.46, 0.215, 18), color: 0x041122, position: [pos.x, 0.115, pos.z - 0.12] },
-        { geometry: new THREE.TorusGeometry(2.18, 0.08, 8, 28), color: new THREE.Color(ringHex).getHex(), position: [pos.x, 0.23, pos.z], rotation: [Math.PI / 2, 0, 0] }
-      );
-
-      // Compact procedural silhouette placeholder until Blender prop .glb finishes loading
-      const fallbackProp = new THREE.Mesh(
-        new THREE.BoxGeometry(1.5, 1.35, 0.9),
-        new THREE.MeshStandardMaterial({
-          color: locked ? 0x475569 : new THREE.Color(room.accentHex),
-          roughness: 0.45
-        })
-      );
-      fallbackProp.position.set(0, 0.88, -0.1);
-      stationRoot.add(fallbackProp);
-
-      // Distinct Indoor / Space Station Blender 3D Prop (.glb)
-      attachStationPropGlb({
-        propKey: room.propModel,
-        targetParent: stationRoot,
-        scale: room.propModel.startsWith('prop_') ? 1.48 : 1.52,
-        position: [0, 0.22, -0.15],
-        rotationY: 0,
-        fallbackNodes: [fallbackProp],
-        isDisposed: () => isSceneDisposed,
-        onLoaded: (g) => {
-          g.traverse((node) => {
-            if (node instanceof THREE.Mesh) {
-              node.receiveShadow = true;
-            }
-          });
-          blenderEnvGroups.push(g);
-        }
-      });
-
-      const portalWorldPos = new THREE.Vector3(pos.x, 0.88, pos.z + 1.85);
-      const exclPos = new THREE.Vector3(pos.x, 4.45, pos.z);
-      portalMeta.push({ basePos: portalWorldPos, exclPos, yaw: yawToCenter, completed, isActive });
       const ringCol = new THREE.Color(ringHex);
-      portalRingsInst.setColorAt(idx, ringCol);
-      curtainsInst.setColorAt(idx, ringCol);
 
-      const roomLbl = getRoomLabel(room, language);
-      const stepPrefix = `${idx + 1}. `;
-      signboardItems.push({
-        pos: new THREE.Vector3(pos.x, 0.2, pos.z),
-        yawToCenter: 0,
-        titleAr: locked
+      if (levelId === 1) {
+        const bSpec = EARTH_L1_BUILDING_SPEC[room.id] || {
+          modelName: 'earth_kitchen_dome',
+          scale: 1.05,
+          obstacleRadius: 5.4,
+          entryDist: 8.6,
+          labelY: 7.4
+        };
+
+        // Entry beacon pad right on the Spaceport Road approach
+        padBatchParts.push(
+          { geometry: new THREE.CylinderGeometry(2.15, 2.35, 0.14, 24), color: padColor, position: [entrySpot.x, entrySpot.y + 0.04, entrySpot.z] },
+          { geometry: new THREE.TorusGeometry(2.12, 0.11, 8, 28), color: ringCol.getHex(), position: [entrySpot.x, entrySpot.y + 0.14, entrySpot.z], rotation: [Math.PI / 2, 0, 0] }
+        );
+
+        const fallbackBuilding = new THREE.Mesh(
+          new THREE.BoxGeometry(5.5, 4.2, 5.5),
+          new THREE.MeshStandardMaterial({
+            color: locked ? 0x64748b : new THREE.Color(room.accentHex),
+            roughness: 0.5
+          })
+        );
+        fallbackBuilding.position.set(0, 2.0, 0);
+        stationRoot.add(fallbackBuilding);
+
+        attachEarthBuildingGlb({
+          modelName: bSpec.modelName,
+          targetParent: stationRoot,
+          scale: bSpec.scale,
+          position: [0, -0.14, 0],
+          rotationY: yawToCenter,
+          fallbackNodes: [fallbackBuilding],
+          isDisposed: () => isSceneDisposed,
+          onLoaded: (g) => {
+            blenderEnvGroups.push(g);
+          }
+        });
+
+        const roomLbl = getRoomLabel(room, language);
+        const stepPrefix = `${idx + 1}. `;
+        const titleStr = locked
           ? `🔒 ${stepPrefix}${roomLbl.title}`
           : isActive
           ? `🎯 ${stepPrefix}${roomLbl.title}`
           : completed
           ? `✅ ${stepPrefix}${roomLbl.title}`
-          : `${stepPrefix}${roomLbl.title}`,
-        icon: room.icon,
-        accentHex: locked ? '#64748b' : isActive ? '#facc15' : room.accentHex,
-        completed
-      });
+          : `${stepPrefix}${roomLbl.title}`;
+        const { sprite, texture } = createFloatingLabelSprite(
+          titleStr,
+          room.icon,
+          locked ? '#64748b' : isActive ? '#facc15' : room.accentHex,
+          completed
+        );
+        sprite.position.set(0, bSpec.labelY, 0);
+        sprite.scale.set(7.6, 1.9, 1);
+        stationRoot.add(sprite);
+        disposableTextures.push(texture);
 
-      // Lighted Horizontal Step Walkway connecting Station i -> i + 1 AND Spawn Plaza -> Active Station
-      if (idx < positionedRooms.length - 1) {
-        const nextPos = positionedRooms[idx + 1].pos;
-        const segLen = nextPos.x - pos.x - 4.1;
-        walkwayParts.push({
-          geometry: new THREE.BoxGeometry(Math.max(1, segLen), 0.05, 0.9),
-          color: completed ? 0x10b981 : 0x38bdf8,
-          position: [(pos.x + nextPos.x) * 0.5, 0.03, pos.z]
+        const portalWorldPos = new THREE.Vector3(entrySpot.x, entrySpot.y + 1.35, entrySpot.z);
+        const exclPos = new THREE.Vector3(pos.x, pos.y + bSpec.labelY + 1.85, pos.z);
+        portalMeta.push({ basePos: portalWorldPos, exclPos, yaw: yawToCenter, completed, isActive });
+        stationObstacles.push({ x: pos.x, z: pos.z, radius: bSpec.obstacleRadius });
+      } else {
+        // Preserved Levels 2, 3, 4 Pedestal & Prop Placement
+        padBatchParts.push(
+          { geometry: new THREE.CylinderGeometry(2.52, 2.86, 0.035, 22), color: 0x030d1c, position: [pos.x, 0.018, pos.z] },
+          { geometry: new THREE.CylinderGeometry(2.30, 2.52, 0.08, 22), color: 0x07223a, position: [pos.x, 0.045, pos.z] },
+          { geometry: new THREE.CylinderGeometry(2.15, 2.34, 0.20, 20), color: padColor, position: [pos.x, 0.11, pos.z] },
+          { geometry: new THREE.CylinderGeometry(1.24, 1.46, 0.215, 18), color: 0x041122, position: [pos.x, 0.115, pos.z - 0.12] },
+          { geometry: new THREE.TorusGeometry(2.18, 0.08, 8, 28), color: ringCol.getHex(), position: [pos.x, 0.23, pos.z], rotation: [Math.PI / 2, 0, 0] }
+        );
+
+        const fallbackProp = new THREE.Mesh(
+          new THREE.BoxGeometry(1.5, 1.35, 0.9),
+          new THREE.MeshStandardMaterial({
+            color: locked ? 0x475569 : new THREE.Color(room.accentHex),
+            roughness: 0.45
+          })
+        );
+        fallbackProp.position.set(0, 0.88, -0.1);
+        stationRoot.add(fallbackProp);
+
+        attachStationPropGlb({
+          propKey: room.propModel,
+          targetParent: stationRoot,
+          scale: room.propModel.startsWith('prop_') ? 1.48 : 1.52,
+          position: [0, 0.22, -0.15],
+          rotationY: 0,
+          fallbackNodes: [fallbackProp],
+          isDisposed: () => isSceneDisposed,
+          onLoaded: (g) => {
+            g.traverse((node) => {
+              if (node instanceof THREE.Mesh) {
+                node.receiveShadow = true;
+              }
+            });
+            blenderEnvGroups.push(g);
+          }
         });
-      }
-      walkwayParts.push({
-        geometry: new THREE.BoxGeometry(0.95, 0.04, 4.6),
-        color: completed ? 0x10b981 : isActive ? 0xfacc15 : 0x334155,
-        position: [pos.x, 0.03, pos.z + 3.2]
-      });
 
-      const entrySpot = new THREE.Vector3(pos.x, 0, pos.z + 2.65);
+        const portalWorldPos = new THREE.Vector3(pos.x, 0.88, pos.z + 1.85);
+        const exclPos = new THREE.Vector3(pos.x, 4.45, pos.z);
+        portalMeta.push({ basePos: portalWorldPos, exclPos, yaw: yawToCenter, completed, isActive });
+
+        const roomLbl = getRoomLabel(room, language);
+        const stepPrefix = `${idx + 1}. `;
+        signboardItems.push({
+          pos: new THREE.Vector3(pos.x, 0.2, pos.z),
+          yawToCenter: 0,
+          titleAr: locked
+            ? `🔒 ${stepPrefix}${roomLbl.title}`
+            : isActive
+            ? `🎯 ${stepPrefix}${roomLbl.title}`
+            : completed
+            ? `✅ ${stepPrefix}${roomLbl.title}`
+            : `${stepPrefix}${roomLbl.title}`,
+          icon: room.icon,
+          accentHex: locked ? '#64748b' : isActive ? '#facc15' : room.accentHex,
+          completed
+        });
+
+        if (idx < positionedRooms.length - 1) {
+          const nextPos = positionedRooms[idx + 1].pos;
+          const segLen = nextPos.x - pos.x - 4.1;
+          walkwayParts.push({
+            geometry: new THREE.BoxGeometry(Math.max(1, segLen), 0.05, 0.9),
+            color: completed ? 0x10b981 : 0x38bdf8,
+            position: [(pos.x + nextPos.x) * 0.5, 0.03, pos.z]
+          });
+        }
+        walkwayParts.push({
+          geometry: new THREE.BoxGeometry(0.95, 0.04, 4.6),
+          color: completed ? 0x10b981 : isActive ? 0xfacc15 : 0x334155,
+          position: [pos.x, 0.03, pos.z + 3.2]
+        });
+        stationObstacles.push({ x: pos.x, z: pos.z - 0.15, radius: 1.35 });
+      }
+
+      portalRingsInst.setColorAt(idx, ringCol);
+      curtainsInst.setColorAt(idx, ringCol);
+
       if (isActive) {
-        activeTargetWorldPos = pos.clone();
+        activeTargetWorldPos = levelId === 1 ? entrySpot.clone() : pos.clone();
         activeEntryRef.current = { room, entrySpot: entrySpot.clone() };
       }
       clickTargets.push({ group: stationRoot, room, entrySpot, pos });
@@ -914,12 +954,59 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     if (curtainsInst.instanceColor) curtainsInst.instanceColor.needsUpdate = true;
     scene.add(portalRingsInst, curtainsInst, exclInst);
 
-    const signboardsBatch = createCourtyardSignboardsMesh(signboardItems);
-    scene.add(signboardsBatch.mesh);
-    disposableTextures.push(signboardsBatch.texture);
+    // Side Space-Discovery Learning Kiosks along scenic Earth Level 1 paths
+    if (levelId === 1 && earthEnv) {
+      earthEnv.layout.kiosks.forEach((kp) => {
+        const fact = EARTH_L1_KIOSKS.find((f) => f.id === kp.id);
+        if (!fact) return;
+        const kioskRoot = new THREE.Group();
+        kioskRoot.position.set(kp.x, kp.y, kp.z);
+        scene.add(kioskRoot);
+
+        const kFallback = new THREE.Mesh(
+          new THREE.BoxGeometry(1.8, 2.2, 0.9),
+          new THREE.MeshStandardMaterial({ color: 0x0ea5e9, roughness: 0.45 })
+        );
+        kFallback.position.set(0, 1.1, 0);
+        kioskRoot.add(kFallback);
+
+        attachEarthBuildingGlb({
+          modelName: 'earth_discovery_kiosk',
+          targetParent: kioskRoot,
+          scale: 1.05,
+          position: [0, 0, 0],
+          rotationY: kp.rotY,
+          fallbackNodes: [kFallback],
+          isDisposed: () => isSceneDisposed,
+          onLoaded: (g) => {
+            blenderEnvGroups.push(g);
+          }
+        });
+
+        const { sprite, texture } = createFloatingLabelSprite(
+          tr(language, 'Fun Space Fact +15⭐', 'معلومة فضاء +15⭐'),
+          fact.badgeIcon,
+          '#38bdf8',
+          false
+        );
+        sprite.position.set(0, 4.2, 0);
+        sprite.scale.set(5.2, 1.3, 1);
+        kioskRoot.add(sprite);
+        disposableTextures.push(texture);
+
+        stationObstacles.push({ x: kp.x, z: kp.z, radius: 1.5 });
+        kioskTargets.push({ group: kioskRoot, fact, pos: new THREE.Vector3(kp.x, kp.y, kp.z) });
+      });
+    }
+
+    const signboardsBatch =
+      signboardItems.length > 0 ? createCourtyardSignboardsMesh(signboardItems) : null;
+    if (signboardsBatch) {
+      scene.add(signboardsBatch.mesh);
+      disposableTextures.push(signboardsBatch.texture);
+    }
 
     const courtyardBuildingsMesh: THREE.Mesh | null = null;
-    void courtyardBuildingGeoms;
 
     if (padBatchParts.length > 0) {
       const padsBatchMesh = new THREE.Mesh(
@@ -938,7 +1025,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       scene.add(walkwaysMesh);
     }
 
-    // Articulated Robo Character wearing SPACE-FIT X IVA Suit facing the 1 -> 2 -> 3 stations
+    // Articulated Robo Character wearing SPACE-FIT X IVA Suit
     const hero = buildSpaceFitXCharacter();
     hero.group.scale.setScalar(1.08);
     hero.group.traverse((node) => {
@@ -952,11 +1039,6 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
     // Keyboard & Pointer Controls
     const keysDown = new Set<string>();
-    const stationObstacles: CircleObstacle[] = positionedRooms.map((pr) => ({
-      x: pr.pos.x,
-      z: pr.pos.z - 0.15,
-      radius: 1.35
-    }));
 
     const onKeyDown = (e: KeyboardEvent) => {
       markPlayerActive();
@@ -969,7 +1051,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       keysDown.add(k);
       if ((k === ' ' || e.code === 'Space') && !e.repeat) jumpHandlerRef.current();
       if (k === 'e' || k === 'enter') enterCurrentRoom();
-      if (k === 'r' && (levelId === 3 || levelId === 4)) roverToggleHandlerRef.current();
+      if (k === 'r' && (levelId === 1 || levelId === 3 || levelId === 4)) roverToggleHandlerRef.current();
       if (k === 'shift') isSprintingRef.current = true;
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -993,9 +1075,37 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointerNdc, camera);
 
+      if (kioskTargets.length > 0) {
+        const kHits = raycaster.intersectObjects(kioskTargets.map((kt) => kt.group), true);
+        if (kHits.length > 0) {
+          const hitObj = kHits[0].object;
+          const matchedKiosk = kioskTargets.find((kt) => {
+            let p: THREE.Object3D | null = hitObj;
+            while (p) {
+              if (p === kt.group) return true;
+              p = p.parent;
+            }
+            return false;
+          });
+          if (matchedKiosk) {
+            soundManager.playClick();
+            const res = markFactDiscovered(matchedKiosk.fact.id);
+            activeKioskIdRef.current = matchedKiosk.fact.id;
+            suppressedKioskIdRef.current = null;
+            setActiveKioskFact(matchedKiosk.fact);
+            if (res.newlyDiscovered) {
+              soundManager.playDropSuccess();
+              setKioskBonusBanner(`+${matchedKiosk.fact.starReward} ⭐`);
+              window.setTimeout(() => setKioskBonusBanner(null), 2600);
+            }
+            return;
+          }
+        }
+      }
+
       const intersectables: THREE.Object3D[] = clickTargets.map((ct) => ct.group);
       if (courtyardBuildingsMesh) intersectables.push(courtyardBuildingsMesh);
-      intersectables.push(signboardsBatch.mesh);
+      if (signboardsBatch) intersectables.push(signboardsBatch.mesh);
       const hits = raycaster.intersectObjects(intersectables, true);
       if (hits.length > 0) {
         const hitObj = hits[0].object;
@@ -1007,7 +1117,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           }
           return false;
         });
-        if (!found && (hitObj === courtyardBuildingsMesh || hitObj === signboardsBatch.mesh)) {
+        if (!found && (hitObj === courtyardBuildingsMesh || (signboardsBatch && hitObj === signboardsBatch.mesh))) {
           const hitPt = hits[0].point;
           let bestDist = Infinity;
           for (const ct of clickTargets) {
@@ -1033,8 +1143,9 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
             return;
           }
           soundManager.playClick();
-          const d = playerPosRef.current.distanceTo(found.pos);
-          if (d < 4.5) {
+          const checkTarget = levelId === 1 ? found.entrySpot : found.pos;
+          const d = playerPosRef.current.distanceTo(checkTarget);
+          if (d < 5.0) {
             onEnterRoomRef.current(found.room);
           } else {
             walkTargetRef.current = found.entrySpot.clone();
@@ -1115,7 +1226,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       cameraOrbitYawRef.current = lerpAngle(cameraOrbitYawRef.current, targetCameraYawRef.current, dampAlpha);
       cameraOrbitPitchRef.current += (targetCameraPitchRef.current - cameraOrbitPitchRef.current) * dampAlpha;
 
-      skyHandle.update(elapsed);
+      skyHandle?.update(elapsed);
+      earthEnv?.update(elapsed, camera.position);
       blenderEnvGroups.forEach((g) => animateBlenderEnvironmentGlb(g, elapsed));
 
       portalMeta.forEach((pm, idx) => {
@@ -1201,8 +1313,10 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       let isAirborneAnim = false;
       let isLandingAnim = false;
       const maxWalkRadius = islandRadius - 1.4;
-      const boundX = levelId === 1 ? 34 : levelId === 2 ? 22 : 36;
-      const boundZ = levelId === 1 ? 22 : levelId === 2 ? 8.5 : 24;
+      const minX = levelId === 1 ? EARTH_L1_PLAY_BOUNDS.minX : -(levelId === 2 ? 22 : 36);
+      const maxX = levelId === 1 ? EARTH_L1_PLAY_BOUNDS.maxX : levelId === 2 ? 22 : 36;
+      const minZ = levelId === 1 ? EARTH_L1_PLAY_BOUNDS.minZ : -(levelId === 2 ? 8.5 : 24);
+      const maxZ = levelId === 1 ? EARTH_L1_PLAY_BOUNDS.maxZ : levelId === 2 ? 8.5 : 24;
       void halfDeckX;
       void maxWalkRadius;
 
@@ -1235,6 +1349,36 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           const diff = Math.atan2(Math.sin(targetYaw - roverYawRef.current), Math.cos(targetYaw - roverYawRef.current));
           steerAngle = Math.max(-0.42, Math.min(0.42, diff * 0.65));
           roverYawRef.current = lerpAngle(roverYawRef.current, targetYaw, 1 - Math.exp(-8.5 * dt));
+        } else if (walkTargetRef.current) {
+          const dx = walkTargetRef.current.x - rPos.x;
+          const dz = walkTargetRef.current.z - rPos.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist > 2.4) {
+            const worldDirX = dx / dist;
+            const worldDirZ = dz / dist;
+            const { speed } = stepSmoothHorizontalVelocity(
+              roverVelRef.current,
+              worldDirX * 20.5,
+              worldDirZ * 20.5,
+              dt,
+              10,
+              7
+            );
+            roverSpeedRef.current = speed;
+            rPos.x += roverVelRef.current.x * dt;
+            rPos.z += roverVelRef.current.z * dt;
+            const targetYaw = Math.atan2(worldDirX, worldDirZ);
+            const diff = Math.atan2(Math.sin(targetYaw - roverYawRef.current), Math.cos(targetYaw - roverYawRef.current));
+            steerAngle = Math.max(-0.42, Math.min(0.42, diff * 0.65));
+            roverYawRef.current = lerpAngle(roverYawRef.current, targetYaw, 1 - Math.exp(-8.5 * dt));
+          } else {
+            walkTargetRef.current = null;
+            roverVelRef.current = { x: 0, z: 0 };
+            roverSpeedRef.current = 0;
+            const enterRoom = pendingRoomRef.current;
+            pendingRoomRef.current = null;
+            if (enterRoom) onEnterRoomRef.current(enterRoom);
+          }
         } else {
           const { speed } = stepSmoothHorizontalVelocity(roverVelRef.current, 0, 0, dt, 10, 7);
           roverSpeedRef.current = speed;
@@ -1242,8 +1386,9 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           rPos.z += roverVelRef.current.z * dt;
         }
 
-        rPos.x = Math.max(-boundX, Math.min(boundX, rPos.x));
-        rPos.z = Math.max(-boundZ, Math.min(boundZ, rPos.z));
+        resolveCircleObstacles(rPos, roverVelRef.current, 1.35, stationObstacles);
+        rPos.x = Math.max(minX, Math.min(maxX, rPos.x));
+        rPos.z = Math.max(minZ, Math.min(maxZ, rPos.z));
         rPos.y = evalSectorFloorHeight(levelId, rPos.x, rPos.z);
         const normal = evalSectorTerrainNormal(levelId, rPos.x, rPos.z);
 
@@ -1287,7 +1432,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         let dirX = 0;
         let dirZ = 0;
         let inputMag = 0;
-        let stepMaxSpeed = sprint ? 11.8 : 7.8;
+        let stepMaxSpeed = sprint ? 12.2 : 8.2;
 
         if (inMag > 0.08) {
           walkTargetRef.current = null;
@@ -1304,11 +1449,11 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           const dx = walkTargetRef.current.x - k.x;
           const dz = walkTargetRef.current.z - k.z;
           const dist = Math.hypot(dx, dz);
-          if (dist > 0.45) {
+          if (dist > 0.75) {
             dirX = dx / dist;
             dirZ = dz / dist;
             inputMag = 1;
-            stepMaxSpeed = 9.4;
+            stepMaxSpeed = levelId === 1 ? 15.5 : 9.4;
             const targetYaw = Math.atan2(dirX, dirZ);
             hero.group.rotation.y = lerpAngle(hero.group.rotation.y, targetYaw, 1 - Math.exp(-15 * dt));
           } else {
@@ -1333,8 +1478,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           isZeroG: theme.isZeroG,
           evalFloorY: (x, z) => evalSectorFloorHeight(levelId, x, z),
           clampXZ: (x, z) => ({
-            x: Math.max(-boundX, Math.min(boundX, x)),
-            z: Math.max(-boundZ, Math.min(boundZ, z))
+            x: Math.max(minX, Math.min(maxX, x)),
+            z: Math.max(minZ, Math.min(maxZ, z))
           }),
           obstacles: stationObstacles,
           playerRadius: 0.55
@@ -1385,11 +1530,42 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       }
       dustSystem.update(dt);
 
+      // Discovery Kiosk Proximity Popup on Earth Level 1
+      if (kioskTargets.length > 0) {
+        let nearKiosk: (typeof kioskTargets)[number] | null = null;
+        let nearDist = Infinity;
+        for (const kt of kioskTargets) {
+          const kd = Math.hypot(pos.x - kt.pos.x, pos.z - kt.pos.z);
+          if (kd < nearDist) {
+            nearDist = kd;
+            nearKiosk = kt;
+          }
+        }
+        if (nearKiosk && nearDist < 4.4) {
+          if (
+            activeKioskIdRef.current !== nearKiosk.fact.id &&
+            suppressedKioskIdRef.current !== nearKiosk.fact.id
+          ) {
+            activeKioskIdRef.current = nearKiosk.fact.id;
+            setActiveKioskFact(nearKiosk.fact);
+            const res = markFactDiscovered(nearKiosk.fact.id);
+            if (res.newlyDiscovered) {
+              soundManager.playDropSuccess();
+              setKioskBonusBanner(`+${nearKiosk.fact.starReward} ⭐`);
+              window.setTimeout(() => setKioskBonusBanner(null), 2600);
+            }
+          }
+        } else if (suppressedKioskIdRef.current && nearDist > 8.5) {
+          suppressedKioskIdRef.current = null;
+        }
+      }
+
       // Find Nearest Station Building Portal
       let closestRoom: SpatialRoomNode | null = null;
       let closestDist = Infinity;
       positionedRooms.forEach((pr) => {
-        const d = Math.hypot(pos.x - pr.pos.x, pos.z - pr.pos.z);
+        const refPt = levelId === 1 ? pr.entrySpot : pr.pos;
+        const d = Math.hypot(pos.x - refPt.x, pos.z - refPt.z);
         if (d < closestDist) {
           closestDist = d;
           closestRoom = pr.room;
@@ -1462,7 +1638,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
       // Floor directional guide arrow pointing toward current active step target
       const currentGroundY = evalSectorFloorHeight(levelId, pos.x, pos.z);
-      floorArrowSystem.update(pos, activeTargetWorldPos, currentGroundY, elapsed);
+      floorArrowSystem.update(pos, activeTargetWorldPos, currentGroundY + 0.14, elapsed);
 
       // Auto-Follow Close Over-the-Shoulder Third-Person Camera (pauses 2.2s after manual look drag)
       if (moveSpeed > 0.25 && !activeLookRef.current && now - lastManualLookMsRef.current > 2200) {
@@ -1528,7 +1704,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       window.removeEventListener('resize', handleResize);
       if (resizeObs) resizeObs.disconnect();
 
-      skyHandle.dispose();
+      skyHandle?.dispose();
+      earthEnv?.dispose();
       dustSystem.dispose();
       floorArrowSystem.dispose();
       roverCtrl?.dispose();
@@ -1643,6 +1820,45 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         </div>
       )}
 
+      {/* Side Discovery Kiosk Fun Space Fact Card (Compact, Non-Blocking, Zero Scroll) */}
+      {activeKioskFact && (
+        <div
+          data-testid="discovery-kiosk-card"
+          dir={language === 'ar' ? 'rtl' : 'ltr'}
+          className="fixed top-12 right-2.5 sm:right-4 z-30 w-[calc(100vw-20px)] max-w-xs sm:max-w-sm rounded-2xl bg-slate-950/92 border-2 border-cyan-400/80 p-3 shadow-2xl backdrop-blur-md text-white"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-2xl shrink-0">{activeKioskFact.badgeIcon}</span>
+              <div className="min-w-0">
+                <div className="font-hud font-black text-xs sm:text-sm text-cyan-200 truncate">
+                  {tr(language, activeKioskFact.titleEn, activeKioskFact.titleAr)}
+                </div>
+                <div className="text-[10px] font-bold text-amber-300">
+                  🛰️ {activeKioskFact.nasaSource} {kioskBonusBanner ? `• ${kioskBonusBanner}` : ''}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              data-testid="close-kiosk-card-btn"
+              onClick={() => {
+                soundManager.playClick();
+                suppressedKioskIdRef.current = activeKioskFact.id;
+                activeKioskIdRef.current = null;
+                setActiveKioskFact(null);
+              }}
+              className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-black text-slate-200 cursor-pointer shrink-0"
+            >
+              ✕
+            </button>
+          </div>
+          <p className="mt-1.5 text-[11px] sm:text-xs leading-snug text-slate-100">
+            {tr(language, activeKioskFact.summaryEn, activeKioskFact.summaryAr)}
+          </p>
+        </div>
+      )}
+
       {/* Playful Speech Bubble when Astronaut sits down bored after 8s */}
       {showIdleHint && (
         <div
@@ -1702,12 +1918,12 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
         jumpMode={isDrivingRover ? 'boost' : 'jump'}
         highlightInteract={Boolean(nearbyRoom && !nearbyLocked)}
         secondaryAction={
-          levelId === 3 || levelId === 4
+          levelId === 1 || levelId === 3 || levelId === 4
             ? {
                 icon: isDrivingRover ? '🚶' : '🚙',
                 label: isDrivingRover
-                  ? tr(language, 'Exit Rover (R)', 'نزول من المركبة (R)')
-                  : tr(language, 'Drive Rover (R)', 'قيادة المركبة (R)'),
+                  ? tr(language, 'Exit Buggy (R)', 'نزول من المركبة (R)')
+                  : tr(language, 'Drive Buggy (R)', 'قيادة المركبة (R)'),
                 active: isDrivingRover,
                 testId: 'toggle-rover-btn',
                 onClick: () => roverToggleHandlerRef.current()

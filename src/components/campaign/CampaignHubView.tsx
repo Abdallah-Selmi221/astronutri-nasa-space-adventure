@@ -23,6 +23,7 @@ import { toggleFullscreenLandscape } from '../../utils/displaySettings';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { nasaCache } from '../../services/nasa/nasaCache';
 import { getNextSequentialMissionTarget, LEVEL_TITLES_BILINGUAL } from '../../data/campaignBilingual';
+import { getDiscoveredFactIds } from '../../data/earthDiscoveryFacts';
 import { tr } from '../../utils/i18n';
 import {
   ArrowRight,
@@ -128,7 +129,15 @@ export const CampaignHubView: React.FC = () => {
     return () => unsub();
   }, []);
 
-  const totalStarsScore = 250 + campaign.completedMiniGames.length * 25 + state.cargoItems.length * 15;
+  const [discoveryCount, setDiscoveryCount] = useState<number>(() => getDiscoveredFactIds().length);
+  useEffect(() => {
+    const onUpdate = () => setDiscoveryCount(getDiscoveredFactIds().length);
+    window.addEventListener('astronutri:discovery-updated', onUpdate);
+    return () => window.removeEventListener('astronutri:discovery-updated', onUpdate);
+  }, []);
+
+  const totalStarsScore =
+    250 + campaign.completedMiniGames.length * 25 + state.cargoItems.length * 15 + discoveryCount * 15;
   const totalStreamlinedMissions = ([1, 2, 3, 4] as CampaignLevelId[]).reduce(
     (sum, id) => sum + CAMPAIGN_LEVELS[id].miniGames.length,
     0

@@ -6,33 +6,43 @@ import { CampaignLevelId, CampaignProgressState, SpaceFitXState } from '../../ty
 import { soundManager } from '../../utils/sound';
 import { initialSpaceFitXState, useGameState } from '../../context/GameContext';
 import { LEVEL_TITLES_BILINGUAL } from '../../data/campaignBilingual';
+import { HUB_MUSEUM_FACTS, markFactDiscovered } from '../../data/earthDiscoveryFacts';
 import { tr } from '../../utils/i18n';
-import { CheckCircle2, Lock } from 'lucide-react';
-import { createCosmicSkyBackdrop } from './archipelagoPrimitives';
+import { CheckCircle2, ChevronLeft, ChevronRight, Lock, X } from 'lucide-react';
 import { buildSpaceFitXCharacter } from './buildSpaceFitXCharacter';
+import { createSpaceRoverVehicle, SpaceRoverController } from './buildRoverVehicle';
+import { buildEarthEnvironment } from './earthEnvironmentBuilder';
 import {
   animateBlenderEnvironmentGlb,
-  attachBlenderPlanetsFromPack,
-  attachMassiveSpaceIsland,
+  attachEarthBuildingGlb,
   attachSpaceNodeGlb,
-  disposeObject3D,
   getLoadedGlbUrls,
   SpaceNodeModelKey
 } from './blenderModelLoader';
 import { getQualityRenderConfig, useDisplaySettings } from '../../utils/displaySettings';
 import { ColoredGeometryPart, mergeColoredParts } from './threeMergeUtils';
 import {
+  CircleObstacle,
+  createDustPuffSystem,
   createFloorGuideArrowSystem,
   createKinematicsState,
   dampValue,
   JUMP_BUFFER_MS,
   lerpAngle,
   queueJumpInput,
+  resolveCircleObstacles,
+  stepSmoothHorizontalVelocity,
   stepThirdPersonKinematics,
   ThirdPersonKinematicsState
 } from './thirdPersonPhysics';
 import { ThirdPersonControlsOverlay } from './ThirdPersonControlsOverlay';
-import { clampOverworldPosition, evalOverworldTerrainHeight } from './terrainMath';
+import {
+  clampOverworldPosition,
+  evalOverworldTerrainHeight,
+  evalOverworldTerrainNormal,
+  HUB_PLAY_RADIUS,
+  OVERWORLD_SECTORS
+} from './terrainMath';
 
 interface WorldNavigator3DProps {
   campaign: CampaignProgressState;
@@ -46,10 +56,11 @@ function checkLevelCompleted(campaign: CampaignProgressState, lid: CampaignLevel
   return lid === 3 ? allGames && campaign.l3ReturnAuthorized : allGames;
 }
 
-interface TrajectoryNodeConfig {
+interface GatewayNodeConfig {
   levelId: CampaignLevelId;
   modelKey: SpaceNodeModelKey;
-  center: THREE.Vector3;
+  x: number;
+  z: number;
   accentColor: number;
   accentHex: string;
   enLabel: string;
@@ -58,50 +69,54 @@ interface TrajectoryNodeConfig {
   telemetryAr: string;
 }
 
-const TRAJECTORY_NODES: TrajectoryNodeConfig[] = [
+const GATEWAY_NODES: GatewayNodeConfig[] = [
   {
     levelId: 1,
     modelKey: 'earth_launchpad',
-    center: new THREE.Vector3(-11.0, -0.4, 2.0),
+    x: OVERWORLD_SECTORS[0].x,
+    z: OVERWORLD_SECTORS[0].z,
     accentColor: 0x38bdf8,
     accentHex: '#38bdf8',
     enLabel: '1. Earth Launchpad',
     arLabel: '1. منصة الأرض',
-    telemetryEn: 'Earth Surface • 1.0G',
-    telemetryAr: 'سطح الأرض • 1.0G'
+    telemetryEn: 'Academy Plaza • 1.0G',
+    telemetryAr: 'ساحة الأكاديمية • 1.0G'
   },
   {
     levelId: 2,
     modelKey: 'iss_orbit_station',
-    center: new THREE.Vector3(-3.8, 1.8, -1.8),
+    x: OVERWORLD_SECTORS[1].x,
+    z: OVERWORLD_SECTORS[1].z,
     accentColor: 0x818cf8,
     accentHex: '#818cf8',
-    enLabel: '2. ISS Orbit Station',
+    enLabel: '2. ISS Orbital Tower',
     arLabel: '2. محطة الفضاء الدولية',
-    telemetryEn: 'Low-Earth Orbit • 0.0G',
-    telemetryAr: 'المدار الأرضي • 0.0G'
+    telemetryEn: 'ISS Orbital Gate • 0.0G',
+    telemetryAr: 'بوابة المدار • 0.0G'
   },
   {
     levelId: 3,
     modelKey: 'lunar_biodome_base',
-    center: new THREE.Vector3(3.8, 2.0, 1.6),
+    x: OVERWORLD_SECTORS[2].x,
+    z: OVERWORLD_SECTORS[2].z,
     accentColor: 0xfbbf24,
     accentHex: '#fbbf24',
-    enLabel: '3. Moon Shackleton Base',
-    arLabel: '3. قاعدة القمر شاكلتون',
-    telemetryEn: 'Lunar South Pole • 0.16G',
-    telemetryAr: 'القطب الجنوبي للقمر • 0.16G'
+    enLabel: '3. Lunar Crater Portal',
+    arLabel: '3. بوابة القمر شاكلتون',
+    telemetryEn: 'Lunar Crater Gate • 0.16G',
+    telemetryAr: 'بوابة القمر • 0.16G'
   },
   {
     levelId: 4,
     modelKey: 'orion_reentry_capsule',
-    center: new THREE.Vector3(11.0, -0.3, -1.6),
+    x: OVERWORLD_SECTORS[3].x,
+    z: OVERWORLD_SECTORS[3].z,
     accentColor: 0x34d399,
     accentHex: '#34d399',
-    enLabel: '4. Orion Earth Re-Entry',
-    arLabel: '4. كبسولة العودة للأرض',
-    telemetryEn: 'Splashdown Corridor • 1.0G',
-    telemetryAr: 'ممر الهبوط بالمحيط • 1.0G'
+    enLabel: '4. Mars & Orion Gate',
+    arLabel: '4. بوابة المريخ والعودة',
+    telemetryEn: 'Mars & Orion Gate • 0.38G',
+    telemetryAr: 'بوابة المريخ • 0.38G'
   }
 ];
 
@@ -115,7 +130,7 @@ function createNodeLabelSprite(text: string, badgeColorHex: string, locked: bool
   const ctx = canvas.getContext('2d');
   if (ctx) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const bg = locked ? 'rgba(15, 23, 42, 0.86)' : 'rgba(9, 17, 38, 0.94)';
+    const bg = locked ? 'rgba(15, 23, 42, 0.88)' : 'rgba(9, 17, 38, 0.94)';
     const border = completed ? '#34d399' : locked ? '#64748b' : badgeColorHex;
 
     ctx.fillStyle = bg;
@@ -126,7 +141,7 @@ function createNodeLabelSprite(text: string, badgeColorHex: string, locked: bool
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = locked ? '#94a3b8' : '#f8fafc';
+    ctx.fillStyle = locked ? '#cbd5e1' : '#f8fafc';
     ctx.font = 'bold 34px Cairo, Inter, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -136,7 +151,7 @@ function createNodeLabelSprite(text: string, badgeColorHex: string, locked: bool
   texture.colorSpace = THREE.SRGBColorSpace;
   const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
   const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(3.0, 0.75, 1);
+  sprite.scale.set(6.2, 1.55, 1);
   return { sprite, texture };
 }
 
@@ -157,8 +172,11 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
   const [focusedLevel, setFocusedLevel] = useState<CampaignLevelId>(activeTargetLevelId);
   const [isFlightMode, setIsFlightMode] = useState<boolean>(false);
+  const [isDrivingRover, setIsDrivingRover] = useState<boolean>(false);
   const [showIdleHint, setShowIdleHint] = useState<boolean>(false);
   const [lockedToast, setLockedToast] = useState<string | null>(null);
+  const [isMuseumOpen, setIsMuseumOpen] = useState<boolean>(false);
+  const [museumIndex, setMuseumIndex] = useState<number>(0);
 
   const onSelectLevelRef = useRef(onSelectLevel);
   onSelectLevelRef.current = onSelectLevel;
@@ -171,39 +189,49 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   const suitStateRef = useRef<SpaceFitXState | undefined>(suitState);
   suitStateRef.current = suitState;
 
-  // Orbital auto-fly trajectory state (0..1 spline parameter along Nodes 1 -> 2 -> 3 -> 4)
-  const initialIdx = Math.max(0, TRAJECTORY_NODES.findIndex((n) => n.levelId === activeTargetLevelId));
-  const initNode = TRAJECTORY_NODES[initialIdx];
-  const initGroundY = evalOverworldTerrainHeight(initNode.center.x, initNode.center.z + 1.65);
-  const splineTRef = useRef<number>(initialIdx / 3);
-  const targetSplineTRef = useRef<number>(initialIdx / 3);
-  const isAutoFlyingRef = useRef<boolean>(false);
-  const pendingEnterLevelRef = useRef<CampaignLevelId | null>(null);
+  // Player starts in sunlit Academy Central Command Courtyard facing HQ
+  const spawnX = 0;
+  const spawnZ = 8.0;
+  const spawnY = evalOverworldTerrainHeight(spawnX, spawnZ);
 
-  // Terrain Walk + Jetpack Boost + Free Orbital Flight state
+  const autoNavTargetRef = useRef<{ x: number; z: number } | null>(null);
+  const pendingEnterLevelRef = useRef<CampaignLevelId | null>(null);
   const isFlightModeRef = useRef<boolean>(false);
-  const freeCraftPosRef = useRef<THREE.Vector3>(
-    new THREE.Vector3(initNode.center.x, initGroundY, initNode.center.z + 1.65)
-  );
+  const isDrivingRoverRef = useRef<boolean>(false);
+  const suppressedMuseumRef = useRef<boolean>(false);
+
+  const freeCraftPosRef = useRef<THREE.Vector3>(new THREE.Vector3(spawnX, spawnY, spawnZ));
   const kinematicsRef = useRef<ThirdPersonKinematicsState>(
-    createKinematicsState(initNode.center.x, initGroundY, initNode.center.z + 1.65, performance.now())
+    createKinematicsState(spawnX, spawnY, spawnZ, performance.now())
   );
-  const freeCraftYawRef = useRef<number>(0);
-  const lockWarnCooldownRef = useRef<number>(0);
+  const freeCraftYawRef = useRef<number>(Math.PI);
+
+  // Drivable Hub Space Buggy parked in front driveway of East Vehicle Garage Bay
+  const garageX = 8.6;
+  const garageZ = -7.8;
+  const roverPosRef = useRef<THREE.Vector3>(
+    new THREE.Vector3(garageX, evalOverworldTerrainHeight(garageX, garageZ), garageZ)
+  );
+  const roverYawRef = useRef<number>(0);
+  const roverVelRef = useRef<{ x: number; z: number }>({ x: 0, z: 0 });
+  const roverSpeedRef = useRef<number>(0);
+  const roverBoostUntilRef = useRef<number>(0);
+  const roverDustTimerRef = useRef<number>(0);
+  const roverToggleHandlerRef = useRef<() => void>(() => {});
+
   const joystickVecRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const isBoostingRef = useRef<boolean>(false);
   const ascendUntilRef = useRef<number>(0);
   const activeLookRef = useRef<boolean>(false);
   const orbitYawRef = useRef<number>(0);
-  const orbitPitchRef = useRef<number>(0.22);
+  const orbitPitchRef = useRef<number>(0.24);
   const targetOrbitYawRef = useRef<number>(0);
-  const targetOrbitPitchRef = useRef<number>(0.22);
+  const targetOrbitPitchRef = useRef<number>(0.20);
   const [displaySettings] = useDisplaySettings();
   const displaySettingsRef = useRef(displaySettings);
   displaySettingsRef.current = displaySettings;
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sunLightRef = useRef<THREE.DirectionalLight | null>(null);
-  const celebrateUntilRef = useRef<number>(0);
   const lastActivityRef = useRef<number>(performance.now());
   const lastManualLookMsRef = useRef<number>(0);
   const viewportTapHandlerRef = useRef<(clientX: number, clientY: number) => void>(() => {});
@@ -229,7 +257,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     const sens = displaySettingsRef.current.cameraSensitivity;
     targetOrbitYawRef.current -= dx * 0.0092 * sens;
     targetOrbitPitchRef.current = Math.max(
-      -0.21,
+      -0.18,
       Math.min(0.73, targetOrbitPitchRef.current + dy * 0.0062 * sens)
     );
   };
@@ -245,12 +273,30 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     setLockedToast(
       tr(
         language,
-        `Locked! Complete Node ${lid - 1} first to open this orbital leg.`,
-        `مقفل! أكمل المحطة ${lid - 1} أولاً لفتح هذا المسار الفضائي.`
+        `Locked! Complete Gateway ${lid - 1} first to open this planetary portal.`,
+        `مقفل! أكمل البوابة ${lid - 1} أولاً لفتح هذه البوابة الكوكبية.`
       )
     );
     if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
     toastTimerRef.current = window.setTimeout(() => setLockedToast(null), 2600);
+  };
+
+  const openSpaceMuseumCard = (factIdx = museumIndex) => {
+    soundManager.playClick();
+    setIsMuseumOpen(true);
+    suppressedMuseumRef.current = false;
+    const fact = HUB_MUSEUM_FACTS[factIdx % HUB_MUSEUM_FACTS.length];
+    if (fact) {
+      const res = markFactDiscovered(fact.id);
+      if (res.newlyDiscovered) soundManager.playDropSuccess();
+    }
+  };
+
+  const getGatewayEntrySpot = (node: GatewayNodeConfig) => {
+    const toPlazaLen = Math.hypot(-node.x, 8 - node.z) || 1;
+    const ux = -node.x / toPlazaLen;
+    const uz = (8 - node.z) / toPlazaLen;
+    return { x: node.x + ux * 5.2, z: node.z + uz * 5.2 };
   };
 
   const flyCraftToNode = (lid: CampaignLevelId, enterWhenDocked = true) => {
@@ -260,47 +306,42 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       showLockedWarning(lid);
       return;
     }
-    const idx = Math.max(0, TRAJECTORY_NODES.findIndex((n) => n.levelId === lid));
-    const destNode = TRAJECTORY_NODES[idx];
+    const destNode = GATEWAY_NODES.find((n) => n.levelId === lid) || GATEWAY_NODES[0];
+    const entry = getGatewayEntrySpot(destNode);
     soundManager.playClick();
     setFocusedLevel(lid);
     isFlightModeRef.current = false;
     setIsFlightMode(false);
-    const distXZ = Math.hypot(
-      freeCraftPosRef.current.x - destNode.center.x,
-      freeCraftPosRef.current.z - destNode.center.z
-    );
-    if (enterWhenDocked && distXZ < 2.65) {
-      isAutoFlyingRef.current = false;
+    const activePos = isDrivingRoverRef.current ? roverPosRef.current : freeCraftPosRef.current;
+    const distXZ = Math.hypot(activePos.x - entry.x, activePos.z - entry.z);
+    if (enterWhenDocked && distXZ < 4.5) {
+      autoNavTargetRef.current = null;
       pendingEnterLevelRef.current = null;
       soundManager.playDropSuccess();
       onSelectLevelRef.current(lid);
       return;
     }
 
-    splineTRef.current = Math.max(0, Math.min(1, (freeCraftPosRef.current.x + 11.0) / 22.0));
-    targetSplineTRef.current = idx / 3;
-    isAutoFlyingRef.current = true;
+    autoNavTargetRef.current = entry;
     pendingEnterLevelRef.current = enterWhenDocked ? lid : null;
-    gsap.to(targetOrbitYawRef, {
-      current: Math.max(-0.34, Math.min(0.34, -destNode.center.x * 0.018)),
-      duration: 0.85,
-      ease: 'power2.out'
-    });
   };
 
   const toggleFreeFlight = () => {
     lastActivityRef.current = performance.now();
     soundManager.playClick();
+    if (isDrivingRoverRef.current) {
+      isDrivingRoverRef.current = false;
+      setIsDrivingRover(false);
+    }
     const next = !isFlightModeRef.current;
     isFlightModeRef.current = next;
-    isAutoFlyingRef.current = false;
-    setIsFlightMode(next);
+    autoNavTargetRef.current = null;
     pendingEnterLevelRef.current = null;
+    setIsFlightMode(next);
     if (next) {
       freeCraftPosRef.current.y = Math.max(
-        freeCraftPosRef.current.y + 1.6,
-        evalOverworldTerrainHeight(freeCraftPosRef.current.x, freeCraftPosRef.current.z) + 2.2
+        freeCraftPosRef.current.y + 1.8,
+        evalOverworldTerrainHeight(freeCraftPosRef.current.x, freeCraftPosRef.current.z) + 2.4
       );
       ascendUntilRef.current = performance.now() + 260;
     } else {
@@ -318,12 +359,17 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   const triggerWorldJump = () => {
     const now = performance.now();
     lastActivityRef.current = now;
+    if (isDrivingRoverRef.current) {
+      roverBoostUntilRef.current = now + 1150;
+      soundManager.playClick();
+      return;
+    }
     if (isFlightModeRef.current) {
       ascendUntilRef.current = now + 260;
       soundManager.playClick();
       return;
     }
-    if (isAutoFlyingRef.current) return;
+    if (autoNavTargetRef.current) return;
     queueJumpInput(kinematicsRef.current, now, JUMP_BUFFER_MS);
   };
   const jumpHandlerRef = useRef(triggerWorldJump);
@@ -360,198 +406,195 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
     const scene = new THREE.Scene();
     let isDisposed = false;
-    const camera = new THREE.PerspectiveCamera(58, dims.w / dims.h, 0.1, 240);
-    camera.position.set(-6, 10, 22);
-    orbitPitchRef.current = 0.56;
-    orbitYawRef.current = -0.35;
-    targetOrbitPitchRef.current = 0.56;
-    targetOrbitYawRef.current = -0.35;
+    const camera = new THREE.PerspectiveCamera(58, dims.w / dims.h, 0.1, 400);
+    camera.position.set(spawnX - 3.5, spawnY + 4.8, spawnZ + 8.5);
+    orbitPitchRef.current = 0.34;
+    orbitYawRef.current = -0.22;
+    targetOrbitPitchRef.current = 0.20;
+    targetOrbitYawRef.current = 0;
     const worldFlyInTween = gsap.to(targetOrbitPitchRef, {
-      current: 0.22,
-      duration: 1.25,
+      current: 0.17,
+      duration: 0.9,
       ease: 'power2.out'
     });
     const worldYawInTween = gsap.to(targetOrbitYawRef, {
       current: 0,
-      duration: 1.25,
+      duration: 0.9,
       ease: 'power2.out'
     });
 
-    const skyHandle = createCosmicSkyBackdrop(scene, 'nebula', { skipSatellite: true });
-    const hemi = new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 1.5);
-    const sun = new THREE.DirectionalLight(0xfffbeb, 2.1);
-    sun.position.set(16, 24, 18);
+    // 1. Expansive Sunlit Astronaut Academy Valley Environment (Replaces Tiny Dark Rock!)
+    const earthEnv = buildEarthEnvironment({
+      scene,
+      mode: 'academy_hub',
+      isDisposed: () => isDisposed,
+      maxAnisotropy: renderer.capabilities.getMaxAnisotropy()
+    });
+
+    const hemi = new THREE.HemisphereLight(0xd8f3ff, 0x3b8c4a, 1.55);
+    const sun = new THREE.DirectionalLight(0xfff6d6, 2.35);
+    sun.position.set(32, 56, 38);
     sun.castShadow = initUltraShadows;
     sun.shadow.mapSize.set(1024, 1024);
     sun.shadow.camera.near = 2;
-    sun.shadow.camera.far = 70;
-    sun.shadow.camera.left = -18;
-    sun.shadow.camera.right = 18;
-    sun.shadow.camera.top = 12;
-    sun.shadow.camera.bottom = -12;
+    sun.shadow.camera.far = 175;
+    sun.shadow.camera.left = -64;
+    sun.shadow.camera.right = 64;
+    sun.shadow.camera.top = 64;
+    sun.shadow.camera.bottom = -64;
     sunLightRef.current = sun;
-    const rim = new THREE.DirectionalLight(0x38bdf8, 0.95);
-    rim.position.set(-18, -6, -12);
+    const rim = new THREE.DirectionalLight(0x7dd3fc, 0.72);
+    rim.position.set(-28, 18, -24);
     scene.add(hemi, sun, rim);
 
     const disposableTextures: THREE.Texture[] = [];
+    const glbLoadedRefs: THREE.Object3D[] = [];
+    const hubObstacles: CircleObstacle[] = [
+      { x: -1.2, z: -16.0, radius: 6.8 },
+      { x: -6.6, z: -15.5, radius: 2.8 },
+      { x: 11.4, z: -16.0, radius: 1.8 }
+    ];
 
-    // 1. Background Sculpted Earth & Moon Globes (Real 3D Space Context!)
-    const planetGroup = new THREE.Group();
-    scene.add(planetGroup);
-    const earthFallback = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(3.8, 2),
-      new THREE.MeshStandardMaterial({ color: 0x1d4ed8, emissive: 0x0ea5e9, emissiveIntensity: 0.25, roughness: 0.55, flatShading: true })
-    );
-    earthFallback.position.set(-16.5, -2.5, -6.5);
-    const moonFallback = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(2.5, 2),
-      new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.82, flatShading: true })
-    );
-    moonFallback.position.set(5.5, 4.4, -7.8);
-    planetGroup.add(earthFallback, moonFallback);
+    // 2. Central Astronaut Academy HQ & East Vehicle Garage
+    const hqRoot = new THREE.Group();
+    const hqY = evalOverworldTerrainHeight(0, -16);
+    hqRoot.position.set(0, hqY - 0.16, -16);
+    scene.add(hqRoot);
 
-    let blenderPlanets: Record<string, THREE.Object3D> = {};
-    attachBlenderPlanetsFromPack({
-      targetParent: planetGroup,
-      placements: [
-        { nodeName: 'PlanetEarth', id: 'BgEarth', position: [-16.5, -2.5, -6.5], scale: 3.9 },
-        { nodeName: 'PlanetMoon', id: 'BgMoon', position: [5.5, 4.4, -7.8], scale: 2.5 }
-      ],
+    const hqFallback = new THREE.Mesh(
+      new THREE.BoxGeometry(10.5, 5.2, 7.5),
+      new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.45 })
+    );
+    hqFallback.position.set(-1.2, 2.6, 0);
+    hqRoot.add(hqFallback);
+
+    attachEarthBuildingGlb({
+      modelName: 'earth_academy_hq',
+      targetParent: hqRoot,
+      scale: 1.05,
+      position: [0, 0, 0],
+      rotationY: 0,
+      fallbackNodes: [hqFallback],
       isDisposed: () => isDisposed,
-      onLoaded: (loaded) => {
-        blenderPlanets = loaded;
-        if (loaded.BgEarth) disposeObject3D(earthFallback);
-        if (loaded.BgMoon) disposeObject3D(moonFallback);
+      onLoaded: (glb) => {
+        glbLoadedRefs.push(glb);
       }
     });
 
-    // 2. Massive Sculpted Connected 3D Space Terra-Island + Plasma Laser Energy Bridges (Sectors 1 -> 2 -> 3 -> 4)
-    const connectedIslandRoot = new THREE.Group();
-    scene.add(connectedIslandRoot);
-    attachMassiveSpaceIsland({
-      targetParent: connectedIslandRoot,
+    const hqSign = createNodeLabelSprite(
+      tr(language, '🎓 Astronaut Academy HQ', '🎓 مقر أكاديمية الفضاء'),
+      '#38bdf8',
+      false,
+      false
+    );
+    hqSign.sprite.position.set(-1.2, 8.8, 0);
+    hqSign.sprite.scale.set(7.0, 1.7, 1);
+    hqRoot.add(hqSign.sprite);
+    disposableTextures.push(hqSign.texture);
+
+    // 3. Drivable Hub Space Buggy parked in East Vehicle Garage Driveway
+    const initRoverY = evalOverworldTerrainHeight(roverPosRef.current.x, roverPosRef.current.z);
+    roverPosRef.current.y = initRoverY;
+    const roverCtrl: SpaceRoverController = createSpaceRoverVehicle({
+      scene,
+      position: [roverPosRef.current.x, initRoverY, roverPosRef.current.z],
+      rotationY: roverYawRef.current,
       isDisposed: () => isDisposed
     });
-
-    const trajectoryCurve = new THREE.CatmullRomCurve3(
-      TRAJECTORY_NODES.map((n) => n.center.clone()),
-      false,
-      'centripetal',
-      0.4
+    const roverBeaconRing = new THREE.Mesh(
+      new THREE.TorusGeometry(1.75, 0.08, 8, 28),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85 })
     );
+    roverBeaconRing.rotation.x = Math.PI / 2;
+    roverBeaconRing.position.set(roverPosRef.current.x, initRoverY + 0.08, roverPosRef.current.z);
+    scene.add(roverBeaconRing);
 
+    roverToggleHandlerRef.current = () => {
+      lastActivityRef.current = performance.now();
+      soundManager.playClick();
+      if (isFlightModeRef.current) {
+        isFlightModeRef.current = false;
+        setIsFlightMode(false);
+      }
+      const next = !isDrivingRoverRef.current;
+      isDrivingRoverRef.current = next;
+      setIsDrivingRover(next);
+      autoNavTargetRef.current = null;
+      pendingEnterLevelRef.current = null;
+      roverVelRef.current = { x: 0, z: 0 };
+      roverBoostUntilRef.current = 0;
+      const now = performance.now();
+      if (next) {
+        roverCtrl.setHeadlights(true);
+        roverBeaconRing.visible = false;
+        freeCraftPosRef.current.copy(roverPosRef.current);
+        kinematicsRef.current = createKinematicsState(
+          roverPosRef.current.x,
+          roverPosRef.current.y,
+          roverPosRef.current.z,
+          now
+        );
+      } else {
+        roverCtrl.setHeadlights(false);
+        roverBeaconRing.visible = true;
+        const sideX = roverPosRef.current.x + Math.cos(roverYawRef.current) * 2.15;
+        const sideZ = roverPosRef.current.z - Math.sin(roverYawRef.current) * 2.15;
+        const sideY = evalOverworldTerrainHeight(sideX, sideZ);
+        freeCraftPosRef.current.set(sideX, sideY, sideZ);
+        kinematicsRef.current = createKinematicsState(sideX, sideY, sideZ, now);
+        roverSpeedRef.current = 0;
+      }
+    };
+
+    // 4. Four Grand Planetary Mission Gateways around Sunlit Courtyard
     const unlockedSet = new Set<CampaignLevelId>(campaign.unlockedLevels);
-    let seenBridges = new Set<number>([1]);
-    try {
-      const savedSeen = window.localStorage.getItem('astronutri_seen_bridges_v1');
-      if (savedSeen) {
-        seenBridges = new Set(JSON.parse(savedSeen) as number[]);
-      }
-    } catch {
-      // ignore storage errors
-    }
-
-    // Instanced Laser Energy Bridges (1 draw call for all 3 sector spans)
-    const bridgeCount = TRAJECTORY_NODES.length - 1;
-    const bridgeGeo = new THREE.CylinderGeometry(0.12, 0.12, 1, 8);
-    const bridgeMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      emissive: 0x38bdf8,
-      emissiveIntensity: 0.85,
-      transparent: true,
-      opacity: 0.88
-    });
-    const bridgeInst = new THREE.InstancedMesh(bridgeGeo, bridgeMat, bridgeCount);
-    scene.add(bridgeInst);
-    const bridgeDummy = new THREE.Object3D();
-    const beamUpAxis = new THREE.Vector3(0, 1, 0);
-    let newlyIgnitedMidX: number | null = null;
-    for (let legIdx = 0; legIdx < bridgeCount; legIdx++) {
-      const a = TRAJECTORY_NODES[legIdx];
-      const b = TRAJECTORY_NODES[legIdx + 1];
-      const legUnlocked = unlockedSet.has(b.levelId);
-      const isFreshUnlock = legUnlocked && !seenBridges.has(b.levelId);
-      if (legUnlocked) seenBridges.add(b.levelId);
-
-      const startPt = a.center.clone().add(new THREE.Vector3(0, 0.65, 0));
-      const endPt = b.center.clone().add(new THREE.Vector3(0, 0.65, 0));
-      const spanVec = endPt.clone().sub(startPt);
-      const spanLen = spanVec.length();
-      const midPt = startPt.clone().lerp(endPt, 0.5);
-
-      bridgeDummy.position.copy(midPt);
-      bridgeDummy.quaternion.setFromUnitVectors(beamUpAxis, spanVec.clone().normalize());
-      bridgeDummy.scale.set(legUnlocked ? 1.15 : 0.48, spanLen, legUnlocked ? 1.15 : 0.48);
-      bridgeDummy.updateMatrix();
-      bridgeInst.setMatrixAt(legIdx, bridgeDummy.matrix);
-      bridgeInst.setColorAt(legIdx, new THREE.Color(legUnlocked ? b.accentColor : 0x334155));
-
-      if (isFreshUnlock) {
-        newlyIgnitedMidX = midPt.x;
-      }
-    }
-    bridgeInst.instanceMatrix.needsUpdate = true;
-    if (bridgeInst.instanceColor) bridgeInst.instanceColor.needsUpdate = true;
-
-    if (newlyIgnitedMidX !== null) {
-      try {
-        window.localStorage.setItem('astronutri_seen_bridges_v1', JSON.stringify(Array.from(seenBridges)));
-      } catch {
-        // ignore storage errors
-      }
-      gsap.to(targetOrbitYawRef, {
-        current: Math.max(-0.32, Math.min(0.32, -newlyIgnitedMidX * 0.02)),
-        duration: 1.2,
-        ease: 'power2.out'
-      });
-      soundManager.playFanfare();
-    }
-
-    // Animated Trajectory Pulse Beads traveling from Earth -> Moon
-    const beadCount = 12;
-    const beadInst = new THREE.InstancedMesh(
-      new THREE.SphereGeometry(0.18, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0x38bdf8 }),
-      beadCount
-    );
-    scene.add(beadInst);
-    const beadDummy = new THREE.Object3D();
-
-    // 3. Build 4 Distinct Space Nodes (Launchpad, ISS, Shackleton Moon Biodome, Orion Capsule)
-    // Instanced orbital rings (1 draw call for all 4 halos, keeping total scene draw calls well below 55)
-    const ringGeo = new THREE.TorusGeometry(2.65, 0.12, 10, 32);
+    const ringGeo = new THREE.TorusGeometry(3.45, 0.14, 10, 32);
     const ringMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       emissive: 0x0f172a,
       emissiveIntensity: 0.48,
       roughness: 0.3
     });
-    const ringInst = new THREE.InstancedMesh(ringGeo, ringMat, TRAJECTORY_NODES.length);
+    const ringInst = new THREE.InstancedMesh(ringGeo, ringMat, GATEWAY_NODES.length);
     scene.add(ringInst);
     const ringDummy = new THREE.Object3D();
 
-    const nodeGroups: { cfg: TrajectoryNodeConfig; root: THREE.Group; halo: THREE.Object3D }[] = [];
-    const glbLoadedRefs: THREE.Object3D[] = [];
+    const gatewayPedestalParts: ColoredGeometryPart[] = [];
+    const nodeGroups: { cfg: GatewayNodeConfig; root: THREE.Group; halo: THREE.Object3D; posY: number }[] = [];
 
-    TRAJECTORY_NODES.forEach((cfg, idx) => {
+    GATEWAY_NODES.forEach((cfg, idx) => {
       const unlocked = unlockedSet.has(cfg.levelId);
       const completed = checkLevelCompleted(campaign, cfg.levelId);
       const isActive = activeTargetLevelId === cfg.levelId;
+      const gy = evalOverworldTerrainHeight(cfg.x, cfg.z);
+      const yawToPlaza = Math.atan2(0 - cfg.x, 8 - cfg.z);
 
       const root = new THREE.Group();
-      root.position.copy(cfg.center);
+      root.position.set(cfg.x, gy, cfg.z);
       scene.add(root);
+
+      gatewayPedestalParts.push(
+        {
+          geometry: new THREE.CylinderGeometry(3.6, 4.1, 0.45, 8),
+          color: completed ? 0x065f46 : unlocked ? 0x1e3a8a : 0x334155,
+          position: [cfg.x, gy + 0.05, cfg.z]
+        },
+        {
+          geometry: new THREE.CylinderGeometry(3.05, 3.35, 0.25, 8),
+          color: 0xe2e8f0,
+          position: [cfg.x, gy + 0.34, cfg.z]
+        }
+      );
+      hubObstacles.push({ x: cfg.x, z: cfg.z, radius: 3.1 });
 
       ringInst.setColorAt(
         idx,
-        new THREE.Color(completed ? 0x34d399 : unlocked ? cfg.accentColor : 0x475569)
+        new THREE.Color(completed ? 0x34d399 : unlocked ? cfg.accentColor : 0x64748b)
       );
 
-      // Compact procedural silhouette fallback until Blender .glb arrives
       const fallbackParts: ColoredGeometryPart[] = [
-        { geometry: new THREE.CylinderGeometry(1.75, 1.95, 0.36, 12), color: 0x1e293b, position: [0, -0.32, 0] },
-        { geometry: new THREE.OctahedronGeometry(0.95, 0), color: unlocked ? cfg.accentColor : 0x64748b, position: [0, 0.95, 0] }
+        { geometry: new THREE.CylinderGeometry(2.2, 2.5, 0.4, 12), color: 0x1e293b, position: [0, 0.2, 0] },
+        { geometry: new THREE.OctahedronGeometry(1.15, 0), color: unlocked ? cfg.accentColor : 0x64748b, position: [0, 1.5, 0] }
       ];
       const fallbackMesh = new THREE.Mesh(
         mergeColoredParts(fallbackParts),
@@ -562,8 +605,9 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       attachSpaceNodeGlb({
         modelKey: cfg.modelKey,
         targetParent: root,
-        scale: cfg.modelKey === 'earth_launchpad' ? 1.85 : 1.75,
-        position: [0, 0, 0],
+        scale: cfg.modelKey === 'earth_launchpad' ? 2.15 : 2.0,
+        position: [0, 0.46, 0],
+        rotationY: yawToPlaza,
         fallbackNodes: [fallbackMesh],
         isDisposed: () => isDisposed,
         onLoaded: (glb) => {
@@ -571,17 +615,15 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         }
       });
 
-      // Strict Language-Isolated Canvas Label Sprite
       const rawTitle = tr(language, cfg.enLabel, cfg.arLabel);
       const labelText = completed ? `✅ ${rawTitle}` : unlocked ? rawTitle : `🔒 ${rawTitle}`;
       const { sprite, texture } = createNodeLabelSprite(labelText, cfg.accentHex, !unlocked, completed);
-      sprite.position.set(0, 3.15, 0);
+      sprite.position.set(0, 6.2, 0);
       root.add(sprite);
       disposableTextures.push(texture);
 
-      // Floating beacon diamond for active node
       const halo = new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.42, 0),
+        new THREE.OctahedronGeometry(0.55, 0),
         new THREE.MeshStandardMaterial({
           color: 0xfacc15,
           emissive: 0xf59e0b,
@@ -589,25 +631,79 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
           roughness: 0.2
         })
       );
-      halo.position.set(0, 3.95, 0);
+      halo.position.set(0, 7.5, 0);
       halo.visible = isActive;
       root.add(halo);
 
-      nodeGroups.push({ cfg, root, halo });
+      nodeGroups.push({ cfg, root, halo, posY: gy });
     });
     if (ringInst.instanceColor) ringInst.instanceColor.needsUpdate = true;
 
-    // 4. Player's Full Sculpted SPACE-FIT X Astronaut (astronaut_hero.glb + articulated limbs + Robo)
+    const gatewayPedestalMesh = new THREE.Mesh(
+      mergeColoredParts(gatewayPedestalParts),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 })
+    );
+    gatewayPedestalMesh.castShadow = true;
+    gatewayPedestalMesh.receiveShadow = true;
+    scene.add(gatewayPedestalMesh);
+
+    // 5. Side Space Museum / Fact Board Discovery Kiosk on South Terrace
+    let museumGroup: THREE.Group | null = null;
+    let museumPos = new THREE.Vector3(0, 0, 33);
+    const museumPlacement = earthEnv.layout.kiosks[0];
+    if (museumPlacement) {
+      museumPos.set(museumPlacement.x, museumPlacement.y, museumPlacement.z);
+      museumGroup = new THREE.Group();
+      museumGroup.position.copy(museumPos);
+      scene.add(museumGroup);
+
+      const mFallback = new THREE.Mesh(
+        new THREE.BoxGeometry(2.0, 2.2, 0.9),
+        new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.45 })
+      );
+      mFallback.position.set(0, 1.1, 0);
+      museumGroup.add(mFallback);
+
+      attachEarthBuildingGlb({
+        modelName: 'earth_discovery_kiosk',
+        targetParent: museumGroup,
+        scale: 1.15,
+        position: [0, 0, 0],
+        rotationY: museumPlacement.rotY,
+        fallbackNodes: [mFallback],
+        isDisposed: () => isDisposed,
+        onLoaded: (g) => {
+          glbLoadedRefs.push(g);
+        }
+      });
+
+      const museumSign = createNodeLabelSprite(
+        tr(language, '🏛️ Space Museum +15⭐', '🏛️ متحف الفضاء +15⭐'),
+        '#facc15',
+        false,
+        false
+      );
+      museumSign.sprite.position.set(0, 4.4, 0);
+      museumSign.sprite.scale.set(5.4, 1.35, 1);
+      museumGroup.add(museumSign.sprite);
+      disposableTextures.push(museumSign.texture);
+      hubObstacles.push({ x: museumPlacement.x, z: museumPlacement.z, radius: 1.55 });
+    }
+
+    // 6. Player's Articulated SPACE-FIT X Astronaut (astronaut_hero.glb)
     const playerCraftRoot = new THREE.Group();
     scene.add(playerCraftRoot);
     const hero = buildSpaceFitXCharacter({
       showEvaHelmet: true,
       showCompanion: true,
-      scale: 0.72
+      scale: 0.85
+    });
+    hero.group.traverse((node) => {
+      if (node instanceof THREE.Mesh) node.castShadow = true;
     });
     playerCraftRoot.add(hero.group);
 
-    // Lightweight InstancedMesh Jetpack Thruster Exhaust Particles (1 draw call)
+    // Lightweight Jetpack & Dust Particle Systems
     const thrusterCount = 10;
     const thrusterGeo = new THREE.SphereGeometry(0.13, 6, 6);
     const thrusterMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.78 });
@@ -619,12 +715,13 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       vel: new THREE.Vector3(0, -1, 0),
       life: (i / thrusterCount) * 0.45
     }));
+    const dustSystem = createDustPuffSystem(scene, 18);
 
-    // Glowing Directional 3D Floor/Space Arrow pointing toward next Mission Node
     const floorArrow = createFloorGuideArrowSystem(scene);
-    const activeTargetNode = TRAJECTORY_NODES.find((n) => n.levelId === activeTargetLevelId) || TRAJECTORY_NODES[0];
+    const activeTargetNode = GATEWAY_NODES.find((n) => n.levelId === activeTargetLevelId) || GATEWAY_NODES[0];
+    const activeGatewayVec = new THREE.Vector3(activeTargetNode.x, evalOverworldTerrainHeight(activeTargetNode.x, activeTargetNode.z), activeTargetNode.z);
 
-    // Keyboard & Drag Controls
+    // Keyboard & Pointer Controls
     const keysDown = new Set<string>();
     const onKeyDown = (e: KeyboardEvent) => {
       lastActivityRef.current = performance.now();
@@ -634,6 +731,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       }
       keysDown.add(k);
       if (k === 'f') toggleFreeFlight();
+      if (k === 'r') roverToggleHandlerRef.current();
       if ((k === ' ' || e.code === 'Space') && !e.repeat) jumpHandlerRef.current();
       if (k === 'e' || k === 'enter') flyCraftToNode(focusedLevelRef.current, true);
       if (k === 'shift') isBoostingRef.current = true;
@@ -658,6 +756,15 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       pointerNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
       pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointerNdc, camera);
+
+      if (museumGroup) {
+        const mHits = raycaster.intersectObject(museumGroup, true);
+        if (mHits.length > 0) {
+          openSpaceMuseumCard();
+          return;
+        }
+      }
+
       const hits = raycaster.intersectObjects(nodeGroups.map((n) => n.root), true);
       if (hits.length > 0) {
         const hitObj = hits[0].object;
@@ -725,7 +832,6 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
     let rafId = 0;
     let prevMs = performance.now();
     const startMs = prevMs;
-    const tmpNextPt = new THREE.Vector3();
 
     const animate = () => {
       rafId = window.requestAnimationFrame(animate);
@@ -738,49 +844,27 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       const elapsed = (now - startMs) / 1000;
       prevMs = now;
 
-      // Damped smooth right-hand camera interpolation
       const dampRate = 6.0 + (1.0 - displaySettingsRef.current.cameraSmoothness) * 18.0;
       const dampAlpha = 1 - Math.exp(-dampRate * dt);
       orbitYawRef.current = lerpAngle(orbitYawRef.current, targetOrbitYawRef.current, dampAlpha);
       orbitPitchRef.current += (targetOrbitPitchRef.current - orbitPitchRef.current) * dampAlpha;
 
-      bridgeMat.emissiveIntensity = 0.75 + Math.sin(elapsed * 3.4) * 0.25;
-
-      skyHandle.update(elapsed);
-
-      // Slowly spin background Earth & Moon
-      if (blenderPlanets.BgEarth) blenderPlanets.BgEarth.rotation.y = elapsed * 0.08;
-      if (blenderPlanets.BgMoon) blenderPlanets.BgMoon.rotation.y = -elapsed * 0.06;
-      glbLoadedRefs.forEach((g) => animateBlenderEnvironmentGlb(g, elapsed));
-
-      // Animate orbital pulse beads from Node 1 -> 4
-      for (let i = 0; i < beadCount; i++) {
-        const t = ((elapsed * 0.09 + i / beadCount) % 1 + 1) % 1;
-        beadDummy.position.copy(trajectoryCurve.getPointAt(t));
-        const sc = 0.75 + Math.sin(elapsed * 4 + i) * 0.25;
-        beadDummy.scale.setScalar(sc);
-        beadDummy.updateMatrix();
-        beadInst.setMatrixAt(i, beadDummy.matrix);
-      }
-      beadInst.instanceMatrix.needsUpdate = true;
-
-      // Gentle hover + beacon spin on space nodes + animated Blender GLBs + instanced halo rings
+      earthEnv.update(elapsed, camera.position);
       glbLoadedRefs.forEach((g, idx) => animateBlenderEnvironmentGlb(g, elapsed + idx * 0.85));
-      nodeGroups.forEach(({ root, halo, cfg }, idx) => {
-        const nodeY = cfg.center.y + Math.sin(elapsed * 1.15 + idx * 1.1) * 0.14;
-        root.position.y = nodeY;
-        ringDummy.position.set(cfg.center.x, nodeY - 0.35, cfg.center.z);
+
+      nodeGroups.forEach(({ root, halo, cfg, posY }, idx) => {
+        ringDummy.position.set(cfg.x, posY + 0.35, cfg.z);
         ringDummy.rotation.set(Math.PI / 2, 0, elapsed * 0.22 * (idx % 2 === 0 ? 1 : -1));
         ringDummy.updateMatrix();
         ringInst.setMatrixAt(idx, ringDummy.matrix);
+        root.position.y = posY;
         if (halo.visible) {
           halo.rotation.y = elapsed * 2.2;
-          halo.position.y = 3.95 + Math.sin(elapsed * 3.4) * 0.22;
+          halo.position.y = 7.5 + Math.sin(elapsed * 3.4) * 0.25;
         }
       });
       ringInst.instanceMatrix.needsUpdate = true;
 
-      // Spacecraft Motion: either Free Flight OR Smooth Orbital Spline Auto-Fly
       let inputX = joystickVecRef.current.x;
       let inputZ = joystickVecRef.current.y;
       if (keysDown.has('a') || keysDown.has('arrowleft')) inputX -= 1;
@@ -791,146 +875,241 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       const inMag = Math.min(1, inLen);
       const k = kinematicsRef.current;
 
-      // Transform camera-relative inputs using current orbit yaw
       const sinYaw = Math.sin(orbitYawRef.current);
       const cosYaw = Math.cos(orbitYawRef.current);
       const moveWorldX = inLen > 0.08 ? (inputX * cosYaw + inputZ * sinYaw) / inLen : 0;
       const moveWorldZ = inLen > 0.08 ? (-inputX * sinYaw + inputZ * cosYaw) / inLen : 0;
 
+      if (inMag > 0.08) {
+        lastActivityRef.current = now;
+        autoNavTargetRef.current = null;
+        pendingEnterLevelRef.current = null;
+      }
+
       let currentSpeed = 0;
       let currentVelY = 0;
       let walkedLanding = false;
 
-      if (isFlightModeRef.current) {
+      if (isDrivingRoverRef.current) {
+        const rPos = roverPosRef.current;
+        const boosting = isBoostingRef.current || now < roverBoostUntilRef.current;
+        let steerAngle = 0;
         if (inMag > 0.08) {
-          lastActivityRef.current = now;
-          const speed = (isBoostingRef.current ? 16.5 : 10.5) * inMag;
+          const maxSpd = (boosting ? 25.0 : 17.5) * inMag;
+          const { speed } = stepSmoothHorizontalVelocity(
+            roverVelRef.current,
+            moveWorldX * maxSpd,
+            moveWorldZ * maxSpd,
+            dt,
+            10,
+            7
+          );
+          roverSpeedRef.current = speed;
+          rPos.x += roverVelRef.current.x * dt;
+          rPos.z += roverVelRef.current.z * dt;
+          const targetYaw = Math.atan2(moveWorldX, moveWorldZ);
+          const diff = Math.atan2(Math.sin(targetYaw - roverYawRef.current), Math.cos(targetYaw - roverYawRef.current));
+          steerAngle = Math.max(-0.42, Math.min(0.42, diff * 0.65));
+          roverYawRef.current = lerpAngle(roverYawRef.current, targetYaw, 1 - Math.exp(-8.5 * dt));
+        } else if (autoNavTargetRef.current) {
+          const dx = autoNavTargetRef.current.x - rPos.x;
+          const dz = autoNavTargetRef.current.z - rPos.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist > 2.4) {
+            const wx = dx / dist;
+            const wz = dz / dist;
+            const { speed } = stepSmoothHorizontalVelocity(roverVelRef.current, wx * 21.0, wz * 21.0, dt, 10, 7);
+            roverSpeedRef.current = speed;
+            rPos.x += roverVelRef.current.x * dt;
+            rPos.z += roverVelRef.current.z * dt;
+            const targetYaw = Math.atan2(wx, wz);
+            roverYawRef.current = lerpAngle(roverYawRef.current, targetYaw, 1 - Math.exp(-8.5 * dt));
+          } else {
+            autoNavTargetRef.current = null;
+            roverVelRef.current = { x: 0, z: 0 };
+            roverSpeedRef.current = 0;
+            const queued = pendingEnterLevelRef.current;
+            pendingEnterLevelRef.current = null;
+            if (queued) {
+              soundManager.playDropSuccess();
+              onSelectLevelRef.current(queued);
+            }
+          }
+        } else {
+          const { speed } = stepSmoothHorizontalVelocity(roverVelRef.current, 0, 0, dt, 10, 7);
+          roverSpeedRef.current = speed;
+          rPos.x += roverVelRef.current.x * dt;
+          rPos.z += roverVelRef.current.z * dt;
+        }
+
+        resolveCircleObstacles(rPos, roverVelRef.current, 1.35, hubObstacles);
+        const clamped = clampOverworldPosition(rPos.x, rPos.z, unlockedLevelsRef.current);
+        rPos.x = clamped.x;
+        rPos.z = clamped.z;
+        rPos.y = evalOverworldTerrainHeight(rPos.x, rPos.z);
+        const normal = evalOverworldTerrainNormal(rPos.x, rPos.z);
+
+        roverCtrl.group.position.copy(rPos);
+        roverCtrl.group.rotation.y = roverYawRef.current;
+        roverCtrl.updateVisuals({ dt, speed: roverSpeedRef.current, steerAngle, normal });
+
+        freeCraftPosRef.current.copy(rPos);
+        k.x = rPos.x;
+        k.y = rPos.y;
+        k.z = rPos.z;
+        k.vx = roverVelRef.current.x;
+        k.vz = roverVelRef.current.z;
+        k.vy = 0;
+        k.grounded = true;
+        k.lastGroundedMs = now;
+        currentSpeed = roverSpeedRef.current;
+
+        if (currentSpeed > 2.2) {
+          roverDustTimerRef.current += dt;
+          if (roverDustTimerRef.current >= 0.08) {
+            roverDustTimerRef.current = 0;
+            dustSystem.emit(
+              rPos.x - Math.sin(roverYawRef.current) * 1.15,
+              rPos.y + 0.14,
+              rPos.z - Math.cos(roverYawRef.current) * 1.15,
+              0xfef3c7,
+              Math.max(1, Math.round(3 * qCfg.particleDensity)),
+              1.6
+            );
+          }
+        }
+      } else if (isFlightModeRef.current) {
+        if (inMag > 0.08) {
+          const speed = (isBoostingRef.current ? 22.0 : 14.0) * inMag;
           currentSpeed = speed;
-          freeCraftPosRef.current.x = Math.max(-22, Math.min(22, freeCraftPosRef.current.x + moveWorldX * speed * dt));
-          freeCraftPosRef.current.z = Math.max(-13, Math.min(13, freeCraftPosRef.current.z + moveWorldZ * speed * dt));
+          const nextX = freeCraftPosRef.current.x + moveWorldX * speed * dt;
+          const nextZ = freeCraftPosRef.current.z + moveWorldZ * speed * dt;
+          const dist = Math.hypot(nextX, nextZ);
+          if (dist > HUB_PLAY_RADIUS) {
+            freeCraftPosRef.current.x = (nextX / dist) * HUB_PLAY_RADIUS;
+            freeCraftPosRef.current.z = (nextZ / dist) * HUB_PLAY_RADIUS;
+          } else {
+            freeCraftPosRef.current.x = nextX;
+            freeCraftPosRef.current.z = nextZ;
+          }
           const yaw = Math.atan2(moveWorldX, moveWorldZ);
           freeCraftYawRef.current = lerpAngle(freeCraftYawRef.current, yaw, 1 - Math.exp(-10 * dt));
         }
         if (now < ascendUntilRef.current || isBoostingRef.current) {
-          currentVelY = 7.2;
-          freeCraftPosRef.current.y = Math.min(10.5, freeCraftPosRef.current.y + 7.2 * dt);
+          currentVelY = 8.0;
+          freeCraftPosRef.current.y = Math.min(22.0, freeCraftPosRef.current.y + 8.0 * dt);
         } else {
-          const minHoverY = evalOverworldTerrainHeight(freeCraftPosRef.current.x, freeCraftPosRef.current.z) + 1.85;
+          const minHoverY = evalOverworldTerrainHeight(freeCraftPosRef.current.x, freeCraftPosRef.current.z) + 2.0;
           if (freeCraftPosRef.current.y > minHoverY) {
-            currentVelY = -2.8;
-            freeCraftPosRef.current.y = Math.max(minHoverY, freeCraftPosRef.current.y - 2.8 * dt);
+            currentVelY = -3.2;
+            freeCraftPosRef.current.y = Math.max(minHoverY, freeCraftPosRef.current.y - 3.2 * dt);
           }
         }
         playerCraftRoot.position.copy(freeCraftPosRef.current);
         playerCraftRoot.rotation.set(inMag > 0.1 ? 0.28 : 0.08, freeCraftYawRef.current, inMag > 0.1 ? -inputX * 0.16 : 0);
-      } else if (isAutoFlyingRef.current) {
-        const diff = targetSplineTRef.current - splineTRef.current;
-        if (Math.abs(diff) > 0.005) {
-          const step = Math.sign(diff) * Math.min(Math.abs(diff), 0.72 * dt);
-          splineTRef.current += step;
-        } else {
-          splineTRef.current = targetSplineTRef.current;
-          isAutoFlyingRef.current = false;
-          const dockedNode = TRAJECTORY_NODES[Math.round(splineTRef.current * 3)] || TRAJECTORY_NODES[0];
-          const dockedY = evalOverworldTerrainHeight(dockedNode.center.x, dockedNode.center.z + 1.4);
-          freeCraftPosRef.current.set(dockedNode.center.x, dockedY, dockedNode.center.z + 1.4);
-          kinematicsRef.current = createKinematicsState(dockedNode.center.x, dockedY, dockedNode.center.z + 1.4, now);
-          const queued = pendingEnterLevelRef.current;
-          if (queued) {
+      } else {
+        let dirX = moveWorldX;
+        let dirZ = moveWorldZ;
+        let walkMag = inMag;
+        let maxWalkSpd = isBoostingRef.current ? 12.2 : 8.2;
+
+        if (inMag > 0.08) {
+          const targetYaw = Math.atan2(moveWorldX, moveWorldZ);
+          freeCraftYawRef.current = lerpAngle(freeCraftYawRef.current, targetYaw, 1 - Math.exp(-13 * dt));
+        } else if (autoNavTargetRef.current) {
+          const dx = autoNavTargetRef.current.x - k.x;
+          const dz = autoNavTargetRef.current.z - k.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist > 1.25) {
+            dirX = dx / dist;
+            dirZ = dz / dist;
+            walkMag = 1;
+            maxWalkSpd = 17.5;
+            const targetYaw = Math.atan2(dirX, dirZ);
+            freeCraftYawRef.current = lerpAngle(freeCraftYawRef.current, targetYaw, 1 - Math.exp(-13 * dt));
+          } else {
+            autoNavTargetRef.current = null;
+            k.vx = 0;
+            k.vz = 0;
+            const queued = pendingEnterLevelRef.current;
             pendingEnterLevelRef.current = null;
-            soundManager.playDropSuccess();
-            onSelectLevelRef.current(queued);
+            if (queued) {
+              soundManager.playDropSuccess();
+              onSelectLevelRef.current(queued);
+            }
           }
         }
-        const craftPt = trajectoryCurve.getPointAt(Math.max(0, Math.min(1, splineTRef.current)));
-        const lookPt = trajectoryCurve.getPointAt(Math.min(1, splineTRef.current + 0.015));
-        freeCraftPosRef.current.set(craftPt.x, craftPt.y + 1.4 + Math.sin(elapsed * 4) * 0.14, craftPt.z);
-        playerCraftRoot.position.copy(freeCraftPosRef.current);
-        currentSpeed = 12;
-        tmpNextPt.set(lookPt.x, playerCraftRoot.position.y, lookPt.z);
-        if (playerCraftRoot.position.distanceToSquared(tmpNextPt) > 0.0001) {
-          playerCraftRoot.lookAt(tmpNextPt);
-          freeCraftYawRef.current = playerCraftRoot.rotation.y;
-        }
-        playerCraftRoot.rotation.x = 0.25;
-      } else {
-        // Walk directly across sculpted Terra-Island hills, lunar crater & unlocked Laser Bridges + Buffered Jump
-        if (inMag > 0.08) {
-          lastActivityRef.current = now;
-          const targetYaw = Math.atan2(moveWorldX, moveWorldZ);
-          freeCraftYawRef.current = lerpAngle(freeCraftYawRef.current, targetYaw, 1 - Math.exp(-12 * dt));
-        }
 
-        let blockedWarnSector: CampaignLevelId | null = null;
         const walkedRes = stepThirdPersonKinematics(k, {
           dt,
           nowMs: now,
-          inputWorldDirX: moveWorldX,
-          inputWorldDirZ: moveWorldZ,
-          inputMagnitude: inMag,
-          maxSpeed: isBoostingRef.current ? 10.2 : 6.4,
-          gravity: 16.5,
-          jumpVel: 6.8,
+          inputWorldDirX: dirX,
+          inputWorldDirZ: dirZ,
+          inputMagnitude: walkMag,
+          maxSpeed: maxWalkSpd,
+          gravity: 21.0,
+          jumpVel: 8.4,
           evalFloorY: evalOverworldTerrainHeight,
           clampXZ: (x, z) => {
             const clamped = clampOverworldPosition(x, z, unlockedLevelsRef.current);
-            if (clamped.blockedBySector) blockedWarnSector = clamped.blockedBySector;
             return { x: clamped.x, z: clamped.z };
-          }
+          },
+          obstacles: hubObstacles,
+          playerRadius: 0.55
         });
 
-        const warnTarget = blockedWarnSector as CampaignLevelId | null;
-        if (warnTarget && now > lockWarnCooldownRef.current) {
-          lockWarnCooldownRef.current = now + 2200;
-          showLockedWarning(warnTarget);
-        }
-        if (walkedRes.jumped) {
-          soundManager.playClick();
-        }
-
+        if (walkedRes.jumped) soundManager.playClick();
         freeCraftPosRef.current.set(k.x, k.y, k.z);
         currentSpeed = walkedRes.speed;
         currentVelY = k.vy;
         walkedLanding = walkedRes.isLanding;
 
         playerCraftRoot.position.copy(freeCraftPosRef.current);
-        playerCraftRoot.rotation.set(
-          isBoostingRef.current && inMag > 0.1 ? 0.14 : 0,
-          freeCraftYawRef.current,
-          0
-        );
-      }
+        playerCraftRoot.rotation.set(0, freeCraftYawRef.current, 0);
 
-      // Focus nearest unlocked Sector Node during walk or flight
-      if (!isAutoFlyingRef.current) {
-        let bestLid = focusedLevelRef.current;
-        let bestDist = Infinity;
-        for (const n of TRAJECTORY_NODES) {
-          const d = Math.hypot(
-            playerCraftRoot.position.x - n.center.x,
-            playerCraftRoot.position.z - n.center.z
-          );
-          if (d < bestDist) {
-            bestDist = d;
-            bestLid = n.levelId;
-          }
-        }
-        if (bestDist < 4.5 && bestLid !== focusedLevelRef.current) {
-          setFocusedLevel(bestLid);
+        roverCtrl.updateVisuals({
+          dt,
+          speed: 0,
+          steerAngle: 0,
+          normal: evalOverworldTerrainNormal(roverPosRef.current.x, roverPosRef.current.z)
+        });
+      }
+      dustSystem.update(dt);
+
+      // Proximity check for South Terrace Space Museum Kiosk
+      if (museumGroup && !isFlightModeRef.current) {
+        const md = Math.hypot(freeCraftPosRef.current.x - museumPos.x, freeCraftPosRef.current.z - museumPos.z);
+        if (md < 4.2 && !suppressedMuseumRef.current) {
+          setIsMuseumOpen(true);
+          suppressedMuseumRef.current = true;
+          const res = markFactDiscovered(HUB_MUSEUM_FACTS[0].id);
+          if (res.newlyDiscovered) soundManager.playDropSuccess();
+        } else if (md > 8.5) {
+          suppressedMuseumRef.current = false;
         }
       }
 
-      // Update Idle Speech Hint
+      // Focus nearest Gateway Node
+      let bestLid = focusedLevelRef.current;
+      let bestDist = Infinity;
+      for (const n of GATEWAY_NODES) {
+        const entry = getGatewayEntrySpot(n);
+        const d = Math.hypot(freeCraftPosRef.current.x - entry.x, freeCraftPosRef.current.z - entry.z);
+        if (d < bestDist) {
+          bestDist = d;
+          bestLid = n.levelId;
+        }
+      }
+      if (bestDist < 10.5 && bestLid !== focusedLevelRef.current) {
+        setFocusedLevel(bestLid);
+      }
+
       const idleSec = (now - lastActivityRef.current) / 1000;
-      if (idleSec > 8.5) {
-        setShowIdleHint(true);
-      }
+      if (idleSec > 8.5) setShowIdleHint(true);
 
-      // Animate Full Sculpted SPACE-FIT X Astronaut (decoupled Walk/Run/Jump/Land vs Zero-G Flight)
-      const isCelebrating = now < celebrateUntilRef.current;
-      const isZeroGAnim = isFlightModeRef.current || isAutoFlyingRef.current;
-      const airborneWalk = !isZeroGAnim && !k.grounded;
-      const jetActive = isZeroGAnim || (isBoostingRef.current && inMag > 0.08);
+      const isZeroGAnim = isFlightModeRef.current;
+      const airborneWalk = !isZeroGAnim && !isDrivingRoverRef.current && !k.grounded;
+      const jetActive = isZeroGAnim || (!isDrivingRoverRef.current && isBoostingRef.current && inMag > 0.08);
       const themeHex =
         suitStateRef.current?.suitTheme === 'mars_crimson'
           ? 0xf43f5e
@@ -939,30 +1118,42 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
           : 0x22d3ee;
 
       const activeSuit = suitStateRef.current || initialSpaceFitXState;
-      const walkSpeedNorm = currentSpeed > 0.12 ? Math.min(1.0, currentSpeed / 10.2 + 0.25) : 0;
-      const moveSpeedNorm = isZeroGAnim
-        ? inMag > 0.08 || isAutoFlyingRef.current
-          ? 1.0
-          : 0.15
-        : walkSpeedNorm;
+      const walkSpeedNorm = currentSpeed > 0.12 ? Math.min(1.0, currentSpeed / 12.0 + 0.22) : 0;
 
-      hero.update({
-        t: elapsed,
-        moveSpeed: moveSpeedNorm,
-        isRunning: (isBoostingRef.current && inMag > 0.08) || isZeroGAnim,
-        isJumping: airborneWalk,
-        isLanding: !isZeroGAnim && walkedLanding,
-        isZeroG: isZeroGAnim,
-        suitState: {
-          ...activeSuit,
-          helmetEnabled: true,
-          backpackStyle: jetActive ? 'thruster' : activeSuit.backpackStyle || 'eclss'
-        },
-        idleSeconds: idleSec,
-        emote: isCelebrating ? 'celebrate' : 'none'
-      });
+      if (isDrivingRoverRef.current) {
+        playerCraftRoot.position.set(roverPosRef.current.x, roverPosRef.current.y + 0.56, roverPosRef.current.z);
+        playerCraftRoot.rotation.set(0, roverYawRef.current, 0);
+        hero.update({
+          t: elapsed,
+          moveSpeed: 0,
+          isRunning: false,
+          isJumping: false,
+          isLanding: false,
+          isZeroG: false,
+          isSeated: true,
+          suitState: { ...activeSuit, helmetEnabled: true },
+          idleSeconds: 0,
+          emote: 'none'
+        });
+      } else {
+        hero.update({
+          t: elapsed,
+          moveSpeed: isZeroGAnim ? (inMag > 0.08 ? 1.0 : 0.15) : walkSpeedNorm,
+          isRunning: (!isFlightModeRef.current && isBoostingRef.current && inMag > 0.08) || isZeroGAnim,
+          isJumping: airborneWalk,
+          isLanding: !isZeroGAnim && walkedLanding,
+          isZeroG: isZeroGAnim,
+          isSeated: false,
+          suitState: {
+            ...activeSuit,
+            helmetEnabled: true,
+            backpackStyle: jetActive ? 'thruster' : activeSuit.backpackStyle || 'eclss'
+          },
+          idleSeconds: idleSec,
+          emote: 'none'
+        });
+      }
 
-      // Jetpack thruster InstancedMesh update
       thrusterInst.visible = jetActive;
       thrusterMat.color.setHex(isBoostingRef.current ? 0xfbbf24 : themeHex);
       const backSin = Math.sin(freeCraftYawRef.current);
@@ -996,24 +1187,23 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       }
 
       floorArrow.update(
-        new THREE.Vector3(playerCraftRoot.position.x, playerCraftRoot.position.y + 0.14, playerCraftRoot.position.z),
-        activeTargetNode.center,
-        playerCraftRoot.position.y + 0.14,
+        freeCraftPosRef.current,
+        activeGatewayVec,
+        evalOverworldTerrainHeight(freeCraftPosRef.current.x, freeCraftPosRef.current.z) + 0.14,
         elapsed
       );
 
-      // Auto-Follow Close Over-the-Shoulder Third-Person Camera (pauses 2.2s after manual look drag)
-      if ((currentSpeed > 0.25 || isAutoFlyingRef.current) && !activeLookRef.current && now - lastManualLookMsRef.current > 2200) {
-        const behindPlayerYaw = freeCraftYawRef.current + Math.PI;
+      if (currentSpeed > 0.25 && !activeLookRef.current && now - lastManualLookMsRef.current > 2200) {
+        const refYaw = isDrivingRoverRef.current ? roverYawRef.current : freeCraftYawRef.current;
         targetOrbitYawRef.current = lerpAngle(
           targetOrbitYawRef.current,
-          behindPlayerYaw,
+          refYaw + Math.PI,
           1 - Math.exp(-3.0 * dt)
         );
       }
 
-      const camTarget = playerCraftRoot.position;
-      const camDist = isFlightModeRef.current ? 7.4 : isAutoFlyingRef.current ? 8.2 : 5.4;
+      const camTarget = isDrivingRoverRef.current ? roverPosRef.current : playerCraftRoot.position;
+      const camDist = isFlightModeRef.current ? 7.4 : isDrivingRoverRef.current ? 6.8 : 5.4;
       const horizDist = camDist * Math.cos(orbitPitchRef.current);
       const camHeight = 1.35 + camDist * Math.sin(orbitPitchRef.current);
       const desiredX = camTarget.x + Math.sin(orbitYawRef.current) * horizDist;
@@ -1024,20 +1214,21 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       camera.position.x = dampValue(camera.position.x, desiredX, 12, dt);
       camera.position.y = dampValue(camera.position.y, desiredY, 12, dt);
       camera.position.z = dampValue(camera.position.z, desiredZ, 12, dt);
-      const lookFwdX = -Math.sin(orbitYawRef.current) * 1.1;
-      const lookFwdZ = -Math.cos(orbitYawRef.current) * 1.1;
-      const targetLookY = Math.max(camTarget.y + 1.35, minCamY - 0.25);
+      const lookFwdX = -Math.sin(orbitYawRef.current) * 1.15;
+      const lookFwdZ = -Math.cos(orbitYawRef.current) * 1.15;
+      const targetLookY = Math.max(camTarget.y + 1.45, minCamY - 0.25);
       camera.lookAt(camTarget.x + lookFwdX, targetLookY, camTarget.z + lookFwdZ);
 
       renderer.render(scene, camera);
       mount.dataset.drawCalls = String(renderer.info.render.calls);
       mount.dataset.glbLoaded = getLoadedGlbUrls().join(',');
+      mount.dataset.roverActive = isDrivingRoverRef.current ? 'true' : 'false';
       mount.dataset.cameraYaw = orbitYawRef.current.toFixed(3);
       mount.dataset.cameraPitch = orbitPitchRef.current.toFixed(3);
-      mount.dataset.playerY = playerCraftRoot.position.y.toFixed(3);
+      mount.dataset.playerY = camTarget.y.toFixed(3);
       mount.dataset.playerVelY = currentVelY.toFixed(3);
       mount.dataset.playerSpeed = currentSpeed.toFixed(3);
-      mount.dataset.playerGrounded = k.grounded && !isFlightModeRef.current && !isAutoFlyingRef.current ? 'true' : 'false';
+      mount.dataset.playerGrounded = k.grounded && !isFlightModeRef.current ? 'true' : 'false';
     };
 
     animate();
@@ -1060,30 +1251,41 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);
       window.removeEventListener('resize', onResize);
-      skyHandle.dispose();
+      earthEnv.dispose();
+      roverCtrl.dispose();
+      dustSystem.dispose();
       floorArrow.dispose();
       hero.dispose();
-      bridgeGeo.dispose();
-      bridgeMat.dispose();
       ringGeo.dispose();
       ringMat.dispose();
       thrusterGeo.dispose();
       thrusterMat.dispose();
       disposableTextures.forEach((t) => t.dispose());
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh || obj instanceof THREE.InstancedMesh) {
+          obj.geometry?.dispose();
+          const m = obj.material;
+          if (Array.isArray(m)) m.forEach((x) => x.dispose());
+          else m?.dispose();
+        } else if (obj instanceof THREE.Sprite) {
+          obj.material.dispose();
+        }
+      });
       renderer.dispose();
     };
   }, [language, activeTargetLevelId, campaign.unlockedLevels.length]);
 
-  const focusedNode = TRAJECTORY_NODES.find((n) => n.levelId === focusedLevel) || TRAJECTORY_NODES[0];
+  const focusedNode = GATEWAY_NODES.find((n) => n.levelId === focusedLevel) || GATEWAY_NODES[0];
   const focusedMeta = LEVEL_TITLES_BILINGUAL[focusedLevel];
   const focusedUnlocked = campaign.unlockedLevels.includes(focusedLevel);
   const nextMeta = LEVEL_TITLES_BILINGUAL[activeTargetLevelId];
+  const currentMuseumFact = HUB_MUSEUM_FACTS[museumIndex % HUB_MUSEUM_FACTS.length];
 
   if (webglFailed) {
     return (
       <div
         data-testid="world-navigator-3d"
-        className="w-full h-full flex items-center justify-center bg-slate-950 p-6"
+        className="w-full h-full flex items-center justify-center bg-sky-950 p-6"
       >
         <div
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl w-full"
@@ -1132,14 +1334,13 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
   return (
     <div data-testid="world-navigator-3d" className="relative w-full h-full overflow-hidden select-none">
-      {/* Full-Viewport Deep Space Earth-to-Moon 3D Trajectory Canvas */}
       <div
         ref={mountRef}
         data-testid="three-canvas-mount"
         className="w-full h-full cursor-grab active:cursor-grabbing"
       />
 
-      {/* Top-Center Desktop Node Selector Strip (hidden on mobile/tablet so 85%+ viewport stays open) */}
+      {/* Top-Center Desktop Gateway Strip */}
       <div
         dir={language === 'ar' ? 'rtl' : 'ltr'}
         className="pointer-events-none fixed top-14 inset-x-0 z-20 hidden lg:flex justify-center px-3"
@@ -1193,6 +1394,65 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         </div>
       )}
 
+      {/* Side Space Museum Fact Board Discovery Modal (Compact Zero-Scroll) */}
+      {isMuseumOpen && currentMuseumFact && (
+        <div
+          data-testid="hub-museum-modal"
+          dir={language === 'ar' ? 'rtl' : 'ltr'}
+          className="fixed top-12 right-2.5 sm:right-4 z-30 w-[calc(100vw-20px)] max-w-xs sm:max-w-sm rounded-2xl bg-slate-950/94 border-2 border-amber-400/80 p-3 shadow-2xl backdrop-blur-md text-white"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-2xl shrink-0">{currentMuseumFact.badgeIcon}</span>
+              <div className="min-w-0">
+                <div className="font-hud font-black text-xs sm:text-sm text-amber-300 truncate">
+                  {tr(language, currentMuseumFact.titleEn, currentMuseumFact.titleAr)}
+                </div>
+                <div className="text-[10px] font-bold text-cyan-300">
+                  🏛️ {tr(language, 'Academy Space Museum', 'متحف أكاديمية الفضاء')} • {museumIndex + 1}/{HUB_MUSEUM_FACTS.length}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsMuseumOpen(false)}
+              className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center cursor-pointer shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <p className="mt-1.5 text-[11px] sm:text-xs leading-snug text-slate-100">
+            {tr(language, currentMuseumFact.summaryEn, currentMuseumFact.summaryAr)}
+          </p>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const prevIdx = (museumIndex - 1 + HUB_MUSEUM_FACTS.length) % HUB_MUSEUM_FACTS.length;
+                setMuseumIndex(prevIdx);
+                openSpaceMuseumCard(prevIdx);
+              }}
+              className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>{tr(language, 'Prev', 'السابق')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const nextIdx = (museumIndex + 1) % HUB_MUSEUM_FACTS.length;
+                setMuseumIndex(nextIdx);
+                openSpaceMuseumCard(nextIdx);
+              }}
+              className="px-2.5 py-1 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-[11px] font-black flex items-center gap-1 cursor-pointer"
+            >
+              <span>{tr(language, 'Next Fact', 'المعلومة التالية')}</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Playful Idle Speech Bubble */}
       {showIdleHint && (
         <div
@@ -1205,15 +1465,15 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
             <span>
               {tr(
                 language,
-                'Tap any Space Node or hit Fly! 🚀',
-                'اضغط أي محطة فضائية أو جرّب الطيران الحر! 🚀'
+                'Explore the Spaceport Plaza or Drive the Buggy to a Gateway! 🚙',
+                'استكشف ساحة الأكاديمية أو قد المركبة نحو البوابة الكوكبية! 🚙'
               )}
             </span>
           </div>
         </div>
       )}
 
-      {/* Bottom Arcade Controls + Direct Node Entry + Tap-to-Fly Next Mission */}
+      {/* Bottom Arcade Controls + Direct Gateway Entry + Auto-Go + Buggy Toggle */}
       <ThirdPersonControlsOverlay
         promptLabelAr={
           focusedUnlocked
@@ -1222,15 +1482,15 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
                 `Enter ${focusedMeta.shortEn}`,
                 `دخول ${focusedMeta.shortAr}`
               )
-            : tr(language, `Node ${focusedLevel} Locked`, `المحطة ${focusedLevel} مقفلة`)
+            : tr(language, `Gateway ${focusedLevel} Locked`, `البوابة ${focusedLevel} مقفلة`)
         }
         promptSubAr={focusedUnlocked ? tr(language, focusedMeta.titleEn, focusedMeta.titleAr) : undefined}
         onInteract={() => flyCraftToNode(focusedLevel, true)}
         onAutoWalkNext={() => flyCraftToNode(activeTargetLevelId, true)}
         autoWalkLabel={tr(
           language,
-          `Auto-Fly to Active Sector: ${nextMeta.shortEn}`,
-          `طيران ذاتي للقطاع النشط: ${nextMeta.shortAr}`
+          `Go to Active Portal: ${nextMeta.shortEn}`,
+          `اذهب للبوابة النشطة: ${nextMeta.shortAr}`
         )}
         onJoystickMove={(vec) => {
           lastActivityRef.current = performance.now();
@@ -1247,39 +1507,33 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         onLookDrag={applyLookDelta}
         onViewportTap={(x, y) => viewportTapHandlerRef.current(x, y)}
         onJump={() => jumpHandlerRef.current()}
-        jumpMode={isFlightMode ? 'boost' : 'jump'}
+        jumpMode={isDrivingRover || isFlightMode ? 'boost' : 'jump'}
         highlightInteract={focusedUnlocked}
         secondaryAction={{
-          icon: isFlightMode ? '🛰️' : '🚀',
-          label: isFlightMode
-            ? tr(language, 'Dock', 'التحام')
-            : tr(language, 'Free Fly', 'طيران حر'),
-          active: isFlightMode,
-          testId: 'toggle-flight-btn',
-          onClick: toggleFreeFlight
+          icon: isDrivingRover ? '🚶' : '🚙',
+          label: isDrivingRover
+            ? tr(language, 'Exit Buggy (R)', 'نزول من المركبة (R)')
+            : tr(language, 'Drive Buggy (R)', 'قيادة المركبة (R)'),
+          active: isDrivingRover,
+          testId: 'toggle-rover-btn',
+          onClick: () => roverToggleHandlerRef.current()
         }}
         onSprintChange={(s) => {
           lastActivityRef.current = performance.now();
           isBoostingRef.current = s;
         }}
         gravityLabelAr={
-          isFlightMode
-            ? tr(language, 'Orbital Jetpack Flight', 'طيران نفاث حر')
+          isDrivingRover
+            ? tr(language, 'Academy Space Buggy', 'مركبة الأكاديمية')
+            : isFlightMode
+            ? tr(language, 'Academy Jetpack Flight', 'طيران نفاث')
             : tr(language, focusedNode.telemetryEn, focusedNode.telemetryAr)
         }
-        hintAr={
-          isFlightMode
-            ? tr(
-                language,
-                'WASD Fly • Space Boost Up • Shift Thruster • F Land on Terrain',
-                'تحرك بالطيران الحر • Space للارتفاع • Shift للدفع • F للهبوط على التضاريس'
-              )
-            : tr(
-                language,
-                'WASD Walk Hills & Bridges • Shift Jetpack • F Free Fly • E Enter Sector',
-                'امشِ فوق التلال والجسور • Shift نفاث • F طيران حر • E دخول القطاع'
-              )
-        }
+        hintAr={tr(
+          language,
+          'WASD Walk • Space Jump • R Buggy • F Fly • E Enter Gateway',
+          'WASD للمشي • Space للقفز • R للمركبة • F للطيران • E لدخول البوابة'
+        )}
       />
     </div>
   );
