@@ -668,6 +668,135 @@ def gen_earth_cliff_layered():
     return export_and_report("earth_cliff_layered.glb")
 
 
+# ==============================================================================
+# 10. CRAGGY FACETED ALPINE MOUNTAIN PEAK RING (earth_mountains_craggy.glb)
+#     Multi-octave ridged Voronoi/trig displacement, slate-brown rocky cliff faces,
+#     jagged white snow-capped ridges, pine-green base skirt down to z = -12m.
+#     Unit reference ring around inner_r=132m, outer_r=178m (scalable for L1 & Hub).
+# ==============================================================================
+def gen_earth_mountains_craggy():
+    gba.reset_scene()
+    m_mtn = pbr_mat("earth_mountains_pbr", roughness=0.84, metallic=0.05)
+
+    mesh = bpy.data.meshes.new("CraggyMountainsMesh")
+    obj = bpy.data.objects.new("CraggyMountains", mesh)
+    bpy.context.collection.objects.link(obj)
+    obj.data.materials.append(m_mtn)
+
+    bm = bmesh.new()
+    color_layer = bm.loops.layers.color.new("Col")
+
+    # 96 angular segments x 7 radial bands for craggy multi-ridge alpine depth
+    ang_segs = 96
+    radii = [126.0, 134.0, 143.0, 152.0, 161.0, 171.0, 182.0]
+    rad_bands = len(radii)
+
+    def ridged_noise(ang, r_idx):
+        # Multi-octave ridged Voronoi-style peak synthesis
+        o1 = 1.0 - abs(math.sin(ang * 4.0 + 0.35) * 0.65 + math.cos(ang * 3.0 - 0.8) * 0.35)
+        o2 = 1.0 - abs(math.sin(ang * 9.0 - 1.1 + r_idx * 0.55))
+        o3 = 1.0 - abs(math.cos(ang * 17.0 + 0.7 - r_idx * 0.85))
+        o4 = 0.5 + 0.5 * math.sin(ang * 25.0 + r_idx * 1.4)
+        return (o1 ** 1.35) * 0.50 + (o2 ** 1.5) * 0.28 + (o3 ** 1.6) * 0.15 + o4 * 0.07
+
+    grid = []
+    for i in range(ang_segs):
+        base_ang = (i / float(ang_segs)) * math.pi * 2.0
+        row = []
+        for j in range(rad_bands):
+            # Angular & radial crag jitter for faceted rocky ledges
+            ang_jit = base_ang + math.sin(i * 2.7 + j * 1.9) * 0.014
+            r_jit = radii[j] + math.cos(i * 3.4 - j * 2.3) * 2.2
+            rn = ridged_noise(base_ang, j)
+
+            if j == 0:
+                z = -11.5  # Deep buried inner skirt so mountains never float
+            elif j == 1:
+                z = 3.2 + rn * 9.5
+            elif j == 2:
+                # Foreground foothill crags & stepped rock buttresses
+                z = 12.5 + rn * 20.5 + math.sin(base_ang * 11.0) * 3.2
+            elif j == 3:
+                # Primary jagged alpine ridge line
+                z = 22.0 + rn * 34.0 + (1.0 - abs(math.cos(base_ang * 7.0))) * 8.5
+            elif j == 4:
+                # Secondary high-altitude serrated summit peaks
+                z = 26.5 + rn * 38.0 + (1.0 - abs(math.sin(base_ang * 5.0 + 0.9))) * 10.0
+            elif j == 5:
+                z = 14.0 + rn * 18.0
+            else:
+                z = -12.0  # Deep outer horizon anchor skirt
+
+            vx = math.cos(ang_jit) * r_jit
+            vy = math.sin(ang_jit) * r_jit
+            v = bm.verts.new((vx, vy, z))
+            row.append((v, z, j, rn))
+        grid.append(row)
+
+    bm.verts.ensure_lookup_table()
+
+    def color_for_vert(z_val, band_idx, r_noise, face_steepness):
+        # Pine forest green at valley floor -> rich rocky slate-brown cliff faces -> crisp snow-capped ridges
+        if z_val < 5.5:
+            return (0.14, 0.42, 0.22, 1.0)
+        elif z_val < 18.0:
+            # Craggy warm slate-brown & dark basalt cliff faces
+            if face_steepness > 0.48:
+                return (0.28, 0.23, 0.20, 1.0)
+            return (0.22, 0.34, 0.25, 1.0)
+        elif z_val < 36.0:
+            # Steep alpine rock strata (warm slate-brown & deep blue-grey granite)
+            if r_noise > 0.56 or face_steepness > 0.58:
+                return (0.34, 0.28, 0.25, 1.0)
+            return (0.26, 0.32, 0.42, 1.0)
+        elif z_val < 46.0:
+            # Snow-dusted upper crags & dark rock ridges
+            if face_steepness > 0.62:
+                return (0.32, 0.36, 0.45, 1.0)
+            return (0.84, 0.91, 0.98, 1.0)
+        else:
+            # Brilliant sunlit snow-capped alpine peaks (top 30% summits!)
+            return (0.98, 0.99, 1.00, 1.0)
+
+    for i in range(ang_segs):
+        ni = (i + 1) % ang_segs
+        for j in range(rad_bands - 1):
+            v00, z00, j00, rn00 = grid[i][j]
+            v10, z10, j10, rn10 = grid[ni][j]
+            v11, z11, j11, rn11 = grid[ni][j + 1]
+            v01, z01, j01, rn01 = grid[i][j + 1]
+
+            # Alternate triangle diagonal based on ridge parity for sharp faceted crags
+            if (i + j) % 2 == 0:
+                tris = [
+                    ((v00, z00, j00, rn00), (v10, z10, j10, rn10), (v11, z11, j11, rn11)),
+                    ((v00, z00, j00, rn00), (v11, z11, j11, rn11), (v01, z01, j01, rn01)),
+                ]
+            else:
+                tris = [
+                    ((v00, z00, j00, rn00), (v10, z10, j10, rn10), (v01, z01, j01, rn01)),
+                    ((v10, z10, j10, rn10), (v11, z11, j11, rn11), (v01, z01, j01, rn01)),
+                ]
+
+            for a, b, c in tris:
+                try:
+                    f = bm.faces.new((a[0], b[0], c[0]))
+                    f.smooth = False  # Crisp stylized low-poly faceted mountain relief!
+                    f.normal_update()
+                    steep = 1.0 - abs(f.normal.z)
+                    for loop, meta in zip(f.loops, (a, b, c)):
+                        loop[color_layer] = color_for_vert(meta[1], meta[2], meta[3], steep)
+                except ValueError:
+                    pass
+
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+    gba.ensure_uvs_box(obj)
+
+    return export_and_report("earth_mountains_craggy.glb")
+
+
 if __name__ == "__main__":
     results = [
         gen_earth_kitchen_dome(),
@@ -679,5 +808,6 @@ if __name__ == "__main__":
         gen_earth_tree_round(),
         gen_earth_bush_flower(),
         gen_earth_cliff_layered(),
+        gen_earth_mountains_craggy(),
     ]
     print("PHASE2_BLENDER_ASSETS:", json.dumps(results, indent=2))

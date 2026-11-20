@@ -15,6 +15,8 @@ export interface SpaceFitXCharacterHandle {
     isLanding?: boolean;
     isZeroG?: boolean;
     isSeated?: boolean;
+    isDriving?: boolean;
+    steerAngle?: number;
     suitState?: SpaceFitXState;
     highlightModule?: number | null;
     idleSeconds?: number;
@@ -583,8 +585,12 @@ export function buildSpaceFitXCharacter(options?: {
     thrusterPack: THREE.Object3D | null;
     leftArm: THREE.Object3D | null;
     rightArm: THREE.Object3D | null;
+    leftElbow: THREE.Object3D | null;
+    rightElbow: THREE.Object3D | null;
     leftLeg: THREE.Object3D | null;
     rightLeg: THREE.Object3D | null;
+    leftKnee: THREE.Object3D | null;
+    rightKnee: THREE.Object3D | null;
     primaryMats: THREE.MeshStandardMaterial[];
     accentMats: THREE.MeshStandardMaterial[];
   }
@@ -632,8 +638,12 @@ export function buildSpaceFitXCharacter(options?: {
       thrusterPack: glbRoot.getObjectByName('BackpackThruster') || null,
       leftArm: glbRoot.getObjectByName('LeftArmPivot') || null,
       rightArm: glbRoot.getObjectByName('RightArmPivot') || null,
+      leftElbow: glbRoot.getObjectByName('LeftElbowPivot') || null,
+      rightElbow: glbRoot.getObjectByName('RightElbowPivot') || null,
       leftLeg: glbRoot.getObjectByName('LeftLegPivot') || null,
       rightLeg: glbRoot.getObjectByName('RightLegPivot') || null,
+      leftKnee: glbRoot.getObjectByName('LeftKneePivot') || null,
+      rightKnee: glbRoot.getObjectByName('RightKneePivot') || null,
       primaryMats,
       accentMats
     };
@@ -669,6 +679,8 @@ export function buildSpaceFitXCharacter(options?: {
     isLanding = false,
     isZeroG = false,
     isSeated = false,
+    isDriving = false,
+    steerAngle = 0,
     suitState,
     highlightModule = null,
     idleSeconds = 0,
@@ -681,11 +693,16 @@ export function buildSpaceFitXCharacter(options?: {
     isLanding?: boolean;
     isZeroG?: boolean;
     isSeated?: boolean;
+    isDriving?: boolean;
+    steerAngle?: number;
     suitState?: SpaceFitXState;
     highlightModule?: number | null;
     idleSeconds?: number;
     emote?: AstronautEmote;
   }) => {
+    const seatedDriving = isSeated || isDriving;
+    shadow.visible = !seatedDriving;
+
     // 1. Live Astronaut Customizer (EVA Visor vs IVA + 4 Suit Themes + Backpack Style)
     const helmetOn = suitState?.helmetEnabled ?? options?.showEvaHelmet ?? true;
     const packMode = suitState?.backpackStyle ?? 'eclss';
@@ -717,7 +734,7 @@ export function buildSpaceFitXCharacter(options?: {
     group.scale.x += (targetSxz - group.scale.x) * 0.2;
     group.scale.z += (targetSxz - group.scale.z) * 0.2;
 
-    const isBored = !isJumping && !isZeroG && moveSpeed <= 0.1 && idleSeconds >= 8;
+    const isBored = !seatedDriving && !isJumping && !isZeroG && moveSpeed <= 0.1 && idleSeconds >= 8;
     const sitBlend = isBored ? Math.min(1, (idleSeconds - 8) / 0.55) : 0;
 
     if (glbRefs) {
@@ -750,28 +767,54 @@ export function buildSpaceFitXCharacter(options?: {
       const hd = glbRefs.headGroup;
       const la = glbRefs.leftArm;
       const ra = glbRefs.rightArm;
+      const le = glbRefs.leftElbow;
+      const re = glbRefs.rightElbow;
       const ll = glbRefs.leftLeg;
       const rl = glbRefs.rightLeg;
+      const lk = glbRefs.leftKnee;
+      const rk = glbRefs.rightKnee;
 
-      if (ll) ll.visible = !isSeated;
-      if (rl) rl.visible = !isSeated;
+      if (ll) ll.visible = true;
+      if (rl) rl.visible = true;
 
       if (hd) hd.rotation.set(0, Math.sin(t * 1.1) * 0.08, 0);
 
-      if (isZeroG) {
+      if (seatedDriving) {
+        // Seated Driving Pose inside Rover/Buggy: lower pelvis onto seat cushion, thighs -82°, knees +78°, arms on steering yoke!
+        const engineHum = Math.sin(t * 14.0) * 0.008;
+        if (bp) bp.position.y = glbRefs.baseBodyY - 0.52 + engineHum;
+        if (tr) tr.rotation.set(0.14, steerAngle * 0.14, -steerAngle * 0.08);
+        if (hd) hd.rotation.set(-0.06, steerAngle * 0.35 + Math.sin(t * 1.4) * 0.04, 0);
+        if (la) la.rotation.set(-1.12 + steerAngle * 0.26, 0.14, 0.18);
+        if (ra) ra.rotation.set(-1.12 - steerAngle * 0.26, -0.14, -0.18);
+        if (le) le.rotation.set(-0.42, 0, 0);
+        if (re) re.rotation.set(-0.42, 0, 0);
+        if (ll) ll.rotation.set(-1.43, 0, -0.08);
+        if (rl) rl.rotation.set(-1.43, 0, 0.08);
+        if (lk) lk.rotation.set(1.36, 0, 0);
+        if (rk) rk.rotation.set(1.36, 0, 0);
+      } else if (isZeroG) {
         if (bp) bp.position.y = glbRefs.baseBodyY + 0.14 + Math.sin(t * 2.0) * 0.1;
         if (tr) tr.rotation.set(Math.sin(t * 1.4) * 0.08 + moveSpeed * 0.03, 0, 0);
         if (la) la.rotation.set(-0.35 + Math.sin(t * 1.8) * 0.25, 0, -0.25);
         if (ra) ra.rotation.set(-0.35 - Math.sin(t * 1.8) * 0.25, 0, 0.25);
+        if (le) le.rotation.set(-0.22, 0, 0);
+        if (re) re.rotation.set(-0.22, 0, 0);
         if (ll) ll.rotation.set(Math.sin(t * 1.5) * 0.2, 0, 0);
         if (rl) rl.rotation.set(-Math.sin(t * 1.5) * 0.2, 0, 0);
+        if (lk) lk.rotation.set(0.24, 0, 0);
+        if (rk) rk.rotation.set(0.18, 0, 0);
       } else if (isJumping) {
         if (bp) bp.position.y = glbRefs.baseBodyY + 0.05;
         if (tr) tr.rotation.set(0.12, 0, 0);
         if (la) la.rotation.set(-0.85, 0, -0.35);
         if (ra) ra.rotation.set(-0.85, 0, 0.35);
+        if (le) le.rotation.set(-0.32, 0, 0);
+        if (re) re.rotation.set(-0.32, 0, 0);
         if (ll) ll.rotation.set(-0.42, 0, 0);
         if (rl) rl.rotation.set(0.32, 0, 0);
+        if (lk) lk.rotation.set(0.68, 0, 0);
+        if (rk) rk.rotation.set(0.42, 0, 0);
       } else if (moveSpeed > 0.1) {
         const freq = isRunning ? 13 : 8.5;
         const amp = isRunning ? 0.65 : 0.45;
@@ -780,16 +823,24 @@ export function buildSpaceFitXCharacter(options?: {
         if (tr) tr.rotation.set(isRunning ? 0.16 : 0.08, 0, 0);
         if (la) la.rotation.set(-swing * amp, 0, -0.14);
         if (ra) ra.rotation.set(swing * amp, 0, 0.14);
+        if (le) le.rotation.set(-0.38, 0, 0);
+        if (re) re.rotation.set(-0.38, 0, 0);
         if (ll) ll.rotation.set(swing * amp, 0, 0);
         if (rl) rl.rotation.set(-swing * amp, 0, 0);
+        if (lk) lk.rotation.set(Math.max(0, -swing * 0.52), 0, 0);
+        if (rk) rk.rotation.set(Math.max(0, swing * 0.52), 0, 0);
       } else if (isBored) {
         if (bp) bp.position.y = glbRefs.baseBodyY - sitBlend * 0.48;
         if (tr) tr.rotation.set(sitBlend * 0.12, sitBlend * 0.18, 0);
         if (hd) hd.rotation.set(sitBlend * 0.26 + Math.sin(t * 1.4) * 0.06, -sitBlend * 0.24, 0);
         if (la) la.rotation.set(-0.95 * sitBlend, 0.2 * sitBlend, -0.15);
         if (ra) ra.rotation.set(-0.42 * sitBlend, -0.25 * sitBlend, -0.18 * sitBlend);
+        if (le) le.rotation.set(-0.95 * sitBlend, 0, 0);
+        if (re) re.rotation.set(-0.90 * sitBlend, 0, 0);
         if (ll) ll.rotation.set(-1.26 * sitBlend, 0, 0);
         if (rl) rl.rotation.set(-1.22 * sitBlend, 0, 0);
+        if (lk) lk.rotation.set(0.28 * sitBlend, 0, 0);
+        if (rk) rk.rotation.set(0.32 * sitBlend, 0, 0);
       } else if (emote === 'celebrate') {
         const hop = Math.abs(Math.sin(t * 7.5)) * 0.22;
         if (bp) bp.position.y = glbRefs.baseBodyY + hop;
@@ -797,30 +848,46 @@ export function buildSpaceFitXCharacter(options?: {
         if (hd) hd.rotation.x = -0.16;
         if (la) la.rotation.set(-2.25 + Math.sin(t * 8) * 0.25, 0, -0.35);
         if (ra) ra.rotation.set(-2.25 - Math.sin(t * 8) * 0.25, 0, 0.35);
+        if (le) le.rotation.set(-0.25, 0, 0);
+        if (re) re.rotation.set(-0.25, 0, 0);
         if (ll) ll.rotation.set(hop * -0.75, 0, 0);
         if (rl) rl.rotation.set(hop * -0.75, 0, 0);
+        if (lk) lk.rotation.set(hop * 1.4, 0, 0);
+        if (rk) rk.rotation.set(hop * 1.4, 0, 0);
       } else if (emote === 'wave') {
         if (bp) bp.position.y = glbRefs.baseBodyY + Math.sin(t * 2.5) * 0.03;
         if (tr) tr.rotation.set(0, -0.12, 0.05);
         if (hd) hd.rotation.z = -0.09;
         if (la) la.rotation.set(0, 0, -0.18);
         if (ra) ra.rotation.set(-0.25, 0, 2.32 + Math.sin(t * 8.5) * 0.32);
+        if (le) le.rotation.set(-0.18, 0, 0);
+        if (re) re.rotation.set(-0.28, 0, 0);
         if (ll) ll.rotation.set(0, 0, 0);
         if (rl) rl.rotation.set(0, 0, 0);
+        if (lk) lk.rotation.set(0.04, 0, 0);
+        if (rk) rk.rotation.set(0.04, 0, 0);
       } else if (emote === 'point') {
         if (bp) bp.position.y = glbRefs.baseBodyY + Math.sin(t * 2.2) * 0.025;
         if (tr) tr.rotation.set(0.05, -0.18, 0);
         if (la) la.rotation.set(0.06, 0, -0.16);
         if (ra) ra.rotation.set(-1.32 + Math.sin(t * 4) * 0.06, 0, 0.14);
+        if (le) le.rotation.set(-0.18, 0, 0);
+        if (re) re.rotation.set(-0.08, 0, 0);
         if (ll) ll.rotation.set(0, 0, 0);
         if (rl) rl.rotation.set(0, 0, 0);
+        if (lk) lk.rotation.set(0, 0, 0);
+        if (rk) rk.rotation.set(0, 0, 0);
       } else {
         if (bp) bp.position.y = glbRefs.baseBodyY + Math.sin(t * 2.2) * 0.025;
         if (tr) tr.rotation.set(0, Math.sin(t * 0.9) * 0.04, 0);
         if (la) la.rotation.set(Math.sin(t * 1.4) * 0.04, 0, -0.16);
         if (ra) ra.rotation.set(-Math.sin(t * 1.4) * 0.04, 0, 0.16);
+        if (le) le.rotation.set(-0.16, 0, 0);
+        if (re) re.rotation.set(-0.16, 0, 0);
         if (ll) ll.rotation.set(0, 0, 0);
         if (rl) rl.rotation.set(0, 0, 0);
+        if (lk) lk.rotation.set(0.04, 0, 0);
+        if (rk) rk.rotation.set(0.04, 0, 0);
       }
     } else {
       evaBubble.visible = helmetOn;
@@ -842,12 +909,25 @@ export function buildSpaceFitXCharacter(options?: {
         1
       );
 
-      // 3. Locomotion, Emotes & 8s Idle Sit-Down Pose
-      leftLeg.hipPivot.visible = !isSeated;
-      rightLeg.hipPivot.visible = !isSeated;
+      // 3. Locomotion, Seated Driving, Emotes & 8s Idle Sit-Down Pose
+      leftLeg.hipPivot.visible = true;
+      rightLeg.hipPivot.visible = true;
       headGroup.rotation.set(0, Math.sin(t * 1.1) * 0.08, 0);
 
-      if (isZeroG) {
+      if (seatedDriving) {
+        const engineHum = Math.sin(t * 14.0) * 0.008;
+        bodyPivot.position.y = 0.50 + engineHum;
+        torsoGroup.rotation.set(0.14, steerAngle * 0.14, -steerAngle * 0.08);
+        headGroup.rotation.set(-0.06, steerAngle * 0.35 + Math.sin(t * 1.4) * 0.04, 0);
+        leftArm.shoulderPivot.rotation.set(-1.12 + steerAngle * 0.26, 0.14, 0.18);
+        rightArm.shoulderPivot.rotation.set(-1.12 - steerAngle * 0.26, -0.14, -0.18);
+        leftArm.elbowPivot.rotation.x = -0.42;
+        rightArm.elbowPivot.rotation.x = -0.42;
+        leftLeg.hipPivot.rotation.set(-1.43, 0, -0.08);
+        rightLeg.hipPivot.rotation.set(-1.43, 0, 0.08);
+        leftLeg.kneePivot.rotation.x = 1.36;
+        rightLeg.kneePivot.rotation.x = 1.36;
+      } else if (isZeroG) {
         bodyPivot.position.y = 1.16 + Math.sin(t * 2.0) * 0.1;
         torsoGroup.rotation.set(Math.sin(t * 1.4) * 0.08 + moveSpeed * 0.03, 0, 0);
         leftArm.shoulderPivot.rotation.set(-0.35 + Math.sin(t * 1.8) * 0.25, 0, -0.25);

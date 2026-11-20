@@ -1360,6 +1360,7 @@ export const CampaignHubView: React.FC = () => {
 
                       <button
                         type="button"
+                        data-testid={`drawer-enter-node-${lvlId}`}
                         disabled={!unlocked}
                         onClick={() => {
                           setIsLevelsDrawerOpen(false);

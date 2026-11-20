@@ -889,6 +889,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       let currentSpeed = 0;
       let currentVelY = 0;
       let walkedLanding = false;
+      let activeSteerAngle = 0;
 
       if (isDrivingRoverRef.current) {
         const rPos = roverPosRef.current;
@@ -952,6 +953,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
         roverCtrl.group.position.copy(rPos);
         roverCtrl.group.rotation.y = roverYawRef.current;
         roverCtrl.updateVisuals({ dt, speed: roverSpeedRef.current, steerAngle, normal });
+        activeSteerAngle = steerAngle;
 
         freeCraftPosRef.current.copy(rPos);
         k.x = rPos.x;
@@ -1121,8 +1123,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       const walkSpeedNorm = currentSpeed > 0.12 ? Math.min(1.0, currentSpeed / 12.0 + 0.22) : 0;
 
       if (isDrivingRoverRef.current) {
-        playerCraftRoot.position.set(roverPosRef.current.x, roverPosRef.current.y + 0.56, roverPosRef.current.z);
-        playerCraftRoot.rotation.set(0, roverYawRef.current, 0);
+        roverCtrl.getSeatWorldTransform(playerCraftRoot.position, playerCraftRoot.quaternion);
         hero.update({
           t: elapsed,
           moveSpeed: 0,
@@ -1131,6 +1132,8 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
           isLanding: false,
           isZeroG: false,
           isSeated: true,
+          isDriving: true,
+          steerAngle: activeSteerAngle,
           suitState: { ...activeSuit, helmetEnabled: true },
           idleSeconds: 0,
           emote: 'none'

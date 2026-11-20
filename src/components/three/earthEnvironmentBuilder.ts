@@ -283,17 +283,17 @@ function createRoadRibbonGeometry(
       const s1R = cx1 + nx * outerHalf;
       const sz1R = cz1 + nz * outerHalf;
 
-      const y0C = evalHeight(cx0, cz0) + 0.045;
-      const y1C = evalHeight(cx1, cz1) + 0.045;
-      const y0L = evalHeight(x0L, z0L) + 0.045;
-      const y0R = evalHeight(x0R, z0R) + 0.045;
-      const y1L = evalHeight(x1L, z1L) + 0.045;
-      const y1R = evalHeight(x1R, z1R) + 0.045;
+      const y0C = evalHeight(cx0, cz0) + 0.14;
+      const y1C = evalHeight(cx1, cz1) + 0.14;
+      const y0L = evalHeight(x0L, z0L) + 0.14;
+      const y0R = evalHeight(x0R, z0R) + 0.14;
+      const y1L = evalHeight(x1L, z1L) + 0.14;
+      const y1R = evalHeight(x1R, z1R) + 0.14;
 
-      const sy0L = evalHeight(s0L, sz0L) - 0.14;
-      const sy0R = evalHeight(s0R, sz0R) - 0.14;
-      const sy1L = evalHeight(s1L, sz1L) - 0.14;
-      const sy1R = evalHeight(s1R, sz1R) - 0.14;
+      const sy0L = evalHeight(s0L, sz0L) - 0.18;
+      const sy0R = evalHeight(s0R, sz0R) - 0.18;
+      const sy1L = evalHeight(s1L, sz1L) - 0.18;
+      const sy1R = evalHeight(s1R, sz1R) - 0.18;
 
       const v0 = t0 * len * vPerMeter;
       const v1 = t1 * len * vPerMeter;
@@ -576,9 +576,9 @@ export function buildEarthEnvironment(opts: {
   const layout = generateEarthWorldLayout(mode);
   const disposableTextures: THREE.Texture[] = [];
 
-  // Atmosphere & Fog
+  // Atmosphere & Fog (subtle horizon haze at 115..360m so craggy alpine rock & snow peaks stay vivid!)
   scene.background = new THREE.Color(0x63c5ff);
-  scene.fog = new THREE.Fog(0x9bd9ff, 78, 260);
+  scene.fog = new THREE.Fog(0x9bd9ff, 115, 360);
 
   // 1. Expanded Daylight Sky Dome
   const skyMat = new THREE.ShaderMaterial({
@@ -716,9 +716,38 @@ export function buildEarthEnvironment(opts: {
     group.add(plazaMesh);
   }
 
-  // 3. Distant Snowy Mountain Ring (1 merged mesh)
+  // 3. Craggy Faceted Alpine Mountain Peak Ring (Blender 5.3 earth_mountains_craggy.glb + procedural fallback)
   const mountainRing = createDistantMountainRing(isL1 ? 132 : 114, isL1 ? 176 : 156);
   group.add(mountainRing);
+
+  void loadCachedGlbClone('/models/earth_mountains_craggy.glb').then((glb) => {
+    if (!glb) return;
+    if (isDisposed()) {
+      disposeObject3D(glb);
+      return;
+    }
+    const mtnGeom = extractGlbMeshGeometry(glb, 'CraggyMountains');
+    if (mtnGeom) {
+      if (!isL1) {
+        const s = 114 / 132;
+        mtnGeom.scale(s, 0.9, s);
+      }
+      mountainRing.geometry.dispose();
+      mountainRing.geometry = mtnGeom;
+      if (Array.isArray(mountainRing.material)) {
+        mountainRing.material.forEach((m) => m.dispose());
+      } else {
+        mountainRing.material.dispose();
+      }
+      mountainRing.material = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.82,
+        metalness: 0.05,
+        flatShading: true
+      });
+    }
+    disposeObject3D(glb);
+  });
 
   // 4. Drifting Soft Daytime Clouds (1 merged mesh rotated gently in update)
   const cloudParts: ColoredGeometryPart[] = [];

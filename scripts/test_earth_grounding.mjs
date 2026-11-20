@@ -15,6 +15,7 @@ const bundleModule = async (relPath) => {
 
 const terrain = await bundleModule('src/components/three/terrainMath.ts');
 const layoutMod = await bundleModule('src/components/three/earthWorldLayout.ts');
+const planetLayoutMod = await bundleModule('src/components/three/planetWorldLayout.ts');
 const factsMod = await bundleModule('src/data/earthDiscoveryFacts.ts');
 
 let passCount = 0;
@@ -34,8 +35,8 @@ console.log('===============================================================');
 console.log('  AstroNutri Phase 2: Earth Grounding, Road & Layout Tests');
 console.log('===============================================================');
 
-// 1. Verify all 9 Phase 2 Blender GLB assets exist and stay compact (< 350 KB)
-const phase2Glbs = [
+// 1. Verify all 10 Phase 2 + 8 Phase 3 Blender GLB assets exist and stay compact (< 350 KB)
+const phase2And3Glbs = [
   'earth_kitchen_dome.glb',
   'earth_suit_hangar.glb',
   'earth_medical_pavilion.glb',
@@ -44,13 +45,22 @@ const phase2Glbs = [
   'earth_discovery_kiosk.glb',
   'earth_tree_round.glb',
   'earth_bush_flower.glb',
-  'earth_cliff_layered.glb'
+  'earth_cliff_layered.glb',
+  'earth_mountains_craggy.glb',
+  'moon_modular_base.glb',
+  'moon_rover_6x6.glb',
+  'moon_comm_tower.glb',
+  'moon_crater_rocks.glb',
+  'mars_return_base.glb',
+  'mars_canyon_cliffs.glb',
+  'mars_canyon_ring.glb',
+  'iss_orbital_ribs.glb'
 ];
-for (const fname of phase2Glbs) {
+for (const fname of phase2And3Glbs) {
   const full = path.resolve('public/models', fname);
   const exists = fs.existsSync(full);
   const kb = exists ? fs.statSync(full).size / 1024 : 0;
-  assert(exists && kb > 5 && kb < 350, `Phase 2 GLB ${fname} exists (${kb.toFixed(1)} KB < 350 KB)`);
+  assert(exists && kb > 5 && kb < 350, `Phase 2/3 GLB ${fname} exists (${kb.toFixed(1)} KB < 350 KB)`);
 }
 
 // 2. Verify Earth Level 1 buildings are spread cleanly 40m–65m apart sequentially
@@ -120,11 +130,53 @@ for (const mode of ['earth_l1', 'academy_hub']) {
   assert(roadOverlaps === 0, `${mode}: ZERO foliage/cliff overlaps onto paved Spaceport Roads (overlaps=${roadOverlaps})`);
 }
 
-// 5. Strict EN isolation on new discovery facts
-const allFacts = [...factsMod.EARTH_L1_KIOSKS, ...factsMod.HUB_MUSEUM_FACTS];
+// 4b. Deterministic ZERO Floating Props & Road Clearance check across Phase 3 Moon L3 & Mars L4
+for (const pMode of ['moon_l3', 'mars_l4']) {
+  const isMoon = pMode === 'moon_l3';
+  const lvl = isMoon ? 3 : 4;
+  const pLayout = planetLayoutMod.generatePlanetWorldLayout(pMode);
+  const evalHeight = (x, z) => terrain.evalSectorFloorHeight(lvl, x, z);
+  const evalRoad = isMoon ? terrain.evalMoonL3RoadInfo : terrain.evalMarsL4RoadInfo;
+
+  assert(pLayout.rocks.length >= 35, `${pMode}: Grounded boulder/mesa count = ${pLayout.rocks.length} (>= 35)`);
+  assert(pLayout.commTowers.length >= 3, `${pMode}: Grounded comm tower count = ${pLayout.commTowers.length} (>= 3)`);
+
+  let floatingPlanetProps = 0;
+  const allPlaced = [...pLayout.rocks, ...pLayout.commTowers, ...pLayout.beacons];
+  for (const p of allPlaced) {
+    const centerGroundY = evalHeight(p.x, p.z);
+    const footMinY = layoutMod.minTerrainHeightInFootprint(evalHeight, p.x, p.z, p.footprintRadius);
+    if (p.y > centerGroundY - 0.04 || p.y > footMinY - 0.04) {
+      floatingPlanetProps++;
+    }
+  }
+  for (const k of pLayout.kiosks) {
+    const footMinY = layoutMod.minTerrainHeightInFootprint(evalHeight, k.x, k.z, 1.2);
+    if (k.y > footMinY - 0.04) floatingPlanetProps++;
+  }
+  assert(
+    floatingPlanetProps === 0,
+    `${pMode}: ZERO floating props across ${allPlaced.length + pLayout.kiosks.length} placed items (floating=${floatingPlanetProps})`
+  );
+
+  let trackOverlaps = 0;
+  for (const p of [...pLayout.rocks, ...pLayout.commTowers]) {
+    const r = evalRoad(p.x, p.z);
+    if (r.dist < r.halfWidth + 1.0) trackOverlaps++;
+  }
+  assert(trackOverlaps === 0, `${pMode}: ZERO rock/tower overlaps onto Rover Guide Tracks (overlaps=${trackOverlaps})`);
+}
+
+// 5. Strict EN isolation on all discovery facts (Earth L1 + Hub + Moon L3 + Mars L4)
+const allFacts = [
+  ...factsMod.EARTH_L1_KIOSKS,
+  ...factsMod.HUB_MUSEUM_FACTS,
+  ...factsMod.MOON_L3_KIOSKS,
+  ...factsMod.MARS_L4_KIOSKS
+];
 const leakyFacts = allFacts.filter((f) => /[\u0600-\u06FF]/.test(`${f.titleEn} ${f.summaryEn}`));
 assert(
-  leakyFacts.length === 0 && allFacts.length === 7,
+  leakyFacts.length === 0 && allFacts.length === 12,
   `All ${allFacts.length} discovery kiosk & museum facts have strict EN/AR isolation`
 );
 

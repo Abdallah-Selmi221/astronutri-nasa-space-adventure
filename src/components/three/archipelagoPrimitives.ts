@@ -410,9 +410,9 @@ export function createCosmicSkyBackdrop(
     neb1 = sp;
   }
 
-  // Lunar Horizon Earthrise Globe (1 draw call on lunar sky!)
+  // Lunar Horizon Earthrise Globe (skipped when Phase 3 planetEnvironmentsBuilder supplies textured Blue Marble Earthrise)
   let celestialAccent: THREE.Mesh | null = null;
-  if (skyMode === 'lunar') {
+  if (skyMode === 'lunar' && !options?.skipSatellite) {
     const earthParts: ColoredGeometryPart[] = [
       { geometry: new THREE.SphereGeometry(5.6, 22, 16), color: 0x0284c7, position: [32, 22, -62] },
       { geometry: new THREE.DodecahedronGeometry(2.2, 1), color: 0x22c55e, position: [30.2, 23.0, -57.4], scale: [1.3, 0.9, 0.4] },

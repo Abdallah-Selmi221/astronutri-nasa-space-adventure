@@ -147,10 +147,10 @@ function evalValleyHeightWithLayout(
 
   let h = hillsH;
 
-  // Smoothly terrace road corridor onto natural valley elevation
+  // Smoothly terrace road corridor onto natural valley elevation (wide flat roadbed so terrain never clips road ribbons!)
   const road = evalRoadNetwork(x, z, roads);
-  const roadBlend = 1.0 - smoothstep(road.halfWidth + 0.8, road.halfWidth + 7.2, road.dist);
-  h = h * (1 - roadBlend * 0.96) + road.elevation * (roadBlend * 0.96);
+  const roadBlend = 1.0 - smoothstep(road.halfWidth + 1.8, road.halfWidth + 8.0, road.dist);
+  h = h * (1 - roadBlend * 0.99) + road.elevation * (roadBlend * 0.99);
 
   // Building / Gateway / Garage flat aprons
   for (let i = 0; i < pads.length; i++) {
@@ -267,10 +267,84 @@ export function clampOverworldPosition(
   return { x, z, blockedBySector: null };
 }
 
+// ==================== PHASE 3: LEVEL 3 MOON SHACKLETON MODULAR OUTPOST (~260m Scale) ====================
+export const MOON_L3_WORLD_SIZE = 260;
+export const MOON_L3_PLAY_BOUNDS = {
+  minX: -76,
+  maxX: 76,
+  minZ: -68,
+  maxZ: 54
+} as const;
+
+export const MOON_L3_PADS: readonly PadZone[] = [
+  { id: 'moon_spawn_plaza', x: 0, z: 26, y: 0.0, flatRadius: 10.5, blendRadius: 18.0, facingX: 0, facingZ: 0 },
+  { id: 'water_recycling_room', x: -38, z: -2, y: 0.35, flatRadius: 9.8, blendRadius: 16.5, facingX: -28, facingZ: 6 },
+  { id: 'fitness_room', x: -12, z: -32, y: 0.75, flatRadius: 10.2, blendRadius: 17.5, facingX: -12, facingZ: -18 },
+  { id: 'emergency_shelter', x: 28, z: -26, y: 0.70, flatRadius: 10.0, blendRadius: 17.0, facingX: 24, facingZ: -14 },
+  { id: 'lunar_exploration_zone', x: 48, z: 12, y: 0.40, flatRadius: 12.6, blendRadius: 21.0, facingX: 34, facingZ: 14 },
+  { id: 'kiosk_moon_ice', x: -20, z: 20, y: 0.20, flatRadius: 3.2, blendRadius: 8.0, facingX: -12, facingZ: 12 },
+  { id: 'kiosk_moon_rover', x: 10, z: -38, y: 0.85, flatRadius: 3.2, blendRadius: 8.0, facingX: 10, facingZ: -26 },
+  { id: 'kiosk_moon_earthrise', x: 30, z: 26, y: 0.25, flatRadius: 3.2, blendRadius: 8.0, facingX: 22, facingZ: 18 }
+];
+
+export const MOON_L3_ROADS: readonly RoadSegment[] = [
+  { ax: 0, az: 31, ay: 0.0, bx: 0, bz: 20, by: 0.05, halfWidth: 3.6, isMainRoad: true },
+  { ax: 0, az: 20, ay: 0.05, bx: -18, bz: 12, by: 0.20, halfWidth: 3.5, isMainRoad: true },
+  { ax: -18, az: 12, ay: 0.20, bx: -32, bz: 2, by: 0.35, halfWidth: 3.5, isMainRoad: true },
+  { ax: -32, az: 2, ay: 0.35, bx: -24, bz: -15, by: 0.55, halfWidth: 3.5, isMainRoad: true },
+  { ax: -24, az: -15, ay: 0.55, bx: -12, bz: -23, by: 0.75, halfWidth: 3.5, isMainRoad: true },
+  { ax: -12, az: -23, ay: 0.75, bx: 10, bz: -22, by: 0.72, halfWidth: 3.5, isMainRoad: true },
+  { ax: 10, az: -22, ay: 0.72, bx: 26, bz: -18, by: 0.70, halfWidth: 3.5, isMainRoad: true },
+  { ax: 26, az: -18, ay: 0.70, bx: 38, bz: -2, by: 0.55, halfWidth: 3.5, isMainRoad: true },
+  { ax: 38, az: -2, ay: 0.55, bx: 39, bz: 12.5, by: 0.40, halfWidth: 3.7, isMainRoad: true },
+  { ax: 39, az: 12.5, ay: 0.40, bx: 22, bz: 20, by: 0.20, halfWidth: 3.5, isMainRoad: true },
+  { ax: 22, az: 20, ay: 0.20, bx: 0, bz: 20, by: 0.05, halfWidth: 3.5, isMainRoad: true }
+];
+
+export function evalMoonL3RoadInfo(x: number, z: number): RoadEvalResult {
+  return evalRoadNetwork(x, z, MOON_L3_ROADS);
+}
+
+// ==================== PHASE 3: LEVEL 4 MARS DUSTY RED CANYON (~260m Scale) ====================
+export const MARS_L4_WORLD_SIZE = 260;
+export const MARS_L4_PLAY_BOUNDS = {
+  minX: -76,
+  maxX: 76,
+  minZ: -66,
+  maxZ: 54
+} as const;
+
+export const MARS_L4_PADS: readonly PadZone[] = [
+  { id: 'mars_spawn_plaza', x: 0, z: 26, y: 0.0, flatRadius: 10.5, blendRadius: 18.0, facingX: 0, facingZ: 0 },
+  { id: 'cargo_sample_storage', x: -38, z: -6, y: 0.45, flatRadius: 10.2, blendRadius: 17.5, facingX: -26, facingZ: 2 },
+  { id: 'systems_check_station', x: 2, z: -32, y: 0.85, flatRadius: 10.5, blendRadius: 18.0, facingX: 2, facingZ: -18 },
+  { id: 'central_corridor', x: 46, z: 8, y: 0.50, flatRadius: 13.0, blendRadius: 21.5, facingX: 32, facingZ: 10 },
+  { id: 'kiosk_mars_canyon', x: -20, z: 18, y: 0.22, flatRadius: 3.2, blendRadius: 8.0, facingX: -12, facingZ: 10 },
+  { id: 'kiosk_mars_return', x: 26, z: -20, y: 0.65, flatRadius: 3.2, blendRadius: 8.0, facingX: 18, facingZ: -12 }
+];
+
+export const MARS_L4_ROADS: readonly RoadSegment[] = [
+  { ax: 0, az: 31, ay: 0.0, bx: 0, bz: 20, by: 0.05, halfWidth: 3.8, isMainRoad: true },
+  { ax: 0, az: 20, ay: 0.05, bx: -18, bz: 10, by: 0.25, halfWidth: 3.6, isMainRoad: true },
+  { ax: -18, az: 10, ay: 0.25, bx: -31, bz: -2, by: 0.45, halfWidth: 3.6, isMainRoad: true },
+  { ax: -31, az: -2, ay: 0.45, bx: -18, bz: -18, by: 0.68, halfWidth: 3.6, isMainRoad: true },
+  { ax: -18, az: -18, ay: 0.68, bx: 2, bz: -23, by: 0.85, halfWidth: 3.6, isMainRoad: true },
+  { ax: 2, az: -23, ay: 0.85, bx: 24, bz: -14, by: 0.68, halfWidth: 3.6, isMainRoad: true },
+  { ax: 24, az: -14, ay: 0.68, bx: 36, bz: 8.5, by: 0.50, halfWidth: 3.8, isMainRoad: true },
+  { ax: 36, az: 8.5, ay: 0.50, bx: 20, bz: 18, by: 0.22, halfWidth: 3.6, isMainRoad: true },
+  { ax: 20, az: 18, ay: 0.22, bx: 0, bz: 20, by: 0.05, halfWidth: 3.6, isMainRoad: true }
+];
+
+export function evalMarsL4RoadInfo(x: number, z: number): RoadEvalResult {
+  return evalRoadNetwork(x, z, MARS_L4_ROADS);
+}
+
 /**
  * Computes exact surface elevation across Campaign Sector Environments:
  * - Level 1: Phase 2 Sunlit Earth Spaceport Valley (~320m scale) synced with EARTH_L1_PADS & EARTH_L1_ROADS
- * - Levels 2, 3, 4: Preserved Stage 2 geometries (left untouched for Phase 3).
+ * - Level 2: Phase 3 ISS Sunlit Orbital Atrium Deck
+ * - Level 3: Phase 3 Moon Shackleton Modular Outpost Crater Basin (~260m scale)
+ * - Level 4: Phase 3 Mars Dusty Red Canyon & Orion Return Complex (~260m scale)
  */
 export function evalSectorFloorHeight(levelId: CampaignLevelId, x: number, z: number): number {
   if (levelId === 1) {
@@ -278,9 +352,6 @@ export function evalSectorFloorHeight(levelId: CampaignLevelId, x: number, z: nu
   }
 
   const yb = -z;
-  const px = smoothstep(17.0, 22.0, Math.abs(x));
-  const py = smoothstep(8.2, 13.0, Math.abs(yb));
-  const outPlaza = Math.max(px, py);
 
   if (levelId === 2) {
     const backRim = smoothstep(9.2, 11.8, Math.abs(yb));
@@ -289,26 +360,60 @@ export function evalSectorFloorHeight(levelId: CampaignLevelId, x: number, z: nu
   }
 
   if (levelId === 3) {
-    const cliff = Math.max(smoothstep(37.5, 58.0, Math.abs(x)), smoothstep(25.5, 50.0, Math.abs(yb)));
-    const undul = Math.sin(x * 0.14 - yb * 0.11) * 0.72 + Math.cos(x * 0.24 + yb * 0.19) * 0.42;
-    const dC1 = Math.hypot(x + 27.0, yb - 16.0);
+    // Cratered lunar regolith highlands + distinct impact bowls + crater rim wall
+    const undul =
+      Math.sin(x * 0.065 + z * 0.052) * 0.85 +
+      Math.cos(x * 0.11 - z * 0.088) * 0.52 +
+      0.65;
+    const dC1 = Math.hypot(x + 22.0, z - 4.0);
     const crater1 =
-      -0.85 * Math.exp(-Math.pow(dC1 / 6.0, 2)) + 0.65 * Math.exp(-Math.pow((dC1 - 7.5) / 2.2, 2));
-    const dC2 = Math.hypot(x - 28.0, yb + 15.0);
+      -1.15 * Math.exp(-Math.pow(dC1 / 7.5, 2)) + 0.78 * Math.exp(-Math.pow((dC1 - 9.2) / 2.6, 2));
+    const dC2 = Math.hypot(x - 16.0, z - 6.0);
     const crater2 =
-      -0.85 * Math.exp(-Math.pow(dC2 / 6.2, 2)) + 0.65 * Math.exp(-Math.pow((dC2 - 7.8) / 2.2, 2));
-    const rim = cliff * (11.8 + 2.6 * Math.sin(x * 0.15 + yb * 0.17));
-    return outPlaza * (undul * 0.58 + crater1 + crater2 + rim);
+      -0.95 * Math.exp(-Math.pow(dC2 / 6.8, 2)) + 0.68 * Math.exp(-Math.pow((dC2 - 8.5) / 2.4, 2));
+    const rEllip = Math.hypot(x * 0.94, z * 1.06);
+    const rimMix = smoothstep(64, 108, rEllip);
+    const ridgeDetail = 1.0 + 0.28 * Math.sin(Math.atan2(z, x) * 8.0 + rEllip * 0.06);
+    let h = Math.max(0.0, undul + crater1 + crater2) + rimMix * 16.5 * ridgeDetail;
+
+    const road = evalRoadNetwork(x, z, MOON_L3_ROADS);
+    const roadBlend = 1.0 - smoothstep(road.halfWidth + 1.8, road.halfWidth + 7.6, road.dist);
+    h = h * (1 - roadBlend * 0.99) + road.elevation * (roadBlend * 0.99);
+
+    for (let i = 0; i < MOON_L3_PADS.length; i++) {
+      const p = MOON_L3_PADS[i];
+      const d = Math.hypot(x - p.x, z - p.z);
+      if (d < p.blendRadius) {
+        const w = 1.0 - smoothstep(p.flatRadius, p.blendRadius, d);
+        h = h * (1 - w) + p.y * w;
+      }
+    }
+    return h;
   }
 
-  // Level 4: Martian Red Canyon & Dunes
-  const cliff = Math.max(smoothstep(37.5, 58.0, Math.abs(x)), smoothstep(25.5, 50.0, Math.abs(yb)));
-  const dune = Math.sin(x * 0.12 + yb * 0.17) * 0.78 + Math.cos(x * 0.22 - yb * 0.14) * 0.44;
-  const canyonWall =
-    cliff * 11.2 +
-    Math.sin(cliff * 10.0) * 0.35 +
-    Math.cos(x * 0.16 - yb * 0.16) * cliff * 2.0;
-  return outPlaza * (dune * 0.68 + canyonWall);
+  // Level 4: Martian Red Canyon Floor, Wind-Swept Dunes & Stratified Canyon Walls
+  const dune =
+    Math.sin(x * 0.062 - z * 0.048) * 1.05 +
+    Math.cos(x * 0.12 + z * 0.085) * 0.58 +
+    0.85;
+  const rEllip = Math.hypot(x * 0.92, z * 1.06);
+  const wallMix = smoothstep(62, 104, rEllip);
+  const strata = 1.0 + 0.25 * Math.cos(Math.atan2(z, x) * 9.0 - rEllip * 0.05);
+  let h = Math.max(0.1, dune) + wallMix * 18.0 * strata;
+
+  const road = evalRoadNetwork(x, z, MARS_L4_ROADS);
+  const roadBlend = 1.0 - smoothstep(road.halfWidth + 1.8, road.halfWidth + 7.8, road.dist);
+  h = h * (1 - roadBlend * 0.99) + road.elevation * (roadBlend * 0.99);
+
+  for (let i = 0; i < MARS_L4_PADS.length; i++) {
+    const p = MARS_L4_PADS[i];
+    const d = Math.hypot(x - p.x, z - p.z);
+    if (d < p.blendRadius) {
+      const w = 1.0 - smoothstep(p.flatRadius, p.blendRadius, d);
+      h = h * (1 - w) + p.y * w;
+    }
+  }
+  return h;
 }
 
 /**

@@ -13,6 +13,8 @@ const ANIMATED_GLB_NODE_NAMES = new Set([
   'SpinRadar',
   'RoverWheelFL',
   'RoverWheelFR',
+  'RoverWheelML',
+  'RoverWheelMR',
   'RoverWheelRL',
   'RoverWheelRR'
 ]);
@@ -340,6 +342,48 @@ export type EarthBuildingModelKey =
   | 'earth_academy_hq'
   | 'earth_discovery_kiosk';
 
+export type Phase3PlanetModelKey =
+  | 'moon_modular_base'
+  | 'moon_comm_tower'
+  | 'moon_crater_rocks'
+  | 'mars_return_base'
+  | 'mars_canyon_cliffs'
+  | 'mars_canyon_ring'
+  | 'iss_orbital_ribs';
+
+export function attachPhase3PlanetGlb(opts: {
+  modelName: Phase3PlanetModelKey;
+  targetParent: THREE.Object3D;
+  scale?: number;
+  position?: [number, number, number];
+  rotationY?: number;
+  fallbackNodes?: THREE.Object3D[];
+  isDisposed: () => boolean;
+  onLoaded?: (glb: THREE.Group) => void;
+}): void {
+  const s = opts.scale ?? 1.0;
+  attachGlbScene({
+    url: `/models/${opts.modelName}.glb`,
+    name: `BlenderPhase3_${opts.modelName}`,
+    targetParent: opts.targetParent,
+    scale: [s, s, s],
+    position: opts.position ?? [0, 0, 0],
+    rotationY: opts.rotationY ?? 0,
+    fallbackNodes: opts.fallbackNodes,
+    compactStaticMeshes: true,
+    isDisposed: opts.isDisposed,
+    onLoaded: (glb) => {
+      glb.traverse((node) => {
+        if (node instanceof THREE.Mesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+        }
+      });
+      opts.onLoaded?.(glb);
+    }
+  });
+}
+
 export function attachEarthBuildingGlb(opts: {
   modelName: EarthBuildingModelKey;
   targetParent: THREE.Object3D;
@@ -489,6 +533,7 @@ export function attachSectorDeckGlb(opts: {
 
 export function attachRoverGlb(opts: {
   targetParent: THREE.Object3D;
+  url?: string;
   position?: [number, number, number];
   rotationY?: number;
   scale?: number;
@@ -498,7 +543,7 @@ export function attachRoverGlb(opts: {
 }): void {
   const s = opts.scale ?? 1;
   attachGlbScene({
-    url: '/models/astronaut_rover.glb',
+    url: opts.url ?? '/models/astronaut_rover.glb',
     name: 'BlenderSpaceRover',
     targetParent: opts.targetParent,
     scale: [s, s, s],

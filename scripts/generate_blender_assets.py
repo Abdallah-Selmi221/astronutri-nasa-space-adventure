@@ -531,35 +531,47 @@ def generate_astronaut_hero():
         smooth_auto=True,
     )
 
-    # Articulated Arms (3 draw calls each)
-    for side_name, sx in (("LeftArmPivot", -1.0), ("RightArmPivot", 1.0)):
+    # Articulated Arms with Dedicated Elbow Pivots (LeftArmPivot -> LeftElbowPivot, RightArmPivot -> RightElbowPivot)
+    for side_name, elbow_name, sx in (("LeftArmPivot", "LeftElbowPivot", -1.0), ("RightArmPivot", "RightElbowPivot", 1.0)):
         arm_pivot = make_empty(side_name, (sx * 0.35, 0, 0.21), parent=torso_group)
-        parts = [
+        upper_parts = [
             {"type": "sphere", "mat_idx": 0, "vcolor": C_JOINT, "loc": (0, 0, 0), "radius": 0.095},
-            {"type": "sphere", "mat_idx": 0, "vcolor": C_JOINT, "loc": (0, 0, -0.28), "radius": 0.072},
-            {"type": "cylinder", "mat_idx": 0, "vcolor": C_SILVER, "loc": (0, 0, -0.41), "radius": 0.068, "radius2": 0.056, "depth": 0.22},
-            {"type": "sphere", "mat_idx": 0, "vcolor": C_SKIN, "loc": (0, 0, -0.55), "radius": 0.068},
             {"type": "cylinder", "mat_idx": 1, "loc": (0, 0, -0.15), "radius": 0.075, "radius2": 0.068, "depth": 0.24},
             {"type": "torus", "mat_idx": 2, "loc": (0, 0, -0.16), "major": 0.082, "minor": 0.015, "seg_u": 14, "seg_v": 6},
-            {"type": "cylinder", "mat_idx": 2, "loc": (sx * 0.085, 0, -0.27), "radius": 0.012, "depth": 0.44},
+            {"type": "cylinder", "mat_idx": 2, "loc": (sx * 0.085, 0, -0.14), "radius": 0.012, "depth": 0.24},
+        ]
+        build_mesh_object(side_name + "Mesh", upper_parts, [mat_vcolor, mat_primary, mat_cyan], parent=arm_pivot, smooth_auto=True)
+
+        elbow_pivot = make_empty(elbow_name, (0, 0, -0.28), parent=arm_pivot)
+        lower_parts = [
+            {"type": "sphere", "mat_idx": 0, "vcolor": C_JOINT, "loc": (0, 0, 0), "radius": 0.072},
+            {"type": "cylinder", "mat_idx": 0, "vcolor": C_SILVER, "loc": (0, 0, -0.13), "radius": 0.068, "radius2": 0.056, "depth": 0.22},
+            {"type": "sphere", "mat_idx": 0, "vcolor": C_SKIN, "loc": (0, 0, -0.27), "radius": 0.068},
+            {"type": "cylinder", "mat_idx": 2, "loc": (sx * 0.085, 0, -0.12), "radius": 0.011, "depth": 0.20},
         ]
         if sx < 0:
-            parts.append({"type": "cube", "mat_idx": 2, "loc": (-0.062, -0.02, -0.44), "scale": (0.024, 0.065, 0.09)})
-        build_mesh_object(side_name + "Mesh", parts, [mat_vcolor, mat_primary, mat_cyan], parent=arm_pivot, smooth_auto=True)
+            lower_parts.append({"type": "cube", "mat_idx": 2, "loc": (-0.062, -0.02, -0.16), "scale": (0.024, 0.065, 0.09)})
+        build_mesh_object(elbow_name + "Mesh", lower_parts, [mat_vcolor, mat_primary, mat_cyan], parent=elbow_pivot, smooth_auto=True)
 
-    # Articulated Legs (3 draw calls each)
-    for side_name, sx in (("LeftLegPivot", -1.0), ("RightLegPivot", 1.0)):
+    # Articulated Legs with Dedicated Knee Pivots (LeftLegPivot -> LeftKneePivot, RightLegPivot -> RightKneePivot)
+    for side_name, knee_name, sx in (("LeftLegPivot", "LeftKneePivot", -1.0), ("RightLegPivot", "RightKneePivot", 1.0)):
         leg_pivot = make_empty(side_name, (sx * 0.14, 0, -0.22), parent=body_pivot)
-        parts = [
+        thigh_parts = [
             {"type": "sphere", "mat_idx": 0, "vcolor": C_JOINT, "loc": (0, 0, -0.02), "radius": 0.10},
-            {"type": "bevel_cube", "mat_idx": 0, "vcolor": C_SILVER, "loc": (0, -0.088, -0.32), "scale": (0.11, 0.04, 0.11), "bevel": 0.012},
-            {"type": "cylinder", "mat_idx": 0, "vcolor": C_SILVER, "loc": (0, 0, -0.45), "radius": 0.082, "radius2": 0.072, "depth": 0.26},
-            {"type": "bevel_cube", "mat_idx": 0, "vcolor": C_JOINT, "loc": (0, -0.04, -0.62), "scale": (0.15, 0.25, 0.12), "bevel": 0.02},
             {"type": "cylinder", "mat_idx": 1, "loc": (0, 0, -0.17), "radius": 0.092, "radius2": 0.082, "depth": 0.26},
-            {"type": "cylinder", "mat_idx": 2, "loc": (sx * 0.095, 0, -0.32), "radius": 0.013, "depth": 0.46},
-            {"type": "cube", "mat_idx": 2, "loc": (0, -0.04, -0.685), "scale": (0.158, 0.26, 0.03)},
+            {"type": "cylinder", "mat_idx": 2, "loc": (sx * 0.095, 0, -0.16), "radius": 0.013, "depth": 0.24},
         ]
-        build_mesh_object(side_name + "Mesh", parts, [mat_vcolor, mat_primary, mat_cyan], parent=leg_pivot, smooth_auto=True)
+        build_mesh_object(side_name + "Mesh", thigh_parts, [mat_vcolor, mat_primary, mat_cyan], parent=leg_pivot, smooth_auto=True)
+
+        knee_pivot = make_empty(knee_name, (0, 0, -0.32), parent=leg_pivot)
+        shin_parts = [
+            {"type": "bevel_cube", "mat_idx": 0, "vcolor": C_SILVER, "loc": (0, -0.088, 0.0), "scale": (0.11, 0.04, 0.11), "bevel": 0.012},
+            {"type": "cylinder", "mat_idx": 0, "vcolor": C_SILVER, "loc": (0, 0, -0.13), "radius": 0.082, "radius2": 0.072, "depth": 0.26},
+            {"type": "bevel_cube", "mat_idx": 0, "vcolor": C_JOINT, "loc": (0, -0.04, -0.30), "scale": (0.15, 0.25, 0.12), "bevel": 0.02},
+            {"type": "cylinder", "mat_idx": 2, "loc": (sx * 0.095, 0, -0.12), "radius": 0.012, "depth": 0.22},
+            {"type": "cube", "mat_idx": 2, "loc": (0, -0.04, -0.365), "scale": (0.158, 0.26, 0.03)},
+        ]
+        build_mesh_object(knee_name + "Mesh", shin_parts, [mat_vcolor, mat_primary, mat_cyan], parent=knee_pivot, smooth_auto=True)
 
     export_glb("astronaut_hero.glb")
 
