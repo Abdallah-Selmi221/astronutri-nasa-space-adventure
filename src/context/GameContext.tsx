@@ -20,7 +20,7 @@ import {
 } from '../types/game';
 import { SolarStormData } from '../utils/nasaApi';
 import { TARGET_NUTRITION_REQUIREMENTS } from '../data/foodItems';
-import { CAMPAIGN_LEVELS, MERGED_COMPANION_MINIGAMES } from '../data/campaignLevels';
+import { CAMPAIGN_LEVELS, MERGED_COMPANION_MINIGAMES, MINI_GAME_SPECS } from '../data/campaignLevels';
 import { soundManager } from '../utils/sound';
 import { 
   hydrateGameState, 
@@ -865,8 +865,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'SET_CAMPAIGN_VIEW': {
       const curr = state.campaign || initialCampaignState;
-      const targetLevel = action.payload.levelId ?? curr.activeLevel;
-      // Enforce sequential level unlocking gate
+      const mgLevel = action.payload.miniGameId
+        ? MINI_GAME_SPECS[action.payload.miniGameId]?.levelId
+        : undefined;
+      const targetLevel = action.payload.levelId ?? mgLevel ?? curr.activeLevel;
+      // Enforce sequential level unlocking gate (or explicit miniGameId level when unlocked)
       const safeLevel = curr.unlockedLevels.includes(targetLevel) ? targetLevel : curr.activeLevel;
       return {
         ...state,

@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 
 export const LunarDashboard: React.FC = () => {
-  const { state, setLocation, triggerSolarStorm, openVictoryModal } = useGameState();
+  const { state, setLocation, setCampaignView, triggerSolarStorm, openVictoryModal } = useGameState();
   const { cadetName, level2State } = state;
   const [lunarTab, setLunarTab] = useState<'overview' | 'filters' | 'power'>('overview');
   const { 
@@ -98,7 +98,12 @@ export const LunarDashboard: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setLocation('Map')}
+            onClick={() => {
+              if (state.campaign?.unlockedLevels?.includes(3)) {
+                setCampaignView('level_hub', 3, null, null);
+              }
+              setLocation('Map');
+            }}
             className="p-2.5 rounded-2xl bg-space-900 hover:bg-space-800 border-2 border-cyan-500/40 text-cyan-300 hover:text-white transition-all flex items-center gap-1.5 text-xs font-black shadow-md"
           >
             <ArrowRight className="w-4 h-4 text-cyan-400" />

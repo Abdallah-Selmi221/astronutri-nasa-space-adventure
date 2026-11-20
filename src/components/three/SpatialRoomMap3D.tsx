@@ -313,10 +313,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     return false;
   };
 
-  const isRoomAccessible = (room: SpatialRoomNode): boolean => {
-    if (isRoomCompleted(room)) return true;
-    if (seqTarget.activeRoom?.id === room.id) return true;
-    return isDemoMode;
+  const isRoomAccessible = (_room: SpatialRoomNode): boolean => {
+    return true;
   };
 
   const triggerJump = () => {
@@ -367,8 +365,11 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
     onEnterRoomRef.current(target);
   };
 
+  const walkToNextRef = useRef<() => void>(() => {});
+  walkToNextRef.current = handleWalkToNextMission;
+
   useEffect(() => {
-    const onAutoWalkEvent = () => handleWalkToNextMission();
+    const onAutoWalkEvent = () => walkToNextRef.current();
     window.addEventListener('astronutri:auto-walk-next', onAutoWalkEvent);
     return () => window.removeEventListener('astronutri:auto-walk-next', onAutoWalkEvent);
   }, []);
@@ -1237,28 +1238,8 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           }
         }
         if (found) {
-          if (!isRoomAccessible(found.room)) {
-            soundManager.playCautionBeep();
-            const activeTitle = seqTarget.activeRoom ? getRoomLabel(seqTarget.activeRoom, language).title : '';
-            setLockedToast(
-              tr(
-                language,
-                `🔒 Complete Step ${seqTarget.stepNumber} (${activeTitle}) first!`,
-                `🔒 أكمل الخطوة ${seqTarget.stepNumber} (${activeTitle}) أولاً!`
-              )
-            );
-            window.setTimeout(() => setLockedToast(null), 2600);
-            return;
-          }
           soundManager.playClick();
-          const checkTarget = isSpacedWorld ? found.entrySpot : found.pos;
-          const d = playerPosRef.current.distanceTo(checkTarget);
-          if (d < 5.0) {
-            onEnterRoomRef.current(found.room);
-          } else {
-            walkTargetRef.current = found.entrySpot.clone();
-            pendingRoomRef.current = found.room;
-          }
+          onEnterRoomRef.current(found.room);
         }
       }
     };

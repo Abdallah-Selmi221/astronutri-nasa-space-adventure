@@ -69,16 +69,7 @@ const MissionLoadingFallback: React.FC = () => (
 const GameRouter: React.FC = () => {
   const { state, setLocation } = useGameState();
   const [isNasaOpen, setIsNasaOpen] = useState(false);
-  const [hasWatchedIntro, setHasWatchedIntro] = useState<boolean>(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        return sessionStorage.getItem('astronutri_intro_played') === 'true';
-      }
-    } catch {
-      // Ignore restricted mobile storage access
-    }
-    return false;
-  });
+  const [hasWatchedIntro, setHasWatchedIntro] = useState<boolean>(false);
 
   useEffect(() => {
     const onOpenNasa = () => setIsNasaOpen(true);
@@ -87,13 +78,6 @@ const GameRouter: React.FC = () => {
   }, []);
 
   const handleIntroComplete = () => {
-    try {
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('astronutri_intro_played', 'true');
-      }
-    } catch {
-      // Ignore restricted mobile storage access
-    }
     setHasWatchedIntro(true);
   };
 
@@ -103,11 +87,17 @@ const GameRouter: React.FC = () => {
 
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-space-950 text-white flex flex-col relative space-stars">
-      {/* Top Simplified HUD (Visible during missions) */}
+      {/* Top Simplified HUD (Visible during legacy rooms; Map and SpaceScience render integrated bars) */}
       <HeaderHUD />
 
       {/* Main Location Viewport with GameErrorBoundary + Framer Motion transitions */}
-      <div className={state.currentLocation === 'Map' ? 'flex-1 flex overflow-hidden' : 'flex-1 flex scrollable-panel'}>
+      <div
+        className={
+          state.currentLocation === 'Map' || state.currentLocation === 'SpaceScience'
+            ? 'flex-1 flex overflow-hidden'
+            : 'flex-1 flex scrollable-panel'
+        }
+      >
         <GameErrorBoundary resetKey={state.currentLocation} onGoHome={() => setLocation('Map')}>
           <Suspense fallback={<MissionLoadingFallback />}>
             <AnimatePresence mode="wait">

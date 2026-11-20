@@ -285,16 +285,34 @@ function mergeSavedState(initial: GameState, saved: AstroNutriSaveDataV1): GameS
     },
 
     ...(initial.campaign || saved.campaign
-      ? {
-          campaign: {
-            ...(initial.campaign as CampaignProgressState),
-            ...(saved.campaign || {}),
-            // Sanitize transient screen state back to clean map on reload
-            viewMode: 'world_map' as const,
-            activeRoomId: null,
-            activeMiniGameId: null
-          }
-        }
+      ? (() => {
+          const baseCampaign = initial.campaign as CampaignProgressState;
+          const savedCampaign = saved.campaign;
+          const baseSuit = baseCampaign?.spaceFitX;
+          const savedSuit = savedCampaign?.spaceFitX;
+          const mergedSpaceFitX = baseSuit
+            ? {
+                ...baseSuit,
+                ...(savedSuit || {}),
+                jointLoads: {
+                  ...baseSuit.jointLoads,
+                  ...(savedSuit?.jointLoads || {})
+                }
+              }
+            : savedSuit;
+
+          return {
+            campaign: {
+              ...baseCampaign,
+              ...(savedCampaign || {}),
+              ...(mergedSpaceFitX ? { spaceFitX: mergedSpaceFitX } : {}),
+              // Sanitize transient screen state back to clean map on reload
+              viewMode: 'world_map' as const,
+              activeRoomId: null,
+              activeMiniGameId: null
+            }
+          };
+        })()
       : {})
   };
 }

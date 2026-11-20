@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGameState } from '../../context/GameContext';
 import { tr } from '../../utils/i18n';
@@ -6,6 +6,8 @@ import { AsteroidRadarModal } from './AsteroidRadarModal';
 import { PlanetIllustration } from './PlanetIllustration';
 import { InteractiveQuizDeck } from '../common/InteractiveQuizDeck';
 import { SpaceFlight3DViewport } from '../three/SpaceFlight3DViewport';
+import { SettingsMenu } from '../common/SettingsMenu';
+import { openNasaDrawer } from '../common/NasaMissionControlDrawer';
 import { SPACE_SCIENCE_QUESTIONS } from '../../data/questionBanks';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { soundManager } from '../../utils/sound';
@@ -14,13 +16,13 @@ import { shuffleArray } from '../../utils/shuffle';
 import {
   Rocket,
   Radio,
-  Compass,
   Sparkles,
   Scale,
   Check,
   X,
-  ArrowLeft,
-  ArrowRight,
+  Home,
+  Satellite,
+  Settings,
   ArrowUp
 } from 'lucide-react';
 
@@ -554,19 +556,19 @@ export interface SpaceScienceProps {
 }
 
 export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onComplete }) => {
-  const { state, language, setLocation } = useGameState();
+  const { state, language, setLanguage, setLocation, setCampaignView } = useGameState();
   const [activeWorld, setActiveWorld] = useState<CelestialWorld>(CELESTIAL_WORLDS[2]); // Start warmly on Earth
   const [scienceTab, setScienceTab] = useState<'explore' | 'flight' | 'quiz'>('explore');
   const [isRadarOpen, setIsRadarOpen] = useState<boolean>(false);
-  const [roboPosX, setRoboPosX] = useState<number>(50);
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isJumping, setIsJumping] = useState<boolean>(false);
   const [completedWorlds, setCompletedWorlds] = useState<Set<string>>(new Set());
   const [planetAnswers, setPlanetAnswers] = useState<Record<string, { optionId: string; isCorrect: boolean }>>({});
   const [quizSolvedCount, setQuizSolvedCount] = useState<number>(0);
 
-  const terrainRef = useRef<HTMLDivElement>(null);
-  const mapTopRef = useRef<HTMLDivElement>(null);
   const langDir = language === 'ar' ? 'rtl' : 'ltr';
+  const campaignCompletedCount = state.campaign?.completedMiniGames.length || 0;
+  const totalStarsScore = 250 + campaignCompletedCount * 25 + state.cargoItems.length * 15;
 
   useEffect(() => {
     const speech =
@@ -579,7 +581,6 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
   const handleSelectWorld = (world: CelestialWorld) => {
     soundManager.playClick();
     setActiveWorld(world);
-    setRoboPosX(50);
   };
 
   const handleTriggerJump = () => {
@@ -589,28 +590,10 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
     setTimeout(() => setIsJumping(false), activeWorld.hopDurationSec * 1000);
   };
 
-  const handleMoveRoboStep = (deltaPercent: number) => {
-    soundManager.playClick();
-    setRoboPosX((prev) => Math.max(14, Math.min(86, prev + deltaPercent)));
-  };
-
-  const handleTerrainClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement)?.closest('button')) return;
-    if (!terrainRef.current) return;
-    const rect = terrainRef.current.getBoundingClientRect();
-    const clickX = ((e.clientX - rect.left) / rect.width) * 100;
-    setRoboPosX(Math.max(14, Math.min(86, clickX)));
-    handleTriggerJump();
-  };
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (scienceTab !== 'explore') return;
-      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
-        setRoboPosX((prev) => Math.min(86, prev + 6));
-      } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
-        setRoboPosX((prev) => Math.max(14, prev - 6));
-      } else if (e.code === 'Space' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+      if (e.code === 'Space' || e.key === 'ArrowUp') {
         e.preventDefault();
         handleTriggerJump();
       }
@@ -646,16 +629,16 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
     const currentIdx = CELESTIAL_WORLDS.findIndex((w) => w.id === activeWorld.id);
     const nextWorld = unvisited || CELESTIAL_WORLDS[(currentIdx + 1) % CELESTIAL_WORLDS.length];
     handleSelectWorld(nextWorld);
-    mapTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const handleProceedNextStage = () => {
     soundManager.playFanfare();
-    if (state.unlockedRooms.includes('LunarDashboard')) {
-      setLocation('LunarDashboard');
+    if (state.campaign?.unlockedLevels?.includes(3)) {
+      setCampaignView('level_hub', 3, null, null);
     } else {
-      setLocation('Map');
+      setCampaignView(state.campaign?.viewMode || 'world_map', state.campaign?.activeLevel || 1, null, null);
     }
+    setLocation('Map');
   };
 
   const liveAsteroid = nasaCache.getAsteroid('3542519');
@@ -672,86 +655,55 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
 
   return (
     <div
-      className={`relative w-full min-h-screen flex flex-col gap-4 overflow-x-hidden select-none pt-20 pb-8 px-3 sm:px-6 lg:px-8 bg-gradient-to-b ${activeWorld.bgGradient} transition-colors duration-700`}
+      data-testid="space-science-screen"
+      className={`relative w-screen h-[100dvh] overflow-hidden flex flex-col select-none bg-gradient-to-b ${activeWorld.bgGradient} transition-colors duration-500`}
       dir={langDir}
     >
-      {/* Clean Subtle Cosmic Background */}
-      <div className="fixed inset-0 space-stars opacity-65 pointer-events-none" />
+      {/* Subtle Cosmic Starfield Backdrop */}
+      <div className="fixed inset-0 space-stars opacity-55 pointer-events-none" />
 
-      {/* 1. CLEAN HEADER & MODE SWITCHER */}
-      <div ref={mapTopRef} className="relative z-10 w-full max-w-6xl mx-auto flex flex-col gap-4">
-        <div className="casual-card p-4 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <PlanetIllustration planetId={activeWorld.id} size={52} />
-            <div>
-              <h1 className="font-hud font-black text-xl sm:text-2xl text-white flex items-center gap-2 flex-wrap">
-                <span>{tr(language, 'Planets & Gravity Academy', 'أكاديمية الكواكب والجاذبية')}</span>
-                <span className={`text-xs px-3 py-0.5 rounded-full border ${activeWorld.badgeAccent}`}>
-                  {activeWorldName}
-                </span>
-              </h1>
-              <p className="text-xs sm:text-sm font-hud font-bold text-cyan-200 mt-0.5">
-                {tr(language, activeWorld.gravityLabelEn, activeWorld.gravityLabelAr)} •{' '}
-                {tr(language, 'Explored:', 'الكواكب المكتملة:')} {completedWorlds.size} / {CELESTIAL_WORLDS.length}
-              </p>
-            </div>
-          </div>
+      {/* Solid Non-Overlapping Top Bar (h-10 shrink-0) */}
+      <header
+        data-testid="planets-academy-topbar"
+        className="relative z-20 h-10 shrink-0 px-2 sm:px-3 bg-slate-950/92 border-b border-cyan-400/45 flex items-center justify-between gap-1.5 backdrop-blur-md"
+      >
+        {/* Home Button + Academy Title */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <button
+            type="button"
+            data-testid="planets-back-home-btn"
+            onClick={() => {
+              soundManager.playClick();
+              setLocation('Map');
+            }}
+            className="h-7 px-2 rounded-full bg-cyan-600/85 hover:bg-cyan-500 text-white font-hud font-black text-[11px] border border-cyan-200/80 flex items-center gap-1 cursor-pointer shrink-0"
+            aria-label={tr(language, 'Return to Space Map', 'العودة للخريطة')}
+          >
+            <Home className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">{tr(language, 'Map', 'الخريطة')}</span>
+          </button>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setIsRadarOpen(true)}
-              className="casual-btn-cyan py-2.5 px-4 text-xs sm:text-sm flex items-center gap-2 cursor-pointer"
-            >
-              <Radio className="w-4 h-4 animate-pulse" />
-              <span>{tr(language, 'NASA Asteroid 2010 PK Radar 📡', 'رادار كويكب ناسا 2010 PK 📡')}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleProceedNextStage}
-              className="casual-btn-primary py-2.5 px-4 text-xs sm:text-sm flex items-center gap-2 cursor-pointer"
-            >
-              <Rocket className="w-4 h-4" />
-              <span>
-                {state.unlockedRooms.includes('LunarDashboard')
-                  ? tr(language, 'Enter Lunar Base 🌙', 'الانتقال لمستعمرة القمر 🌙')
-                  : tr(language, 'Return to Space Map 🚀', 'العودة لاستكمال تجهيز الرحلة 🚀')}
-              </span>
-            </button>
-          </div>
+          <PlanetIllustration planetId={activeWorld.id} size={24} />
+          <h1 className="font-hud font-black text-xs sm:text-sm text-white truncate">
+            {tr(language, 'Planets & Gravity Academy', 'أكاديمية الكواكب والجاذبية')}
+          </h1>
         </div>
 
-        {/* Mode Tabs */}
-        <div className="flex items-center justify-center gap-3 flex-wrap">
+        {/* Compact Mode Tabs */}
+        <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             onClick={() => {
               soundManager.playClick();
               setScienceTab('explore');
             }}
-            className={`px-5 py-2.5 rounded-2xl font-hud font-black text-xs sm:text-sm transition-all cursor-pointer ${
+            className={`h-7 px-2 sm:px-2.5 rounded-full font-hud font-black text-[10px] sm:text-xs transition-all cursor-pointer ${
               scienceTab === 'explore'
-                ? 'casual-btn-cyan'
-                : 'bg-slate-900/80 text-slate-200 border-2 border-white/20 hover:bg-slate-800'
+                ? 'bg-cyan-400 text-slate-950 shadow'
+                : 'bg-slate-900 text-slate-200 border border-white/20 hover:bg-slate-800'
             }`}
           >
-            {tr(language, '🪐 Solar System Explorer & Gravity Lab', '🪐 خريطة المجموعة الشمسية واستكشاف الكواكب')}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              soundManager.playClick();
-              setScienceTab('flight');
-            }}
-            className={`px-5 py-2.5 rounded-2xl font-hud font-black text-xs sm:text-sm transition-all cursor-pointer flex items-center gap-2 ${
-              scienceTab === 'flight'
-                ? 'casual-btn-cyan'
-                : 'bg-slate-900/80 text-slate-200 border-2 border-white/20 hover:bg-slate-800'
-            }`}
-          >
-            <Rocket className="w-4 h-4" />
-            <span>{tr(language, '🛸 Free 3D Planet Flight', '🛸 الطيران الحر بين الكواكب 3D')}</span>
+            {tr(language, '🪐 Planets', '🪐 الكواكب')}
           </button>
           <button
             type="button"
@@ -759,237 +711,232 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
               soundManager.playClick();
               setScienceTab('quiz');
             }}
-            className={`px-5 py-2.5 rounded-2xl font-hud font-black text-xs sm:text-sm transition-all cursor-pointer flex items-center gap-2 ${
+            className={`h-7 px-2 sm:px-2.5 rounded-full font-hud font-black text-[10px] sm:text-xs transition-all cursor-pointer flex items-center gap-1 ${
               scienceTab === 'quiz'
-                ? 'casual-btn-primary'
-                : 'bg-slate-900/80 text-slate-200 border-2 border-white/20 hover:bg-slate-800'
+                ? 'bg-amber-400 text-slate-950 shadow'
+                : 'bg-slate-900 text-slate-200 border border-white/20 hover:bg-slate-800'
             }`}
           >
-            <Sparkles className="w-4 h-4" />
-            <span>
-              {tr(
-                language,
-                `🧠 NASA Space Quiz (${SPACE_SCIENCE_QUESTIONS.length} Qs)`,
-                `🧠 تحدي أسئلة الفضاء (${SPACE_SCIENCE_QUESTIONS.length} سؤال)`
-              )}
-            </span>
-            {quizSolvedCount >= 3 && <span className="text-emerald-200">✅</span>}
+            <Sparkles className="w-3 h-3 shrink-0" />
+            <span>{tr(language, 'Quiz', 'تحدي الأسئلة')}</span>
+            {quizSolvedCount >= 3 && <span className="text-emerald-700">✅</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClick();
+              setScienceTab('flight');
+            }}
+            className={`h-7 px-2 sm:px-2.5 rounded-full font-hud font-black text-[10px] sm:text-xs transition-all cursor-pointer flex items-center gap-1 ${
+              scienceTab === 'flight'
+                ? 'bg-cyan-400 text-slate-950 shadow'
+                : 'bg-slate-900 text-slate-200 border border-white/20 hover:bg-slate-800'
+            }`}
+          >
+            <Rocket className="w-3 h-3 shrink-0" />
+            <span>{tr(language, '3D Flight', 'الطيران 3D')}</span>
           </button>
         </div>
 
-        {/* INTERACTIVE TRANSPARENT PLANET SELECTOR MAP */}
-        {scienceTab !== 'quiz' && (
-          <div className="relative py-2 px-1">
-            <div className="grid grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-3 items-end relative">
-              <div className="hidden lg:block absolute left-8 right-8 top-9 h-0.5 bg-gradient-to-r from-amber-300/35 via-cyan-300/45 to-purple-300/35 pointer-events-none rounded-full" />
-
-              {CELESTIAL_WORLDS.map((world) => {
-                const isSelected = activeWorld.id === world.id;
-                const isSolved = completedWorlds.has(world.id);
-
-                return (
-                  <motion.button
-                    key={world.id}
-                    type="button"
-                    whileHover={{ scale: 1.12, y: -4 }}
-                    whileTap={{ scale: 0.94 }}
-                    onClick={() => handleSelectWorld(world)}
-                    className="relative z-10 flex flex-col items-center gap-1.5 bg-transparent border-0 p-1 cursor-pointer group focus:outline-none"
-                  >
-                    <div
-                      className={`relative flex items-center justify-center rounded-full transition-all duration-300 ${
-                        isSelected
-                          ? 'scale-115 drop-shadow-[0_0_22px_rgba(34,211,238,0.9)]'
-                          : 'opacity-85 group-hover:opacity-100'
-                      }`}
-                    >
-                      <PlanetIllustration planetId={world.id} size={isSelected ? 74 : 62} />
-                      {isSolved && (
-                        <span className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-black border-2 border-white shadow-md">
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
-                        </span>
-                      )}
-                    </div>
-                    <span
-                      className={`font-hud font-black text-xs sm:text-sm px-2.5 py-0.5 rounded-full transition-colors ${
-                        isSelected
-                          ? 'bg-cyan-400 text-slate-950 shadow'
-                          : 'text-slate-100 group-hover:text-cyan-200'
-                      }`}
-                    >
-                      {tr(language, world.englishName, world.nameAr)}
-                    </span>
-                  </motion.button>
-                );
-              })}
-            </div>
+        {/* Right Controls: Stars, NASA Data, Language, Settings */}
+        <div className="flex items-center gap-1 shrink-0">
+          <div className="h-7 px-2 rounded-full bg-amber-400/20 border border-amber-300/70 text-amber-200 font-hud font-black text-[11px] flex items-center gap-1">
+            <span>⭐</span>
+            <span>{totalStarsScore}</span>
           </div>
-        )}
-      </div>
 
-      {/* BODY: EXPLORE VIEW OR 14-QUESTION QUIZ VIEW */}
-      {scienceTab === 'quiz' ? (
-        <div className="relative z-10 w-full max-w-4xl mx-auto my-2 flex-1">
-          <InteractiveQuizDeck
-            questions={SPACE_SCIENCE_QUESTIONS}
-            titleEn="NASA Space Explorer Quiz"
-            titleAr="اختبار أبطال الفضاء من ناسا"
-            subtitleEn="Test your knowledge on Mercury, Venus, Mars, Saturn Rings & 2010 PK!"
-            subtitleAr="اختبر معلوماتك عن عطارد، الزهرة، المريخ، حلقات زحل، وكويكب 2010 PK!"
-            accent="cyan"
-            milestoneCount={3}
-            onMilestoneComplete={(score) => setQuizSolvedCount(score)}
-          />
+          <button
+            type="button"
+            data-testid="planets-nasa-btn"
+            onClick={() => {
+              soundManager.playClick();
+              openNasaDrawer();
+            }}
+            className="h-7 w-7 rounded-full bg-slate-900 hover:bg-slate-800 border border-cyan-400/50 text-cyan-200 flex items-center justify-center cursor-pointer"
+            aria-label={tr(language, 'NASA Live Data', 'بيانات ناسا الحية')}
+          >
+            <Satellite className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            data-testid="planets-lang-toggle"
+            onClick={() => {
+              soundManager.playClick();
+              setLanguage(language === 'en' ? 'ar' : 'en');
+            }}
+            className="h-7 px-2 rounded-full bg-slate-900 hover:bg-slate-800 border border-cyan-400/60 text-cyan-200 font-hud font-black text-[10px] sm:text-[11px] cursor-pointer"
+          >
+            {language === 'en' ? 'عربي' : 'EN'}
+          </button>
+
+          <button
+            type="button"
+            data-testid="planets-settings-btn"
+            onClick={() => {
+              soundManager.playClick();
+              setIsSettingsOpen(true);
+            }}
+            className="h-7 w-7 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-600 text-white flex items-center justify-center cursor-pointer"
+            aria-label={tr(language, 'Settings', 'الإعدادات')}
+          >
+            <Settings className="w-3.5 h-3.5" />
+          </button>
         </div>
-      ) : (
-        <div className="relative z-10 w-full max-w-6xl mx-auto flex flex-col gap-4">
-          {scienceTab === 'flight' ? (
+      </header>
+
+      {/* ZERO-SCROLL SIDE-BY-SIDE LANDSCAPE WORKSPACE */}
+      <main
+        data-testid="planets-academy-body"
+        className="relative z-10 flex-1 min-h-0 p-1.5 sm:p-2 overflow-hidden"
+      >
+        {scienceTab === 'quiz' ? (
+          <div className="w-full h-full max-w-5xl mx-auto overflow-hidden">
+            <InteractiveQuizDeck
+              compact
+              questions={SPACE_SCIENCE_QUESTIONS}
+              titleEn="NASA Space Explorer Quiz"
+              titleAr="اختبار أبطال الفضاء من ناسا"
+              accent="cyan"
+              milestoneCount={3}
+              onMilestoneComplete={(score) => setQuizSolvedCount(score)}
+            />
+          </div>
+        ) : scienceTab === 'flight' ? (
+          <div className="w-full h-full max-w-6xl mx-auto overflow-hidden">
             <SpaceFlight3DViewport
+              className="h-full rounded-2xl border-2"
               activePlanetId={activeWorld.id}
               onSelectPlanetId={(pid) => {
                 const match = CELESTIAL_WORLDS.find((w) => w.id === pid);
                 if (match) handleSelectWorld(match);
               }}
             />
-          ) : (
-            <div
-              ref={terrainRef}
-              onClick={handleTerrainClick}
-              className="relative w-full h-[340px] sm:h-[400px] rounded-3xl border-4 border-cyan-300/80 overflow-hidden shadow-[0_0_40px_rgba(6,182,212,0.28)] bg-gradient-to-b from-transparent via-black/35 to-black/80 flex flex-col justify-end cursor-pointer"
+          </div>
+        ) : (
+          <div className="w-full h-full max-w-6xl mx-auto grid grid-cols-12 gap-2 overflow-hidden">
+            {/* LEFT COLUMN (col-span-5): 4x2 Planets Grid + Compact Gravity/Weight & Jump + Quick Actions */}
+            <section
+              data-testid="planets-left-column"
+              className="col-span-5 h-full min-h-0 rounded-2xl bg-slate-950/78 border border-cyan-400/45 p-2 flex flex-col justify-between gap-1.5 overflow-hidden backdrop-blur-md"
             >
-              {/* Gravity Weight Comparator Badge */}
-              <div className="absolute top-4 right-4 z-20 casual-pill px-4 py-2 flex items-center gap-2 text-xs sm:text-sm font-hud font-black text-amber-200 pointer-events-none">
-                <Scale className="w-4 h-4 text-amber-300 shrink-0" />
-                <span>
-                  {language === 'ar' ? (
-                    <>
-                      وزن 30 كجم على الأرض = <strong className="text-white">{sampleKidWeightOnWorld} كجم</strong> على {activeWorld.nameAr}
-                    </>
-                  ) : (
-                    <>
-                      30 kg on Earth = <strong className="text-white">{sampleKidWeightOnWorld} kg</strong> on {activeWorld.englishName}
-                    </>
-                  )}
-                </span>
+              {/* Compact 4x2 Grid of 8 Worlds */}
+              <div
+                data-testid="planets-selector-grid"
+                className="grid grid-cols-4 gap-1 shrink-0"
+              >
+                {CELESTIAL_WORLDS.map((world) => {
+                  const isSelected = activeWorld.id === world.id;
+                  const isSolved = completedWorlds.has(world.id);
+                  return (
+                    <button
+                      key={world.id}
+                      type="button"
+                      data-testid={`planet-card-${world.id}`}
+                      onClick={() => handleSelectWorld(world)}
+                      className={`relative rounded-xl p-1 flex flex-col items-center justify-center gap-0.5 border transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-cyan-500/25 border-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.45)]'
+                          : 'bg-slate-900/80 border-white/15 hover:border-cyan-400/60'
+                      }`}
+                    >
+                      <PlanetIllustration planetId={world.id} size={30} />
+                      <span
+                        className={`text-[9.5px] sm:text-[10px] font-hud font-black leading-tight truncate max-w-full ${
+                          isSelected ? 'text-cyan-200' : 'text-slate-200'
+                        }`}
+                      >
+                        {tr(language, world.englishName, world.nameAr)}
+                      </span>
+                      {isSolved && (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center border border-white">
+                          <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Floating Planet Illustration */}
-              <motion.div
-                animate={{ y: [0, -8, 0] }}
-                transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-                className="absolute top-6 left-8 pointer-events-none opacity-95"
-              >
-                <PlanetIllustration planetId={activeWorld.id} size={96} />
-              </motion.div>
+              {/* Compact 1-Line Gravity / Weight Badge + Mini Interactive Robo Hop */}
+              <div className="rounded-xl bg-slate-900/90 border border-amber-400/45 px-2 py-1.5 flex items-center justify-between gap-1.5 shrink-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Scale className="w-4 h-4 text-amber-300 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="font-hud font-black text-[10.5px] sm:text-xs text-amber-200 truncate">
+                      {language === 'ar'
+                        ? `وزن 30 كجم = ${sampleKidWeightOnWorld} كجم (${activeWorldName})`
+                        : `30 kg = ${sampleKidWeightOnWorld} kg on ${activeWorldName}`}
+                    </div>
+                    <div className="text-[9.5px] font-bold text-cyan-200 truncate">
+                      {tr(language, activeWorld.gravityLabelEn, activeWorld.gravityLabelAr)}
+                    </div>
+                  </div>
+                </div>
 
-              {/* Interactive Chibi Robo Character */}
-              <div
-                className="absolute bottom-20 transition-all duration-300 pointer-events-none"
-                style={{ left: `${roboPosX}%`, transform: 'translateX(-50%)' }}
-              >
-                <motion.div
-                  animate={
-                    isJumping
-                      ? {
-                          y: -activeWorld.jumpHeightPx,
-                          rotate: [0, -8, 8, 0],
-                          scale: [1, 1.12, 0.96, 1]
-                        }
-                      : { y: [0, -4, 0] }
-                  }
-                  transition={{
-                    duration: isJumping ? activeWorld.hopDurationSec : 1.4,
-                    ease: isJumping ? 'easeOut' : 'easeInOut',
-                    repeat: isJumping ? 0 : Infinity
-                  }}
-                  className="flex flex-col items-center"
-                >
-                  <img
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <motion.img
+                    animate={
+                      isJumping
+                        ? { y: -Math.min(20, Math.round(activeWorld.jumpHeightPx * 0.16)), scale: 1.08 }
+                        : { y: [0, -2, 0] }
+                    }
+                    transition={{ duration: isJumping ? activeWorld.hopDurationSec * 0.7 : 1.2, repeat: isJumping ? 0 : Infinity }}
                     src="/assets/generated/characters/robo_chibi_sprite.png"
-                    alt={tr(language, 'Robo Companion', 'روبو')}
-                    className="w-20 h-20 sm:w-24 sm:h-24 object-contain drop-shadow-[0_10px_18px_rgba(0,0,0,0.85)]"
+                    alt=""
+                    className="w-7 h-7 object-contain"
                   />
-                  <motion.div
-                    animate={isJumping ? { scale: 0.35, opacity: 0.2 } : { scale: 1, opacity: 0.6 }}
-                    transition={{ duration: activeWorld.hopDurationSec }}
-                    className="w-16 h-3.5 rounded-full bg-black/60 blur-[2px] mt-1"
-                  />
-                </motion.div>
+                  <button
+                    type="button"
+                    onClick={handleTriggerJump}
+                    className="h-7 px-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-hud font-black text-[10px] flex items-center gap-0.5 cursor-pointer shrink-0"
+                  >
+                    <ArrowUp className="w-3 h-3" />
+                    <span>{tr(language, 'Jump', 'اقفز')}</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Surface Deck with Controls */}
-              <div
-                className={`w-full min-h-[76px] py-2 ${activeWorld.surfaceColor} border-t-4 ${activeWorld.surfaceBorder} flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 shadow-2xl relative z-10`}
-              >
-                <div className="flex items-center gap-2 text-white font-hud font-black text-xs sm:text-sm">
-                  <Compass className="w-4 h-4 text-cyan-300 shrink-0" />
-                  <span>
-                    {tr(
-                      language,
-                      `${activeWorld.englishName} Surface • Gravity: ${activeWorld.gravityG}G`,
-                      `سطح ${activeWorld.nameAr} • الجاذبية: ${activeWorld.gravityG}G`
-                    )}
+              {/* Quick Action Buttons */}
+              <div className="grid grid-cols-2 gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsRadarOpen(true)}
+                  className="h-8 px-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/65 text-cyan-100 font-hud font-black text-[10px] sm:text-[11px] flex items-center justify-center gap-1 cursor-pointer truncate"
+                >
+                  <Radio className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+                  <span className="truncate">{tr(language, '2010 PK Radar', 'رادار 2010 PK')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  data-testid="planets-advance-btn"
+                  onClick={handleProceedNextStage}
+                  className="h-8 px-2 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 hover:brightness-110 text-slate-950 font-hud font-black text-[10px] sm:text-[11px] flex items-center justify-center gap-1 cursor-pointer truncate shadow"
+                >
+                  <Rocket className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">
+                    {state.campaign?.unlockedLevels?.includes(3)
+                      ? tr(language, 'Moon Base 🌙', 'قاعدة القمر 🌙')
+                      : tr(language, 'Space Hub 🚀', 'خريطة الفضاء 🚀')}
                   </span>
-                </div>
-
-                <div className="flex items-center gap-2" dir="ltr">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMoveRoboStep(-10);
-                    }}
-                    className="p-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border-2 border-cyan-300 text-white cursor-pointer"
-                    aria-label={tr(language, 'Move Left', 'تحريك لليسار')}
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleTriggerJump();
-                    }}
-                    className="casual-btn-primary py-2 px-4 text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <ArrowUp className="w-4 h-4" />
-                    <span>{tr(language, 'Jump [SPACE] 🚀', 'اقفز [مسافة] 🚀')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMoveRoboStep(10);
-                    }}
-                    className="p-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border-2 border-cyan-300 text-white cursor-pointer"
-                    aria-label={tr(language, 'Move Right', 'تحريك لليمين')}
-                  >
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
+                </button>
               </div>
-            </div>
-          )}
+            </section>
 
-          {/* 3. FOCUSED PER-PLANET LESSON + INTERACTIVE CHALLENGE */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-            <div className="lg:col-span-5 casual-card p-4 flex flex-col justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <PlanetIllustration planetId={activeWorld.id} size={48} />
-                <div>
-                  <h2 className="font-hud font-black text-base sm:text-lg text-white">
-                    {tr(language, `${activeWorld.englishName} Discovery Card`, `بطاقة استكشاف ${activeWorld.nameAr}`)}
-                  </h2>
-                  <p className="text-xs text-cyan-200 font-bold">
-                    {tr(language, `${activeWorld.gravityG}G World`, `عالم بجاذبية ${activeWorld.gravityG}G`)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-2xl overflow-hidden border-2 border-cyan-300/50 h-36 bg-slate-950">
+            {/* RIGHT COLUMN (col-span-7): Compact NASA Fact Strip + Full Station Quiz */}
+            <section
+              data-testid="planets-right-column"
+              className="col-span-7 h-full min-h-0 rounded-2xl bg-slate-950/84 border border-cyan-400/45 p-2 flex flex-col justify-between gap-1.5 overflow-hidden backdrop-blur-md"
+            >
+              {/* Compact NASA Fact Strip */}
+              <div
+                data-testid="planets-nasa-fact-strip"
+                className="flex items-center gap-2 rounded-xl bg-slate-900/90 border border-cyan-400/35 px-2 py-1.5 shrink-0"
+              >
                 <img
                   src={activeWorld.nasaImage}
-                  alt={tr(language, `NASA imagery of ${activeWorld.englishName}`, `صورة ناسا لـ ${activeWorld.nameAr}`)}
+                  alt={activeWorldName}
                   onError={(e) => {
                     const img = e.currentTarget as HTMLImageElement;
                     if (!img.dataset.fallbackApplied) {
@@ -997,39 +944,48 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
                       img.src = '/assets/nasa/apod_sample.jpg';
                     }
                   }}
-                  className="w-full h-full object-cover"
+                  className="w-11 h-11 rounded-lg object-cover border border-cyan-300/45 shrink-0"
                 />
-              </div>
-
-              <p className="font-hud font-bold text-xs sm:text-sm text-white leading-relaxed">
-                {tr(language, activeWorld.scientificFactEn, activeWorld.scientificFactAr)}
-              </p>
-
-              <div className="rounded-2xl bg-slate-950/75 border border-cyan-400/35 p-3 text-xs font-hud font-bold text-cyan-200 leading-relaxed">
-                🛰️ <strong>{tr(language, 'NASA Observation:', 'رصد ناسا:')}</strong>{' '}
-                {tr(language, activeWorld.nasaDiscoveryEn, activeWorld.nasaDiscoveryAr)}
-                {activeWorld.id === 'asteroid_2010pk' && (
-                  <span className="block mt-1 text-amber-200">
-                    {tr(
-                      language,
-                      `Asteroid Speed: ${Math.round(liveAsteroid.relativeVelocityKmS * 10) / 10} km/s • Diameter: ${Math.round(liveAsteroid.diameterMeters.max)} m`,
-                      `سرعة الكويكب: ${Math.round(liveAsteroid.relativeVelocityKmS * 10) / 10} كم/ث • القطر: ${Math.round(liveAsteroid.diameterMeters.max)} م`
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className={`text-[10px] font-hud font-black px-2 py-0.5 rounded-full border ${activeWorld.badgeAccent}`}>
+                      {activeWorldName}
+                    </span>
+                    {activeWorld.id === 'asteroid_2010pk' && (
+                      <span className="text-[10px] font-bold text-amber-200 truncate">
+                        {Math.round(liveAsteroid.relativeVelocityKmS * 10) / 10} km/s • {Math.round(liveAsteroid.diameterMeters.max)}m
+                      </span>
                     )}
-                  </span>
-                )}
+                  </div>
+                  <p className="text-[10.5px] sm:text-xs font-hud font-bold text-slate-100 leading-tight line-clamp-2">
+                    🛰️ {tr(language, activeWorld.nasaDiscoveryEn, activeWorld.nasaDiscoveryAr)}{' '}
+                    <span className="text-cyan-200 font-semibold">
+                      ({tr(language, activeWorld.scientificFactEn, activeWorld.scientificFactAr)})
+                    </span>
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <div className="lg:col-span-7 casual-card p-4 sm:p-5 flex flex-col justify-between gap-4">
-              <div className="space-y-3">
-                <span className="casual-badge inline-flex items-center gap-1.5 px-3 py-1 text-xs font-hud font-black">
-                  {tr(language, `🎯 ${activeWorld.englishName} Station Check`, `🎯 سؤال محطة ${activeWorld.nameAr}`)}
-                </span>
-                <h3 className="font-hud font-black text-base sm:text-xl text-white leading-relaxed">
-                  {tr(language, activeWorld.planetQuestion.questionEn, activeWorld.planetQuestion.questionAr)}
-                </h3>
+              {/* Station Check Question + All 4 Compact Answer Options */}
+              <div className="flex-1 min-h-0 flex flex-col justify-between gap-1 overflow-hidden">
+                <div className="space-y-0.5 shrink-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-400/20 border border-amber-300/60 text-amber-200 text-[10px] font-hud font-black">
+                      {tr(language, `🎯 ${activeWorld.englishName} Station Check`, `🎯 سؤال محطة ${activeWorld.nameAr}`)}
+                    </span>
+                    <span className="text-[10px] font-hud font-black text-emerald-300">
+                      {tr(language, `Explored ${completedWorlds.size}/8`, `مكتمل ${completedWorlds.size}/8`)}
+                    </span>
+                  </div>
+                  <h2 className="font-hud font-black text-xs sm:text-sm text-white leading-snug line-clamp-2">
+                    {tr(language, activeWorld.planetQuestion.questionEn, activeWorld.planetQuestion.questionAr)}
+                  </h2>
+                </div>
 
-                <div className="space-y-2.5 pt-1">
+                <div
+                  data-testid="planet-quiz-options"
+                  className="grid grid-cols-2 gap-1.5 flex-1 min-h-0 items-stretch"
+                >
                   {shuffledPlanetOptions.map((opt, optIdx) => {
                     const isPicked = activeAnswer?.optionId === opt.id;
                     const showGood = isPicked && opt.isCorrect;
@@ -1042,77 +998,70 @@ export const SpaceScience: React.FC<SpaceScienceProps> = ({ onComplete: _onCompl
                       <button
                         key={opt.id}
                         type="button"
+                        data-testid={`planet-quiz-option-${opt.id}`}
                         onClick={() => handleAnswerPlanetQuestion(opt)}
-                        className={`w-full ${language === 'ar' ? 'text-right' : 'text-left'} p-3.5 rounded-2xl border-2 border-b-4 font-hud font-bold text-sm sm:text-base transition-all cursor-pointer flex items-center justify-between gap-3 active:translate-y-0.5 ${
+                        className={`w-full ${language === 'ar' ? 'text-right' : 'text-left'} px-2 py-1.5 rounded-xl border-2 font-hud font-bold text-[10.5px] sm:text-xs transition-all cursor-pointer flex items-center justify-between gap-1.5 overflow-hidden ${
                           showGood || revealGood
-                            ? 'bg-emerald-500/35 border-emerald-300 text-white shadow-[0_4px_0_#047857]'
+                            ? 'bg-emerald-500/35 border-emerald-300 text-white'
                             : showBad
-                            ? 'bg-rose-500/35 border-rose-300 text-rose-100 shadow-[0_4px_0_#9f1239]'
-                            : 'bg-slate-900/85 hover:bg-indigo-900/75 border-white/25 hover:border-cyan-300 text-slate-100 shadow-[0_4px_0_rgba(15,23,42,0.95)]'
+                            ? 'bg-rose-500/35 border-rose-300 text-rose-100'
+                            : 'bg-slate-900/90 hover:bg-indigo-900/75 border-white/20 hover:border-cyan-300 text-slate-100'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-400 to-indigo-500 border border-white/60 text-slate-950 font-black text-xs flex items-center justify-center shrink-0 shadow-sm">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-gradient-to-br from-cyan-400 to-indigo-500 border border-white/60 text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0">
                             {badgeLetter}
                           </span>
-                          <span>{tr(language, opt.labelEn, opt.labelAr)}</span>
+                          <span className="leading-tight line-clamp-3">
+                            {tr(language, opt.labelEn, opt.labelAr)}
+                          </span>
                         </div>
-                        {(showGood || revealGood) && <Check className="w-5 h-5 text-emerald-300 shrink-0" />}
-                        {showBad && <X className="w-5 h-5 text-rose-300 shrink-0" />}
+                        {(showGood || revealGood) && <Check className="w-4 h-4 text-emerald-300 shrink-0" />}
+                        {showBad && <X className="w-4 h-4 text-rose-300 shrink-0" />}
                       </button>
                     );
                   })}
                 </div>
 
-                {selectedOption && (
-                  <div
-                    className={`rounded-2xl p-3.5 border-2 font-hud font-bold text-xs sm:text-sm ${
-                      selectedOption.isCorrect
-                        ? 'bg-emerald-950/65 border-emerald-400/70 text-emerald-100'
-                        : 'bg-amber-950/65 border-amber-400/70 text-amber-100'
-                    }`}
-                  >
-                    💡 {tr(language, selectedOption.feedbackEn, selectedOption.feedbackAr)}
+                {/* Compact Bottom Feedback & Next Planet Strip */}
+                <div className="h-8 shrink-0 flex items-center justify-between gap-2 pt-0.5">
+                  <div className="flex-1 min-w-0 text-[10px] sm:text-[11px] font-hud font-bold truncate">
+                    {selectedOption ? (
+                      <span className={selectedOption.isCorrect ? 'text-emerald-300' : 'text-amber-300'}>
+                        💡 {tr(language, selectedOption.feedbackEn, selectedOption.feedbackAr)}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">
+                        {tr(language, 'Pick the correct NASA answer above!', 'اختر الإجابة الصحيحة في الأعلى!')}
+                      </span>
+                    )}
                   </div>
-                )}
-              </div>
 
-              {activeAnswer?.isCorrect && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="rounded-2xl bg-gradient-to-r from-cyan-950/90 to-emerald-950/90 border-2 border-cyan-300/70 p-4 space-y-3"
-                >
-                  <p className="font-hud font-black text-sm sm:text-base text-white">
-                    {tr(language, '🎉 Amazing Space Explorer! What is your next move?', '🎉 رائع يا رائد الفضاء! ماذا تريد أن تفعل الآن؟')}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={handleExploreNextPlanet}
-                      className="casual-btn-cyan px-4 py-2.5 text-xs sm:text-sm cursor-pointer"
-                    >
-                      {tr(language, 'Explore Another World 🪐', 'استكشاف كوكب آخر 🪐')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleProceedNextStage}
-                      className="casual-btn-primary px-4 py-2.5 text-xs sm:text-sm cursor-pointer"
-                    >
-                      {tr(language, 'Complete & Advance 🚀', 'إكمال المهمة والانتقال للمرحلة التالية 🚀')}
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </div>
+                  <button
+                    type="button"
+                    data-testid="planets-next-world-btn"
+                    onClick={handleExploreNextPlanet}
+                    className="h-7 px-2.5 rounded-full bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-hud font-black text-[10px] sm:text-[11px] shrink-0 cursor-pointer"
+                  >
+                    {tr(language, 'Next Planet 🪐', 'الكوكب التالي 🪐')}
+                  </button>
+                </div>
+              </div>
+            </section>
           </div>
-        </div>
-      )}
+        )}
+      </main>
 
       {/* NASA Asteroid Radar Modal */}
       <AsteroidRadarModal
         isOpen={isRadarOpen}
         onClose={() => setIsRadarOpen(false)}
+      />
+
+      {/* Integrated Settings Modal */}
+      <SettingsMenu
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
       />
     </div>
   );

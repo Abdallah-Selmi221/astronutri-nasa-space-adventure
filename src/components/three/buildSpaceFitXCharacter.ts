@@ -1037,9 +1037,11 @@ export function buildSpaceFitXCharacter(options?: {
           : 0.4;
 
       const released = suitState?.emergencyReleased ?? false;
-      const avgRes = suitState
-        ? Object.values(suitState.jointLoads).reduce((a, b) => a + b, 0) / 5 / 100
-        : 0.55;
+      const jointLoadVals = suitState?.jointLoads ? Object.values(suitState.jointLoads) : [];
+      const avgRes =
+        jointLoadVals.length > 0
+          ? jointLoadVals.reduce((a, b) => a + b, 0) / jointLoadVals.length / 100
+          : 0.55;
       matCableCyan.color.setHex(released ? 0xf59e0b : themeSpec.cable);
       matCableCyan.emissive.setHex(released ? 0xd97706 : themeSpec.emissive);
       matCableCyan.emissiveIntensity = highlightModule === 2 ? 1.85 : released ? 0.25 : 0.45 + avgRes * 1.1;

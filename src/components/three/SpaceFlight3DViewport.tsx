@@ -19,6 +19,7 @@ import { soundManager } from '../../utils/sound';
 export interface SpaceFlight3DViewportProps {
   activePlanetId: string;
   onSelectPlanetId: (planetId: string) => void;
+  className?: string;
 }
 
 interface FlightPlanetNode {
@@ -92,7 +93,8 @@ const FLIGHT_PLANETS: FlightPlanetNode[] = [
 
 export const SpaceFlight3DViewport: React.FC<SpaceFlight3DViewportProps> = ({
   activePlanetId,
-  onSelectPlanetId
+  onSelectPlanetId,
+  className
 }) => {
   const { language } = useGameState();
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -318,7 +320,7 @@ export const SpaceFlight3DViewport: React.FC<SpaceFlight3DViewportProps> = ({
   return (
     <div
       data-testid="space-flight-3d-viewport"
-      className="relative w-full h-[360px] sm:h-[420px] rounded-3xl border-4 border-cyan-300/80 overflow-hidden shadow-[0_0_40px_rgba(6,182,212,0.28)]"
+      className={`relative w-full ${className ?? 'h-[360px] sm:h-[420px]'} rounded-3xl border-4 border-cyan-300/80 overflow-hidden shadow-[0_0_40px_rgba(6,182,212,0.28)]`}
     >
       <div ref={mountRef} className="w-full h-full" />
       <div

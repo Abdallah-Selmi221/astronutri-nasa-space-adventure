@@ -57,18 +57,33 @@ function extractGlbMeshGeometry(root: THREE.Object3D, meshName: string): THREE.B
 }
 
 export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }) => {
-  const { state, language, ageGroup, setLanguage, setAgeGroup, setCadetName } = useGameState();
+  const {
+    state,
+    language,
+    ageGroup,
+    setLanguage,
+    setAgeGroup,
+    setCadetName,
+    resetGameFull
+  } = useGameState();
   const [nameInput, setNameInput] = useState<string>(state.cadetName || 'Explorer');
   const [cutsceneElapsed, setCutsceneElapsed] = useState<number>(0);
   const [beatIdx, setBeatIdx] = useState<number>(0);
   const [showBootSplash, setShowBootSplash] = useState<boolean>(true);
-  const [splashProgress, setSplashProgress] = useState<number>(8);
+  const [splashProgress, setSplashProgress] = useState<number>(18);
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
 
-  // Instant AAA Game Boot Logo Splash (< 1.6s auto-transition or instant on tap, zero network wait)
+  const hasSavedProgress =
+    (state.campaign?.completedMiniGames?.length ?? 0) > 0 ||
+    (state.campaign?.unlockedLevels?.length ?? 1) > 1 ||
+    state.isNutritionMissionComplete ||
+    state.isSuitMissionComplete ||
+    state.isEngineMissionComplete;
+
+  // Instant AAA Game Boot Logo Splash (< 0.7s auto-transition or instant on tap, zero network wait)
   useEffect(() => {
-    const tFill = window.setTimeout(() => setSplashProgress(100), 40);
-    const tDone = window.setTimeout(() => setShowBootSplash(false), 1550);
+    const tFill = window.setTimeout(() => setSplashProgress(100), 30);
+    const tDone = window.setTimeout(() => setShowBootSplash(false), 650);
     return () => {
       window.clearTimeout(tFill);
       window.clearTimeout(tDone);
@@ -311,12 +326,6 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
   const handleInstantStart = () => {
     const cleanedName = nameInput.trim() || (language === 'ar' ? 'مستكشف الفضاء' : 'Explorer');
     setCadetName(cleanedName);
-    try {
-      sessionStorage.setItem('astronutri_intro_played', 'true');
-    } catch {
-      // ignore storage errors
-    }
-
     onComplete();
 
     window.setTimeout(() => {
@@ -327,10 +336,26 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
       }
       speakWebSpeechNonBlocking(
         language === 'ar'
-          ? `أهلاً يا ${cleanedName}! انطلق نحو بوابة الأرض لبدء المغامرة!`
-          : `Welcome Cadet ${cleanedName}! Head to the Earth Launchpad to start your adventure!`,
+          ? `أهلاً يا ${cleanedName}! اختر كوكبك من ساحة قيادة الفضاء!`
+          : `Welcome Cadet ${cleanedName}! Pick your mission planet from the Orbital Space Command Deck!`,
         language
       );
+    }, 0);
+  };
+
+  const handleStartNewMission = () => {
+    const cleanedName = nameInput.trim() || (language === 'ar' ? 'مستكشف الفضاء' : 'Explorer');
+    resetGameFull();
+    setCadetName(cleanedName);
+    setAgeGroup(ageGroup);
+    onComplete();
+
+    window.setTimeout(() => {
+      try {
+        soundManager.playFanfare();
+      } catch {
+        // ignore
+      }
     }, 0);
   };
 
@@ -527,19 +552,38 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
           </div>
         </div>
 
-        {/* Sleek Translucent Glass Dock: Glowing PLAY ADVENTURE CTA + Compact Cadet Name & 3-Pill Age Selector */}
-        <div className="w-full max-w-[360px] sm:max-w-[380px] rounded-3xl bg-slate-950/85 border-2 border-cyan-300/85 backdrop-blur-xl p-3 sm:p-4 shadow-[0_16px_48px_rgba(2,6,23,0.75)] space-y-2.5 shrink-0">
-          {/* Primary Unmistakable Glowing PLAY ADVENTURE CTA at Top of Dock */}
-          <button
-            type="button"
-            data-testid="start-adventure-btn"
-            onClick={handleInstantStart}
-            className="w-full btn-chunky-adventure py-3 sm:py-3.5 px-5 text-base sm:text-xl flex items-center justify-center gap-2 shadow-[0_10px_28px_rgba(255,159,28,0.65)] cursor-pointer touch-manipulation active:scale-95 transition-transform"
-          >
-            <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-slate-950" />
-            <span>{tr(language, 'PLAY ADVENTURE', 'ابدأ المغامرة')}</span>
-            <span>🚀</span>
-          </button>
+        {/* Sleek Translucent Glass Dock: Glowing PLAY/CONTINUE CTA + Optional New Mission + Compact Cadet Name & 3-Pill Age Selector */}
+        <div className="w-full max-w-[360px] sm:max-w-[385px] rounded-3xl bg-slate-950/85 border-2 border-cyan-300/85 backdrop-blur-xl p-3 sm:p-4 shadow-[0_16px_48px_rgba(2,6,23,0.75)] space-y-2 shrink-0">
+          {/* Primary Unmistakable Glowing PLAY / CONTINUE ADVENTURE CTA at Top of Dock */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              data-testid="start-adventure-btn"
+              onClick={handleInstantStart}
+              className="flex-1 btn-chunky-adventure py-2.5 sm:py-3 px-4 text-sm sm:text-lg flex items-center justify-center gap-2 shadow-[0_10px_28px_rgba(255,159,28,0.65)] cursor-pointer touch-manipulation active:scale-95 transition-transform"
+            >
+              <Play className="w-5 h-5 fill-slate-950 shrink-0" />
+              <span>
+                {hasSavedProgress
+                  ? tr(language, 'CONTINUE MISSION', 'متابعة المغامرة')
+                  : tr(language, 'PLAY ADVENTURE', 'ابدأ المغامرة')}
+              </span>
+              <span>🚀</span>
+            </button>
+
+            {hasSavedProgress && (
+              <button
+                type="button"
+                data-testid="new-mission-btn"
+                onClick={handleStartNewMission}
+                title={tr(language, 'Start a Brand New Mission', 'بدء مغامرة جديدة من البداية')}
+                className="h-11 px-2.5 rounded-2xl bg-slate-900/95 hover:bg-slate-800 border-2 border-cyan-400/75 text-cyan-200 font-hud font-black text-[11px] flex flex-col items-center justify-center leading-tight cursor-pointer shrink-0 active:scale-95 transition-transform"
+              >
+                <span>🔄</span>
+                <span>{tr(language, 'New', 'بداية جديدة')}</span>
+              </button>
+            )}
+          </div>
 
           {/* Compact Single-Row Cadet Name + 3-Pill Age Selector */}
           <div className="grid grid-cols-12 gap-2 items-end pt-0.5">

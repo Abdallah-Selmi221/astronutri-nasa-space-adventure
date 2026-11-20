@@ -24,8 +24,7 @@ import { dialogueManager } from '../../utils/geminiTTS';
 import { nasaCache } from '../../services/nasa/nasaCache';
 import {
   getNextSequentialMissionTarget,
-  LEVEL_TITLES_BILINGUAL,
-  SHORT_WORLD_HUB_ROBO_LINES
+  LEVEL_TITLES_BILINGUAL
 } from '../../data/campaignBilingual';
 import { getDiscoveredFactIds } from '../../data/earthDiscoveryFacts';
 import { tr } from '../../utils/i18n';
@@ -173,12 +172,13 @@ export const CampaignHubView: React.FC = () => {
       setIsEcoCabinOpen(true);
       return;
     }
-    if (room.consoleAction === 'l3_return_auth' && activeLevelId === 3) {
-      setCampaignView('minigame', 3, room.id, null);
+    if (room.miniGameId) {
+      const targetLevel = (MINI_GAME_SPECS[room.miniGameId]?.levelId ?? activeLevelId) as CampaignLevelId;
+      setCampaignView('minigame', targetLevel, room.id, room.miniGameId);
       return;
     }
-    if (room.miniGameId) {
-      setCampaignView('minigame', activeLevelId, room.id, room.miniGameId);
+    if (room.consoleAction === 'l3_return_auth' && activeLevelId === 3) {
+      setCampaignView('minigame', 3, room.id, null);
       return;
     }
   };
@@ -221,7 +221,10 @@ export const CampaignHubView: React.FC = () => {
   };
 
   const handleBackToLevel = () => {
-    setCampaignView('level_hub', activeLevelId, null, null);
+    const returnLevelId = (
+      campaign.activeMiniGameId ? MINI_GAME_SPECS[campaign.activeMiniGameId].levelId : activeLevelId
+    ) as CampaignLevelId;
+    setCampaignView('level_hub', returnLevelId, null, null);
   };
 
   const handleBackToWorldMap = () => {
@@ -336,7 +339,9 @@ export const CampaignHubView: React.FC = () => {
   // ==================== VIEW 3: ACTIVE MINI-GAME OR L3 AUTH CONSOLE ====================
   if (campaign.viewMode === 'minigame') {
     const isL3ReturnConsole =
-      activeLevelId === 3 && campaign.activeRoomId === 'mission_control' && !campaign.activeMiniGameId;
+      activeLevelId === 3 &&
+      !campaign.activeMiniGameId &&
+      (campaign.activeRoomId === 'mission_control' || campaign.activeRoomId === 'lunar_exploration_zone');
 
     if (isL3ReturnConsole) {
       return (
@@ -493,7 +498,7 @@ export const CampaignHubView: React.FC = () => {
   }
 
   // ==================== VIEW 2: FULL-VIEWPORT 3D MISSION DECK & STATIONS ====================
-  if (campaign.viewMode === 'level_hub') {
+  if (campaign.viewMode === 'level_hub' || campaign.viewMode === 'minigame') {
     const levelDoneCount = activeLevelSpec.miniGames.filter((id) =>
       campaign.completedMiniGames.includes(id)
     ).length;
@@ -674,6 +679,44 @@ export const CampaignHubView: React.FC = () => {
           onDismiss={() => setShowLevelStory(false)}
           testId="robo-guide-overlay"
         />
+
+        {/* Quick Direct Station Selector Bar Inside Planet Hub (Bottom-Center) */}
+        <div
+          data-testid="planet-stations-bar"
+          dir={langDir}
+          className="pointer-events-none fixed bottom-2.5 inset-x-0 z-20 flex justify-center pl-24 pr-44 sm:pl-28 sm:pr-52 lg:px-3"
+        >
+          <div className="pointer-events-auto inline-flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-950/82 border border-cyan-400/55 backdrop-blur-md shadow-xl max-w-full overflow-x-auto">
+            {activeLevelSpec.rooms.map((room, rIdx) => {
+              const isDone = room.miniGameId
+                ? campaign.completedMiniGames.includes(room.miniGameId)
+                : room.consoleAction === 'l3_return_auth'
+                ? campaign.l3ReturnAuthorized
+                : false;
+              const isActiveStep = !seqTarget.isAllDone && seqTarget.activeRoom?.id === room.id;
+              return (
+                <button
+                  key={room.id}
+                  type="button"
+                  data-testid={`station-pill-${room.id}`}
+                  onClick={() => handleEnterRoom(room)}
+                  className={`px-2 sm:px-2.5 py-1 rounded-full border text-[10px] sm:text-[11px] font-hud font-black flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                    isActiveStep
+                      ? 'bg-amber-400 text-slate-950 border-white shadow-md'
+                      : isDone
+                      ? 'bg-emerald-950/80 border-emerald-400/70 text-emerald-200 hover:bg-emerald-900'
+                      : 'bg-slate-900/80 border-white/25 text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <span>{room.icon}</span>
+                  <span className="hidden md:inline">{`${rIdx + 1}. ${tr(language, room.nameEn, room.nameAr)}`}</span>
+                  <span className="md:hidden">{`${rIdx + 1}`}</span>
+                  {isDone && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Clean Unified Pause & Navigation Drawer (Level Hub) */}
         {isMobileMenuOpen && (
@@ -878,7 +921,7 @@ export const CampaignHubView: React.FC = () => {
                   const spec = MINI_GAME_SPECS[mgId];
                   const done = campaign.completedMiniGames.includes(mgId);
                   const isActiveStep = !done && seqTarget.activeMiniGameId === mgId;
-                  const unlockedStep = done || isActiveStep || isDemoMode;
+                  const unlockedStep = true;
                   return (
                     <button
                       key={mgId}
@@ -1123,8 +1166,8 @@ export const CampaignHubView: React.FC = () => {
         pose="WAVE"
         speakerNameEn="Robo Guide"
         speakerNameAr="روبو المرشد"
-        messageEn={(SHORT_WORLD_HUB_ROBO_LINES[highestUnlockedNodeId] ?? SHORT_WORLD_HUB_ROBO_LINES[1]).en}
-        messageAr={(SHORT_WORLD_HUB_ROBO_LINES[highestUnlockedNodeId] ?? SHORT_WORLD_HUB_ROBO_LINES[1]).ar}
+        messageEn="Pick any unlocked planet gateway on the Command Deck! 🚀"
+        messageAr="اختر أي بوابة كوكبية مفتوحة من ساحة قيادة الفضاء! 🚀"
         actionLabelEn={`Enter Sector ${highestUnlockedNodeId}`}
         actionLabelAr={`ادخل الكوكب ${highestUnlockedNodeId}`}
         onAction={() => handleSelectLevel(highestUnlockedNodeId)}

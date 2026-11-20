@@ -19,12 +19,17 @@ export const HeaderHUD: React.FC = () => {
   const handleGoHome = () => {
     geminiTTS.stop();
     soundManager.playClick();
-    setCampaignView('world_map', state.campaign?.activeLevel || 1, null, null);
+    setCampaignView(
+      state.campaign?.viewMode || 'world_map',
+      state.campaign?.activeLevel || 1,
+      null,
+      null
+    );
     setLocation('Map');
   };
 
-  // On the Home World screen, HomeWorldScreen renders its own integrated pastel HUD
-  if (state.currentLocation === 'Map') {
+  // Map and SpaceScience render their own integrated non-overlapping top bar
+  if (state.currentLocation === 'Map' || state.currentLocation === 'SpaceScience') {
     return null;
   }
 
