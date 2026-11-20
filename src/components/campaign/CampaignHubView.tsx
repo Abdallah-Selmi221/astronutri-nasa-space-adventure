@@ -22,7 +22,11 @@ import { soundManager } from '../../utils/sound';
 import { toggleFullscreenLandscape } from '../../utils/displaySettings';
 import { dialogueManager } from '../../utils/geminiTTS';
 import { nasaCache } from '../../services/nasa/nasaCache';
-import { getNextSequentialMissionTarget, LEVEL_TITLES_BILINGUAL } from '../../data/campaignBilingual';
+import {
+  getNextSequentialMissionTarget,
+  LEVEL_TITLES_BILINGUAL,
+  SHORT_WORLD_HUB_ROBO_LINES
+} from '../../data/campaignBilingual';
 import { getDiscoveredFactIds } from '../../data/earthDiscoveryFacts';
 import { tr } from '../../utils/i18n';
 import {
@@ -96,6 +100,12 @@ export const CampaignHubView: React.FC = () => {
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [isSoundMuted, setIsSoundMuted] = useState<boolean>(() => !soundManager.isEnabled());
   const [launchCutsceneTargetLevel, setLaunchCutsceneTargetLevel] = useState<CampaignLevelId | null>(null);
+  const [celebrationBurst, setCelebrationBurst] = useState<{
+    titleEn: string;
+    titleAr: string;
+    nextEn: string;
+    nextAr: string;
+  } | null>(null);
 
   const toggleSoundMute = () => {
     const nextMuted = !isSoundMuted;
@@ -174,7 +184,36 @@ export const CampaignHubView: React.FC = () => {
   };
 
   const handleCompleteMiniGame = (id: MiniGameId, patch?: Partial<CampaignProgressState>) => {
+    const alreadyDone = campaign.completedMiniGames.includes(id);
     completeCampaignMiniGame(id, patch);
+    if (!alreadyDone) {
+      soundManager.playDropSuccess();
+      const spec = MINI_GAME_SPECS[id];
+      const lvSpec = CAMPAIGN_LEVELS[spec.levelId];
+      const nextStepId = lvSpec.miniGames.find(
+        (mg) => mg !== id && !campaign.completedMiniGames.includes(mg)
+      );
+      const nextSpec = nextStepId ? MINI_GAME_SPECS[nextStepId] : null;
+      setCelebrationBurst({
+        titleEn: `🎉 ${spec.titleEn} Complete! +25⭐`,
+        titleAr: `🎉 اكتملت ${spec.titleAr}! +25⭐`,
+        nextEn: nextSpec
+          ? `Next: ${nextSpec.titleEn} ➜`
+          : spec.levelId === 1
+          ? 'Earth Ready! Launch Rocket to Orbit! 🚀'
+          : spec.levelId < 4
+          ? `World ${spec.levelId} Complete! Next Planet Unlocked! 🪐`
+          : 'All 14 NASA Missions Complete! 🏆',
+        nextAr: nextSpec
+          ? `التالي: ${nextSpec.titleAr} ➜`
+          : spec.levelId === 1
+          ? 'الأرض جاهزة! انطلق بالصاروخ للمدار! 🚀'
+          : spec.levelId < 4
+          ? `اكتمل العالم ${spec.levelId}! تم فتح الكوكب التالي! 🪐`
+          : 'اكتملت جميع مهمات ناسا الـ 14! 🏆'
+      });
+      window.setTimeout(() => setCelebrationBurst(null), 3200);
+    }
   };
 
   const handleJumpToLevel3Room = (roomId: string, miniGameId: MiniGameId) => {
@@ -189,6 +228,24 @@ export const CampaignHubView: React.FC = () => {
     dialogueManager.stop();
     setCampaignView('world_map', activeLevelId, null, null);
   };
+
+  const renderCelebrationBurst = () =>
+    celebrationBurst ? (
+      <div
+        data-testid="celebration-toast-burst"
+        dir={langDir}
+        className="pointer-events-none fixed top-11 inset-x-0 z-[75] flex flex-col items-center px-3 animate-bounce"
+      >
+        <div className="relative px-4 py-2 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-slate-950 border-2 border-yellow-200 shadow-[0_8px_28px_rgba(16,185,129,0.55)] flex flex-wrap items-center justify-center gap-2 font-hud font-black text-xs sm:text-sm">
+          <span>✨🎊</span>
+          <span>{tr(language, celebrationBurst.titleEn, celebrationBurst.titleAr)}</span>
+          <span className="px-2.5 py-0.5 rounded-full bg-amber-300 text-slate-950 text-[11px] font-black shadow">
+            {tr(language, celebrationBurst.nextEn, celebrationBurst.nextAr)}
+          </span>
+          <span>🎊✨</span>
+        </div>
+      </div>
+    ) : null;
 
   const renderHowToPlayModal = () =>
     isHowToPlayOpen ? (
@@ -355,79 +412,82 @@ export const CampaignHubView: React.FC = () => {
       const isCompleted = campaign.completedMiniGames.includes(mgId);
 
       return (
-        <MiniGameShell
-          miniGameId={mgId}
-          isCompleted={isCompleted}
-          onBackToLevel={handleBackToLevel}
-          onContinueNext={() => {
-            const specs = activeLevelSpec.miniGames;
-            const idx = specs.indexOf(mgId);
-            const nextMg =
-              specs.slice(idx + 1).find((id) => !campaign.completedMiniGames.includes(id)) ??
-              specs.find((id) => id !== mgId && !campaign.completedMiniGames.includes(id));
-            if (nextMg) {
-              const targetRoom = activeLevelSpec.rooms.find((r) => r.miniGameId === nextMg);
-              setCampaignView(
-                'minigame',
-                activeLevelId,
-                targetRoom?.id ?? campaign.activeRoomId,
-                nextMg
-              );
-              return;
-            }
-            const nextLvl = (activeLevelId + 1) as CampaignLevelId;
-            if (activeLevelId < 4 && campaign.unlockedLevels.includes(nextLvl)) {
-              if (activeLevelId === 1) {
-                triggerRocketLaunch(2);
+        <>
+          {renderCelebrationBurst()}
+          <MiniGameShell
+            miniGameId={mgId}
+            isCompleted={isCompleted}
+            onBackToLevel={handleBackToLevel}
+            onContinueNext={() => {
+              const specs = activeLevelSpec.miniGames;
+              const idx = specs.indexOf(mgId);
+              const nextMg =
+                specs.slice(idx + 1).find((id) => !campaign.completedMiniGames.includes(id)) ??
+                specs.find((id) => id !== mgId && !campaign.completedMiniGames.includes(id));
+              if (nextMg) {
+                const targetRoom = activeLevelSpec.rooms.find((r) => r.miniGameId === nextMg);
+                setCampaignView(
+                  'minigame',
+                  activeLevelId,
+                  targetRoom?.id ?? campaign.activeRoomId,
+                  nextMg
+                );
                 return;
               }
-              setCampaignView('level_hub', nextLvl, null, null);
-              return;
-            }
-            handleBackToLevel();
-          }}
-        >
-          {activeLevelId === 1 && (
-            <Level1MiniGames
-              miniGameId={mgId}
-              campaign={campaign}
-              onCompleteMiniGame={handleCompleteMiniGame}
-              onUpdateCampaign={updateCampaignState}
-              onNextLevel={() => triggerRocketLaunch(2)}
-              onBackToLevel={handleBackToLevel}
-            />
-          )}
-          {activeLevelId === 2 && (
-            <Level2MiniGames
-              miniGameId={mgId}
-              campaign={campaign}
-              onCompleteMiniGame={handleCompleteMiniGame}
-              onNextLevel={() => setCampaignView('level_hub', 3, null, null)}
-              onBackToLevel={handleBackToLevel}
-            />
-          )}
-          {activeLevelId === 3 && (
-            <Level3MiniGames
-              miniGameId={mgId}
-              campaign={campaign}
-              onCompleteMiniGame={handleCompleteMiniGame}
-              onUpdateCampaign={updateCampaignState}
-              onJumpToRoom={handleJumpToLevel3Room}
-              onAuthorizeReturn={authorizeLunarReturn}
-              onNextLevel={() => setCampaignView('level_hub', 4, null, null)}
-              onBackToLevel={handleBackToLevel}
-            />
-          )}
-          {activeLevelId === 4 && (
-            <Level4MiniGames
-              miniGameId={mgId}
-              campaign={campaign}
-              onCompleteMiniGame={handleCompleteMiniGame}
-              onBackToLevel={handleBackToLevel}
-              onBackToWorldMap={handleBackToWorldMap}
-            />
-          )}
-        </MiniGameShell>
+              const nextLvl = (activeLevelId + 1) as CampaignLevelId;
+              if (activeLevelId < 4 && campaign.unlockedLevels.includes(nextLvl)) {
+                if (activeLevelId === 1) {
+                  triggerRocketLaunch(2);
+                  return;
+                }
+                setCampaignView('level_hub', nextLvl, null, null);
+                return;
+              }
+              handleBackToLevel();
+            }}
+          >
+            {activeLevelId === 1 && (
+              <Level1MiniGames
+                miniGameId={mgId}
+                campaign={campaign}
+                onCompleteMiniGame={handleCompleteMiniGame}
+                onUpdateCampaign={updateCampaignState}
+                onNextLevel={() => triggerRocketLaunch(2)}
+                onBackToLevel={handleBackToLevel}
+              />
+            )}
+            {activeLevelId === 2 && (
+              <Level2MiniGames
+                miniGameId={mgId}
+                campaign={campaign}
+                onCompleteMiniGame={handleCompleteMiniGame}
+                onNextLevel={() => setCampaignView('level_hub', 3, null, null)}
+                onBackToLevel={handleBackToLevel}
+              />
+            )}
+            {activeLevelId === 3 && (
+              <Level3MiniGames
+                miniGameId={mgId}
+                campaign={campaign}
+                onCompleteMiniGame={handleCompleteMiniGame}
+                onUpdateCampaign={updateCampaignState}
+                onJumpToRoom={handleJumpToLevel3Room}
+                onAuthorizeReturn={authorizeLunarReturn}
+                onNextLevel={() => setCampaignView('level_hub', 4, null, null)}
+                onBackToLevel={handleBackToLevel}
+              />
+            )}
+            {activeLevelId === 4 && (
+              <Level4MiniGames
+                miniGameId={mgId}
+                campaign={campaign}
+                onCompleteMiniGame={handleCompleteMiniGame}
+                onBackToLevel={handleBackToLevel}
+                onBackToWorldMap={handleBackToWorldMap}
+              />
+            )}
+          </MiniGameShell>
+        </>
       );
     }
   }
@@ -449,6 +509,7 @@ export const CampaignHubView: React.FC = () => {
         className="relative w-full h-[100dvh] overflow-hidden bg-[#07122b] text-white"
         dir={langDir}
       >
+        {renderCelebrationBurst()}
         {/* Full-Viewport 3D Mission Deck & Third-Person Astronaut Scene */}
         <div className="absolute inset-0 w-full h-full z-0">
           <SpatialRoomMap3D
@@ -490,7 +551,7 @@ export const CampaignHubView: React.FC = () => {
                 window.dispatchEvent(new CustomEvent('astronutri:auto-walk-next'));
               }}
               className="h-8 px-2 sm:px-3 rounded-full bg-slate-950/75 hover:bg-slate-900 border border-amber-300/80 backdrop-blur-md shadow text-[10px] sm:text-xs font-hud font-black text-white flex items-center gap-1 min-w-0 max-w-[140px] sm:max-w-[230px] cursor-pointer active:scale-95 transition-transform"
-              title={tr(language, seqTarget.bannerEn, seqTarget.bannerAr)}
+              title={tr(language, seqTarget.roboEn, seqTarget.roboAr)}
             >
               <span className="text-amber-300 shrink-0">🎯</span>
               <span className="lg:hidden truncate">
@@ -500,10 +561,10 @@ export const CampaignHubView: React.FC = () => {
                   `خطوة ${seqTarget.stepNumber}/${activeLevelSpec.miniGames.length}`
                 )}
               </span>
-              <span className="hidden lg:inline truncate">{tr(language, seqTarget.bannerEn, seqTarget.bannerAr)}</span>
+              <span className="hidden lg:inline truncate">{tr(language, seqTarget.roboEn, seqTarget.roboAr)}</span>
             </button>
 
-            {activeLevelId === 1 && (
+            {activeLevelId === 1 && (allLevelGamesDone || isDemoMode) && (
               <button
                 type="button"
                 data-testid="launch-to-space-btn"
@@ -601,8 +662,8 @@ export const CampaignHubView: React.FC = () => {
           pose={seqTarget.isAllDone ? 'CELEBRATING' : 'TALKING'}
           speakerNameEn="Robo Guide"
           speakerNameAr="روبو المرشد"
-          messageEn={seqTarget.bannerEn}
-          messageAr={seqTarget.bannerAr}
+          messageEn={seqTarget.roboEn}
+          messageAr={seqTarget.roboAr}
           actionLabelEn={seqTarget.activeRoom ? 'Go There!' : undefined}
           actionLabelAr={seqTarget.activeRoom ? 'انطلق إليها!' : undefined}
           onAction={
@@ -946,6 +1007,7 @@ export const CampaignHubView: React.FC = () => {
       dir={langDir}
     >
       {/* Full-Viewport 3D Earth-to-Moon Orbital Trajectory */}
+      {renderCelebrationBurst()}
       <div className="absolute inset-0 w-full h-full z-0">
         <WorldNavigator3D
           campaign={campaign}
@@ -1061,10 +1123,10 @@ export const CampaignHubView: React.FC = () => {
         pose="WAVE"
         speakerNameEn="Robo Guide"
         speakerNameAr="روبو المرشد"
-        messageEn={`Welcome Space Hero! Sector ${highestUnlockedNodeId} is unlocked — explore the 3D trail or jump right in!`}
-        messageAr={`أهلاً يا بطل الفضاء! المرحلة ${highestUnlockedNodeId} مفتوحة — استكشف المسار أو ابدأ اللعب الآن!`}
-        actionLabelEn={`Play Node ${highestUnlockedNodeId}`}
-        actionLabelAr={`ابدأ المرحلة ${highestUnlockedNodeId}`}
+        messageEn={(SHORT_WORLD_HUB_ROBO_LINES[highestUnlockedNodeId] ?? SHORT_WORLD_HUB_ROBO_LINES[1]).en}
+        messageAr={(SHORT_WORLD_HUB_ROBO_LINES[highestUnlockedNodeId] ?? SHORT_WORLD_HUB_ROBO_LINES[1]).ar}
+        actionLabelEn={`Enter Sector ${highestUnlockedNodeId}`}
+        actionLabelAr={`ادخل الكوكب ${highestUnlockedNodeId}`}
         onAction={() => handleSelectLevel(highestUnlockedNodeId)}
         onDismiss={() => setShowWorldRoboGuide(false)}
         testId="robo-guide-overlay"

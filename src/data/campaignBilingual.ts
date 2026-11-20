@@ -428,7 +428,87 @@ export interface SequentialMissionTarget {
   isAllDone: boolean;
   bannerEn: string;
   bannerAr: string;
+  roboEn: string;
+  roboAr: string;
 }
+
+const SHORT_ROBO_STEP_LINES: Partial<Record<MiniGameId, { en: string; ar: string }>> = {
+  l1_food_prep: {
+    en: 'Hop in the Buggy and drive to the Space Kitchen! 🚙',
+    ar: 'اركب المركبة وانطلق إلى المطبخ الفضائي! 🚙'
+  },
+  l1_equipment_prep: {
+    en: 'Snacks packed! Next: drive to the Suit Hangar! ✨',
+    ar: 'جهزنا الطعام! الآن: انطلق لحظيرة البدلة! ✨'
+  },
+  l1_medical_check: {
+    en: 'Suit ready! Next: visit the Medical Clinic! 🩺',
+    ar: 'البدلة جاهزة! التالي: زر العيادة الطبية! 🩺'
+  },
+  l1_mission_launch: {
+    en: 'All clear! Head to the Rocket Pad for liftoff! 🚀',
+    ar: 'كل شيء جاهز! اتجه لمنصة الصاروخ للإقلاع! 🚀'
+  },
+  l2_zerog_movement: {
+    en: 'Welcome to Zero-G! Glide into the ISS Airlock! 🧑‍🚀',
+    ar: 'أهلاً في انعدام الجاذبية! ادخل غرفة معادلة الضغط! 🧑‍🚀'
+  },
+  l2_balanced_meal: {
+    en: 'Great glide! Next: pack your orbital tray in the Galley! 🍱',
+    ar: 'حركة رائعة! التالي: جهّز وجبتك في المطبخ المداري! 🍱'
+  },
+  l2_systems_neows: {
+    en: 'Tray ready! Head to Radar Deck to dodge asteroids! ☄️',
+    ar: 'الوجبة جاهزة! اتجه للرادار لتفادي الكويكبات! ☄️'
+  },
+  l3_water_recycling: {
+    en: 'Touchdown on the Moon! First: clean water at Hydroponics! 💧',
+    ar: 'هبطنا على القمر! أولاً: نقِّ المياه في محطة الزراعة! 💧'
+  },
+  l3_resistance_training: {
+    en: 'Water pure! Next: train muscles in the Fitness Bay! 🏋️',
+    ar: 'المياه نقية! التالي: درّب عضلاتك في صالة اللياقة! 🏋️'
+  },
+  l3_solar_storm: {
+    en: 'Solar alert! Rush to the Storm Shield Console! ☀️',
+    ar: 'تنبيه شمسي! أسرع إلى وحدة درع العاصفة! ☀️'
+  },
+  l3_lunar_samples: {
+    en: 'Storm blocked! Drive the 6x6 Rover to collect Moon rocks! 🪨',
+    ar: 'صددنا العاصفة! قد المركبة السداسية لجمع صخور القمر! 🪨'
+  },
+  l4_departure_prep: {
+    en: 'Welcome to Mars Canyon! Lock samples in Cargo Bay! 📦',
+    ar: 'أهلاً في وادي المريخ! ثبّت العينات في مخزن الشحن! 📦'
+  },
+  l4_earth_reentry: {
+    en: 'Cargo locked! Check the Heat Shield for Earth reentry! 🔥',
+    ar: 'تم تأمين الشحن! افحص الدرع الحراري للعودة للأرض! 🔥'
+  },
+  l4_safe_landing: {
+    en: 'Final step! Deploy Orion parachutes for splashdown! 🪂',
+    ar: 'الخطوة الأخيرة! افتح مظلات أوريون للهبوط الآمن! 🪂'
+  }
+};
+
+export const SHORT_WORLD_HUB_ROBO_LINES: Record<CampaignLevelId, { en: string; ar: string }> = {
+  1: {
+    en: 'Follow the golden arrow to Earth Launchpad! 🚀',
+    ar: 'اتبع السهم الذهبي إلى بوابة منصة الأرض! 🚀'
+  },
+  2: {
+    en: 'Earth complete! Enter the ISS Orbit Portal ahead! 🛰️',
+    ar: 'اكتملت الأرض! ادخل بوابة محطة الفضاء أمامك! 🛰️'
+  },
+  3: {
+    en: 'Orbit mastered! Head into the Moon Base Portal! 🌕',
+    ar: 'أتممت المدار! انطلق إلى بوابة قاعدة القمر! 🌕'
+  },
+  4: {
+    en: 'Moon mission done! Enter the Final Return Portal! 🪂',
+    ar: 'أنجزت مهمة القمر! ادخل بوابة العودة النهائية! 🪂'
+  }
+};
 
 export function getNextSequentialMissionTarget(
   levelId: CampaignLevelId,
@@ -451,8 +531,10 @@ export function getNextSequentialMissionTarget(
         activeRoom: mcRoom,
         requiresReturnAuth: true,
         isAllDone: false,
-        bannerEn: `Final Step: Enter ${mcRoom.nameEn} to Authorize Earth Return`,
-        bannerAr: `الخطوة الأخيرة: ادخل ${mcRoom.nameAr} لاعتماد إذن العودة للأرض`
+        bannerEn: `Final Step: Authorize Earth Return`,
+        bannerAr: `الخطوة الأخيرة: اعتمد إذن العودة للأرض`,
+        roboEn: 'Rocks collected! Tap Lunar Control to authorize return! 🛸',
+        roboAr: 'جمعنا الصخور! اضغط مركز القيادة لاعتماد العودة! 🛸'
       };
     }
 
@@ -464,8 +546,16 @@ export function getNextSequentialMissionTarget(
       activeRoom: null,
       requiresReturnAuth: false,
       isAllDone: true,
-      bannerEn: `Stage ${levelId} Complete (${totalSteps}/${totalSteps})! Laser Bridge to Next Sector Open`,
-      bannerAr: `اكتملت المرحلة ${levelId} (${totalSteps}/${totalSteps})! تم فتح جسر الليزر التالي`
+      bannerEn: `Stage ${levelId} Complete (${totalSteps}/${totalSteps})!`,
+      bannerAr: `اكتملت المرحلة ${levelId} (${totalSteps}/${totalSteps})!`,
+      roboEn:
+        levelId === 1
+          ? 'Earth ready! Tap Launch Rocket to blast into Orbit! 🚀'
+          : `Awesome! Stage ${levelId} complete — advance to the next world! 🎉`,
+      roboAr:
+        levelId === 1
+          ? 'الأرض جاهزة! اضغط إقلاع الصاروخ للانطلاق للمدار! 🚀'
+          : `رائع! اكتملت المرحلة ${levelId} — انتقل للعالم التالي! 🎉`
     };
   }
 
@@ -477,6 +567,10 @@ export function getNextSequentialMissionTarget(
     spec.rooms[0];
 
   const stepNumber = firstPendingIdx + 1;
+  const shortRobo = SHORT_ROBO_STEP_LINES[activeMiniGameId] || {
+    en: `Follow the arrow to ${mgSpec.titleEn}! 🚀`,
+    ar: `اتبع السهم إلى ${mgSpec.titleAr}! 🚀`
+  };
   return {
     stepNumber,
     totalSteps,
@@ -486,7 +580,9 @@ export function getNextSequentialMissionTarget(
     requiresReturnAuth: false,
     isAllDone: false,
     bannerEn: `Step ${stepNumber} of ${totalSteps}: ${mgSpec.titleEn}`,
-    bannerAr: `الخطوة ${stepNumber} من ${totalSteps}: ${mgSpec.titleAr}`
+    bannerAr: `الخطوة ${stepNumber} من ${totalSteps}: ${mgSpec.titleAr}`,
+    roboEn: shortRobo.en,
+    roboAr: shortRobo.ar
   };
 }
 

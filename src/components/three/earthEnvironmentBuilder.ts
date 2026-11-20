@@ -283,12 +283,13 @@ function createRoadRibbonGeometry(
       const s1R = cx1 + nx * outerHalf;
       const sz1R = cz1 + nz * outerHalf;
 
-      const y0C = evalHeight(cx0, cz0) + 0.14;
-      const y1C = evalHeight(cx1, cz1) + 0.14;
-      const y0L = evalHeight(x0L, z0L) + 0.14;
-      const y0R = evalHeight(x0R, z0R) + 0.14;
-      const y1L = evalHeight(x1L, z1L) + 0.14;
-      const y1R = evalHeight(x1R, z1R) + 0.14;
+      const yLift = filterMain ? 0.16 : 0.11;
+      const y0C = evalHeight(cx0, cz0) + yLift;
+      const y1C = evalHeight(cx1, cz1) + yLift;
+      const y0L = evalHeight(x0L, z0L) + yLift;
+      const y0R = evalHeight(x0R, z0R) + yLift;
+      const y1L = evalHeight(x1L, z1L) + yLift;
+      const y1R = evalHeight(x1R, z1R) + yLift;
 
       const sy0L = evalHeight(s0L, sz0L) - 0.18;
       const sy0R = evalHeight(s0R, sz0R) - 0.18;

@@ -189,10 +189,14 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   const suitStateRef = useRef<SpaceFitXState | undefined>(suitState);
   suitStateRef.current = suitState;
 
-  // Player starts in sunlit Academy Central Command Courtyard facing HQ
+  // Player starts in sunlit Academy Central Command Courtyard facing straight down the boulevard toward the Active Planet Gateway!
   const spawnX = 0;
   const spawnZ = 8.0;
   const spawnY = evalOverworldTerrainHeight(spawnX, spawnZ);
+  const initActiveNode =
+    GATEWAY_NODES.find((n) => n.levelId === activeTargetLevelId) || GATEWAY_NODES[0];
+  const initFacingYaw = Math.atan2(initActiveNode.x - spawnX, initActiveNode.z - spawnZ);
+  const initCameraYaw = initFacingYaw + Math.PI;
 
   const autoNavTargetRef = useRef<{ x: number; z: number } | null>(null);
   const pendingEnterLevelRef = useRef<CampaignLevelId | null>(null);
@@ -204,7 +208,7 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   const kinematicsRef = useRef<ThirdPersonKinematicsState>(
     createKinematicsState(spawnX, spawnY, spawnZ, performance.now())
   );
-  const freeCraftYawRef = useRef<number>(Math.PI);
+  const freeCraftYawRef = useRef<number>(initFacingYaw);
 
   // Drivable Hub Space Buggy parked in front driveway of East Vehicle Garage Bay
   const garageX = 8.6;
@@ -223,9 +227,9 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
   const isBoostingRef = useRef<boolean>(false);
   const ascendUntilRef = useRef<number>(0);
   const activeLookRef = useRef<boolean>(false);
-  const orbitYawRef = useRef<number>(0);
+  const orbitYawRef = useRef<number>(initCameraYaw);
   const orbitPitchRef = useRef<number>(0.24);
-  const targetOrbitYawRef = useRef<number>(0);
+  const targetOrbitYawRef = useRef<number>(initCameraYaw);
   const targetOrbitPitchRef = useRef<number>(0.20);
   const [displaySettings] = useDisplaySettings();
   const displaySettingsRef = useRef(displaySettings);
@@ -406,20 +410,33 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
 
     const scene = new THREE.Scene();
     let isDisposed = false;
+    const activeNodeForCam =
+      GATEWAY_NODES.find((n) => n.levelId === activeTargetLevelId) || GATEWAY_NODES[0];
+    const facingGateYaw = Math.atan2(
+      activeNodeForCam.x - freeCraftPosRef.current.x,
+      activeNodeForCam.z - freeCraftPosRef.current.z
+    );
+    const camBehindPlayerYaw = facingGateYaw + Math.PI;
+    freeCraftYawRef.current = facingGateYaw;
+
     const camera = new THREE.PerspectiveCamera(58, dims.w / dims.h, 0.1, 400);
-    camera.position.set(spawnX - 3.5, spawnY + 4.8, spawnZ + 8.5);
-    orbitPitchRef.current = 0.34;
-    orbitYawRef.current = -0.22;
+    camera.position.set(
+      spawnX + Math.sin(camBehindPlayerYaw) * 7.2,
+      spawnY + 4.4,
+      spawnZ + Math.cos(camBehindPlayerYaw) * 7.2
+    );
+    orbitPitchRef.current = 0.30;
+    orbitYawRef.current = camBehindPlayerYaw - 0.18;
     targetOrbitPitchRef.current = 0.20;
-    targetOrbitYawRef.current = 0;
+    targetOrbitYawRef.current = camBehindPlayerYaw;
     const worldFlyInTween = gsap.to(targetOrbitPitchRef, {
       current: 0.17,
-      duration: 0.9,
+      duration: 0.85,
       ease: 'power2.out'
     });
     const worldYawInTween = gsap.to(targetOrbitYawRef, {
-      current: 0,
-      duration: 0.9,
+      current: camBehindPlayerYaw,
+      duration: 0.85,
       ease: 'power2.out'
     });
 
@@ -616,24 +633,47 @@ export const WorldNavigator3D: React.FC<WorldNavigator3DProps> = ({
       });
 
       const rawTitle = tr(language, cfg.enLabel, cfg.arLabel);
-      const labelText = completed ? `✅ ${rawTitle}` : unlocked ? rawTitle : `🔒 ${rawTitle}`;
-      const { sprite, texture } = createNodeLabelSprite(labelText, cfg.accentHex, !unlocked, completed);
+      const labelText = completed ? `✅ ${rawTitle}` : isActive ? `🎯 ${rawTitle}` : unlocked ? rawTitle : `🔒 ${rawTitle}`;
+      const { sprite, texture } = createNodeLabelSprite(labelText, isActive ? '#facc15' : cfg.accentHex, !unlocked, completed);
       sprite.position.set(0, 6.2, 0);
+      if (!unlocked) {
+        sprite.material.opacity = 0.48;
+        sprite.scale.set(5.0, 1.25, 1);
+      } else if (isActive) {
+        sprite.scale.set(6.8, 1.7, 1);
+      }
       root.add(sprite);
       disposableTextures.push(texture);
 
       const halo = new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.55, 0),
+        new THREE.OctahedronGeometry(0.68, 0),
         new THREE.MeshStandardMaterial({
           color: 0xfacc15,
           emissive: 0xf59e0b,
-          emissiveIntensity: 0.9,
-          roughness: 0.2
+          emissiveIntensity: 1.25,
+          roughness: 0.18
         })
       );
-      halo.position.set(0, 7.5, 0);
+      halo.position.set(0, 7.6, 0);
       halo.visible = isActive;
       root.add(halo);
+
+      // Vertical Glowing Sky Beacon Pillar above the Active Planet Gateway so players spot it instantly!
+      if (isActive) {
+        const skyBeacon = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.18, 0.95, 16, 12, 1, true),
+          new THREE.MeshBasicMaterial({
+            color: 0xfacc15,
+            transparent: true,
+            opacity: 0.24,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide
+          })
+        );
+        skyBeacon.position.set(0, 8.2, 0);
+        root.add(skyBeacon);
+      }
 
       nodeGroups.push({ cfg, root, halo, posY: gy });
     });

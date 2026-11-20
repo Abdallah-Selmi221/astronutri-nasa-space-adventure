@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { Globe, Rocket, Sparkles, User, Volume2 } from 'lucide-react';
+import { Globe, Play, Rocket, Sparkles, User, Volume2 } from 'lucide-react';
 import { useGameState } from '../../context/GameContext';
 import { buildSpaceFitXCharacter } from '../three/buildSpaceFitXCharacter';
 import gsap from 'gsap';
 import { createCosmicSkyBackdrop } from '../three/archipelagoPrimitives';
+import { attachEarthBuildingGlb, disposeObject3D, loadCachedGlbClone } from '../three/blenderModelLoader';
+import { ColoredGeometryPart, mergeColoredParts } from '../three/threeMergeUtils';
 import { soundManager } from '../../utils/sound';
 import { speakWebSpeechNonBlocking, tr } from '../../utils/i18n';
 import type { CadetAgeGroup } from '../../types/game';
@@ -20,20 +22,39 @@ const CUTSCENE_BEATS: Array<{
 }> = [
   {
     atSec: 0,
-    en: '🤖 Robo: "Welcome Cadet! Launching camera into AstroNutri Orbital Academy..."',
-    ar: '🤖 روبو: "أهلاً بك يا بطل! نطير الآن إلى أكاديمية أسترونوتري المدارية..."'
+    en: '🤖 Robo: "Welcome Space Hero! Ready to launch from Earth?"',
+    ar: '🤖 روبو: "أهلاً يا بطل الفضاء! جاهز للإقلاع من الأرض؟"'
   },
   {
     atSec: 1.7,
-    en: '👨‍🚀 SPACE-FIT X: "4 Space Nodes, 14 Stations & Real NASA DONKI / NeoWs / OSDR Data!"',
-    ar: '👨‍🚀 بدلة SPACE-FIT X: "4 مراحل فضائية و14 محطة موجهة ببيانات ناسا الحقيقية!"'
+    en: '🧑‍🚀 SPACE-FIT X: "4 Space Worlds & 14 Fun NASA Missions!"',
+    ar: '🧑‍🚀 بدلة الفضاء: "4 عوالم فضائية و14 مهمة ممتعة من ناسا!"'
   },
   {
     atSec: 3.4,
-    en: '🌙 Ready for Liftoff: "Pick your language, age group & hit Start Adventure!"',
-    ar: '🌙 جاهز للإقلاع: "اختر لغتك وفئتك العمرية واضغط ابدأ المغامرة!"'
+    en: '🚀 Liftoff Ready: "Tap PLAY ADVENTURE to start your journey!"',
+    ar: '🚀 جاهز للانطلاق: "اضغط ابدأ المغامرة لتبدأ رحلتك الآن!"'
   }
 ];
+
+function extractGlbMeshGeometry(root: THREE.Object3D, meshName: string): THREE.BufferGeometry | null {
+  const obj = root.getObjectByName(meshName);
+  if (!obj) return null;
+  root.updateMatrixWorld(true);
+  let targetMesh: THREE.Mesh | null = null;
+  if (obj instanceof THREE.Mesh) {
+    targetMesh = obj;
+  } else {
+    obj.traverse((child) => {
+      if (!targetMesh && child instanceof THREE.Mesh) targetMesh = child;
+    });
+  }
+  if (!targetMesh?.geometry) return null;
+  const cloned = targetMesh.geometry.clone();
+  cloned.applyMatrix4(targetMesh.matrixWorld);
+  if (!cloned.getAttribute('normal')) cloned.computeVertexNormals();
+  return cloned;
+}
 
 export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }) => {
   const { state, language, ageGroup, setLanguage, setAgeGroup, setCadetName } = useGameState();
@@ -47,14 +68,14 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
   // Instant AAA Game Boot Logo Splash (< 1.6s auto-transition or instant on tap, zero network wait)
   useEffect(() => {
     const tFill = window.setTimeout(() => setSplashProgress(100), 40);
-    const tDone = window.setTimeout(() => setShowBootSplash(false), 1600);
+    const tDone = window.setTimeout(() => setShowBootSplash(false), 1550);
     return () => {
       window.clearTimeout(tFill);
       window.clearTimeout(tDone);
     };
   }, []);
 
-  // 5-second in-engine 3D orbital fly-in cutscene (zero MP4 video download)
+  // Live 3D Hero Stage: Sunlit Bright Earth Launchpad Vista + SPACE-FIT X Astronaut & Robo + Rocket Backdrop
   useEffect(() => {
     const host = canvasHostRef.current;
     if (!host) return;
@@ -74,83 +95,144 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
     host.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(46, w / h, 0.1, 160);
-    camera.position.set(5.4, 3.6, 9.6);
+    let isDisposed = false;
+    const camera = new THREE.PerspectiveCamera(44, w / h, 0.1, 280);
+    camera.position.set(3.2, 2.4, 7.6);
 
-    const sky = createCosmicSkyBackdrop(scene, 'nebula');
-    const hemi = new THREE.HemisphereLight(0xe0f2fe, 0x0f172a, 1.15);
-    const sun = new THREE.DirectionalLight(0xfffbeb, 1.55);
-    sun.position.set(6, 10, 7);
-    scene.add(hemi, sun);
+    // Bright Sunlit Daylight Sky Dome + Drifting Fluffy Clouds
+    const sky = createCosmicSkyBackdrop(scene, 'sunny', { skipSatellite: true });
+    scene.background = new THREE.Color(0x56c2ff);
+    scene.fog = new THREE.Fog(0x9bd9ff, 65, 220);
 
-    const orbitalDeck = new THREE.Group();
-    const deckMat = new THREE.MeshStandardMaterial({
-      color: 0x162238,
-      metalness: 0.55,
-      roughness: 0.35
+    const hemi = new THREE.HemisphereLight(0xd8f3ff, 0x3b8c4a, 1.55);
+    const sun = new THREE.DirectionalLight(0xfff6d6, 2.35);
+    sun.position.set(16, 28, 20);
+    const fill = new THREE.DirectionalLight(0x7dd3fc, 0.75);
+    fill.position.set(-14, 10, -12);
+    scene.add(hemi, sun, fill);
+
+    // Sunlit Lush Green Valley Meadow + Paved Launchpad Promenade Stage
+    const stageGroup = new THREE.Group();
+    const stageParts: ColoredGeometryPart[] = [
+      // Lush emerald valley floor & rolling hills
+      { geometry: new THREE.CylinderGeometry(58, 62, 1.6, 36), color: 0x38b449, position: [0, -0.95, -6] },
+      { geometry: new THREE.SphereGeometry(22, 18, 12), color: 0x2ea043, position: [-24, -15.5, -24], scale: [1.5, 0.45, 1.1] },
+      { geometry: new THREE.SphereGeometry(24, 18, 12), color: 0x45c458, position: [26, -16.2, -26], scale: [1.4, 0.45, 1.1] },
+      // Asphalt approach road leading from hero dais to Artemis Launchpad
+      { geometry: new THREE.BoxGeometry(4.2, 0.14, 24), color: 0x3f4b5b, position: [1.6, -0.14, -9.5], rotation: [0, -0.14, 0] },
+      { geometry: new THREE.BoxGeometry(0.18, 0.15, 22), color: 0xfacc15, position: [1.6, -0.13, -9.5], rotation: [0, -0.14, 0] },
+      // Hero Astronaut Launchpad Dais (Positioned slightly left-center at x = -1.15 so right UI dock never covers hero!)
+      { geometry: new THREE.CylinderGeometry(2.85, 3.25, 0.28, 32), color: 0x475569, position: [-1.15, -0.14, 0.2] },
+      { geometry: new THREE.CylinderGeometry(2.35, 2.55, 0.14, 32), color: 0x1e293b, position: [-1.15, -0.02, 0.2] }
+    ];
+
+    // Stylized Colorful Rounded Meadow Trees framing the sunlit vista (Emerald, Golden-Orange, Blossom Pink)
+    const treePlacements: Array<{ x: number; z: number; s: number; col: number }> = [
+      { x: -7.5, z: -4.8, s: 1.05, col: 0x22c55e },
+      { x: -11.5, z: -10.5, s: 1.25, col: 0xf59e0b },
+      { x: -5.4, z: -14.0, s: 0.95, col: 0xf472b6 },
+      { x: 9.2, z: -7.5, s: 1.1, col: 0x4ade80 },
+      { x: 12.8, z: -13.5, s: 1.2, col: 0xfb923c },
+      { x: -14.8, z: -4.2, s: 1.15, col: 0x16a34a }
+    ];
+    for (const tp of treePlacements) {
+      stageParts.push(
+        { geometry: new THREE.CylinderGeometry(0.18 * tp.s, 0.30 * tp.s, 1.8 * tp.s, 8), color: 0x6b3e1e, position: [tp.x, 0.7 * tp.s, tp.z] },
+        { geometry: new THREE.IcosahedronGeometry(1.15 * tp.s, 1), color: tp.col, position: [tp.x, 2.25 * tp.s, tp.z], scale: [1.15, 0.92, 1.12] },
+        { geometry: new THREE.IcosahedronGeometry(0.85 * tp.s, 1), color: tp.col, position: [tp.x - 0.65 * tp.s, 1.85 * tp.s, tp.z + 0.3 * tp.s], scale: [1.05, 0.85, 1.05] },
+        { geometry: new THREE.IcosahedronGeometry(0.82 * tp.s, 1), color: tp.col, position: [tp.x + 0.65 * tp.s, 1.9 * tp.s, tp.z - 0.25 * tp.s], scale: [1.05, 0.85, 1.05] }
+      );
+    }
+
+    const stageMesh = new THREE.Mesh(
+      mergeColoredParts(stageParts),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.12 })
+    );
+    stageGroup.add(stageMesh);
+
+    const daisRing = new THREE.Mesh(
+      new THREE.TorusGeometry(2.42, 0.06, 10, 48),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+    );
+    daisRing.rotation.x = Math.PI / 2;
+    daisRing.position.set(-1.15, 0.05, 0.2);
+    stageGroup.add(daisRing);
+    scene.add(stageGroup);
+
+    // Craggy Snow-Capped Alpine Mountain Backdrop Ring
+    const fallbackMtnParts: ColoredGeometryPart[] = [];
+    for (let i = 0; i < 18; i++) {
+      const ang = (i / 18) * Math.PI * 2;
+      const r = 115 + (i % 3) * 8;
+      const h = 24 + (i % 4) * 7;
+      fallbackMtnParts.push(
+        { geometry: new THREE.ConeGeometry(22, h, 5), color: 0x475569, position: [Math.cos(ang) * r, h * 0.38 - 3, Math.sin(ang) * r] },
+        { geometry: new THREE.ConeGeometry(9.5, h * 0.42, 5), color: 0xf8fafc, position: [Math.cos(ang) * r, h * 0.68 - 3, Math.sin(ang) * r] }
+      );
+    }
+    const mtnMesh = new THREE.Mesh(
+      mergeColoredParts(fallbackMtnParts),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, flatShading: true })
+    );
+    scene.add(mtnMesh);
+
+    void loadCachedGlbClone('/models/earth_mountains_craggy.glb').then((glb) => {
+      if (!glb) return;
+      if (isDisposed) {
+        disposeObject3D(glb);
+        return;
+      }
+      const mtnGeom = extractGlbMeshGeometry(glb, 'CraggyMountains');
+      if (mtnGeom) {
+        mtnGeom.scale(0.82, 0.85, 0.82);
+        mtnMesh.geometry.dispose();
+        mtnMesh.geometry = mtnGeom;
+      }
+      disposeObject3D(glb);
     });
-    const deckBase = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.5, 0.36, 36), deckMat);
-    deckBase.position.y = -0.18;
-    const dockRing = new THREE.Mesh(
-      new THREE.TorusGeometry(4.22, 0.08, 12, 48),
-      new THREE.MeshBasicMaterial({ color: 0x22d3ee })
-    );
-    dockRing.rotation.x = Math.PI / 2;
-    const innerRing = new THREE.Mesh(
-      new THREE.TorusGeometry(2.3, 0.045, 10, 40),
-      new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.72 })
-    );
-    innerRing.rotation.x = Math.PI / 2;
-    innerRing.position.y = 0.02;
-    const moonBackdrop = new THREE.Mesh(
-      new THREE.SphereGeometry(2.1, 20, 14),
-      new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.85, metalness: 0.08 })
-    );
-    moonBackdrop.position.set(-7.5, 4.2, -13);
-    const earthBackdrop = new THREE.Mesh(
-      new THREE.SphereGeometry(3.4, 24, 16),
-      new THREE.MeshStandardMaterial({
-        color: 0x1d4ed8,
-        emissive: 0x075985,
-        emissiveIntensity: 0.35,
-        roughness: 0.65
-      })
-    );
-    earthBackdrop.position.set(8.8, 3.8, -16);
-    orbitalDeck.add(deckBase, dockRing, innerRing, moonBackdrop, earthBackdrop);
-    orbitalDeck.position.set(0, -0.35, 0);
-    scene.add(orbitalDeck);
 
-    // Smooth GSAP camera fly-in target
-    const introCamProxy = { x: 5.8, y: 4.1, z: 10.4 };
+    // Artemis Rocket & Red Umbilical Launch Tower standing proudly in the sunlit background
+    const rocketGroup = new THREE.Group();
+    rocketGroup.position.set(3.8, -0.15, -15.5);
+    scene.add(rocketGroup);
+    const fallbackRocket = new THREE.Mesh(
+      mergeColoredParts([
+        { geometry: new THREE.CylinderGeometry(0.8, 0.85, 7.5, 16), color: 0xf97316, position: [0, 4.2, 0] },
+        { geometry: new THREE.ConeGeometry(0.8, 2.2, 16), color: 0xf8fafc, position: [0, 9.0, 0] },
+        { geometry: new THREE.BoxGeometry(1.4, 11.0, 1.4), color: 0xdc2626, position: [-2.4, 5.5, 0] }
+      ]),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45 })
+    );
+    rocketGroup.add(fallbackRocket);
+
+    attachEarthBuildingGlb({
+      modelName: 'earth_launch_complex',
+      targetParent: rocketGroup,
+      scale: 0.72,
+      position: [0, 0, 0],
+      rotationY: -0.35,
+      fallbackNodes: [fallbackRocket],
+      isDisposed: () => isDisposed
+    });
+
+    // 3D SPACE-FIT X Astronaut + built-in hovering Robo companion on the Hero Dais (left-center)
+    const hero = buildSpaceFitXCharacter({
+      showEvaHelmet: true,
+      showCompanion: true,
+      scale: 1.24
+    });
+    hero.group.position.set(-1.15, 0.05, 0.25);
+    scene.add(hero.group);
+
+    // Smooth GSAP camera fly-in framing hero on left & rocket/mountains across the vista
+    const introCamProxy = { x: 2.4, y: 2.6, z: 7.4 };
     const camTween = gsap.to(introCamProxy, {
-      x: 1.35,
-      y: 1.85,
-      z: 5.1,
-      duration: 4.8,
+      x: 0.35,
+      y: 1.58,
+      z: 4.55,
+      duration: 3.2,
       ease: 'power3.out'
     });
-
-    // Mini showcase ringed planet in skyline
-    const planetGroup = new THREE.Group();
-    const planetBody = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(1.15, 2),
-      new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.45, metalness: 0.15, flatShading: true })
-    );
-    const planetRing = new THREE.Mesh(
-      new THREE.RingGeometry(1.5, 2.05, 28),
-      new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide, transparent: true, opacity: 0.72 })
-    );
-    planetRing.rotation.x = Math.PI * 0.36;
-    planetGroup.add(planetBody, planetRing);
-    planetGroup.position.set(-4.8, 3.3, -6.5);
-    scene.add(planetGroup);
-
-    // 3D SPACE-FIT X Astronaut + built-in hovering Robo companion
-    const hero = buildSpaceFitXCharacter();
-    hero.group.position.set(0, 0, 0.35);
-    hero.group.scale.setScalar(1.22);
-    scene.add(hero.group);
 
     const handleResize = () => {
       if (!host || !renderer) return;
@@ -171,7 +253,6 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
       const elapsed = (now - startMs) / 1000;
       const flyT = Math.min(1, elapsed / 5.0);
 
-      // Update React subtitle beat cleanly only when transitioning threshold
       const bucket = elapsed < 1.7 ? 0 : elapsed < 3.4 ? 1 : 2;
       if (bucket !== lastSubtitleBucket) {
         lastSubtitleBucket = bucket;
@@ -184,34 +265,34 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
       }
 
       sky.update(elapsed);
-      planetGroup.rotation.y = elapsed * 0.28;
       hero.update({
         t: elapsed,
         moveSpeed: 0,
-        emote: elapsed < 3.4 ? 'wave' : 'celebrate',
+        emote: 'wave',
         suitState: state.campaign?.spaceFitX
       });
-      hero.group.rotation.y = Math.sin(elapsed * 0.6) * 0.28;
+      hero.group.rotation.y = 0.22 + Math.sin(elapsed * 0.75) * 0.18;
 
-      // GSAP-driven fly-in + gentle post-arrival orbit sway
-      const idleSway = Math.max(0, elapsed - 4.8) * 0.25;
-      const camX = introCamProxy.x + Math.sin(idleSway) * 0.45;
-      const camY = introCamProxy.y;
+      const orbitSway = Math.sin(elapsed * 0.42) * 0.32;
+      const camX = introCamProxy.x + orbitSway;
+      const camY = introCamProxy.y + Math.sin(elapsed * 0.65) * 0.06;
       const camZ = introCamProxy.z;
-      dockRing.rotation.z = elapsed * 0.16;
+      daisRing.rotation.z = elapsed * 0.25;
       camera.position.set(camX, camY, camZ);
-      camera.lookAt(0, 1.15, 0.2);
+      camera.lookAt(-0.15, 1.25, -0.6);
 
       renderer?.render(scene, camera);
     };
     rafId = requestAnimationFrame(tick);
 
     return () => {
+      isDisposed = true;
       camTween.kill();
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', handleResize);
       sky.dispose();
       hero.dispose();
+      disposeObject3D(rocketGroup);
       scene.traverse((obj) => {
         if (obj instanceof THREE.Mesh || obj instanceof THREE.InstancedMesh) {
           obj.geometry?.dispose();
@@ -236,10 +317,8 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
       // ignore storage errors
     }
 
-    // Immediate synchronous UI transition (0 ms delay)
     onComplete();
 
-    // Non-blocking background audio & Web Speech greeting
     window.setTimeout(() => {
       try {
         soundManager.playFanfare();
@@ -248,8 +327,8 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
       }
       speakWebSpeechNonBlocking(
         language === 'ar'
-          ? `أهلاً بك يا ${cleanedName}! انطلق في مهمة أسترونوتري من الأرض إلى القمر!`
-          : `Welcome Cadet ${cleanedName}! Launching into the Earth-to-Moon Space Map!`,
+          ? `أهلاً يا ${cleanedName}! انطلق نحو بوابة الأرض لبدء المغامرة!`
+          : `Welcome Cadet ${cleanedName}! Head to the Earth Launchpad to start your adventure!`,
         language
       );
     }, 0);
@@ -263,29 +342,29 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
     }
     const text =
       language === 'ar'
-        ? 'مرحباً بك في أكاديمية ناسا أسترونوتري! اختر لغتك واضغط ابدأ المغامرة للانطلاق إلى الفضاء.'
-        : 'Welcome to AstroNutri NASA Space Academy! Choose your profile and tap Start Adventure to explore the Earth-to-Moon space missions.';
+        ? 'مرحباً بك في مغامرة أسترونوتري الفضائية! اضغط ابدأ المغامرة للانطلاق من منصة الأرض.'
+        : 'Welcome to AstroNutri Space Adventure! Tap Play Adventure to launch from the sunlit Earth Spaceport.';
     speakWebSpeechNonBlocking(text, language);
   };
 
   const currentBeat = CUTSCENE_BEATS[beatIdx] || CUTSCENE_BEATS[0];
+  void cutsceneElapsed;
 
   return (
     <div
       data-testid="intro-welcome-screen"
       dir={language === 'ar' ? 'rtl' : 'ltr'}
-      className="fixed inset-0 z-50 bg-[#04091a] flex flex-col justify-between scrollable-panel select-none"
+      className="fixed inset-0 z-50 h-[100dvh] w-full overflow-hidden bg-[#1e90ff] flex flex-col justify-between p-2.5 sm:p-5 select-none"
     >
       {/* Instant AAA Game Boot Logo Splash (< 1.6s auto-transition or instant on tap) */}
       {showBootSplash && (
         <div
           data-testid="boot-logo-splash"
           onClick={() => setShowBootSplash(false)}
-          className="fixed inset-0 z-50 bg-[radial-gradient(circle_at_center,_#0c1e4a_0%,_#04091a_68%,_#020510_100%)] flex flex-col items-center justify-center p-6 cursor-pointer select-none animate-fade-in"
+          className="fixed inset-0 z-50 bg-[radial-gradient(circle_at_center,_#0c2d6b_0%,_#04091a_70%,_#020510_100%)] flex flex-col items-center justify-center p-4 cursor-pointer select-none animate-fade-in"
         >
-          <div className="relative flex flex-col items-center max-w-lg w-full text-center space-y-4">
-            {/* Animated Glowing 3D/SVG Orbital Emblem with Orbiting Spacecraft Ring */}
-            <div className="relative w-36 h-36 sm:w-44 sm:h-44 flex items-center justify-center">
+          <div className="relative flex flex-col items-center max-w-lg w-full text-center space-y-3">
+            <div className="relative w-28 h-28 sm:w-40 sm:h-40 flex items-center justify-center">
               <div className="absolute inset-0 rounded-full bg-cyan-500/20 blur-2xl animate-pulse" />
               <svg viewBox="0 0 200 200" className="w-full h-full overflow-visible">
                 <defs>
@@ -300,82 +379,21 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
                     <stop offset="100%" stopColor="#04091a" stopOpacity="0" />
                   </radialGradient>
                 </defs>
-
-                {/* Central Planet & Shield Halo */}
                 <circle cx="100" cy="100" r="68" fill="url(#splashCoreGlow)" />
-                <circle
-                  cx="100"
-                  cy="100"
-                  r="46"
-                  fill="#071330"
-                  stroke="url(#splashOrbitGrad)"
-                  strokeWidth="3.5"
-                />
-
-                {/* Latitude/Longitude Holographic Globe Grid */}
-                <ellipse
-                  cx="100"
-                  cy="100"
-                  rx="46"
-                  ry="18"
-                  fill="none"
-                  stroke="rgba(56,189,248,0.35)"
-                  strokeWidth="1.5"
-                />
-                <ellipse
-                  cx="100"
-                  cy="100"
-                  rx="18"
-                  ry="46"
-                  fill="none"
-                  stroke="rgba(56,189,248,0.35)"
-                  strokeWidth="1.5"
-                />
-
-                {/* Tilted Outer Orbit Ring */}
+                <circle cx="100" cy="100" r="46" fill="#071330" stroke="url(#splashOrbitGrad)" strokeWidth="3.5" />
+                <ellipse cx="100" cy="100" rx="46" ry="18" fill="none" stroke="rgba(56,189,248,0.35)" strokeWidth="1.5" />
+                <ellipse cx="100" cy="100" rx="18" ry="46" fill="none" stroke="rgba(56,189,248,0.35)" strokeWidth="1.5" />
                 <g transform="rotate(-22 100 100)">
-                  <ellipse
-                    cx="100"
-                    cy="100"
-                    rx="84"
-                    ry="32"
-                    fill="none"
-                    stroke="url(#splashOrbitGrad)"
-                    strokeWidth="3"
-                    strokeDasharray="12 6"
-                  />
+                  <ellipse cx="100" cy="100" rx="84" ry="32" fill="none" stroke="url(#splashOrbitGrad)" strokeWidth="3" strokeDasharray="12 6" />
                 </g>
-
-                {/* Rotating Spacecraft Carrier Ring */}
                 <g className="origin-center animate-spin" style={{ animationDuration: '2.4s' }}>
-                  <circle
-                    cx="100"
-                    cy="100"
-                    r="64"
-                    fill="none"
-                    stroke="rgba(34,211,238,0.45)"
-                    strokeWidth="2"
-                    strokeDasharray="24 14"
-                  />
-                  {/* Orbiting Spacecraft Icon + Thruster Plume at top of ring */}
+                  <circle cx="100" cy="100" r="64" fill="none" stroke="rgba(34,211,238,0.45)" strokeWidth="2" strokeDasharray="24 14" />
                   <g transform="translate(100, 36)">
                     <circle cx="-10" cy="0" r="5" fill="#fbbf24" opacity="0.85" />
-                    <path
-                      d="M 12 0 L -6 -7 L -2 0 L -6 7 Z"
-                      fill="#f8fafc"
-                      stroke="#22d3ee"
-                      strokeWidth="1.5"
-                    />
+                    <path d="M 12 0 L -6 -7 L -2 0 L -6 7 Z" fill="#f8fafc" stroke="#22d3ee" strokeWidth="1.5" />
                   </g>
                 </g>
-
-                {/* Center Stylized Rocket Crest */}
-                <path
-                  d="M100 68 L112 96 L106 112 L94 112 L88 96 Z"
-                  fill="#f8fafc"
-                  stroke="#38bdf8"
-                  strokeWidth="2"
-                />
+                <path d="M100 68 L112 96 L106 112 L94 112 L88 96 Z" fill="#f8fafc" stroke="#38bdf8" strokeWidth="2" />
                 <polygon points="88,98 78,112 90,110" fill="#f59e0b" />
                 <polygon points="112,98 122,112 110,110" fill="#f59e0b" />
                 <circle cx="100" cy="89" r="5" fill="#22d3ee" />
@@ -383,38 +401,31 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
               </svg>
             </div>
 
-            {/* Brand Title */}
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <div className="font-hud font-black text-3xl sm:text-5xl tracking-[0.22em] text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-white to-amber-300 drop-shadow-[0_0_24px_rgba(34,211,238,0.65)]">
                 ASTRONUTRI
               </div>
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-400/15 border border-amber-300/70 text-amber-200 font-hud font-black text-[10px] sm:text-xs tracking-wider uppercase shadow-lg">
+              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-400/15 border border-amber-300/70 text-amber-200 font-hud font-black text-[10px] sm:text-xs tracking-wider uppercase shadow-lg">
                 <span>🏆</span>
                 <span>
                   {tr(
                     language,
-                    'JUNIOR ASTRONAUT MISSION TRAINER — NASA SPACE APPS GLOBAL NOMINEE',
-                    'مدرب رواد الفضاء الصغار — المرشح العالمي لتحدي ناسا لتطبيقات الفضاء'
+                    'JUNIOR ASTRONAUT MISSION TRAINER — NASA SPACE APPS',
+                    'مدرب رواد الفضاء الصغار — تحدي ناسا لتطبيقات الفضاء'
                   )}
                 </span>
               </div>
             </div>
 
-            {/* Sleek 1.5s Loading Pulse Bar */}
-            <div className="w-64 sm:w-80 space-y-1.5 pt-1">
-              <div className="h-2.5 w-full rounded-full bg-slate-900/90 border border-cyan-400/50 p-0.5 overflow-hidden shadow-[0_0_18px_rgba(34,211,238,0.35)]">
+            <div className="w-60 sm:w-76 space-y-1 pt-1">
+              <div className="h-2 w-full rounded-full bg-slate-900/90 border border-cyan-400/50 p-0.5 overflow-hidden">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-sky-300 to-amber-400 transition-all ease-out"
-                  style={{
-                    width: `${splashProgress}%`,
-                    transitionDuration: '1450ms'
-                  }}
+                  style={{ width: `${splashProgress}%`, transitionDuration: '1400ms' }}
                 />
               </div>
               <div className="flex items-center justify-between text-[10px] font-mono text-cyan-200/80 px-1">
-                <span>
-                  {tr(language, 'INITIALIZING 3D ORBITAL DECK...', 'جاري تشغيل المنصة المدارية ثلاثية الأبعاد...')}
-                </span>
+                <span>{tr(language, 'LOADING SUNLIT SPACEPORT...', 'جاري تجهيز مركز الفضاء...')}</span>
                 <span>{tr(language, 'TAP TO SKIP ⚡', 'اضغط للتخطي ⚡')}</span>
               </div>
             </div>
@@ -422,37 +433,54 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
         </div>
       )}
 
-      {/* Live 5-Second In-Engine 3D Orbital Cutscene Backdrop */}
+      {/* Live 3D Sunlit Launchpad Hero Stage Canvas */}
       <div
         ref={canvasHostRef}
         data-testid="intro-3d-cutscene-canvas"
         className="fixed inset-0 w-full h-full z-0 pointer-events-none"
       />
-      <div className="fixed inset-0 bg-gradient-to-t from-[#030712]/90 via-transparent to-[#030712]/70 pointer-events-none z-0" />
+      <div className="fixed inset-0 bg-gradient-to-r from-slate-950/35 via-transparent to-slate-950/55 pointer-events-none z-0" />
 
-      {/* Top Bar: AstroNutri Brand + Prominent EN / AR Language Toggle + Voice Button */}
-      <div className="relative z-10 w-full max-w-5xl mx-auto px-3 pt-3 sm:px-6 sm:pt-5 flex flex-wrap items-center justify-between gap-2">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-950/80 border-2 border-cyan-300/80 backdrop-blur-md shadow-lg">
-          <Sparkles className="w-4 h-4 text-yellow-300" />
-          <span className="font-hud font-black text-xs sm:text-base text-white tracking-wide">
-            {tr(language, 'AstroNutri • NASA Space Apps Edition', 'أسترونوتري • تحدي ناسا لتطبيقات الفضاء')}
-          </span>
+      {/* Top Row: Stylized ASTRONUTRI Hero Emblem (Left) + Voice & EN/AR Toggle Pill (Right) */}
+      <header className="relative z-10 w-full max-w-6xl mx-auto flex items-center justify-between gap-2 shrink-0">
+        {/* Stylized ASTRONUTRI Logo Badge */}
+        <div className="flex items-center gap-2.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-2xl bg-slate-950/82 border-2 border-cyan-300/85 backdrop-blur-md shadow-[0_8px_28px_rgba(2,6,23,0.55)]">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-cyan-400 via-sky-500 to-indigo-600 p-0.5 shadow-md flex items-center justify-center shrink-0">
+            <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-hud font-black text-base sm:text-2xl tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 via-white to-amber-300">
+                ASTRONUTRI
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-hud font-black text-[9px] sm:text-[10px] uppercase shadow">
+                NASA 3D
+              </span>
+            </div>
+            <p className="text-[10px] sm:text-xs font-hud font-bold text-cyan-200 leading-tight">
+              {tr(
+                language,
+                'Earth-to-Mars Space Nutrition & Rover Adventure',
+                'مغامرة التغذية ومركبات الفضاء من الأرض للمريخ'
+              )}
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Top-Right Voice & Clean EN | عربي Toggle Pill */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={handleHearCutsceneVoice}
-            className="px-3 py-1.5 rounded-full bg-slate-950/80 hover:bg-slate-800 border-2 border-amber-300/70 text-amber-200 font-hud font-black text-xs flex items-center gap-1.5 cursor-pointer backdrop-blur-md"
+            className="h-9 px-2.5 sm:px-3 rounded-full bg-slate-950/82 hover:bg-slate-900 border-2 border-amber-300/80 text-amber-200 font-hud font-black text-xs flex items-center gap-1.5 cursor-pointer backdrop-blur-md shadow-lg"
           >
             <Volume2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">{tr(language, 'Voice Intro', 'اسمع الترحيب')}</span>
+            <span className="hidden sm:inline">{tr(language, 'Voice', 'ترحيب صوتي')}</span>
           </button>
 
-          {/* First-Screen EN / AR Language Selector */}
           <div
             data-testid="intro-language-toggle"
-            className="inline-flex items-center gap-1 p-1 rounded-full bg-slate-950/85 border-2 border-cyan-400/80 backdrop-blur-md shadow-lg"
+            className="h-9 inline-flex items-center gap-1 p-1 rounded-full bg-slate-950/85 border-2 border-cyan-300/85 backdrop-blur-md shadow-lg"
           >
             <Globe className="w-3.5 h-3.5 text-cyan-300 mx-1" />
             <button
@@ -462,11 +490,11 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
                 soundManager.playClick();
                 setLanguage('en');
               }}
-              className={`px-3 py-1 rounded-full text-xs font-hud font-black transition-all cursor-pointer ${
+              className={`px-2.5 py-0.5 rounded-full text-xs font-hud font-black transition-all cursor-pointer ${
                 language === 'en' ? 'bg-cyan-400 text-slate-950 shadow' : 'text-slate-200 hover:text-white'
               }`}
             >
-              {tr(language, 'EN', 'الإنجليزية')}
+              EN
             </button>
             <button
               type="button"
@@ -475,88 +503,73 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
                 soundManager.playClick();
                 setLanguage('ar');
               }}
-              className={`px-3 py-1 rounded-full text-xs font-hud font-black transition-all cursor-pointer ${
+              className={`px-2.5 py-0.5 rounded-full text-xs font-hud font-black transition-all cursor-pointer ${
                 language === 'ar' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-200 hover:text-white'
               }`}
             >
-              {tr(language, 'Arabic', 'العربية')}
+              {tr(language, 'AR', 'عربي')}
             </button>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Animated 5-Second 3D Cutscene Subtitle Bubble */}
-      <div className="relative z-10 w-full max-w-2xl mx-auto px-4 mt-2 flex flex-col items-center gap-2 pointer-events-none">
-        <div
-          data-testid="intro-cutscene-subtitle"
-          className="px-4 py-2.5 rounded-2xl bg-slate-950/80 border-2 border-cyan-300/85 backdrop-blur-md text-center shadow-2xl"
-        >
-          <p className="font-hud font-black text-xs sm:text-sm text-white leading-relaxed">
-            {tr(language, currentBeat.en, currentBeat.ar)}
-          </p>
-          <div className="mt-1.5 flex items-center justify-center gap-2 text-[10px] font-mono text-cyan-300">
-            <span>{tr(language, '3D FLY-IN CUTSCENE', 'مشهد طيران ثلاثي الأبعاد')}</span>
-            <div className="w-24 h-1.5 rounded-full bg-slate-800 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-cyan-400 to-amber-400 transition-all duration-150"
-                style={{ width: `${Math.min(100, (cutsceneElapsed / 5) * 100)}%` }}
-              />
-            </div>
-            <span>{Math.min(5, Math.round(cutsceneElapsed))}/5s</span>
+      {/* Main Landscape Content: Left 3D Hero Stage Subtitle Pill + Right Compact Translucent Glass Launch Dock */}
+      <div className="relative z-10 w-full max-w-6xl mx-auto flex-1 min-h-0 flex flex-col sm:flex-row items-center sm:items-end justify-end sm:justify-between gap-2.5 pb-1 sm:pb-3">
+        {/* Bottom-Left Speech Bubble under the 3D Astronaut & Robo */}
+        <div className="hidden sm:flex flex-col items-start gap-1.5 max-w-md pointer-events-none">
+          <div
+            data-testid="intro-cutscene-subtitle"
+            className="px-4 py-2.5 rounded-2xl bg-slate-950/82 border-2 border-cyan-300/85 backdrop-blur-md shadow-2xl"
+          >
+            <p className="font-hud font-black text-xs sm:text-sm text-white leading-snug">
+              {tr(language, currentBeat.en, currentBeat.ar)}
+            </p>
           </div>
         </div>
-      </div>
 
-      {/* Bottom Compact Onboarding Setup & Instant Start CTA (Leaves center 3D Astronaut clearly visible!) */}
-      <div className="relative z-10 w-full max-w-xl mx-auto px-3 pb-4 sm:pb-6 mt-auto">
-        <div className="rounded-3xl bg-slate-950/88 border-2 border-cyan-400/80 backdrop-blur-md p-4 sm:p-5 shadow-[0_14px_45px_rgba(6,182,212,0.45)] space-y-3.5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <h1 className="font-hud font-black text-base sm:text-xl text-white">
-                {tr(language, 'Cadet Mission Profile', 'ملف رائد الفضاء الصغير')}
-              </h1>
-              <p className="font-hud text-[11px] sm:text-xs text-cyan-200 font-bold">
-                {tr(
-                  language,
-                  'Adapts mission hints & NASA briefings to your explorer level',
-                  'تُخصّص تلميحات ناسا وشرح روبو حسب اسمك وفئتك العمرية'
-                )}
-              </p>
-            </div>
-            <span className="self-start sm:self-auto px-2.5 py-1 rounded-full bg-emerald-950/90 border border-emerald-400/70 text-[10px] font-hud font-black text-emerald-200 whitespace-nowrap">
-              {tr(language, '4 Space Nodes • 14 Stations', '4 مراحل فضائية • 14 محطة')}
-            </span>
-          </div>
+        {/* Sleek Translucent Glass Dock: Glowing PLAY ADVENTURE CTA + Compact Cadet Name & 3-Pill Age Selector */}
+        <div className="w-full max-w-[360px] sm:max-w-[380px] rounded-3xl bg-slate-950/85 border-2 border-cyan-300/85 backdrop-blur-xl p-3 sm:p-4 shadow-[0_16px_48px_rgba(2,6,23,0.75)] space-y-2.5 shrink-0">
+          {/* Primary Unmistakable Glowing PLAY ADVENTURE CTA at Top of Dock */}
+          <button
+            type="button"
+            data-testid="start-adventure-btn"
+            onClick={handleInstantStart}
+            className="w-full btn-chunky-adventure py-3 sm:py-3.5 px-5 text-base sm:text-xl flex items-center justify-center gap-2 shadow-[0_10px_28px_rgba(255,159,28,0.65)] cursor-pointer touch-manipulation active:scale-95 transition-transform"
+          >
+            <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-slate-950" />
+            <span>{tr(language, 'PLAY ADVENTURE', 'ابدأ المغامرة')}</span>
+            <span>🚀</span>
+          </button>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Cadet Name */}
-            <label className="block space-y-1">
-              <span className="text-[11px] font-hud font-black text-slate-300 flex items-center gap-1">
-                <User className="w-3.5 h-3.5 text-cyan-300" />
-                <span>{tr(language, 'Cadet Name', 'الاسم')}</span>
+          {/* Compact Single-Row Cadet Name + 3-Pill Age Selector */}
+          <div className="grid grid-cols-12 gap-2 items-end pt-0.5">
+            <label className="col-span-6 block space-y-1">
+              <span className="text-[10px] font-hud font-black text-cyan-200 flex items-center gap-1">
+                <User className="w-3 h-3 text-cyan-300" />
+                <span>{tr(language, 'Cadet Name', 'اسم البطل')}</span>
               </span>
               <input
                 type="text"
                 data-testid="onboarding-name-input"
-                maxLength={20}
+                maxLength={18}
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
-                placeholder={tr(language, 'Enter your name...', 'اكتب اسمك هنا...')}
-                className="w-full px-3 py-2 rounded-xl bg-slate-900 border-2 border-slate-700 focus:border-cyan-400 text-white text-xs sm:text-sm font-hud font-bold outline-none"
+                placeholder={tr(language, 'Explorer...', 'اسمك...')}
+                className="w-full h-8 px-2.5 rounded-xl bg-slate-900/95 border border-cyan-400/50 focus:border-amber-300 text-white text-xs font-hud font-bold outline-none"
               />
             </label>
 
-            {/* Age Group */}
-            <div className="space-y-1">
-              <span className="text-[11px] font-hud font-black text-slate-300 block">
-                {tr(language, 'Age Group (Hint Simplicity)', 'الفئة العمرية')}
+            <div className="col-span-6 space-y-1">
+              <span className="text-[10px] font-hud font-black text-cyan-200 flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-amber-300" />
+                <span>{tr(language, 'Age Group', 'العمر')}</span>
               </span>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-3 gap-1">
                 {(
                   [
-                    { id: '7-10', label: '7-10 🌱' },
-                    { id: '11-14', label: '11-14 🚀' },
-                    { id: '15+', label: '15+ 🛰️' }
+                    { id: '7-10', label: '7-10' },
+                    { id: '11-14', label: '11-14' },
+                    { id: '15+', label: '15+' }
                   ] as Array<{ id: CadetAgeGroup; label: string }>
                 ).map((grp) => (
                   <button
@@ -567,10 +580,10 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
                       soundManager.playClick();
                       setAgeGroup(grp.id);
                     }}
-                    className={`py-2 px-1.5 rounded-xl text-[11px] sm:text-xs font-hud font-black border-2 transition-all cursor-pointer ${
+                    className={`h-8 rounded-xl text-[10px] sm:text-[11px] font-hud font-black border transition-all cursor-pointer ${
                       ageGroup === grp.id
                         ? 'bg-emerald-400 text-slate-950 border-white shadow'
-                        : 'bg-slate-900 text-slate-200 border-slate-700 hover:border-cyan-400'
+                        : 'bg-slate-900/90 text-slate-200 border-slate-700 hover:border-cyan-400'
                     }`}
                   >
                     {grp.label}
@@ -578,25 +591,6 @@ export const IntroVideoPlayer: React.FC<IntroVideoPlayerProps> = ({ onComplete }
                 ))}
               </div>
             </div>
-          </div>
-
-          <button
-            type="button"
-            data-testid="start-adventure-btn"
-            onClick={handleInstantStart}
-            className="w-full btn-chunky-adventure py-3.5 px-6 text-lg sm:text-xl flex items-center justify-center gap-2.5 shadow-[0_10px_28px_rgba(255,159,28,0.65)] cursor-pointer touch-manipulation active:scale-95 transition-transform"
-          >
-            <Rocket className="w-6 h-6" />
-            <span>{tr(language, 'Start Adventure', 'ابدأ المغامرة')}</span>
-            <span>🚀</span>
-          </button>
-
-          <div className="sm:hidden text-center text-[10px] font-hud font-bold text-cyan-200/85 pt-0.5">
-            {tr(
-              language,
-              '📱 Tip: Rotate to Landscape for best 3D play • Left thumb moves • Right thumb turns camera',
-              '📱 نصيحة: لف الموبايل بالعرض لأفضل تجربة 3D • اليسار للحركة • اليمين للكاميرا'
-            )}
           </div>
         </div>
       </div>

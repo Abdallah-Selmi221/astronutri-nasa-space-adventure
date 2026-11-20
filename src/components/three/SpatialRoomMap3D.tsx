@@ -435,23 +435,39 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
 
     const scene = new THREE.Scene();
     let isSceneDisposed = false;
+    const activePadForSpawn =
+      levelId === 1
+        ? EARTH_L1_PADS.find((p) => p.id === (seqTarget.activeRoom?.id ?? 'food_storage'))
+        : levelId === 3
+        ? MOON_L3_PADS.find((p) => p.id === (seqTarget.activeRoom?.id ?? 'water_recycling_room'))
+        : levelId === 4
+        ? MARS_L4_PADS.find((p) => p.id === (seqTarget.activeRoom?.id ?? 'cargo_sample_storage'))
+        : null;
+    const initActiveFacingYaw = activePadForSpawn
+      ? Math.atan2(
+          activePadForSpawn.x - playerPosRef.current.x,
+          activePadForSpawn.z - playerPosRef.current.z
+        )
+      : Math.PI;
+    const initBehindCameraYaw = initActiveFacingYaw + Math.PI;
+
     const camera = new THREE.PerspectiveCamera(58, dims.w / dims.h, 0.1, levelId === 1 ? 420 : 360);
     camera.position.set(
-      playerPosRef.current.x,
+      playerPosRef.current.x + Math.sin(initBehindCameraYaw) * 6.8,
       playerPosRef.current.y + 2.8,
-      playerPosRef.current.z + 7.5
+      playerPosRef.current.z + Math.cos(initBehindCameraYaw) * 6.8
     );
     cameraOrbitPitchRef.current = levelId === 1 ? 0.24 : 0.22;
-    cameraOrbitYawRef.current = 0;
+    cameraOrbitYawRef.current = initBehindCameraYaw;
     targetCameraPitchRef.current = levelId === 1 ? 0.16 : 0.15;
-    targetCameraYawRef.current = 0;
+    targetCameraYawRef.current = initBehindCameraYaw;
     const deckPitchIn = gsap.to(targetCameraPitchRef, {
       current: levelId === 1 ? 0.15 : 0.14,
       duration: 0.65,
       ease: 'power2.out'
     });
     const deckYawIn = gsap.to(targetCameraYawRef, {
-      current: 0,
+      current: initBehindCameraYaw,
       duration: 0.65,
       ease: 'power2.out'
     });
@@ -849,7 +865,14 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           completed
         );
         sprite.position.set(0, bSpec.labelY, 0);
-        sprite.scale.set(7.6, 1.9, 1);
+        if (locked) {
+          sprite.material.opacity = 0.45;
+          sprite.scale.set(6.0, 1.5, 1);
+        } else if (isActive) {
+          sprite.scale.set(8.2, 2.05, 1);
+        } else {
+          sprite.scale.set(7.2, 1.8, 1);
+        }
         stationRoot.add(sprite);
         disposableTextures.push(texture);
 
@@ -927,7 +950,14 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
           completed
         );
         sprite.position.set(0, labelY, 0);
-        sprite.scale.set(7.4, 1.85, 1);
+        if (locked) {
+          sprite.material.opacity = 0.45;
+          sprite.scale.set(5.8, 1.45, 1);
+        } else if (isActive) {
+          sprite.scale.set(8.0, 2.0, 1);
+        } else {
+          sprite.scale.set(7.0, 1.75, 1);
+        }
         stationRoot.add(sprite);
         disposableTextures.push(texture);
 
@@ -1112,7 +1142,7 @@ export const SpatialRoomMap3D: React.FC<SpatialRoomMap3DProps> = ({
       }
     });
     hero.group.position.copy(playerPosRef.current);
-    hero.group.rotation.y = Math.PI;
+    hero.group.rotation.y = initActiveFacingYaw;
     scene.add(hero.group);
 
     // Keyboard & Pointer Controls
